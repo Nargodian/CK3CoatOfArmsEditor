@@ -5,6 +5,8 @@ out vec4 FragColor;
 
 uniform sampler2D textureSampler;
 uniform sampler2D coaMaskSampler;
+uniform sampler2D materialMaskSampler;
+uniform sampler2D noiseSampler;
 
 uniform vec3 primaryColor;
 uniform vec3 secondaryColor;
@@ -43,6 +45,14 @@ void main()
 	vec4 maskSample = texture(coaMaskSampler,maskCoord);
 	// Use max of RGB channels or alpha, whichever has data
 	float coaMaskValue = max(max(maskSample.r, maskSample.g), max(maskSample.b, maskSample.a));
+	
+	// Apply material mask using screen-space coordinates (red channel = dirt map)
+	vec4 materialMask = texture(materialMaskSampler, maskCoord);
+	outputColour = mix(outputColour, outputColour * materialMask.b, 0.5);
+	
+	// Apply noise grain for texture
+	float noise = texture(noiseSampler, maskCoord).r;
+	outputColour = mix(outputColour, outputColour * noise, 0.2);
 	
 	FragColor=vec4(outputColour,textureMask.a*coaMaskValue);
 }

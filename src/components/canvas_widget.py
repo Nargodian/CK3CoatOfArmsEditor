@@ -28,6 +28,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.frame_masks = {}  # Frame name -> mask texture ID
 		self.mask_texture = None  # Current mask texture (changes with frame)
 		self.default_mask_texture = None  # Default white mask (fallback)
+		self.material_mask_texture = None  # CK3 material texture (dirt/fabric/paint)
+		self.noise_texture = None  # Noise texture for grain effect
 		self.current_frame_name = "dynasty"  # Track current frame name
 		self.prestige_level = 0  # Current prestige level (0-5)
 	
@@ -147,6 +149,12 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# Load mask texture
 		self._load_mask_texture()
 		
+		# Load material mask texture (CK3 coa_mask_texture)
+		self._load_material_mask_texture()
+		
+		# Load noise texture for grain effect
+		self._load_noise_texture()
+		
 		# Set defaults after initialization
 		self.set_frame("dynasty")
 		self.set_prestige(3)
@@ -179,6 +187,20 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					gl.glBindTexture(gl.GL_TEXTURE_2D, self.mask_texture)
 					if self.base_shader.uniformLocation("coaMaskSampler") != -1:
 						self.base_shader.setUniformValue("coaMaskSampler", 1)
+				
+				# Bind material mask texture
+				if self.material_mask_texture:
+					gl.glActiveTexture(gl.GL_TEXTURE2)
+					gl.glBindTexture(gl.GL_TEXTURE_2D, self.material_mask_texture)
+					if self.base_shader.uniformLocation("materialMaskSampler") != -1:
+						self.base_shader.setUniformValue("materialMaskSampler", 2)
+				
+				# Bind noise texture
+				if self.noise_texture:
+					gl.glActiveTexture(gl.GL_TEXTURE3)
+					gl.glBindTexture(gl.GL_TEXTURE_2D, self.noise_texture)
+					if self.base_shader.uniformLocation("noiseSampler") != -1:
+						self.base_shader.setUniformValue("noiseSampler", 3)
 				
 				# Set viewport size for mask coordinate calculation
 				self.base_shader.setUniformValue("viewportSize", float(self.width()), float(self.height()))
@@ -227,6 +249,20 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 						gl.glBindTexture(gl.GL_TEXTURE_2D, self.mask_texture)
 						if self.design_shader.uniformLocation("coaMaskSampler") != -1:
 							self.design_shader.setUniformValue("coaMaskSampler", 1)
+					
+					# Bind material mask texture
+					if self.material_mask_texture:
+						gl.glActiveTexture(gl.GL_TEXTURE2)
+						gl.glBindTexture(gl.GL_TEXTURE_2D, self.material_mask_texture)
+						if self.design_shader.uniformLocation("materialMaskSampler") != -1:
+							self.design_shader.setUniformValue("materialMaskSampler", 2)
+					
+					# Bind noise texture
+					if self.noise_texture:
+						gl.glActiveTexture(gl.GL_TEXTURE3)
+						gl.glBindTexture(gl.GL_TEXTURE_2D, self.noise_texture)
+						if self.design_shader.uniformLocation("noiseSampler") != -1:
+							self.design_shader.setUniformValue("noiseSampler", 3)
 					
 					# Set viewport size for mask coordinate calculation
 					self.design_shader.setUniformValue("viewportSize", float(self.width()), float(self.height()))
@@ -566,8 +602,100 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			import traceback
 			traceback.print_exc()
 	
+	def _load_material_mask_texture(self):
+		"""Load CK3 material mask texture (coa_mask_texture.png) for dirt/fabric/paint effects"""
+		try:
+			# Load from source_coa_files directory
+			base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+			material_mask_path = os.path.join(base_dir, 'source_coa_files', 'coa_mask_texture.png')
+			
+			if os.path.exists(material_mask_path):
+				img = Image.open(material_mask_path).convert('RGBA')
+				# Resize to 128x128 to reduce compression artifacts
+				img = img.resize((128, 128), Image.Resampling.LANCZOS)
+				img_data = np.array(img)
+				
+				self.material_mask_texture = gl.glGenTextures(1)
+				gl.glBindTexture(gl.GL_TEXTURE_2D, self.material_mask_texture)
+				
+				# Use REPEAT to tile the texture
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_REPEAT)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_REPEAT)
+				# Use trilinear filtering with mipmaps for smooth sampling
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR_MIPMAP_LINEAR)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+				
+				gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, img.width, img.height,
+				               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data.tobytes())
+				gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
+				
+				print(f"Loaded material mask texture: {img.width}x{img.height} (resized from 256x256)")
+			else:
+				print(f"Warning: Material mask not found at {material_mask_path}")
+				# Create a white fallback texture
+				size = 256
+				mask_data = np.full((size, size, 4), 255, dtype=np.uint8)
+				
+				self.material_mask_texture = gl.glGenTextures(1)
+				gl.glBindTexture(gl.GL_TEXTURE_2D, self.material_mask_texture)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_REPEAT)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_REPEAT)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+				gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, size, size,
+				               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, mask_data.tobytes())
+				
+		except Exception as e:
+			print(f"Error loading material mask texture: {e}")
+			import traceback
+			traceback.print_exc()
+	
+	def _load_noise_texture(self):
+		"""Load noise texture for grain effect"""
+		try:
+			# Load from source_coa_files directory
+			base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+			noise_path = os.path.join(base_dir, 'source_coa_files', 'noise.png')
+			
+			if os.path.exists(noise_path):
+				img = Image.open(noise_path).convert('RGBA')
+				img_data = np.array(img)
+				
+				self.noise_texture = gl.glGenTextures(1)
+				gl.glBindTexture(gl.GL_TEXTURE_2D, self.noise_texture)
+				
+				# Use REPEAT to tile the texture
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_REPEAT)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_REPEAT)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+				
+				gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, img.width, img.height,
+				               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data.tobytes())
+				
+				print(f"Loaded noise texture: {img.width}x{img.height}")
+			else:
+				print(f"Warning: Noise texture not found at {noise_path}")
+				# Create a white fallback (no grain effect)
+				size = 64
+				noise_data = np.full((size, size, 4), 255, dtype=np.uint8)
+				
+				self.noise_texture = gl.glGenTextures(1)
+				gl.glBindTexture(gl.GL_TEXTURE_2D, self.noise_texture)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_REPEAT)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_REPEAT)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+				gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, size, size,
+				               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, noise_data.tobytes())
+				
+		except Exception as e:
+			print(f"Error loading noise texture: {e}")
+			import traceback
+			traceback.print_exc()
+	
 	def set_frame(self, frame_name):
-		"""Set the current frame by name"""
+		"""Set the frame by name and update mask accordingly"""
 		if frame_name in self.frame_textures:
 			self.frame_texture = self.frame_textures[frame_name]
 			self.current_frame_name = frame_name
