@@ -1,0 +1,12 @@
+coa_rd_dynasty_3958950835={
+	custom=yes
+	pattern="pattern_solid.dds"
+	color1=red
+	color2=yellow
+	color3=green
+	colored_emblem={
+		color1=yellow
+		texture="ce_border_shield_compony_invert.dds"
+	}
+
+}

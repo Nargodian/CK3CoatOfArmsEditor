@@ -1,0 +1,15 @@
+coa_rd_dynasty_3958950835={
+	pattern="pattern_solid.dds"
+	color1=red
+	color2=yellow
+	color3=blue
+	colored_emblem={
+		color1=yellow
+		texture="ce_moors_head_02.dds"
+		instance={
+			scale={ -0.700000 -0.700000 }
+		}
+
+	}
+
+}

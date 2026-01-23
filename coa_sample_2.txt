@@ -1,0 +1,128 @@
+coa_dynasty_27952={
+	custom=yes
+	pattern="pattern__solid_designer.dds"
+	color1=black
+	color2=white
+	color3=blue
+	colored_emblem={
+		color1=white
+		texture="ce_kamon_sorrel.dds"
+		instance={
+			position={ 0.760000 0.000000 }
+			scale={ 0.390000 0.390000 }
+			depth=4.010000
+		}
+
+		instance={
+			position={ 0.460000 0.970000 }
+			scale={ 0.710000 1.000000 }
+			depth=5.010000
+			rotation=123
+		}
+
+	}
+
+	colored_emblem={
+		color1=white
+		texture="ce_gankyil_chakra.dds"
+		instance={
+			position={ 0.500000 0.760000 }
+			scale={ 0.960000 -0.600000 }
+			depth=10.010000
+			rotation=108
+		}
+
+	}
+
+	colored_emblem={
+		color1=white
+		texture="ce_bull_horn.dds"
+		instance={
+			position={ 0.070000 0.070000 }
+			scale={ 1.000000 -1.000000 }
+			depth=11.010000
+			rotation=201
+		}
+
+	}
+
+	colored_emblem={
+		color1=white
+		texture="ce_kamon_triangle.dds"
+		instance={
+			position={ 0.930000 0.540000 }
+			depth=6.010000
+		}
+
+		instance={
+			position={ 0.780000 0.810000 }
+			depth=7.010000
+		}
+
+		instance={
+			position={ 0.170000 0.810000 }
+			depth=8.010000
+		}
+
+		instance={
+			position={ 0.000000 0.500000 }
+			depth=9.010000
+		}
+
+	}
+
+	colored_emblem={
+		color1=black
+		texture="ce_block_01.dds"
+		instance={
+			position={ 0.950000 0.710000 }
+			depth=2.010000
+			rotation=119
+		}
+
+		instance={
+			position={ 0.040000 0.700000 }
+			depth=3.010000
+			rotation=59
+		}
+
+	}
+
+	colored_emblem={
+		color1=white
+		texture="ce_norse_mjolnir_kobelev.dds"
+		instance={
+			position={ 0.980000 0.100000 }
+			depth=13.010000
+		}
+
+	}
+
+	colored_emblem={
+		color1=white
+		texture="ce_block_01.dds"
+		instance={
+			position={ 0.040000 0.890000 }
+			rotation=57
+		}
+
+		instance={
+			position={ 1.000000 0.830000 }
+			depth=1.010000
+			rotation=119
+		}
+
+	}
+
+	colored_emblem={
+		color1=white
+		texture="ce_kamon_circle.dds"
+		instance={
+			position={ 0.500000 0.250000 }
+			scale={ 0.760000 0.450000 }
+			depth=12.010000
+		}
+
+	}
+
+}

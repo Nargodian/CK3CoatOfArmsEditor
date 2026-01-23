@@ -1,0 +1,392 @@
+CRUSADER KINGS 3 - COAT OF ARMS FORMAT SPECIFICS
+======================================================================
+
+DOCUMENT PURPOSE: Technical specification for CK3 coat of arms data structure
+BASED ON: ck3_format_specs.txt, coa_sample_1.txt, coa_sample_2.txt
+DATE: 2026-01-22
+
+======================================================================
+OVERVIEW
+======================================================================
+
+Coat of Arms (CoA) entries in CK3 are structured blocks that define visual
+heraldry for dynasties, titles, and other entities. They follow the general
+CK3 block format rules but have specific fields and nested structures.
+
+======================================================================
+ROOT STRUCTURE
+======================================================================
+
+Pattern: coa_<type>_<id>={ ... }
+
+Examples:
+  - coa_dynasty_28014={...}
+  - coa_dynasty_27952={...}
+  
+The root key identifies:
+  - Type: dynasty, title, house, etc.
+  - ID: Numeric identifier for the entity
+
+======================================================================
+REQUIRED FIELDS
+======================================================================
+
+1. custom=yes
+   - SIMPLE value (no quotes)
+   - Indicates this is a custom-designed coat of arms
+   - Always present in custom CoAs
+
+2. pattern="<filename>"
+   - STRING value (quoted)
+   - References texture file for background pattern
+   - Examples: "pattern_triangle_01.dds", "pattern__solid_designer.dds"
+   - File extension: .dds (DirectDraw Surface texture format)
+
+3. color1=<color>
+   - SIMPLE value (no quotes)
+   - Primary color for pattern/background
+   - Values: Named colors (white, black, blue, red, etc.)
+   - Used in pattern rendering
+
+4. color2=<color>
+   - SIMPLE value (no quotes)
+   - Secondary color for pattern
+   - Same format as color1
+
+5. color3=<color>
+   - SIMPLE value (no quotes)
+   - Tertiary color for pattern
+   - Same format as color1
+
+======================================================================
+COLORED_EMBLEM BLOCKS (CRITICAL STRUCTURE)
+======================================================================
+
+Syntax: colored_emblem={ ... }
+
+- Multiple colored_emblem blocks can exist in one CoA
+- Each block is ANONYMOUS (no unique key)
+- Order is preserved and matters for layering
+- Each emblem can have multiple instances
+
+Structure:
+  colored_emblem={
+      color1=<color>
+      texture="<filename>"
+      instance={ ... }
+      instance={ ... }
+      ...
+  }
+
+Fields:
+  - color1: SIMPLE value, color name (white, black, blue, etc.)
+  - texture: STRING value, .dds texture filename
+  - instance: Nested BLOCK(S) defining placement (see below)
+
+Examples of texture names:
+  - "ce_mena_bend.dds"
+  - "ce_tamgha_turkic_09.dds"
+  - "ce_kamon_sorrel.dds"
+  - "ce_gankyil_chakra.dds"
+  - "ce_norse_mjolnir_kobelev.dds"
+  - "ce_block_01.dds"
+
+======================================================================
+INSTANCE BLOCKS (EMBLEM PLACEMENT)
+======================================================================
+
+Syntax: instance={ ... }
+
+- Defines position, scale, rotation, and depth for emblem rendering
+- Multiple instances = same emblem rendered multiple times
+- Each instance is ANONYMOUS (no key)
+- Order preserved for rendering sequence
+
+Structure:
+  instance={
+      position={ <x> <y> }
+      scale={ <x_scale> <y_scale> }
+      depth=<value>
+      rotation=<degrees>
+  }
+
+Fields (ALL OPTIONAL):
+
+1. position={ <x> <y> }
+   - ARRAY of two SIMPLE decimal values
+   - Coordinates in normalized space (0.0 to 1.0)
+   - SPACE-SEPARATED (critical!)
+   - Examples: { 0.970000 0.560000 }, { 0.500000 0.250000 }
+   - Default: { 0.500000 0.500000 } (center) if omitted
+
+2. scale={ <x> <y> }
+   - ARRAY of two SIMPLE decimal values
+   - Horizontal and vertical scaling factors
+   - Can be negative (flips emblem)
+   - Examples: { 0.390000 0.390000 }, { 1.000000 -1.000000 }
+   - Default: { 1.000000 1.000000 } if omitted
+
+3. depth=<value>
+   - SIMPLE decimal value
+   - Controls layering (higher = in front)
+   - Examples: 1.010000, 4.010000, 13.010000
+   - Typical range: 0.010000 to 20.010000
+   - Default: 0.000000 if omitted
+
+4. rotation=<degrees>
+   - SIMPLE integer value
+   - Rotation in degrees (0-359)
+   - Examples: 70, 123, 201
+   - Default: 0 if omitted
+
+======================================================================
+DECIMAL VALUE FORMAT (CRITICAL!)
+======================================================================
+
+*** NO TRAILING ZEROS ALLOWED ***
+
+CORRECT:
+  - position={ 0.970000 0.560000 }  ← Six decimal places is common
+  - depth=1.010000
+  - scale={ 0.39 0.39 }             ← Variable precision OK
+  - position={ 0.5 0.25 }
+
+INCORRECT:
+  - position={ 0.97 0.56 }          ← OK actually, variable precision allowed
+  - depth=1.01                      ← OK, trailing zeros not required
+  
+Best Practice: Use 6 decimal places for consistency (0.970000)
+Critical Rule: No trailing zeros that create parsing issues
+Game Requirement: Parser must handle variable decimal precision
+
+======================================================================
+ORDERING AND LAYERING
+======================================================================
+
+1. COLORED_EMBLEM ORDER:
+   - Emblems are processed in order of appearance
+   - First emblem = bottom layer (if depths equal)
+   - Last emblem = top layer (if depths equal)
+
+2. INSTANCE ORDER WITHIN EMBLEM:
+   - Multiple instances render in order
+   - First instance = rendered first
+   - Order matters when depths are similar
+
+3. DEPTH OVERRIDE:
+   - depth field overrides ordering
+   - Higher depth = renders on top
+   - Common pattern: depth=1.010000, 2.010000, 3.010000, etc.
+   - Increments of 1.0 with .010000 precision typical
+
+Example Layering:
+  colored_emblem={          ← Rendered first (background)
+      ...
+      instance={ depth=1.010000 }
+      instance={ depth=2.010000 }
+  }
+  colored_emblem={          ← Rendered second (middle)
+      ...
+      instance={ depth=3.010000 }
+  }
+  colored_emblem={          ← Rendered third (foreground)
+      ...
+      instance={ depth=4.010000 }
+  }
+
+======================================================================
+COMPLETE EXAMPLE BREAKDOWN
+======================================================================
+
+coa_dynasty_28014={
+    custom=yes                                    ← Custom flag
+    pattern="pattern_triangle_01.dds"            ← Background pattern
+    color1=white                                  ← Pattern colors
+    color2=black
+    color3=blue
+    
+    colored_emblem={                              ← First emblem
+        color1=white                              ← Emblem color
+        texture="ce_mena_bend.dds"               ← Emblem image
+        instance={                                ← First placement
+            position={ 0.970000 0.560000 }       ← Near top-right
+            rotation=70                           ← Rotated 70°
+        }
+        instance={                                ← Second placement
+            position={ 0.000000 0.550000 }       ← Far left
+            depth=1.010000                        ← Slightly forward
+            rotation=20                           ← Rotated 20°
+        }
+    }
+    
+    colored_emblem={                              ← Second emblem
+        color1=black
+        texture="ce_tamgha_turkic_09.dds"
+        instance={
+            position={ 0.780000 0.230000 }       ← Upper area
+            depth=2.010000                        ← Layer 2
+        }
+    }
+    
+    colored_emblem={                              ← Third emblem
+        color1=black
+        texture="ce_tamgha_oghuz_kayig.dds"
+        instance={
+            depth=3.010000                        ← Layer 3 (topmost)
+            rotation=59                           ← Rotated 59°
+            ← No position = defaults to center
+        }
+    }
+}
+
+======================================================================
+SERIALIZATION RULES
+======================================================================
+
+1. INDENTATION:
+   - Cosmetic only (game ignores)
+   - Recommend: 1 tab per nesting level
+   - Root block: no indent
+   - Fields inside block: 1 indent
+   - Nested blocks: progressive indents
+
+2. SPACING:
+   - Around = signs: cosmetic (color1=white or color1 = white)
+   - Inside arrays: SINGLE SPACE required ({ 0.5 0.5 } not { 0.5  0.5 })
+   - Between blocks: blank lines are cosmetic
+
+3. QUOTES:
+   - STRING values: MUST have quotes ("pattern_solid.dds")
+   - SIMPLE values: MUST NOT have quotes (custom=yes, depth=1.010000)
+   - Color names: No quotes (color1=white not color1="white")
+
+4. ORDER:
+   - Fields can appear in any order within a block
+   - However, preserve order for consistency
+   - Common order: custom, pattern, colors, then emblems
+
+5. ARRAY VALUES:
+   - Space-separated, no commas
+   - { 0.970000 0.560000 } not { 0.970000, 0.560000 }
+   - { 1.0 -1.0 } not {1.0 -1.0} (space after { recommended)
+
+======================================================================
+VALIDATION CHECKLIST
+======================================================================
+
+For a valid CoA block:
+  ✓ Root key matches pattern coa_<type>_<id>
+  ✓ custom=yes present
+  ✓ pattern="<filename>.dds" present with quotes
+  ✓ color1, color2, color3 present (no quotes)
+  ✓ At least one colored_emblem block (optional but typical)
+  ✓ Each colored_emblem has color1 and texture
+  ✓ Each colored_emblem has at least one instance
+  ✓ position/scale arrays have exactly 2 values, space-separated
+  ✓ Decimal values have no problematic trailing zeros
+  ✓ depth values increment logically (if used)
+  ✓ rotation values are 0-359
+  ✓ All string values quoted, all simple values unquoted
+
+======================================================================
+COMMON PATTERNS
+======================================================================
+
+1. CENTERED EMBLEM:
+   instance={
+       depth=1.010000
+   }
+   ← No position = center (0.5, 0.5)
+
+2. MIRRORED EMBLEMS:
+   instance={
+       position={ 0.200000 0.500000 }
+       scale={ 1.000000 1.000000 }
+   }
+   instance={
+       position={ 0.800000 0.500000 }
+       scale={ -1.000000 1.000000 }  ← Flipped horizontally
+   }
+
+3. LAYERED DEPTH:
+   colored_emblem={ ... instance={ depth=1.010000 } }
+   colored_emblem={ ... instance={ depth=2.010000 } }
+   colored_emblem={ ... instance={ depth=3.010000 } }
+   ← Each emblem on separate layer
+
+4. REPEATED EMBLEM:
+   colored_emblem={
+       color1=white
+       texture="ce_kamon_triangle.dds"
+       instance={ position={ 0.930000 0.540000 } depth=6.010000 }
+       instance={ position={ 0.780000 0.810000 } depth=7.010000 }
+       instance={ position={ 0.170000 0.810000 } depth=8.010000 }
+       instance={ position={ 0.000000 0.500000 } depth=9.010000 }
+   }
+   ← Same texture, 4 different positions
+
+======================================================================
+TEXTURE NAMING CONVENTIONS
+======================================================================
+
+Pattern Files:
+  - pattern_<name>.dds
+  - pattern__solid_designer.dds (double underscore variant)
+  - pattern_triangle_01.dds
+
+Emblem Files:
+  - ce_<category>_<name>.dds
+  - ce_ prefix = "colored emblem"
+  
+Categories observed:
+  - ce_mena_* (Middle Eastern/North African)
+  - ce_tamgha_* (Turkic symbols)
+  - ce_kamon_* (Japanese mon/crest)
+  - ce_norse_* (Norse/Viking)
+  - ce_gankyil_* (Buddhist symbols)
+  - ce_block_* (Simple geometric)
+
+======================================================================
+PARSER IMPLEMENTATION NOTES
+======================================================================
+
+1. Must handle ANONYMOUS colored_emblem blocks
+   - Cannot use dictionary with keys
+   - Must use ordered list structure
+   - Each colored_emblem is a separate list item
+
+2. Must handle ANONYMOUS instance blocks
+   - Multiple instances per colored_emblem
+   - Each is separate list item
+   - Order matters for rendering
+
+3. Must preserve decimal precision
+   - Don't round 0.970000 to 0.97 on read
+   - Don't add zeros if original had fewer
+   - Variable precision is acceptable
+
+4. Must distinguish SIMPLE vs STRING
+   - color1=white (SIMPLE, no quotes)
+   - texture="ce_block_01.dds" (STRING, quotes)
+   - Pattern affects serialization
+
+5. Array handling
+   - position and scale are ARRAYS
+   - Values are SIMPLE decimals
+   - Space separation critical
+   - { 0.5 0.5 } not {0.5, 0.5}
+
+======================================================================
+REFERENCES
+======================================================================
+
+- CK3 Save Format: ck3_format_specs.txt
+- Sample Dynasty CoA: coa_sample_1.txt (28014)
+- Sample Dynasty CoA: coa_sample_2.txt (27952)
+- Block Structure: ORDERED LISTS with optional keys
+- Value Types: SIMPLE, STRING, UNKNOWN_TYPE, BLOCK
+- Decimal Rules: No trailing zeros, variable precision OK
+
+======================================================================
+END OF SPECIFICATION
+======================================================================

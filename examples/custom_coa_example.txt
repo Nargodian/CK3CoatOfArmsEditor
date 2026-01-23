@@ -1,0 +1,30 @@
+coa_custom_12345={
+	custom=yes
+	pattern="pattern__solid_designer.dds"
+	color1=green
+	color2=gold
+	color3=black
+	colored_emblem={
+		color1=gold
+		texture="ce_lion.dds"
+		instance={
+			position={ 0.500000 0.500000 }
+			scale={ 1.000000 1.000000 }
+			rotation=0
+			depth=1.000000
+		}
+
+	}
+
+	colored_emblem={
+		color1=black
+		texture="ce_crown.dds"
+		instance={
+			position={ 0.500000 0.200000 }
+			scale={ 0.500000 0.500000 }
+			depth=2.000000
+		}
+
+	}
+
+}

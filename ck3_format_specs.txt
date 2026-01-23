@@ -1,0 +1,234 @@
+CK3 SAVE FILE FORMAT SPECIFICATION
+======================================================================
+
+VERSION: 2.1 (C Parser - Production)
+ANALYSIS DATE: 2026-01-21
+LAST UPDATE: 2026-01-21 (Complete)
+STATUS: PRODUCTION READY - Full round-trip validated
+
+======================================================================
+FUNDAMENTAL DATA STRUCTURE (CRITICAL!)
+======================================================================
+
+*** BLOCKS ARE ORDERED LISTS WITH OPTIONAL KEYS ***
+
+CK3 blocks are NOT dictionaries/maps. They are ORDERED LISTS where each
+item can OPTIONALLY have a string key for lookup.
+
+Example:
+  block={
+      foo=5           # Item [0], also accessible as ["foo"]
+      bar={...}       # Item [1], also accessible as ["bar"]
+      {...}           # Item [2], NO KEY (anonymous)
+      {...}           # Item [3], NO KEY (anonymous)
+      baz=10          # Item [4], also accessible as ["baz"]
+  }
+
+Access patterns:
+  - By index: block[0] → 5, block[2] → {...}, block[4] → 10
+  - By key: block["foo"] → 5, block["bar"] → {...}, block["baz"] → 10
+  - Anonymous items: Only accessible by index
+
+PARSER REQUIREMENT: Must preserve ALL children in order, including anonymous blocks!
+
+======================================================================
+ANONYMOUS BLOCKS (CRITICAL BUG SOURCE!)
+======================================================================
+
+Anonymous blocks are bare {...} without a key, appearing as list items:
+
+Example:
+  variables={
+      data={
+          { flag=natural_education_progression data={...} }
+          { flag=signature_weapon data={...} }
+          { flag=education_intrigue_variable data={...} }
+      }
+  }
+
+Pattern: data={ { ... } { ... } }
+- Parent has key "data"
+- Children are ANONYMOUS (no keys)
+- Each child is still a full block with key=value pairs inside
+
+*** CRITICAL: Must capture anonymous blocks (commonly in character.alive_data.variables.data, province.holding.buildings) ***
+
+======================================================================
+VALUE TYPES (CRITICAL FOR SERIALIZATION!)
+======================================================================
+
+The parser must distinguish 4 value types:
+
+1. STRING (quoted):
+   name="John"
+   nickname="The Bold"
+   
+   Serialization: MUST include quotes
+
+2. SIMPLE (unquoted primitive):
+   age=25
+   date=913.1.1
+   flag=yes
+   gold=297.56224
+   
+   Serialization: NO quotes
+   
+   *** CRITICAL: Decimal values CANNOT have trailing zeros! ***
+   - CORRECT: 297.56224, 1297.56224, 8.9
+   - WRONG: 297.562240, 8.90, 100.00
+   
+   When serializing floats, strip trailing zeros after the decimal point
+   (but keep at least one digit after the decimal). The game will reject
+   or misparse values with trailing zeros.
+
+3. UNKNOWN_TYPE (identifier + braces):
+   color=rgb{0 1 2}
+   custom=foo{bar baz}
+   
+   Pattern: key=identifier{...}
+   Serialization: Write as-is, NO quotes, preserve identifier and braces
+   
+   Note: These are opaque types - parser doesn't need to understand them,
+         just capture the whole string (identifier + braces + contents)
+
+4. BLOCK (structural):
+   traits={125 110 144}
+   weight={base=9 current=1}
+   
+   Pattern: key={...} (no identifier before {)
+   Serialization: Recursively serialize children
+
+Distinction matters:
+- name="rgb{0 1 2}" → STRING (literal text with quotes)
+- color=rgb{0 1 2}  → UNKNOWN_TYPE (type syntax, no quotes)
+
+======================================================================
+WHITESPACE RULES
+======================================================================
+
+1. COSMETIC (except array spaces): Indentation, blank lines, spaces around = are irrelevant
+
+2. ARRAY DELIMITATION: Single space between values { 198 242 198 242 }
+
+3. NORMALIZATION REQUIRED BEFORE PARSING
+   Regex: re.sub(r'\s+', ' ', gamestate).strip()
+   Why: Parser stores keys as-is; without normalization keys contain tabs/newlines ('\n\tversion')
+   Result: 228M → 190M chars, game accepts normalized saves
+
+4. PARSER: skip_whitespace() must handle ' ', '\t', '\n', '\r' (else stored in keys)
+
+5. SERIALIZER: Outputs consistent spacing (space after {, between elements, before })
+   Result: ~5KB larger than original (cosmetic, game accepts both)
+
+SUMMARY: Pre-normalize → parser skips all whitespace → serializer adds consistent spacing
+
+======================================================================
+TOKEN PATTERNS
+======================================================================
+
+VERSION NUMBERS: Multi-dot format treated as single token
+  meta_date=913.1.1
+  version="1.18.2"
+  
+ARRAYS (primitives): Blocks containing only values (no key=value pairs)
+  scale={ 0.800000 0.800000 }
+  traits={ 1 5 23 45 }
+  hair_color={ 198 242 198 242 }
+  
+  *** CRITICAL: Values separated by SINGLE SPACE - this spacing matters! ***
+
+ARRAYS (blocks): Anonymous blocks inside a parent block
+  tags={ {
+      hash=2125534279
+      invert=no
+    }
+    {
+      hash=681013727
+      invert=no
+    }
+  }
+  
+  Pattern: key={ { ... } { ... } }
+  - Parent has key ("tags")
+  - Children are ANONYMOUS blocks (no key, just { ... })
+  - Each anonymous block contains key=value pairs
+  
+  *** PARSER MUST HANDLE: ArrayNode can contain BlockNodes, not just primitives! ***
+
+OBJECT BLOCKS: Blocks containing key=value pairs
+  meta_coat_of_arms={
+      pattern="pattern_solid.dds"
+      color1=blue
+  }
+
+DUPLICATE KEYS: Same key can appear multiple times at same level!
+  genes={
+      eye_color_hue_mhec={ "vanilla_eye_color_hue_mhec" 127 "vanilla_eye_color_hue_mhec" 127 }
+      ... other entries ...
+      eye_color_hue_mhec={ "eye_color_hue_mhec" 87 "vanilla_eye_color_hue_mhec" 0 }
+  }
+  
+  *** PARSER MUST PRESERVE: Exact order of ALL children, including duplicates! ***
+
+======================================================================
+ENCODING & LINE ENDINGS
+======================================================================
+
+- UTF-8 encoding (NOT windows-1252 or cp1252)
+- Unix line endings (\n not \r\n)
+- Decode: gamestate_bytes.decode('utf-8')
+- Encode: content.encode('utf-8')
+
+======================================================================
+FILE STRUCTURE *** CRITICAL ***
+======================================================================
+
+**CK3 SAVES = CUSTOM HEADER + ZIP FILE**
+
+1. SAV01024 header (~27KB, variable) ending with \n
+2. ZIP archive (find PK\x03\x04 signature)
+   - Single file: "gamestate" (UTF-8 text)
+   - Compression: ZIP_DEFLATED (type 8)
+
+STRUCTURE:
+  1. SAV header (~27KB) → 2. PK\x03\x04 (ZIP start) → 3. Compressed gamestate
+
+KEY SECTIONS: meta_data, living (40K+), dead_unprunable, provinces, landed_titles, dynasties [73 total]
+TYPICAL SIZE: 2.4M nodes, 150MB decompressed, 125MB normalized
+
+======================================================================
+GAMESTATE STRUCTURE
+======================================================================
+
+ROOT SECTIONS (73 total):
+- meta_data: version, player info, portraits (DNA as base64), coat of arms
+- living: Characters as ID={...} with first_name, birth, dynasty_house, skills, traits, alive_data.variables.data (anonymous blocks)
+- dead_unprunable, dynasties (1K+), houses, landed_titles, provinces (thousands)
+- random_seed, random_count, flags, variables, religions, cultures, artifacts, etc.
+
+Original format uses tabs for indentation and blank lines (both cosmetic).
+
+======================================================================
+CRITICAL REQUIREMENTS FOR VALID SAVES
+======================================================================
+
+1. UTF-8 encoding, Unix line endings (\n)
+2. Preserve version number dots (913.1.1)
+3. Space-separate array values ({ 1 2 3 })
+4. Preserve quotes on strings
+5. Capture ALL blocks (including anonymous)
+6. Preserve SAV header from original
+7. ZIP compression: DEFLATED (type 8)
+
+Whitespace (indentation, blank lines) is cosmetic - game parses on structure only.
+
+======================================================================
+IMPLEMENTATION GUIDE
+======================================================================
+
+For usage examples, code samples, and implementation details, see:
+  docs/IMPLEMENTATION_GUIDE.md
+
+For bug history and development notes, see:
+  docs/CK3_PARSER_BUG_HISTORY.md
+
