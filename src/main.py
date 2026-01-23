@@ -149,7 +149,48 @@ class CoatOfArmsEditor(QMainWindow):
 					self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
 					print(f"[_on_asset_selected] Canvas updated successfully")
 			else:
-				print(f"[_on_asset_selected] No layer selected to update")
+				# No layer selected - create a new layer at the top with this asset
+				print(f"[_on_asset_selected] No layer selected - creating new layer at top")
+				dds_filename = asset_data.get('dds_filename', asset_data.get('filename', ''))
+				
+				new_layer = {
+					'filename': dds_filename,
+					'path': dds_filename,
+					'colors': color_count,
+					'depth': 0,
+					'pos_x': 0.5,
+					'pos_y': 0.5,
+					'scale_x': 0.5,
+					'scale_y': 0.5,
+					'rotation': 0,
+					'color1': [0.750, 0.525, 0.188],
+					'color2': [0.450, 0.133, 0.090],
+					'color3': [0.450, 0.133, 0.090],
+					'color1_name': None,
+					'color2_name': None,
+					'color3_name': None
+				}
+				
+				# Insert at the beginning (top of stack)
+				self.right_sidebar.layers.insert(0, new_layer)
+				
+				# Select the new layer
+				self.right_sidebar.selected_layer_index = 0
+				
+				# Update UI
+				self.right_sidebar._rebuild_layer_list()
+				self.right_sidebar._update_layer_selection()
+				self.right_sidebar._load_layer_properties()
+				
+				# Enable Properties tab
+				self.right_sidebar.tab_widget.setTabEnabled(2, True)
+				
+				# Update canvas and transform widget
+				self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+				if self.canvas_area:
+					self.canvas_area.update_transform_widget_for_layer(0)
+				
+				print(f"[_on_asset_selected] New layer created and selected at index 0")
 	
 	def resizeEvent(self, event):
 		"""Handle window resize to recalculate grid columns in asset sidebar"""

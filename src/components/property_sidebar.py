@@ -598,6 +598,9 @@ class PropertySidebar(QFrame):
 				self.selected_layer_index = len(self.layers) - 1 if self.layers else None
 			self._rebuild_layer_list()
 			self._update_layer_selection()
+			# Hide transform widget if no selection
+			if self.canvas_area:
+				self.canvas_area.update_transform_widget_for_layer(self.selected_layer_index)
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
 	
@@ -631,6 +634,41 @@ class PropertySidebar(QFrame):
 			self.selected_layer_index += 1
 			self._rebuild_layer_list()
 			self._update_layer_selection()
+			if self.canvas_widget:
+				self.canvas_widget.set_layers(self.layers)
+	
+	def _delete_layer_at_index(self, index):
+		"""Delete a specific layer by index"""
+		if 0 <= index < len(self.layers):
+			self.layers.pop(index)
+			# Adjust selected index if needed
+			if self.selected_layer_index is not None:
+				if self.selected_layer_index == index:
+					# Deleted the selected layer
+					if index >= len(self.layers):
+						self.selected_layer_index = len(self.layers) - 1 if self.layers else None
+				elif self.selected_layer_index > index:
+					# Shift selection down if layer below was deleted
+					self.selected_layer_index -= 1
+			self._rebuild_layer_list()
+			self._update_layer_selection()
+			# Update transform widget
+			if self.canvas_area:
+				self.canvas_area.update_transform_widget_for_layer(self.selected_layer_index)
+			if self.canvas_widget:
+				self.canvas_widget.set_layers(self.layers)
+	
+	def _duplicate_layer_at_index(self, index):
+		"""Duplicate a specific layer by index"""
+		if 0 <= index < len(self.layers):
+			layer_copy = self.layers[index].copy()
+			self.layers.insert(index + 1, layer_copy)
+			# Select the new duplicate
+			self.selected_layer_index = index + 1
+			self._rebuild_layer_list()
+			self._update_layer_selection()
+			if self.canvas_area:
+				self.canvas_area.update_transform_widget_for_layer(self.selected_layer_index)
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
 	
@@ -796,6 +834,54 @@ class PropertySidebar(QFrame):
 			name_label.setWordWrap(True)
 			name_label.setStyleSheet("border: none; font-size: 11px;")
 			btn_layout.addWidget(name_label, stretch=1)
+			
+			# Add inline delete and duplicate buttons
+			button_container = QWidget()
+			button_container.setStyleSheet("border: none;")
+			inline_layout = QVBoxLayout(button_container)
+			inline_layout.setContentsMargins(0, 0, 0, 0)
+			inline_layout.setSpacing(2)
+			
+			# Duplicate button
+			duplicate_btn = QPushButton("⎘")
+			duplicate_btn.setFixedSize(20, 20)
+			duplicate_btn.setToolTip("Duplicate Layer")
+			duplicate_btn.setStyleSheet("""
+				QPushButton {
+					border: 1px solid rgba(255, 255, 255, 60);
+					border-radius: 2px;
+					background-color: rgba(255, 255, 255, 10);
+					font-size: 10px;
+					padding: 0px;
+				}
+				QPushButton:hover {
+					background-color: rgba(90, 141, 191, 100);
+				}
+			""")
+			duplicate_btn.clicked.connect(lambda checked, idx=i: self._duplicate_layer_at_index(idx))
+			inline_layout.addWidget(duplicate_btn)
+			
+			# Delete button
+			delete_btn = QPushButton("×")
+			delete_btn.setFixedSize(20, 20)
+			delete_btn.setToolTip("Delete Layer")
+			delete_btn.setStyleSheet("""
+				QPushButton {
+					border: 1px solid rgba(255, 100, 100, 60);
+					border-radius: 2px;
+					background-color: rgba(255, 255, 255, 10);
+					font-size: 12px;
+					font-weight: bold;
+					padding: 0px;
+				}
+				QPushButton:hover {
+					background-color: rgba(191, 90, 90, 100);
+				}
+			""")
+			delete_btn.clicked.connect(lambda checked, idx=i: self._delete_layer_at_index(idx))
+			inline_layout.addWidget(delete_btn)
+			
+			btn_layout.addWidget(button_container)
 			
 			layer_btn.setStyleSheet("""
 				QPushButton {
