@@ -16,6 +16,11 @@ def create_toolbar(parent):
 	undo_btn = QPushButton("Undo")
 	redo_btn = QPushButton("Redo")
 	
+	# Connect buttons to parent methods
+	new_btn.clicked.connect(parent.new_coa)
+	open_btn.clicked.connect(parent.load_coa)
+	save_btn.clicked.connect(parent.save_coa)
+	
 	toolbar.addWidget(new_btn)
 	toolbar.addWidget(open_btn)
 	toolbar.addWidget(save_btn)

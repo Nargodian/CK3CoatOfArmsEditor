@@ -249,7 +249,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					# Convert properties to screen coordinates
 					# pos: 0.0-1.0 → -0.8 to 0.8 screen space
 					center_x = (pos_x - 0.5) * 1.1
-					center_y = (pos_y - 0.5) * 1.1
+					center_y = -(pos_y - 0.5) * 1.1  # Invert Y-axis (CK3 uses top-down, OpenGL uses bottom-up)
 					# scale: 0.0-1.0 → 0.0 to 1.6 screen space
 					half_width = scale_x * 0.6
 					half_height = scale_y * 0.6
@@ -531,23 +531,35 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			traceback.print_exc()
 	
 	def _load_mask_texture(self):
-		"""Create a default white mask texture as fallback"""
+		"""Create a default white square mask texture matching real frame masks"""
 		try:
-			# Create a 1x1 white texture as default mask
-			white_pixel = np.array([[255, 255, 255, 255]], dtype=np.uint8)
+			# Simple white square mask with transparent edges (size doesn't matter for sampler)
+			size = 128
+			mask_data = np.zeros((size, size, 4), dtype=np.uint8)
+			
+			# Create white square in center with transparent border (like house_mask.png)
+			# Border is roughly 10% on each side
+			border = int(size * 0.01)
+			
+			# Set center square to white
+			mask_data[border:size-border, border:size-border] = [255, 255, 255, 255]
+			
+			# Edges remain transparent black [0, 0, 0, 0]
 			
 			self.default_mask_texture = gl.glGenTextures(1)
 			gl.glBindTexture(gl.GL_TEXTURE_2D, self.default_mask_texture)
 			
-			gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
-			gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
-			gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
-			gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST)
+			# Match the settings used for loaded masks
+			gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_BORDER)
+			gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_BORDER)
+			gl.glTexParameterfv(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BORDER_COLOR, [0.0, 0.0, 0.0, 0.0])
+			gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+			gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
 			
-			gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, 1, 1,
-			               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, white_pixel.tobytes())
+			gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, size, size,
+			               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, mask_data.tobytes())
 			
-			print("Created default white mask texture")
+			print(f"Created default square mask texture ({size}x{size})")
 			
 		except Exception as e:
 			print(f"Error creating default mask texture: {e}")

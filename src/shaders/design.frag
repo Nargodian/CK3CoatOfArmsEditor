@@ -27,5 +27,5 @@ void main()
 	// Use max of RGB channels or alpha, whichever has data
 	float coaMaskValue = max(max(maskSample.r, maskSample.g), max(maskSample.b, maskSample.a));
 	
-	FragColor=vec4(outputColour,textureMask.a*coaMaskValue);
+	FragColor=vec4(outputColour*textureMask.b,textureMask.a*coaMaskValue);
 }

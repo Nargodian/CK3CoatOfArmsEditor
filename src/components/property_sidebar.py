@@ -483,7 +483,6 @@ class PropertySidebar(QFrame):
 					self.layers[idx][f'color{color_idx+1}'] = color_rgb
 					self.layers[idx][f'color{color_idx+1}_name'] = color_name  # Store name or None
 					self.canvas_widget.set_layers(self.layers)
-					self.canvas.set_layers(self.layers)
 	
 	def _show_custom_color_dialog(self, button, parent_dialog):
 		"""Show Qt's standard color picker"""

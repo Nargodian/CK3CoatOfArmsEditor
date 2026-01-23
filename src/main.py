@@ -1,6 +1,6 @@
 import re
 from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QSplitter, QApplication
+from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QSplitter, QApplication, QFileDialog, QMessageBox
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPalette, QColor
 
@@ -153,6 +153,148 @@ class CoatOfArmsEditor(QMainWindow):
 		if hasattr(self, 'left_sidebar'):
 			self.left_sidebar.handle_resize()
 	
+	def new_coa(self):
+		"""Clear everything and start with default empty CoA"""
+		try:
+			# Confirm with user
+			reply = QMessageBox.question(
+				self,
+				"New Coat of Arms",
+				"Are you sure you want to create a new coat of arms?\n\nAll unsaved changes will be lost.",
+				QMessageBox.Yes | QMessageBox.No,
+				QMessageBox.No
+			)
+			
+			if reply == QMessageBox.No:
+				return
+			
+			# Clear all layers
+			self.right_sidebar.layers = []
+			self.right_sidebar.selected_layer_index = None
+			self.right_sidebar._rebuild_layer_list()
+			self.right_sidebar._update_layer_selection()
+			
+			# Reset base to default pattern and colors (CK3 defaults: black, yellow, black)
+			default_pattern = "pattern__solid.dds"
+			default_color_names = ['black', 'yellow', 'black']
+			default_colors = [
+				self._color_name_to_rgb('black'),
+				self._color_name_to_rgb('yellow'),
+				self._color_name_to_rgb('black')
+			]
+			
+			self.canvas_area.canvas_widget.set_base_texture(default_pattern)
+			self.canvas_area.canvas_widget.set_base_colors(default_colors)
+			self.canvas_area.canvas_widget.set_layers([])
+			
+			# Reset property sidebar base colors with color names
+			self.right_sidebar.set_base_colors(default_colors, default_color_names)
+			
+			# Switch to Base tab
+			self.right_sidebar.tab_widget.setCurrentIndex(0)
+			
+			print("New CoA created - reset to defaults")
+		except Exception as e:
+			print(f"Error creating new CoA: {e}")
+			import traceback
+			traceback.print_exc()
+	
+	def save_coa(self):
+		"""Save current CoA to .txt file"""
+		try:
+			# Get current state
+			canvas = self.canvas_area.canvas_widget
+			base_colors = self.right_sidebar.get_base_colors()
+			
+			# Build CoA data structure (same as copy)
+			coa_data = {
+				"coa_export": {
+					"custom": True,
+					"pattern": canvas.base_texture or "pattern__solid.dds",
+					"color1": self._format_color_for_export(base_colors[0], self.canvas_area.canvas_widget.base_color1_name),
+					"color2": self._format_color_for_export(base_colors[1], self.canvas_area.canvas_widget.base_color2_name),
+					"color3": self._format_color_for_export(base_colors[2], self.canvas_area.canvas_widget.base_color3_name)
+				}
+			}
+			
+			# Add layers grouped by texture
+			if self.right_sidebar.layers:
+				coa_data["coa_export"]["colored_emblem"] = []
+				texture_groups = {}
+				
+				for layer in self.right_sidebar.layers:
+					texture = layer.get('filename', layer.get('path', ''))
+					if texture not in texture_groups:
+						texture_groups[texture] = []
+					texture_groups[texture].append(layer)
+				
+				for texture, layers in texture_groups.items():
+					emblem = {
+						"texture": texture,
+						"color1": self._format_color_for_export(layers[0].get('color1'), layers[0].get('color1_name')),
+						"instance": []
+					}
+					
+					for layer in layers:
+						instance = {
+							"position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
+							"scale": [layer.get('scale_x', 1.0), layer.get('scale_y', 1.0)],
+							"rotation": layer.get('rotation', 0)
+						}
+						emblem["instance"].append(instance)
+					
+					coa_data["coa_export"]["colored_emblem"].append(emblem)
+			
+			# Serialize to string
+			coa_string = serialize_coa_to_string(coa_data)
+			
+			# Open save file dialog
+			filename, _ = QFileDialog.getSaveFileName(
+				self,
+				"Save Coat of Arms",
+				"",
+				"Text Files (*.txt);;All Files (*)"
+			)
+			
+			if filename:
+				with open(filename, 'w', encoding='utf-8') as f:
+					f.write(coa_string)
+				print(f"CoA saved to {filename}")
+			
+		except Exception as e:
+			print(f"Error saving CoA: {e}")
+			import traceback
+			traceback.print_exc()
+			QMessageBox.critical(self, "Save Error", f"Failed to save coat of arms:\n{str(e)}")
+	
+	def load_coa(self):
+		"""Load CoA from .txt file"""
+		try:
+			# Open file dialog
+			filename, _ = QFileDialog.getOpenFileName(
+				self,
+				"Load Coat of Arms",
+				"",
+				"Text Files (*.txt);;All Files (*)"
+			)
+			
+			if not filename:
+				return
+			
+			# Read file
+			with open(filename, 'r', encoding='utf-8') as f:
+				coa_text = f.read()
+			
+			# Parse using existing paste logic
+			self._parse_and_apply_coa(coa_text)
+			print(f"CoA loaded from {filename}")
+			
+		except Exception as e:
+			print(f"Error loading CoA: {e}")
+			import traceback
+			traceback.print_exc()
+			QMessageBox.critical(self, "Load Error", f"Failed to load coat of arms:\n{str(e)}\n\nThe file may not contain valid coat of arms data.")
+	
 	def copy_coa(self):
 		"""Copy current CoA to clipboard as text"""
 		try:
@@ -228,95 +370,101 @@ class CoatOfArmsEditor(QMainWindow):
 			coa_text = QApplication.clipboard().text()
 			if not coa_text.strip():
 				print("Clipboard is empty")
+				QMessageBox.warning(self, "Paste Error", "Clipboard is empty.")
 				return
 			
-			# Parse CoA data
-			coa_data = parse_coa_string(coa_text)
-			if not coa_data:
-				print("Failed to parse clipboard data")
-				return
-			
-			# Get the CoA object (first key)
-			coa_id = list(coa_data.keys())[0]
-			coa = coa_data[coa_id]
-			
-			# Apply base pattern
-			if 'pattern' in coa:
-				self.canvas_area.canvas_widget.set_base_texture(coa['pattern'])
-			
-			# Apply base colors (CK3 defaults: black, yellow, black)
-			color1_name = coa.get('color1', 'black')
-			color2_name = coa.get('color2', 'yellow')
-			color3_name = coa.get('color3', 'black')
-			
-			base_colors = [
-				self._color_name_to_rgb(color1_name),
-				self._color_name_to_rgb(color2_name),
-				self._color_name_to_rgb(color3_name)
-			]
-			base_color_names = [color1_name, color2_name, color3_name]
-			
-			self.canvas_area.canvas_widget.set_base_colors(base_colors)
-			self.right_sidebar.set_base_colors(base_colors, base_color_names)
-			
-			# Clear existing layers
-			self.right_sidebar.layers = []
-			
-			# Collect all emblem instances with their depth values
-			emblem_instances = []
-			for emblem in coa.get('colored_emblem', []):
-				filename = emblem.get('texture', '')
-				
-				# Get instances, or create default if none exist
-				instances = emblem.get('instance', [])
-				if not instances:
-					# No instance block means default values
-					instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0}]
-				
-				for instance in instances:
-					# Get depth value (default to 0 if not specified)
-					depth = instance.get('depth', 0)
-					
-					layer_data = {
-						'filename': filename,
-						'path': filename,  # Use filename as path - texture system and preview lookup both use this
-						'colors': 3,  # Assume 3 colors for all emblems
-						'pos_x': instance.get('position', [0.5, 0.5])[0],
-						'pos_y': instance.get('position', [0.5, 0.5])[1],
-						'scale_x': instance.get('scale', [1.0, 1.0])[0],
-						'scale_y': instance.get('scale', [1.0, 1.0])[1],
-						'rotation': instance.get('rotation', 0),
-						'color1': self._color_name_to_rgb(emblem.get('color1', 'yellow')),
-						'color2': self._color_name_to_rgb(emblem.get('color2', 'red')),
-						'color3': self._color_name_to_rgb(emblem.get('color3', 'red')),
-						'depth': depth
-					}
-					emblem_instances.append(layer_data)
-			
-			# Sort by depth (higher depth = further back = first in list for rendering)
-			emblem_instances.sort(key=lambda x: x['depth'], reverse=True)
-			
-			# Add sorted layers to sidebar
-			for layer_data in emblem_instances:
-				# Remove depth from layer data (it's only used for sorting)
-				del layer_data['depth']
-				self.right_sidebar.layers.append(layer_data)
-				print(f"Added layer: {layer_data['filename']} (depth order)")
-			
-			# Update UI - switch to Layers tab and rebuild
-			self.right_sidebar.tab_widget.setCurrentIndex(1)  # Switch to Layers tab
-			self.right_sidebar._rebuild_layer_list()
-			if len(self.right_sidebar.layers) > 0:
-				self.right_sidebar._select_layer(0)
-			
-			# Update canvas
-			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-			print(f"CoA pasted from clipboard - {len(self.right_sidebar.layers)} layers created")
+			# Parse and apply using shared method
+			self._parse_and_apply_coa(coa_text)
 			
 		except Exception as e:
 			print(f"Error pasting CoA: {e}")
 			import traceback
 			traceback.print_exc()
+			QMessageBox.critical(self, "Paste Error", f"Failed to paste coat of arms:\n{str(e)}\n\nThe clipboard may not contain valid coat of arms data.")
+	
+	def _parse_and_apply_coa(self, coa_text):
+		"""Shared method to parse CoA text and apply to editor"""
+		# Parse CoA data
+		coa_data = parse_coa_string(coa_text)
+		if not coa_data:
+			raise ValueError("Failed to parse coat of arms data - not a valid CK3 format")
+		
+		# Get the CoA object (first key)
+		coa_id = list(coa_data.keys())[0]
+		coa = coa_data[coa_id]
+		
+		# Apply base pattern
+		if 'pattern' in coa:
+			self.canvas_area.canvas_widget.set_base_texture(coa['pattern'])
+		
+		# Apply base colors (CK3 defaults: black, yellow, black)
+		color1_name = coa.get('color1', 'black')
+		color2_name = coa.get('color2', 'yellow')
+		color3_name = coa.get('color3', 'black')
+		
+		base_colors = [
+			self._color_name_to_rgb(color1_name),
+			self._color_name_to_rgb(color2_name),
+			self._color_name_to_rgb(color3_name)
+		]
+		base_color_names = [color1_name, color2_name, color3_name]
+		
+		self.canvas_area.canvas_widget.set_base_colors(base_colors)
+		self.right_sidebar.set_base_colors(base_colors, base_color_names)
+		
+		# Clear existing layers
+		self.right_sidebar.layers = []
+		
+		# Collect all emblem instances with their depth values
+		emblem_instances = []
+		for emblem in coa.get('colored_emblem', []):
+			filename = emblem.get('texture', '')
+			
+			# Get instances, or create default if none exist
+			instances = emblem.get('instance', [])
+			if not instances:
+				# No instance block means default values
+				instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0}]
+			
+			for instance in instances:
+				# Get depth value (default to 0 if not specified)
+				depth = instance.get('depth', 0)
+				
+				layer_data = {
+					'filename': filename,
+					'path': filename,  # Use filename as path - texture system and preview lookup both use this
+					'colors': 3,  # Assume 3 colors for all emblems
+					'pos_x': instance.get('position', [0.5, 0.5])[0],
+					'pos_y': instance.get('position', [0.5, 0.5])[1],
+					'scale_x': instance.get('scale', [1.0, 1.0])[0],
+					'scale_y': instance.get('scale', [1.0, 1.0])[1],
+					'rotation': instance.get('rotation', 0),
+					'color1': self._color_name_to_rgb(emblem.get('color1', 'yellow')),
+					'color2': self._color_name_to_rgb(emblem.get('color2', 'red')),
+					'color3': self._color_name_to_rgb(emblem.get('color3', 'red')),
+					'depth': depth
+				}
+				emblem_instances.append(layer_data)
+		
+		# Sort by depth (higher depth = further back = first in list for rendering)
+		emblem_instances.sort(key=lambda x: x['depth'], reverse=True)
+		
+		# Add sorted layers to sidebar
+		for layer_data in emblem_instances:
+			# Remove depth from layer data (it's only used for sorting)
+			del layer_data['depth']
+			self.right_sidebar.layers.append(layer_data)
+			print(f"Added layer: {layer_data['filename']} (depth order)")
+		
+		# Update UI - switch to Layers tab and rebuild
+		self.right_sidebar.tab_widget.setCurrentIndex(1)  # Switch to Layers tab
+		self.right_sidebar._rebuild_layer_list()
+		if len(self.right_sidebar.layers) > 0:
+			self.right_sidebar._select_layer(0)
+		
+		# Update canvas
+		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+		print(f"CoA loaded - {len(self.right_sidebar.layers)} layers created")
 
 	def _rgb_to_color_name(self, rgb, color_name=None):
 		"""Convert RGB [0-1] to CK3 color format
