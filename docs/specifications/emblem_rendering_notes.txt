@@ -1,0 +1,55 @@
+# CK3 Colored Emblem Rendering Notes
+
+## Channel Usage (from CK3 shaders)
+
+Based on `coat_of_arms_textured_emblem.shader`:
+
+```glsl
+EmblemColor.rgb = GetOverlay( EmblemColor.rgb, MaskTex.bbb, 0.2 );
+EmblemColor.a *= MaskTex.g * 2;
+```
+
+- **Red channel** (.r): Mask for color3 (tertiary) overlay
+- **Green channel** (.g): Mask for color2 (secondary) overlay  
+- **Blue channel** (.b): **Shading detail** - applied via GetOverlay() blend at 0.2 strength
+- **Alpha channel** (.a): Final transparency (multiplied by MaskTex.g * 2)
+
+## Current Implementation (design.frag)
+
+```glsl
+outputColour=mix(primaryColor,secondaryColor,textureMask.g);
+outputColour=mix(outputColour,tertiaryColor,textureMask.r);
+FragColor=vec4(outputColour*textureMask.b,textureMask.a*coaMaskValue);
+```
+
+**Sequential overlay approach:**
+1. Start with color1 (primary)
+2. Green channel overlays color2 (secondary)
+3. Red channel overlays color3 (tertiary)
+4. Blue channel multiplies for shading (should use overlay blend)
+
+## Issue: Blue Channel Shading
+
+The blue channel (.b) contains shading/detail that should be applied via an **overlay blend** at 0.2 strength, not a simple multiply. Overlay blend:
+- Values < 0.5: Darken (multiply blend)
+- Values >= 0.5: Lighten (screen blend)
+
+Formula:
+```glsl
+// Per-channel overlay blend
+float overlayBlend(float base, float blend) {
+    return (base < 0.5) ? (2.0 * base * blend) : (1.0 - 2.0 * (1.0 - base) * (1.0 - blend));
+}
+
+// Apply with strength
+vec3 GetOverlay(vec3 base, vec3 blend, float strength) {
+    vec3 result;
+    result.r = overlayBlend(base.r, blend.r);
+    result.g = overlayBlend(base.g, blend.g);
+    result.b = overlayBlend(base.b, blend.b);
+    return mix(base, result, strength);
+}
+```
+
+## TODO
+Update design.frag to use overlay blend for blue channel shading instead of direct multiply.

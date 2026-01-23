@@ -126,9 +126,9 @@ class CoatOfArmsEditor(QMainWindow):
 					'scale_x': old_layer.get('scale_x', 1.0),
 					'scale_y': old_layer.get('scale_y', 1.0),
 					'rotation': old_layer.get('rotation', 0),
-					'color1': old_layer.get('color1', [1.0, 0.854, 0.0]),
-					'color2': old_layer.get('color2', [0.502, 0.0, 0.0]),
-					'color3': old_layer.get('color3', [0.502, 0.0, 0.0]),
+					'color1': old_layer.get('color1', [0.750, 0.525, 0.188]),
+					'color2': old_layer.get('color2', [0.450, 0.133, 0.090]),
+					'color3': old_layer.get('color3', [0.450, 0.133, 0.090]),
 						'color1_name': old_layer.get('color1_name'),
 						'color2_name': old_layer.get('color2_name'),
 						'color3_name': old_layer.get('color3_name')
@@ -500,12 +500,9 @@ class CoatOfArmsEditor(QMainWindow):
 	def _color_name_to_rgb(self, color_name):
 		"""Convert CK3 color name to RGB [0-1]
 		
-		TODO: Extract actual RGB values from:
-		<CK3_DIR>/game/common/named_colors/00_named_colors.txt
-		
-		These are approximate values based on common usage in CoA samples.
-		For accurate colors, parse the game's named_colors file which defines
-		colors in rgb { R G B } format (0-255 range).
+		Uses accurate color values extracted from CK3's default_colors.txt
+		and converted from HSV to RGB. See docs/specifications/color_conversions.txt
+		for complete conversion reference.
 		"""
 		# Check if it's an rgb { R G B } custom color
 		if isinstance(color_name, str) and color_name.startswith('rgb'):
@@ -515,24 +512,24 @@ class CoatOfArmsEditor(QMainWindow):
 				r, g, b = int(match.group(1)), int(match.group(2)), int(match.group(3))
 				return [r / 255.0, g / 255.0, b / 255.0]
 		
-		# Official CK3 color definitions from game/common/named_colors/00_named_colors.txt
-		# Extracted from default_colors.txt as RGB [0-1]
+		# Official CK3 color definitions from game/common/named_colors/default_colors.txt
+		# Accurate RGB [0-1] values converted from HSV using color_conversions.txt
 		color_map = {
-			'black': [0.098, 0.090, 0.075],
-			'blue': [0.08, 0.246, 0.4],
-			'blue_dark': [0.055, 0.157, 0.255],
-			'blue_light': [0.286, 0.788, 0.792],
-			'brown': [0.341, 0.282, 0.235],
-			'green': [0.275, 0.608, 0.29],
-			'green_light': [0.557, 0.804, 0.427],
-			'grey': [0.314, 0.314, 0.314],
-			'orange': [0.8, 0.341, 0.02],
-			'purple': [0.416, 0.196, 0.663],
-			'red': [0.45, 0.133, 0.09],
-			'red_dark': [0.235, 0.059, 0.039],
-			'white': [0.98, 0.98, 0.98],
-			'yellow': [0.75, 0.525, 0.188],
-			'yellow_light': [0.969, 0.969, 0.6]
+			'black': [0.100, 0.090, 0.075],
+			'blue': [0.080, 0.246, 0.400],
+			'blue_dark': [0.030, 0.170, 0.300],
+			'blue_light': [0.165, 0.365, 0.550],
+			'brown': [0.450, 0.234, 0.117],
+			'green': [0.120, 0.300, 0.138],
+			'green_light': [0.200, 0.400, 0.220],
+			'grey': [0.500, 0.500, 0.500],
+			'orange': [0.600, 0.230, 0.000],
+			'purple': [0.350, 0.105, 0.252],
+			'red': [0.450, 0.133, 0.090],
+			'red_dark': [0.300, 0.030, 0.030],
+			'white': [0.800, 0.792, 0.784],
+			'yellow': [0.750, 0.525, 0.188],
+			'yellow_light': [1.000, 0.680, 0.200]
 		}
 		return color_map.get(color_name, [1.0, 1.0, 1.0])
 

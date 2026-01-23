@@ -387,20 +387,23 @@ class PropertySidebar(QFrame):
 		layout.addWidget(label)
 		
 		# CK3 CoA color palette - Official colors from game/common/named_colors/default_colors.txt
+		# Accurate hex values converted from HSV using color_conversions.txt
 		presets = [
-			("#732216", "red", "Red"),
-			("#993B00", "orange", "Orange"),
-			("#BF8630", "yellow", "Yellow"),
-			("#FFAD33", "yellow_light", "Yellow Light"),
-			("#CCCAC8", "white", "White"),
+			("#722116", "red", "Red"),
+			("#4C0707", "red_dark", "Red Dark"),
+			("#993A00", "orange", "Orange"),
+			("#BF852F", "yellow", "Yellow"),
+			("#FFAD32", "yellow_light", "Yellow Light"),
+			("#CCC9C7", "white", "White"),
 			("#7F7F7F", "grey", "Grey"),
-			("#191713", "black", "Black"),
-			("#733C1E", "brown", "Brown"),
+			("#191613", "black", "Black"),
+			("#723B1D", "brown", "Brown"),
 			("#1E4C23", "green", "Green"),
 			("#336638", "green_light", "Green Light"),
 			("#2A5D8C", "blue_light", "Blue Light"),
-			("#143F66", "blue", "Blue"),
-			("#591B40", "purple", "Purple")
+			("#143E66", "blue", "Blue"),
+			("#072B4C", "blue_dark", "Blue Dark"),
+			("#591A40", "purple", "Purple")
 		]
 		
 		grid_layout = QGridLayout()
@@ -571,9 +574,9 @@ class PropertySidebar(QFrame):
 			'scale_x': 1.0,
 			'scale_y': 1.0,
 			'rotation': 0,
-			'color1': [1.0, 0.854, 0.0],   # yellow (CK3 default)
-			'color2': [0.502, 0.0, 0.0],    # red (CK3 default)
-			'color3': [0.502, 0.0, 0.0]     # red (CK3 default)
+			'color1': [0.750, 0.525, 0.188],   # yellow (CK3 default)
+			'color2': [0.450, 0.133, 0.090],    # red (CK3 default)
+			'color3': [0.450, 0.133, 0.090]     # red (CK3 default)
 		}
 		self.layers.append(layer)
 		self._rebuild_layer_list()

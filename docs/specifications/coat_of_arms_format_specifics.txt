@@ -3,7 +3,8 @@ CRUSADER KINGS 3 - COAT OF ARMS FORMAT SPECIFICS
 
 DOCUMENT PURPOSE: Technical specification for CK3 coat of arms data structure
 BASED ON: ck3_format_specs.txt, coa_sample_1.txt, coa_sample_2.txt
-DATE: 2026-01-22
+RENDERING: CK3 gui_coatofarms.shader, coat_of_arms_textured_emblem.shader
+DATE: 2026-01-23
 
 ======================================================================
 OVERVIEW
@@ -12,6 +13,9 @@ OVERVIEW
 Coat of Arms (CoA) entries in CK3 are structured blocks that define visual
 heraldry for dynasties, titles, and other entities. They follow the general
 CK3 block format rules but have specific fields and nested structures.
+
+This specification covers both the data format AND the rendering system,
+including texture channel mapping, color blending, and shader overlay logic.
 
 ======================================================================
 ROOT STRUCTURE
@@ -41,6 +45,8 @@ REQUIRED FIELDS
    - References texture file for background pattern
    - Examples: "pattern_triangle_01.dds", "pattern__solid_designer.dds"
    - File extension: .dds (DirectDraw Surface texture format)
+   - Default: "pattern__solid.dds" if pattern field is omitted
+   - Note: pattern__solid.dds is the internal default but is not selectable in COA Designer
 
 3. color1=<color>
    - SIMPLE value (no quotes)
@@ -58,8 +64,38 @@ REQUIRED FIELDS
    - Tertiary color for pattern
    - Same format as color1
 
+======================================================================CK3 NAMED COLORS (OFFICIAL PALETTE)
 ======================================================================
-COLORED_EMBLEM BLOCKS (CRITICAL STRUCTURE)
+
+CK3 defines colors in game/common/named_colors/default_colors.txt as HSV values.
+Below are accurate RGB [0-1] conversions for use in rendering.
+Colors are listed in the order they appear in CK3's color picker UI:
+
+Named Color      RGB Values                  Hex Equivalent
+-----------      ----------                  --------------
+red              [0.450, 0.133, 0.090]      #732217
+red_dark         [0.300, 0.030, 0.030]      #4D0808
+orange           [0.600, 0.230, 0.000]      #993B00
+yellow           [0.750, 0.525, 0.188]      #BF8630
+yellow_light     [1.000, 0.680, 0.200]      #FFAD33
+white            [0.800, 0.792, 0.784]      #CCCAC8
+grey             [0.500, 0.500, 0.500]      #808080
+black            [0.100, 0.090, 0.075]      #19170E
+brown            [0.450, 0.234, 0.117]      #733C1E
+green            [0.120, 0.300, 0.138]      #1F4D23
+green_light      [0.200, 0.400, 0.220]      #336638
+blue_light       [0.165, 0.365, 0.550]      #2A5D8C
+blue             [0.080, 0.246, 0.400]      #143E66
+blue_dark        [0.030, 0.170, 0.300]      #082B4D
+purple           [0.350, 0.105, 0.252]      #591B40
+
+Default CoA colors (if unspecified):
+  - Base: color1=black, color2=yellow, color3=black
+  - Emblem: color1=yellow, color2=red, color3=red
+
+Custom RGB colors can be specified as: rgb { R G B } (0-255 integers)
+
+======================================================================COLORED_EMBLEM BLOCKS (CRITICAL STRUCTURE)
 ======================================================================
 
 Syntax: colored_emblem={ ... }
@@ -138,6 +174,27 @@ Fields (ALL OPTIONAL):
    - Rotation in degrees (0-359)
    - Examples: 70, 123, 201
    - Default: 0 if omitted
+
+======================================================================
+COORDINATE SYSTEM
+======================================================================
+
+Position coordinates use normalized [0.0, 1.0] space with Y-AXIS INVERTED:
+
+  X-axis: 0.0 = left edge, 1.0 = right edge (standard)
+  Y-axis: 0.0 = TOP edge, 1.0 = BOTTOM edge (INVERTED!)
+
+Examples:
+  { 0.0 0.0 }   = Top-left corner
+  { 0.5 0.5 }   = Center (default if position omitted)
+  { 1.0 1.0 }   = Bottom-right corner
+  { 0.5 0.0 }   = Top-center
+  { 0.5 1.0 }   = Bottom-center
+
+Flipping:
+  - Negative scale_x flips horizontally (mirror)
+  - Negative scale_y flips vertically
+  - Examples: { -1.0 1.0 } = horizontal flip, { 1.0 -1.0 } = vertical flip
 
 ======================================================================
 DECIMAL VALUE FORMAT (CRITICAL!)
@@ -377,6 +434,106 @@ PARSER IMPLEMENTATION NOTES
    - { 0.5 0.5 } not {0.5, 0.5}
 
 ======================================================================
+TEXTURE RENDERING SYSTEM
+======================================================================
+
+CK3 uses a sophisticated channel-based masking and overlay system for rendering
+coat of arms textures. This section documents the exact rendering pipeline used
+by the game's shaders.
+
+EMBLEM TEXTURE CHANNEL MAPPING
+----------------------------------------------------------------------
+
+Emblem textures (.dds files) use RGBA channels as follows:
+
+  RED CHANNEL (R):   Mask for color3 mixing
+                     - 0 = no color3, 255 = full color3
+                     - Applied AFTER color2 mixing
+  
+  GREEN CHANNEL (G): Mask for color2 mixing
+                     - 0 = no color2, 255 = full color2
+                     - Applied AFTER color1 base
+  
+  BLUE CHANNEL (B):  Shading/detail overlay
+                     - 128 = neutral (no change)
+                     - 0-127 = darken (multiply blend)
+                     - 128-255 = lighten (screen blend)
+                     - Applied at 0.2 strength via overlay blend mode
+  
+  ALPHA CHANNEL (A): Transparency mask
+                     - 0 = transparent, 255 = opaque
+
+PATTERN TEXTURE CHANNEL MAPPING
+----------------------------------------------------------------------
+
+Pattern textures use a DIFFERENT channel system:
+
+  RED CHANNEL (R):   Shading/detail overlay (same as blue for emblems)
+                     - 128 = neutral, <128 darken, >128 lighten
+  
+  GREEN CHANNEL (G): Mask for color2 mixing
+  
+  BLUE CHANNEL (B):  Mask for color3 mixing
+  
+  ALPHA CHANNEL (A): Transparency mask
+
+RENDERING SEQUENCE (EMBLEMS)
+----------------------------------------------------------------------
+
+1. Start with color1 as base
+2. Mix in color2 using green channel as mask: mix(color1, color2, G)
+3. Mix in color3 using red channel as mask: mix(result, color3, R)
+4. Apply overlay blend using blue channel at 0.2 strength
+
+OVERLAY BLEND FORMULA
+----------------------------------------------------------------------
+
+The overlay blend mode (Photoshop-style) used in CK3 shaders:
+
+  overlayBlend(base, blend):
+    if (blend < 0.5):
+      result = 2.0 * base * blend              (multiply/darken)
+    else:
+      result = 1.0 - 2.0 * (1.0 - base) * (1.0 - blend)  (screen/lighten)
+
+Applied as:
+  finalColor = mix(baseColor, overlayBlend(baseColor, blueChannel), 0.7)
+
+Where:
+  - blueChannel normalized to [0.0, 1.0] range (texture value / 255)
+  - 0.5 threshold corresponds to texture value 128 (neutral)
+  - Strength 0.7 = strong shading effect (70% overlay, 30% original)
+
+TEXTURE VALUE REFERENCE
+----------------------------------------------------------------------
+
+Original CK3 DDS files use these neutral values:
+  - Blue channel (emblems): 128 = neutral shading
+  - Red channel (patterns): 128 = neutral shading
+  - DO NOT use 126 or other values (conversion error)
+
+When converting DDS to PNG, ensure 128 is preserved as neutral value.
+
+GLSL SHADER IMPLEMENTATION
+----------------------------------------------------------------------
+
+Fragment shader pseudocode for emblems:
+
+  vec4 texColor = texture(emblemTexture, texCoord);
+  
+  // Step 1: Apply color masks sequentially
+  vec3 baseColor = color1;
+  baseColor = mix(baseColor, color2, texColor.g);  // Color2 via green
+  baseColor = mix(baseColor, color3, texColor.r);  // Color3 via red
+  
+  // Step 2: Apply overlay shading from blue channel
+  vec3 overlay = overlayBlend(baseColor, vec3(texColor.b));
+  baseColor = mix(baseColor, overlay, 0.2);
+  
+  // Step 3: Apply alpha
+  fragColor = vec4(baseColor, texColor.a);
+
+======================================================================
 REFERENCES
 ======================================================================
 
@@ -386,6 +543,9 @@ REFERENCES
 - Block Structure: ORDERED LISTS with optional keys
 - Value Types: SIMPLE, STRING, UNKNOWN_TYPE, BLOCK
 - Decimal Rules: No trailing zeros, variable precision OK
+- Color Conversions: docs/specifications/color_conversions.txt
+- CK3 Shaders: gfx/FX/gui_coatofarms.shader
+- CK3 Shaders: gfx/FX/coat_of_arms_textured_emblem.shader
 
 ======================================================================
 END OF SPECIFICATION
