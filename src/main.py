@@ -81,28 +81,44 @@ class CoatOfArmsEditor(QMainWindow):
 	
 	def _on_asset_selected(self, asset_data):
 		"""Handle asset selection - update color swatches based on asset color count"""
+		print(f"[_on_asset_selected] Asset selected: {asset_data}")
+		
 		color_count = asset_data.get("colors", 1)
 		filename = asset_data.get("filename")
 		
+		print(f"[_on_asset_selected] filename: {filename}, color_count: {color_count}")
+		
 		# Update color swatches based on which tab is active
 		current_tab = self.right_sidebar.tab_widget.currentIndex()
+		print(f"[_on_asset_selected] current_tab: {current_tab}")
+		
 		if current_tab == 0:  # Base tab
+			print(f"[_on_asset_selected] Base tab - setting base texture: {filename}")
 			self.right_sidebar.set_base_color_count(color_count)
 			# Base is not a layer, update canvas base texture
 			if filename:
 				self.canvas_area.canvas_widget.set_base_texture(filename)
 		else:  # Layers or Properties tab
+			print(f"[_on_asset_selected] Layers/Properties tab - setting emblem color count")
 			self.right_sidebar.set_emblem_color_count(color_count)
 			
 			# If a layer is selected, update it with the new asset
+			print(f"[_on_asset_selected] selected_layer_index: {self.right_sidebar.selected_layer_index}")
 			if self.right_sidebar.selected_layer_index is not None:
 				idx = self.right_sidebar.selected_layer_index
+				print(f"[_on_asset_selected] Updating layer {idx}")
 				if 0 <= idx < len(self.right_sidebar.layers):
 					# Preserve existing properties when updating asset
 					old_layer = self.right_sidebar.layers[idx]
-					self.right_sidebar.layers[idx] = {
-						'filename': asset_data.get('filename', ''),
-						'path': asset_data.get('path', ''),
+					print(f"[_on_asset_selected] Old layer: {old_layer}")
+					
+					# Use DDS filename for both filename and path (texture system expects DDS)
+					dds_filename = asset_data.get('dds_filename', asset_data.get('filename', ''))
+					print(f"[_on_asset_selected] Using DDS filename: {dds_filename}")
+					
+					new_layer = {
+						'filename': dds_filename,
+						'path': dds_filename,
 						'colors': color_count,
 						'depth': old_layer.get('depth', idx),  # Preserve depth
 						'pos_x': old_layer.get('pos_x', 0.5),
@@ -117,10 +133,19 @@ class CoatOfArmsEditor(QMainWindow):
 						'color2_name': old_layer.get('color2_name'),
 						'color3_name': old_layer.get('color3_name')
 					}
+					self.right_sidebar.layers[idx] = new_layer
+					print(f"[_on_asset_selected] New layer: {new_layer}")
+					
+					print(f"[_on_asset_selected] Rebuilding layer list")
 					self.right_sidebar._rebuild_layer_list()
 					self.right_sidebar._update_layer_selection()
+					
+					print(f"[_on_asset_selected] Updating canvas with {len(self.right_sidebar.layers)} layers")
 					# Update canvas with new layers
 					self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+					print(f"[_on_asset_selected] Canvas updated successfully")
+			else:
+				print(f"[_on_asset_selected] No layer selected to update")
 	
 	def resizeEvent(self, event):
 		"""Handle window resize to recalculate grid columns in asset sidebar"""

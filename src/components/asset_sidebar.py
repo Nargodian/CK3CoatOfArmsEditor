@@ -63,15 +63,12 @@ class AssetSidebar(QFrame):
 						if category not in asset_data:
 							asset_data[category] = []
 						asset_data[category].append({
-							"filename": png_filename,
+						"filename": png_filename,  # PNG for display
+						"dds_filename": filename,  # DDS for texture lookup
 							"path": image_path,
 							"category": category,
 							"colors": properties.get("colors", 1)
 						})
-		
-		print(f"[AssetSidebar] Loaded {len(TEXTURE_PREVIEW_MAP)} textures into preview map")
-		if len(TEXTURE_PREVIEW_MAP) > 0:
-			print(f"[AssetSidebar] Sample entries: {list(TEXTURE_PREVIEW_MAP.keys())[:5]}")
 		
 		# Load textured emblems
 		textured_emblems_json = "json_output/textured_emblems/50_coa_designer_textured_emblems.json"
@@ -96,7 +93,8 @@ class AssetSidebar(QFrame):
 						if category not in asset_data:
 							asset_data[category] = []
 						asset_data[category].append({
-							"filename": png_filename,
+						"filename": png_filename,  # PNG for display
+						"dds_filename": filename,  # DDS for texture lookup
 							"path": image_path,
 							"category": category,
 							"colors": properties.get("colors", 1)
