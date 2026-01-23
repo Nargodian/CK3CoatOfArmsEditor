@@ -267,11 +267,11 @@ class PropertySidebar(QFrame):
 		self.rotation_slider, self.rotation_input = self._add_slider_field(content_layout, "Rotation", 0, 0, 360, is_int=True)
 		
 		# Connect slider changes to update current layer
-		self.pos_x_slider.valueChanged.connect(lambda: self._update_layer_property('pos_x', self.pos_x_slider.value() / 100.0))
-		self.pos_y_slider.valueChanged.connect(lambda: self._update_layer_property('pos_y', self.pos_y_slider.value() / 100.0))
-		self.scale_x_slider.valueChanged.connect(lambda: self._update_layer_scale())
-		self.scale_y_slider.valueChanged.connect(lambda: self._update_layer_scale())
-		self.rotation_slider.valueChanged.connect(lambda: self._update_layer_property('rotation', self.rotation_slider.value()))
+		self.pos_x_slider.valueChanged.connect(lambda: self._update_layer_property_and_widget('pos_x', self.pos_x_slider.value() / 100.0))
+		self.pos_y_slider.valueChanged.connect(lambda: self._update_layer_property_and_widget('pos_y', self.pos_y_slider.value() / 100.0))
+		self.scale_x_slider.valueChanged.connect(lambda: self._update_layer_scale_and_widget())
+		self.scale_y_slider.valueChanged.connect(lambda: self._update_layer_scale_and_widget())
+		self.rotation_slider.valueChanged.connect(lambda: self._update_layer_property_and_widget('rotation', self.rotation_slider.value()))
 		scroll.setWidget(content)
 		return scroll
 	
@@ -824,6 +824,21 @@ class PropertySidebar(QFrame):
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
 	
+	def _update_layer_property_and_widget(self, prop_name, value):
+		"""Update a property and sync transform widget"""
+		self._update_layer_property(prop_name, value)
+		if self.canvas_area and hasattr(self.canvas_area, 'transform_widget'):
+			if self.selected_layer_index is not None and 0 <= self.selected_layer_index < len(self.layers):
+				layer = self.layers[self.selected_layer_index]
+				# Update transform widget with current layer state
+				self.canvas_area.transform_widget.set_transform(
+					layer.get('pos_x', 0.5),
+					layer.get('pos_y', 0.5),
+					abs(layer.get('scale_x', 0.5)),
+					abs(layer.get('scale_y', 0.5)),
+					layer.get('rotation', 0)
+				)
+	
 	def _toggle_unified_scale(self, state):
 		"""Toggle between unified and separate scale sliders"""
 		is_unified = self.unified_scale_check.isChecked()
@@ -873,6 +888,21 @@ class PropertySidebar(QFrame):
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
 	
+	def _update_layer_scale_and_widget(self):
+		"""Update layer scale and sync transform widget"""
+		self._update_layer_scale()
+		if self.canvas_area and hasattr(self.canvas_area, 'transform_widget'):
+			if self.selected_layer_index is not None and 0 <= self.selected_layer_index < len(self.layers):
+				layer = self.layers[self.selected_layer_index]
+				# Update transform widget with current layer state
+				self.canvas_area.transform_widget.set_transform(
+					layer.get('pos_x', 0.5),
+					layer.get('pos_y', 0.5),
+					abs(layer.get('scale_x', 0.5)),
+					abs(layer.get('scale_y', 0.5)),
+					layer.get('rotation', 0)
+				)
+	
 	def _load_layer_properties(self):
 		"""Load the selected layer's properties into the UI controls"""
 		if self.selected_layer_index is not None and 0 <= self.selected_layer_index < len(self.layers):
@@ -921,6 +951,10 @@ class PropertySidebar(QFrame):
 			self.rotation_slider.blockSignals(False)
 			self.flip_x_check.blockSignals(False)
 			self.flip_y_check.blockSignals(False)
+			
+			# Also update transform widget when loading properties
+			if self.canvas_area:
+				self.canvas_area.update_transform_widget_for_layer(self.selected_layer_index)
 			
 			# Update emblem color buttons from layer colors
 			for i, btn in enumerate(self.emblem_color_buttons):

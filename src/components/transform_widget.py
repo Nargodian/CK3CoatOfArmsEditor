@@ -105,23 +105,25 @@ class TransformWidget(QWidget):
 		offset_y = (self.height() - size) / 2
 		
 		# Convert normalized coords to screen space matching canvas
-		# pos_x: 0.0-1.0 → screen pixels, where 0.5 is center
-		# Canvas space: (pos - 0.5) * 1.1 gives -0.55 to 0.55 range, then scale by viewport
-		canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 1.6)  # 1.6 is full canvas range (-0.8 to 0.8)
-		canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 1.6)
+		# Canvas: center_x = (pos_x - 0.5) * 1.1 in normalized space (-0.8 to 0.8)
+		# Canvas: center_y = -(pos_y - 0.5) * 1.1 (Y inverted in OpenGL)
+		# But widget uses Qt coords where Y increases downward, so we don't invert
+		# Then multiply by (size / 2) to get pixels (OpenGL normalized space conversion)
+		canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
+		canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)  # No inversion for Qt coords
 		
 		center_x = offset_x + size / 2 + canvas_x
-		center_y = offset_y + size / 2 + canvas_y  # Y already inverted in pos_y from CK3
+		center_y = offset_y + size / 2 + canvas_y
 		
 		# Scale: canvas uses scale * 0.6 for half dimensions
 		# Base size should represent the emblem's natural size
-		scaled_w = abs(self.scale_x) * 0.6 * (size / 1.6)
-		scaled_h = abs(self.scale_y) * 0.6 * (size / 1.6)
+		scaled_w = abs(self.scale_x) * 0.6 * (size / 2)
+		scaled_h = abs(self.scale_y) * 0.6 * (size / 2)
 		
 		# Create transform
 		transform = QTransform()
 		transform.translate(center_x, center_y)
-		transform.rotate(self.rotation)
+		transform.rotate(self.rotation)  # Qt rotation
 		transform.scale(1.0, 1.0)  # Scale already applied to dimensions
 		
 		painter.setTransform(transform)
@@ -214,14 +216,14 @@ class TransformWidget(QWidget):
 		offset_x = (self.width() - size) / 2
 		offset_y = (self.height() - size) / 2
 		
-		canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 1.6)
-		canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 1.6)
+		canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
+		canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
 		
 		center_x = offset_x + size / 2 + canvas_x
 		center_y = offset_y + size / 2 + canvas_y
 		
-		scaled_w = abs(self.scale_x) * 0.6 * (size / 1.6)
-		scaled_h = abs(self.scale_y) * 0.6 * (size / 1.6)
+		scaled_w = abs(self.scale_x) * 0.6 * (size / 2)
+		scaled_h = abs(self.scale_y) * 0.6 * (size / 2)
 		
 		handles = self._get_handle_positions(center_x, center_y, scaled_w, scaled_h)
 		
@@ -300,7 +302,9 @@ class TransformWidget(QWidget):
 		
 		# Calculate viewport size for coordinate conversion
 		size = min(self.width(), self.height())
-		canvas_scale = (size / 1.6) * 1.1  # Matches canvas coordinate system
+		# OpenGL normalized space: 1 unit = size/2 pixels
+		# Canvas uses (pos - 0.5) * 1.1, so conversion is:
+		canvas_scale = 1.1 * (size / 2)
 		
 		if self.active_handle == self.HANDLE_CENTER:
 			# Move - convert pixel delta to normalized coords
@@ -315,8 +319,8 @@ class TransformWidget(QWidget):
 			# Get center in screen coords
 			offset_x = (self.width() - size) / 2
 			offset_y = (self.height() - size) / 2
-			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 1.6)
-			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 1.6)
+			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
+			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
 			center_x = offset_x + size / 2 + canvas_x
 			center_y = offset_y + size / 2 + canvas_y
 			
@@ -325,33 +329,85 @@ class TransformWidget(QWidget):
 			
 		elif self.active_handle in [self.HANDLE_TL, self.HANDLE_TR, self.HANDLE_BL, self.HANDLE_BR]:
 			# Corner scale (uniform scaling)
+			# Calculate distance in viewport space
 			distance = math.sqrt(dx*dx + dy*dy)
-			# Determine direction (moving away = positive, towards center = negative)
-			direction = 1 if (dx + dy > 0) != (self.active_handle in [self.HANDLE_TL, self.HANDLE_BR]) else -1
-			scale_factor = 1.0 + (distance / (size * 0.3)) * direction
+			# Base scale factor on distance relative to viewport
+			base_scale = abs(start_sx) if abs(start_sx) > 0.01 else 0.5
+			scale_delta = distance / (size * base_scale)
+			
+			# Determine if moving away or towards center
+			# Check the direction relative to center
+			offset_x = (self.width() - size) / 2
+			offset_y = (self.height() - size) / 2
+			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
+			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
+			center_x = offset_x + size / 2 + canvas_x
+			center_y = offset_y + size / 2 + canvas_y
+			
+			# Vector from center to drag start
+			start_vec_x = self.drag_start_pos.x() - center_x
+			start_vec_y = self.drag_start_pos.y() - center_y
+			# Vector from center to current position
+			curr_vec_x = current_pos.x() - center_x
+			curr_vec_y = current_pos.y() - center_y
+			
+			# Dot product to determine direction
+			dot = start_vec_x * curr_vec_x + start_vec_y * curr_vec_y
+			start_len = math.sqrt(start_vec_x**2 + start_vec_y**2)
+			curr_len = math.sqrt(curr_vec_x**2 + curr_vec_y**2)
+			
+			if start_len > 0:
+				scale_factor = curr_len / start_len
+			else:
+				scale_factor = 1.0
 			
 			self.scale_x = start_sx * scale_factor
 			self.scale_y = start_sy * scale_factor
 			
 		elif self.active_handle in [self.HANDLE_L, self.HANDLE_R]:
-			# Horizontal scale
-			scale_delta = dx / (size * 0.3)
-			if self.active_handle == self.HANDLE_L:
-				scale_delta = -scale_delta
-			self.scale_x = start_sx * (1.0 + scale_delta)
+			# Horizontal scale - improved sensitivity
+			# Calculate offset from center for scaling
+			offset_x = (self.width() - size) / 2
+			offset_y = (self.height() - size) / 2
+			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
+			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
+			center_x = offset_x + size / 2 + canvas_x
+			
+			# Use distance-based scaling for better control
+			start_dist_x = abs(self.drag_start_pos.x() - center_x)
+			curr_dist_x = abs(current_pos.x() - center_x)
+			
+			if start_dist_x > 0:
+				scale_factor = curr_dist_x / start_dist_x
+			else:
+				scale_factor = 1.0
+			
+			self.scale_x = start_sx * scale_factor
 			
 		elif self.active_handle in [self.HANDLE_T, self.HANDLE_B]:
-			# Vertical scale
-			scale_delta = dy / (size * 0.3)
-			if self.active_handle == self.HANDLE_T:
-				scale_delta = -scale_delta
-			self.scale_y = start_sy * (1.0 + scale_delta)
+			# Vertical scale - improved sensitivity
+			offset_x = (self.width() - size) / 2
+			offset_y = (self.height() - size) / 2
+			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
+			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
+			center_y = offset_y + size / 2 + canvas_y
+			
+			# Use distance-based scaling for better control
+			start_dist_y = abs(self.drag_start_pos.y() - center_y)
+			curr_dist_y = abs(current_pos.y() - center_y)
+			
+			if start_dist_y > 0:
+				scale_factor = curr_dist_y / start_dist_y
+			else:
+				scale_factor = 1.0
+			
+			self.scale_y = start_sy * scale_factor
 		
-		# Clamp values
+		# Clamp values - strict 0-1 limits
 		self.pos_x = max(0.0, min(1.0, self.pos_x))
 		self.pos_y = max(0.0, min(1.0, self.pos_y))
-		self.scale_x = max(0.01, min(5.0, self.scale_x))
-		self.scale_y = max(0.01, min(5.0, self.scale_y))
+		self.scale_x = max(0.01, min(1.0, self.scale_x))
+		self.scale_y = max(0.01, min(1.0, self.scale_y))
 		
 		# Emit signal
 		self.transformChanged.emit(self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
