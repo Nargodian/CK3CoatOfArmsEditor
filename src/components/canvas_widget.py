@@ -45,7 +45,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		
 	def initializeGL(self):
 		"""Initialize OpenGL context and shaders"""
-		gl.glClearColor(0.1, 0.1, 0.1, 1.0)
+		gl.glClearColor(0.05, 0.05, 0.05, 1.0)  # Darker background to distinguish from black CoA elements
 		gl.glEnable(gl.GL_BLEND)
 		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 		

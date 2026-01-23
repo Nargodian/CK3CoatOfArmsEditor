@@ -724,6 +724,28 @@ class PropertySidebar(QFrame):
 		else:
 			event.ignore()
 	
+	def _get_preview_path(self, dds_path):
+		"""Convert .dds filename to .png preview path"""
+		import os
+		from .asset_sidebar import TEXTURE_PREVIEW_MAP
+		
+		print(f"[_get_preview_path] Input dds_path: {dds_path}")
+		
+		# Check if it's already a full path (from asset sidebar)
+		if os.path.exists(dds_path):
+			print(f"[_get_preview_path] Path exists as-is, returning: {dds_path}")
+			return dds_path
+		
+		# Extract just the filename if it's a full path
+		filename = os.path.basename(dds_path) if '/' in dds_path or '\\' in dds_path else dds_path
+		print(f"[_get_preview_path] Extracted filename: {filename}")
+		print(f"[_get_preview_path] TEXTURE_PREVIEW_MAP has {len(TEXTURE_PREVIEW_MAP)} entries")
+		
+		# Look up in the global texture preview map
+		result = TEXTURE_PREVIEW_MAP.get(filename)
+		print(f"[_get_preview_path] Lookup result: {result}")
+		return result
+	
 	def _rebuild_layer_list(self):
 		"""Rebuild the layer list UI"""
 		# Clear existing layer buttons
@@ -739,6 +761,8 @@ class PropertySidebar(QFrame):
 		
 		# Add layer buttons
 		for i, layer in enumerate(self.layers):
+			print(f"[_rebuild_layer_list] Processing layer {i}: {layer}")
+			
 			layer_btn = QPushButton()
 			layer_btn.setCheckable(True)
 			layer_btn.setFixedHeight(60)
@@ -759,10 +783,25 @@ class PropertySidebar(QFrame):
 			icon_label.setFixedSize(48, 48)
 			icon_label.setStyleSheet("border: 1px solid rgba(255, 255, 255, 40); border-radius: 3px;")
 			
-			if layer.get('path'):
-				pixmap = QPixmap(layer['path'])
-				if not pixmap.isNull():
-					icon_label.setPixmap(pixmap.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+			layer_path = layer.get('path')
+			print(f"[_rebuild_layer_list] Layer {i} path: {layer_path}")
+			
+			if layer_path:
+				# Convert .dds path to .png preview path
+				preview_path = self._get_preview_path(layer_path)
+				print(f"[_rebuild_layer_list] Layer {i} preview_path result: {preview_path}")
+				if preview_path:
+					pixmap = QPixmap(preview_path)
+					print(f"[_rebuild_layer_list] Layer {i} pixmap isNull: {pixmap.isNull()}")
+					if not pixmap.isNull():
+						icon_label.setPixmap(pixmap.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+						print(f"[_rebuild_layer_list] Layer {i} preview set successfully")
+					else:
+						print(f"[_rebuild_layer_list] Layer {i} failed to load pixmap from {preview_path}")
+				else:
+					print(f"[_rebuild_layer_list] Layer {i} no preview path found for {layer_path}")
+			else:
+				print(f"[_rebuild_layer_list] Layer {i} has no path")
 			
 			btn_layout.addWidget(icon_label)
 			

@@ -5,6 +5,10 @@ from PyQt5.QtGui import QIcon, QPixmap
 import json
 import os
 
+# Global dictionary mapping texture filenames to preview image paths
+# Key: filename (e.g., "ce_kamon_sorrel.dds"), Value: preview path
+TEXTURE_PREVIEW_MAP = {}
+
 
 class AssetSidebar(QFrame):
 	"""Left sidebar for browsing and selecting assets"""
@@ -46,13 +50,49 @@ class AssetSidebar(QFrame):
 						continue
 					# Convert .dds to .png
 					png_filename = filename.replace('.dds', '.png')
-					image_path = f"source_coa_files/colored_emblems/{png_filename}"
+					image_path = f"source_coa_files/coat_of_arms/colored_emblems/{png_filename}"
 					if os.path.exists(image_path):
+						# Add to preview map
+						TEXTURE_PREVIEW_MAP[filename] = image_path
+						
 						category = properties.get("category", None)
 						# Skip assets without a category
 						if not category:
 							continue
 						category = category.title()
+						if category not in asset_data:
+							asset_data[category] = []
+						asset_data[category].append({
+							"filename": png_filename,
+							"path": image_path,
+							"category": category,
+							"colors": properties.get("colors", 1)
+						})
+		
+		print(f"[AssetSidebar] Loaded {len(TEXTURE_PREVIEW_MAP)} textures into preview map")
+		if len(TEXTURE_PREVIEW_MAP) > 0:
+			print(f"[AssetSidebar] Sample entries: {list(TEXTURE_PREVIEW_MAP.keys())[:5]}")
+		
+		# Load textured emblems
+		textured_emblems_json = "json_output/textured_emblems/50_coa_designer_textured_emblems.json"
+		if os.path.exists(textured_emblems_json):
+			with open(textured_emblems_json, 'r', encoding='utf-8') as f:
+				data = json.load(f)
+				for filename, properties in data.items():
+					if properties is None or filename == "\ufeff":
+						continue
+					# Convert .dds to .png
+					png_filename = filename.replace('.dds', '.png')
+					image_path = f"source_coa_files/coat_of_arms/textured_emblems/{png_filename}"
+					if os.path.exists(image_path):
+						# Add to preview map
+						TEXTURE_PREVIEW_MAP[filename] = image_path
+						
+						category = properties.get("category", None)
+						# Skip assets without a category
+						if not category:
+							continue
+						category = "Textured " + category.title()
 						if category not in asset_data:
 							asset_data[category] = []
 						asset_data[category].append({
@@ -73,8 +113,11 @@ class AssetSidebar(QFrame):
 						continue
 					# Convert .dds to .png for display
 					png_filename = filename.replace('.dds', '.png')
-					image_path = f"source_coa_files/patterns/{png_filename}"
+					image_path = f"source_coa_files/coat_of_arms/patterns/{png_filename}"
 					if os.path.exists(image_path):
+						# Add to preview map
+						TEXTURE_PREVIEW_MAP[filename] = image_path
+						
 						asset_data["__Base_Patterns__"].append({
 							"filename": filename,  # Store .dds name for texture lookup
 							"display_name": png_filename,  # PNG name for display

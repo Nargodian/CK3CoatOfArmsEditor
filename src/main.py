@@ -104,6 +104,7 @@ class CoatOfArmsEditor(QMainWindow):
 						'filename': asset_data.get('filename', ''),
 						'path': asset_data.get('path', ''),
 						'colors': color_count,
+						'depth': old_layer.get('depth', idx),  # Preserve depth
 						'pos_x': old_layer.get('pos_x', 0.5),
 						'pos_y': old_layer.get('pos_y', 0.5),
 					'scale_x': old_layer.get('scale_x', 1.0),
@@ -240,8 +241,6 @@ class CoatOfArmsEditor(QMainWindow):
 			emblem_instances = []
 			for emblem in coa.get('colored_emblem', []):
 				filename = emblem.get('texture', '')
-				# Try to find the asset path from the asset sidebar
-				asset_path = self._find_asset_path(filename)
 				
 				# Get instances, or create default if none exist
 				instances = emblem.get('instance', [])
@@ -255,7 +254,7 @@ class CoatOfArmsEditor(QMainWindow):
 					
 					layer_data = {
 						'filename': filename,
-						'path': asset_path,
+						'path': filename,  # Use filename as path - texture system and preview lookup both use this
 						'colors': 3,  # Assume 3 colors for all emblems
 						'pos_x': instance.get('position', [0.5, 0.5])[0],
 						'pos_y': instance.get('position', [0.5, 0.5])[1],

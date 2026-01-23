@@ -8,7 +8,7 @@ class CanvasArea(QFrame):
 	
 	def __init__(self, parent=None):
 		super().__init__(parent)
-		self.setStyleSheet("QFrame { background-color: #1a1a1a; }")
+		self.setStyleSheet("QFrame { background-color: #0d0d0d; }")
 		self._setup_ui()
 	
 	def _setup_ui(self):
@@ -19,7 +19,7 @@ class CanvasArea(QFrame):
 		
 		# Container to center the square canvas
 		canvas_container = QFrame()
-		canvas_container.setStyleSheet("QFrame { background-color: #1a1a1a; }")
+		canvas_container.setStyleSheet("QFrame { background-color: #0d0d0d; }")
 		canvas_layout = QVBoxLayout(canvas_container)
 		canvas_layout.setContentsMargins(10, 10, 10, 10)
 		canvas_layout.setAlignment(Qt.AlignCenter)
