@@ -1,0 +1,338 @@
+CK3 COAT OF ARMS MASK/AESTHETICS SYSTEM
+======================================================================
+
+SOURCE: Crusader Kings III game files
+LOCATION: E:\Program Files (x86)\Steam\steamapps\common\Crusader Kings III\game\gfx\FX
+DATE ANALYZED: 2026-01-23
+
+======================================================================
+OVERVIEW
+======================================================================
+
+CK3 uses two separate mask systems for coat of arms rendering:
+
+1. **Aesthetics Mask (coa_mask_texture.dds)**: Applied to the FINAL rendered CoA
+   - Controls the shield shape/frame appearance
+   - Applied as screen-space overlay after all emblems are composited
+   
+2. **Pattern Mask (MaskTex.g channel)**: Used DURING emblem rendering
+   - Controls alpha/visibility per emblem
+   - Applied during individual emblem rendering pass
+
+======================================================================
+FILE REFERENCES
+======================================================================
+
+Primary Shader Files:
+- gui_coatofarms.shader          Main GUI rendering shader
+- coat_of_arms_textured_emblem.shader   Emblem rendering 
+- coat_of_arms.fxh               Shared includes and texture definitions
+
+Texture Definition (coat_of_arms.fxh):
+```
+TextureSampler MaskMap
+{
+    Ref = PdxTexture5
+    MagFilter = "Linear"
+    MinFilter = "Linear"
+    MipFilter = "Linear"
+    SampleModeU = "Wrap"
+    SampleModeV = "Wrap"
+    File = "gfx/coat_of_arms/coa_mask_texture.dds"
+}
+```
+
+======================================================================
+GUI SHADER MASK SYSTEM (gui_coatofarms.shader)
+======================================================================
+
+The GUI shader uses TWO separate texture samplers:
+
+TextureSampler Mask        <- PdxTexture0 (aesthetics/frame texture)
+TextureSampler CoA         <- PdxTexture1 (rendered CoA atlas)
+
+Rendering Flow:
+1. Sample the rendered CoA from atlas
+2. Sample the mask/frame texture using RelativePos (screen space)
+3. Multiply CoA by mask alpha to apply shield shape
+
+Code Extract:
+```hlsl
+float4 OutColor = PdxTex2D( CoA, UV.xy );
+
+// ... various effects (SEAL, RED_INK_STAMP, etc) ...
+
+// Default path:
+float mask = PdxTex2D( Mask, Input.RelativePos ).a;
+OutColor *= mask;
+OutColor *= Input.Color;
+```
+
+Key Point: The mask is sampled using Input.RelativePos (0-1 normalized position
+within the widget), NOT the CoA UV coordinates. This allows the same mask to be
+used for different CoA atlas positions.
+
+======================================================================
+EMBLEM SHADER MASK SYSTEM (coat_of_arms_textured_emblem.shader)
+======================================================================
+
+The emblem shader uses MaskTex for PER-EMBLEM masking during rendering:
+
+Code Extract:
+```hlsl
+float4 MaskTex = PdxTex2D( MaskMap, Input.uvPattern );
+float4 EmblemTex = PdxTex2D( EmblemMap, Input.uvEmblem );
+
+float4 EmblemColor = Emblem( Input, EmblemTex );
+
+#ifndef USE_PORTRAIT_COA
+    // overlay shading detail
+    EmblemColor.rgb = GetOverlay( EmblemColor.rgb, MaskTex.bbb, 0.2 );
+    EmblemColor.a *= MaskTex.g * 2;
+#endif
+```
+
+Channel Usage in MaskMap (coa_mask_texture.dds):
+- **Blue Channel (MaskTex.bbb)**: Overlay shading detail
+  - Applied at 0.2 strength using GetOverlay() function
+  - Adds texture/detail to the emblem surface
+  
+- **Green Channel (MaskTex.g)**: Alpha multiplier
+  - Multiplied by 2 and applied to emblem alpha
+  - Controls emblem visibility/fade
+
+Important: This is DIFFERENT from the emblem texture's blue channel!
+- Emblem texture blue = inherent shading in the emblem design
+- MaskTex blue = additional overlay texture/detail applied to ALL emblems
+
+======================================================================
+ACTUAL TEXTURE ANALYSIS (coa_mask_texture.png from CK3)
+======================================================================
+
+Analysis of extracted coa_mask_texture.png (256x256 RGBA):
+
+**Red Channel: DIRT MAP**
+- Range: 8-255 (mean: 239.81, std: 17.43, median: 247)
+- Heavily biased toward bright values (54,845 pixels at 230-255 range)
+- 88 unique values - relatively smooth gradients
+- Purpose: Subtle dirt/aging overlay texture
+- Mostly bright (clean) with darker patches representing wear/dirt
+- Applied to add weathering and imperfection to the coat of arms
+
+**Green Channel: PAINT MASK**
+- Range: 0-255 (mean: 208.71, std: 52.19, median: 228)
+- Wide distribution with high variation
+- 231 unique values - very granular detail
+- Purpose: Alpha multiplier for paint coverage/opacity (confirmed in shader)
+- Multiplied by 2 in shader: `EmblemColor.a *= MaskTex.g * 2`
+- Creates varied paint opacity effects - some areas more opaque than others
+- Simulates uneven paint application or faded areas
+
+**Blue Channel: FABRIC/MATERIAL TEXTURE**
+- Range: 49-238 (mean: 137.38, std: 27.60, median: 140)
+- Centered around 140 (close to neutral 128)
+- Bell curve distribution (25,553 pixels at 115-140 range)
+- 90 unique values - blotchy textured detail
+- Purpose: Fabric weave/material surface overlay (confirmed in shader)
+- Applied at 0.2 strength: `EmblemColor.rgb = GetOverlay(EmblemColor.rgb, MaskTex.bbb, 0.2)`
+- NOT neutral 128 - intentionally shifted slightly brighter
+- Creates blotchy appearance simulating fabric texture, leather grain, etc.
+- This is the noise/texture that gives emblems material-like surface detail
+
+**Alpha Channel:**
+- Constant 255 (fully opaque)
+- Not used for masking
+
+Key Findings:
+1. Blue channel contains the visual "noise" texture (49-238 range)
+2. Green channel has the widest variation (0-255 full range)
+3. Red channel is mostly bright with subtle variation
+4. The blue channel's non-neutral distribution (centered at 140, not 128)
+   explains why it appears chaotic - it's actual texture detail, not
+   just subtle shading variations
+
+Visual Appearance & Purpose:
+- **Red (Dirt Map)**: Subtle darker patches on mostly bright background,
+  adds weathering and age to the coat of arms
+- **Green (Paint Mask)**: Varied opacity levels simulating uneven paint
+  coverage or faded areas
+- **Blue (Fabric Texture)**: Blotchy material texture simulating fabric
+  weave, leather grain, or other surface materials
+
+Combined Effect:
+The three channels work together to make coat of arms look like physical
+objects rather than flat graphics:
+1. Blue channel adds material texture at 0.2 strength (subtle but visible)
+2. Green channel varies alpha for paint coverage effects (multiplied by 2)
+3. Red channel adds dirt/aging (subtle weathering)
+
+This is why CK3's coat of arms have a tactile, realistic appearance -
+they're simulating actual painted fabric or leather shields with texture,
+uneven paint, and accumulated dirt/wear.
+
+======================================================================
+COORDINATE SYSTEMS
+======================================================================
+
+GUI Shader Mask Sampling:
+- Uses Input.RelativePos (widget-space 0-1 coordinates)
+- Allows mask to stay consistent regardless of CoA position in atlas
+- Screen-space aligned (doesn't move with CoA content)
+
+Emblem Shader Mask Sampling:
+- Uses Input.uvPattern (pattern UV coordinates)
+- Wraps using "Wrap" sample mode
+- Provides repeating texture detail across emblem
+
+Our Implementation (canvas_widget.py):
+```glsl
+// Use screen-space coordinates for mask (0-1 range, centered)
+vec2 maskCoord = 1.0-(gl_FragCoord.xy / viewportSize);
+maskCoord -= 0.5;    // Center the coordinates
+maskCoord *= 1.6;    // Scale to cover more area
+maskCoord += 0.5;    // Re-center the coordinates
+vec4 maskSample = texture(coaMaskSampler, maskCoord);
+float coaMaskValue = max(max(maskSample.r, maskSample.g), 
+                         max(maskSample.b, maskSample.a));
+```
+
+We use gl_FragCoord to achieve similar screen-space behavior as CK3's
+Input.RelativePos.
+
+======================================================================
+OVERLAY BLEND FUNCTION (GetOverlay)
+======================================================================
+
+CK3 uses GetOverlay() to apply the mask texture detail. While we couldn't
+locate the exact function definition in the extracted files, based on usage
+and standard overlay blend formulas, it likely implements:
+
+```hlsl
+float Overlay(float base, float blend)
+{
+    return (blend < 0.5) 
+        ? (2.0 * base * blend) 
+        : (1.0 - 2.0 * (1.0 - base) * (1.0 - blend));
+}
+
+float3 GetOverlay(float3 base, float3 blend, float strength)
+{
+    float3 result;
+    result.r = Overlay(base.r, blend.r);
+    result.g = Overlay(base.g, blend.g);
+    result.b = Overlay(base.b, blend.b);
+    return lerp(base, result, strength);
+}
+```
+
+This is the Photoshop-style overlay blend:
+- Values < 0.5: Multiply (darken)
+- Values >= 0.5: Screen (lighten)
+- Strength 0.2: 20% overlay effect, 80% original
+
+======================================================================
+SPECIAL EFFECTS IN GUI SHADER
+======================================================================
+
+The gui_coatofarms.shader supports multiple rendering modes:
+
+1. **SEAL**: Embossed wax seal effect
+   - Applies pattern from CoA as raised detail
+   - Uses offset sampling for depth effect
+   - Multiplies by background texture
+
+2. **RED_INK_STAMP**: Red ink stamp effects
+   - Circular or square variants
+   - Uses noise functions (fbm, valueNoise) for texture
+   - Applies border and imperfections for realism
+   - Alpha uses red channel for ink intensity
+
+3. **DEFAULT**: Standard flat rendering
+   - Simple multiply by mask alpha
+   - Used for most UI CoA displays
+
+Code Structure:
+```hlsl
+#if defined( SEAL )
+    // Seal rendering logic
+#elif defined( RED_INK_STAMP )
+    // Stamp rendering logic
+#else
+    // Default flat rendering
+    float mask = PdxTex2D( Mask, Input.RelativePos ).a;
+    OutColor *= mask;
+#endif
+```
+
+======================================================================
+KEY DIFFERENCES: CK3 vs OUR IMPLEMENTATION
+======================================================================
+
+CK3 Official:
+- Two-stage rendering: Emblems rendered to atlas, then GUI applies frame
+- Separate MaskMap (coa_mask_texture.dds) applied during emblem rendering
+- GetOverlay() function applies mask detail at 0.2 strength
+- Widget-relative coordinate system for frame/shield mask
+
+Our Implementation:
+- Single-stage rendering: Everything rendered in one pass
+- coaMaskSampler used as frame/shield shape only
+- We apply overlay to emblem texture blue channel (shading), not mask texture
+- Screen-space coordinates using gl_FragCoord
+
+What We're Missing:
+- The coa_mask_texture.dds overlay detail texture
+- Two-stage rendering pipeline (render-to-texture then compose)
+- MaskTex.g alpha multiplier per emblem
+- MaskTex.b overlay detail layer
+- Proper GetOverlay() implementation for mask detail
+
+What We Implemented Correctly:
+- Overlay blend formula (for emblem shading)
+- Screen-space mask sampling concept
+- Channel-based color mixing (R=color3, G=color2, B=shading)
+- Y-axis inversion
+- Alpha compositing
+
+======================================================================
+RECOMMENDATIONS FOR ACCURATE CK3 RENDERING
+======================================================================
+
+To fully match CK3's system, we would need:
+
+1. **Add coa_mask_texture.dds**:
+   - Extract from CK3: gfx/coat_of_arms/coa_mask_texture.dds
+   - Blue channel: Repeating detail texture (leather, fabric, etc.)
+   - Green channel: Alpha fade/gradient masks
+   - Apply during emblem rendering, not just as frame
+
+2. **Implement Two-Stage Rendering**:
+   - Stage 1: Render emblems to offscreen texture
+   - Stage 2: Apply frame/shield mask and effects
+
+3. **Add MaskMap Overlay**:
+   - Sample MaskMap using pattern UVs (wrapping)
+   - Apply blue channel as overlay at 0.2 strength
+   - Multiply alpha by green channel * 2
+
+4. **Separate Frame and Detail Masks**:
+   - Frame mask: Current coaMaskSampler (shield shape)
+   - Detail mask: New MaskMap sampler (surface texture)
+
+Current Status:
+Our implementation is functionally correct for basic CoA rendering with
+accurate colors and shading. The missing mask detail system is a subtle
+enhancement that adds surface texture but doesn't affect the core design.
+
+======================================================================
+RELATED DOCUMENTATION
+======================================================================
+
+See also:
+- coat_of_arms_format_specifics.txt: CoA data format and rendering
+- color_conversions.txt: CK3 color palette HSV to RGB
+- emblem_rendering_notes.txt: Channel mapping discoveries
+
+======================================================================
+END OF SPECIFICATION
+======================================================================

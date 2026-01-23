@@ -16,6 +16,7 @@ class PropertySidebar(QFrame):
 		self.selected_layer_index = None
 		self.layer_buttons = []  # Keep track of layer buttons
 		self.canvas_widget = None  # Reference to canvas for updates
+		self.canvas_area = None  # Reference to canvas area for transform widget
 		self.drag_start_index = None
 		self.drag_start_pos = None
 		self._setup_ui()
@@ -62,6 +63,9 @@ class PropertySidebar(QFrame):
 		
 		properties_tab = self._create_properties_tab()
 		self.tab_widget.addTab(properties_tab, "Properties")
+		
+		# Disable properties tab initially (no layer selected)
+		self.tab_widget.setTabEnabled(2, False)
 		
 		# Set Base tab as default
 		self.tab_widget.setCurrentIndex(0)
@@ -883,8 +887,12 @@ class PropertySidebar(QFrame):
 			self.flip_x_check.blockSignals(True)
 			self.flip_y_check.blockSignals(True)
 			
-			self.pos_x_slider.setValue(int(layer.get('pos_x', 0.5) * 100))
-			self.pos_y_slider.setValue(int(layer.get('pos_y', 0.5) * 100))
+			pos_x_val = int(layer.get('pos_x', 0.5) * 100)
+			pos_y_val = int(layer.get('pos_y', 0.5) * 100)
+			self.pos_x_slider.setValue(pos_x_val)
+			self.pos_y_slider.setValue(pos_y_val)
+			self.pos_x_input.setText(f"{pos_x_val/100:.2f}")
+			self.pos_y_input.setText(f"{pos_y_val/100:.2f}")
 			
 			# Handle scale with flip detection
 			scale_x = layer.get('scale_x', 0.5)
@@ -895,9 +903,16 @@ class PropertySidebar(QFrame):
 			self.flip_y_check.setChecked(scale_y < 0)
 			
 			# Set slider values to absolute values
-			self.scale_x_slider.setValue(int(abs(scale_x) * 100))
-			self.scale_y_slider.setValue(int(abs(scale_y) * 100))
-			self.rotation_slider.setValue(int(layer.get('rotation', 0)))
+			scale_x_val = int(abs(scale_x) * 100)
+			scale_y_val = int(abs(scale_y) * 100)
+			self.scale_x_slider.setValue(scale_x_val)
+			self.scale_y_slider.setValue(scale_y_val)
+			self.scale_x_input.setText(f"{scale_x_val/100:.2f}")
+			self.scale_y_input.setText(f"{scale_y_val/100:.2f}")
+			
+			rotation_val = int(layer.get('rotation', 0))
+			self.rotation_slider.setValue(rotation_val)
+			self.rotation_input.setText(str(rotation_val))
 			
 			self.pos_x_slider.blockSignals(False)
 			self.pos_y_slider.blockSignals(False)
@@ -910,6 +925,7 @@ class PropertySidebar(QFrame):
 			# Update emblem color buttons from layer colors
 			for i, btn in enumerate(self.emblem_color_buttons):
 				color_key = f'color{i+1}'
+				color_name_key = f'color{i+1}_name'
 				if color_key in layer:
 					color_rgb = layer[color_key]
 					color_hex = '#{:02x}{:02x}{:02x}'.format(
@@ -918,6 +934,8 @@ class PropertySidebar(QFrame):
 						int(color_rgb[2] * 255)
 					)
 					btn.setProperty("colorValue", color_hex)
+					# Also restore the color name if it exists (for proper serialization)
+					btn.setProperty("colorName", layer.get(color_name_key))
 					btn.setStyleSheet(f"""
 						QPushButton {{
 							background-color: {color_hex};
@@ -926,10 +944,37 @@ class PropertySidebar(QFrame):
 					""")
 	
 	def _select_layer(self, index):
-		"""Select a layer"""
-		self.selected_layer_index = index
+		"""Select a layer, or deselect if clicking the same layer"""
+		if index is None or index < 0:
+			# Deselect
+			self._deselect_layer()
+			return
+			
+		if self.selected_layer_index == index:
+			# Clicking same layer - deselect it
+			self._deselect_layer()
+		else:
+			# Selecting a new layer
+			self.selected_layer_index = index
+			self._update_layer_selection()
+			self._load_layer_properties()
+			# Enable properties tab
+			self.tab_widget.setTabEnabled(2, True)
+			# Update transform widget in canvas area
+			if self.canvas_area:
+				self.canvas_area.update_transform_widget_for_layer(index)
+	
+	def _deselect_layer(self):
+		"""Deselect the current layer"""
+		self.selected_layer_index = None
 		self._update_layer_selection()
-		self._load_layer_properties()
+		# Update transform widget to hide
+		if self.canvas_area:
+			self.canvas_area.update_transform_widget_for_layer(None)
+		# Switch to layers tab and disable properties tab
+		self.tab_widget.setTabEnabled(2, False)
+		if self.tab_widget.currentIndex() == 2:
+			self.tab_widget.setCurrentIndex(1)  # Switch to Layers tab
 	
 	def _update_layer_selection(self):
 		"""Update which layer button is checked"""

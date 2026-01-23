@@ -49,6 +49,10 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# Connect canvas to property sidebar for layer updates
 		self.right_sidebar.canvas_widget = self.canvas_area.canvas_widget
+		self.right_sidebar.canvas_area = self.canvas_area
+		
+		# Connect canvas area to property sidebar for transform widget
+		self.canvas_area.set_property_sidebar(self.right_sidebar)
 		
 		# Initialize base colors in canvas from property sidebar
 		base_colors = self.right_sidebar.get_base_colors()
@@ -430,6 +434,11 @@ class CoatOfArmsEditor(QMainWindow):
 				# Get depth value (default to 0 if not specified)
 				depth = instance.get('depth', 0)
 				
+				# Get color names and RGB values
+				color1_name = emblem.get('color1', 'yellow')
+				color2_name = emblem.get('color2', 'red')
+				color3_name = emblem.get('color3', 'red')
+				
 				layer_data = {
 					'filename': filename,
 					'path': filename,  # Use filename as path - texture system and preview lookup both use this
@@ -439,9 +448,12 @@ class CoatOfArmsEditor(QMainWindow):
 					'scale_x': instance.get('scale', [1.0, 1.0])[0],
 					'scale_y': instance.get('scale', [1.0, 1.0])[1],
 					'rotation': instance.get('rotation', 0),
-					'color1': self._color_name_to_rgb(emblem.get('color1', 'yellow')),
-					'color2': self._color_name_to_rgb(emblem.get('color2', 'red')),
-					'color3': self._color_name_to_rgb(emblem.get('color3', 'red')),
+					'color1': self._color_name_to_rgb(color1_name),
+					'color2': self._color_name_to_rgb(color2_name),
+					'color3': self._color_name_to_rgb(color3_name),
+					'color1_name': color1_name,
+					'color2_name': color2_name,
+					'color3_name': color3_name,
 					'depth': depth
 				}
 				emblem_instances.append(layer_data)
