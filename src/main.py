@@ -282,14 +282,6 @@ class CoatOfArmsEditor(QMainWindow):
 		elif event.key() == Qt.Key_Delete:
 			if self.right_sidebar.get_selected_indices():
 				self.right_sidebar._delete_layer()
-				# Update UI and canvas
-				self.right_sidebar._rebuild_layer_list()
-				self.right_sidebar._update_layer_selection()
-				self.right_sidebar._load_layer_properties()
-				self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-				if self.canvas_area:
-					self.canvas_area.update_transform_widget_for_layer()
-				self._save_state("Delete layer")
 				event.accept()
 			else:
 				super().keyPressEvent(event)
