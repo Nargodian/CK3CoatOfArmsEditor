@@ -10,6 +10,7 @@ from components.canvas_area import CanvasArea
 from components.property_sidebar import PropertySidebar
 from utils.coa_parser import parse_coa_string, serialize_coa_to_string
 from utils.history_manager import HistoryManager
+from utils.color_utils import color_name_to_rgb, rgb_to_color_name
 
 
 class CoatOfArmsEditor(QMainWindow):
@@ -442,9 +443,9 @@ class CoatOfArmsEditor(QMainWindow):
 			default_pattern = "pattern__solid.dds"
 			default_color_names = ['black', 'yellow', 'black']
 			default_colors = [
-				self._color_name_to_rgb('black'),
-				self._color_name_to_rgb('yellow'),
-				self._color_name_to_rgb('black')
+				color_name_to_rgb('black'),
+				color_name_to_rgb('yellow'),
+				color_name_to_rgb('black')
 			]
 			
 			self.canvas_area.canvas_widget.set_base_texture(default_pattern)
@@ -479,9 +480,9 @@ class CoatOfArmsEditor(QMainWindow):
 				"coa_export": {
 					"custom": True,
 					"pattern": canvas.base_texture or "pattern__solid.dds",
-					"color1": self._rgb_to_color_name(base_colors[0], self.canvas_area.canvas_widget.base_color1_name),
-					"color2": self._rgb_to_color_name(base_colors[1], self.canvas_area.canvas_widget.base_color2_name),
-					"color3": self._rgb_to_color_name(base_colors[2], self.canvas_area.canvas_widget.base_color3_name)
+					"color1": rgb_to_color_name(base_colors[0], self.canvas_area.canvas_widget.base_color1_name),
+					"color2": rgb_to_color_name(base_colors[1], self.canvas_area.canvas_widget.base_color2_name),
+					"color3": rgb_to_color_name(base_colors[2], self.canvas_area.canvas_widget.base_color3_name)
 				}
 			}
 			
@@ -499,7 +500,7 @@ class CoatOfArmsEditor(QMainWindow):
 				for texture, layers in texture_groups.items():
 					emblem = {
 						"texture": texture,
-						"color1": self._rgb_to_color_name(layers[0].get('color1'), layers[0].get('color1_name')),
+						"color1": rgb_to_color_name(layers[0].get('color1'), layers[0].get('color1_name')),
 						"instance": []
 					}
 					
@@ -585,9 +586,9 @@ class CoatOfArmsEditor(QMainWindow):
 			}
 			
 			# Add base colors only if they differ from defaults (black, yellow, black)
-			color1_str = self._rgb_to_color_name(base_colors[0], getattr(canvas, 'base_color1_name', None))
-			color2_str = self._rgb_to_color_name(base_colors[1], getattr(canvas, 'base_color2_name', None))
-			color3_str = self._rgb_to_color_name(base_colors[2], getattr(canvas, 'base_color3_name', None))
+			color1_str = rgb_to_color_name(base_colors[0], getattr(canvas, 'base_color1_name', None))
+			color2_str = rgb_to_color_name(base_colors[1], getattr(canvas, 'base_color2_name', None))
+			color3_str = rgb_to_color_name(base_colors[2], getattr(canvas, 'base_color3_name', None))
 			
 			if color1_str != 'black':
 				coa_data["coa_clipboard"]["color1"] = color1_str
@@ -613,9 +614,9 @@ class CoatOfArmsEditor(QMainWindow):
 				}
 				
 				# Add emblem colors only if they differ from defaults (yellow, red, red)
-				color1_str = self._rgb_to_color_name(layer.get('color1', [1.0, 1.0, 1.0]), layer.get('color1_name'))
-				color2_str = self._rgb_to_color_name(layer.get('color2', [1.0, 1.0, 1.0]), layer.get('color2_name'))
-				color3_str = self._rgb_to_color_name(layer.get('color3', [1.0, 1.0, 1.0]), layer.get('color3_name'))
+				color1_str = rgb_to_color_name(layer.get('color1', [1.0, 1.0, 1.0]), layer.get('color1_name'))
+				color2_str = rgb_to_color_name(layer.get('color2', [1.0, 1.0, 1.0]), layer.get('color2_name'))
+				color3_str = rgb_to_color_name(layer.get('color3', [1.0, 1.0, 1.0]), layer.get('color3_name'))
 				
 				if color1_str != 'yellow':
 					emblem['color1'] = color1_str
@@ -912,9 +913,9 @@ class CoatOfArmsEditor(QMainWindow):
 		}
 		
 		# Add colors only if they differ from defaults (yellow, red, red)
-		color1_str = self._rgb_to_color_name(layer.get('color1', [1.0, 1.0, 1.0]), layer.get('color1_name'))
-		color2_str = self._rgb_to_color_name(layer.get('color2', [1.0, 1.0, 1.0]), layer.get('color2_name'))
-		color3_str = self._rgb_to_color_name(layer.get('color3', [1.0, 1.0, 1.0]), layer.get('color3_name'))
+		color1_str = rgb_to_color_name(layer.get('color1', [1.0, 1.0, 1.0]), layer.get('color1_name'))
+		color2_str = rgb_to_color_name(layer.get('color2', [1.0, 1.0, 1.0]), layer.get('color2_name'))
+		color3_str = rgb_to_color_name(layer.get('color3', [1.0, 1.0, 1.0]), layer.get('color3_name'))
 		
 		if color1_str != 'yellow':
 			emblem_data['color1'] = color1_str
@@ -981,9 +982,9 @@ class CoatOfArmsEditor(QMainWindow):
 				'rotation': instance.get('rotation', 0),
 				'flip_x': False,
 				'flip_y': False,
-				'color1': self._color_name_to_rgb(color1_name),
-				'color2': self._color_name_to_rgb(color2_name),
-				'color3': self._color_name_to_rgb(color3_name),
+				'color1': color_name_to_rgb(color1_name),
+				'color2': color_name_to_rgb(color2_name),
+				'color3': color_name_to_rgb(color3_name),
 				'color1_name': color1_name,
 				'color2_name': color2_name,
 				'color3_name': color3_name
@@ -1018,9 +1019,9 @@ class CoatOfArmsEditor(QMainWindow):
 		color3_name = coa.get('color3', 'black')
 		
 		base_colors = [
-			self._color_name_to_rgb(color1_name),
-			self._color_name_to_rgb(color2_name),
-			self._color_name_to_rgb(color3_name)
+			color_name_to_rgb(color1_name),
+			color_name_to_rgb(color2_name),
+			color_name_to_rgb(color3_name)
 		]
 		base_color_names = [color1_name, color2_name, color3_name]
 		
@@ -1059,9 +1060,9 @@ class CoatOfArmsEditor(QMainWindow):
 					'scale_x': instance.get('scale', [1.0, 1.0])[0],
 					'scale_y': instance.get('scale', [1.0, 1.0])[1],
 					'rotation': instance.get('rotation', 0),
-					'color1': self._color_name_to_rgb(color1_name),
-					'color2': self._color_name_to_rgb(color2_name),
-					'color3': self._color_name_to_rgb(color3_name),
+					'color1': color_name_to_rgb(color1_name),
+					'color2': color_name_to_rgb(color2_name),
+					'color3': color_name_to_rgb(color3_name),
 					'color1_name': color1_name,
 					'color2_name': color2_name,
 					'color3_name': color3_name,
@@ -1089,26 +1090,6 @@ class CoatOfArmsEditor(QMainWindow):
 		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
 		print(f"CoA loaded - {len(self.right_sidebar.layers)} layers created")
 
-	def _rgb_to_color_name(self, rgb, color_name=None):
-		"""Convert RGB [0-1] to CK3 color format
-		
-		If color_name is provided (from swatch), use the name.
-		Otherwise (from color picker), output rgb { R G B } format.
-		"""
-		if not rgb:
-			return 'white'
-		
-		# If we have a named color (from swatch), use it
-		if color_name:
-			return color_name
-		
-		# Otherwise output custom RGB format (from color picker)
-		r, g, b = rgb[0], rgb[1], rgb[2]
-		r_int = int(round(r * 255))
-		g_int = int(round(g * 255))
-		b_int = int(round(b * 255))
-		return f"rgb {{ {r_int} {g_int} {b_int} }}"
-	
 	def _find_asset_path(self, filename):
 		"""Find the display path for an asset by filename"""
 		if not filename:
@@ -1119,42 +1100,6 @@ class CoatOfArmsEditor(QMainWindow):
 				if asset.get('filename') == filename:
 					return asset.get('path', '')
 		return ''
-	
-	def _color_name_to_rgb(self, color_name):
-		"""Convert CK3 color name to RGB [0-1]
-		
-		Uses accurate color values extracted from CK3's default_colors.txt
-		and converted from HSV to RGB. See docs/specifications/color_conversions.txt
-		for complete conversion reference.
-		"""
-		# Check if it's an rgb { R G B } custom color
-		if isinstance(color_name, str) and color_name.startswith('rgb'):
-			# Parse "rgb { 74 201 202 }" format
-			match = re.search(r'rgb\s*\{\s*(\d+)\s+(\d+)\s+(\d+)\s*\}', color_name)
-			if match:
-				r, g, b = int(match.group(1)), int(match.group(2)), int(match.group(3))
-				return [r / 255.0, g / 255.0, b / 255.0]
-		
-		# Official CK3 color definitions from game/common/named_colors/default_colors.txt
-		# Accurate RGB [0-1] values converted from HSV using color_conversions.txt
-		color_map = {
-			'black': [0.100, 0.090, 0.075],
-			'blue': [0.080, 0.246, 0.400],
-			'blue_dark': [0.030, 0.170, 0.300],
-			'blue_light': [0.165, 0.365, 0.550],
-			'brown': [0.450, 0.234, 0.117],
-			'green': [0.120, 0.300, 0.138],
-			'green_light': [0.200, 0.400, 0.220],
-			'grey': [0.500, 0.500, 0.500],
-			'orange': [0.600, 0.230, 0.000],
-			'purple': [0.350, 0.105, 0.252],
-			'red': [0.450, 0.133, 0.090],
-			'red_dark': [0.300, 0.030, 0.030],
-			'white': [0.800, 0.792, 0.784],
-			'yellow': [0.750, 0.525, 0.188],
-			'yellow_light': [1.000, 0.680, 0.200]
-		}
-		return color_map.get(color_name, [1.0, 1.0, 1.0])
 
 
 def main():

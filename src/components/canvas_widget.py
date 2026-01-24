@@ -7,6 +7,8 @@ import os
 import json
 from PIL import Image
 
+from components.canvas_widgets.shader_manager import ShaderManager
+
 
 class CoatOfArmsCanvas(QOpenGLWidget):
 	"""OpenGL canvas for rendering coat of arms with shaders"""
@@ -51,47 +53,11 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		gl.glEnable(gl.GL_BLEND)
 		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 		
-		shader_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'shaders')
-		vert_path = os.path.join(shader_dir, 'basic.vert')
-		
-		# Create base shader program
-		self.base_shader = QOpenGLShaderProgram(self)
-		base_frag_path = os.path.join(shader_dir, 'base.frag')
-		
-		if not self.base_shader.addShaderFromSourceFile(QOpenGLShader.Vertex, vert_path):
-			print(f"Base vertex shader error: {self.base_shader.log()}")
-			
-		if not self.base_shader.addShaderFromSourceFile(QOpenGLShader.Fragment, base_frag_path):
-			print(f"Base fragment shader error: {self.base_shader.log()}")
-			
-		if not self.base_shader.link():
-			print(f"Base shader link error: {self.base_shader.log()}")
-		
-		# Create design shader program
-		self.design_shader = QOpenGLShaderProgram(self)
-		design_frag_path = os.path.join(shader_dir, 'design.frag')
-		
-		if not self.design_shader.addShaderFromSourceFile(QOpenGLShader.Vertex, vert_path):
-			print(f"Design vertex shader error: {self.design_shader.log()}")
-			
-		if not self.design_shader.addShaderFromSourceFile(QOpenGLShader.Fragment, design_frag_path):
-			print(f"Design fragment shader error: {self.design_shader.log()}")
-			
-		if not self.design_shader.link():
-			print(f"Design shader link error: {self.design_shader.log()}")
-		
-		# Create basic shader program for frame rendering
-		self.basic_shader = QOpenGLShaderProgram(self)
-		basic_frag_path = os.path.join(shader_dir, 'basic.frag')
-		
-		if not self.basic_shader.addShaderFromSourceFile(QOpenGLShader.Vertex, vert_path):
-			print(f"Basic vertex shader error: {self.basic_shader.log()}")
-			
-		if not self.basic_shader.addShaderFromSourceFile(QOpenGLShader.Fragment, basic_frag_path):
-			print(f"Basic fragment shader error: {self.basic_shader.log()}")
-			
-		if not self.basic_shader.link():
-			print(f"Basic shader link error: {self.basic_shader.log()}")
+		# Create shaders using ShaderManager
+		shader_manager = ShaderManager()
+		self.base_shader = shader_manager.create_base_shader(self)
+		self.design_shader = shader_manager.create_design_shader(self)
+		self.basic_shader = shader_manager.create_basic_shader(self)
 		
 		self.base_shader.bind()
 		
