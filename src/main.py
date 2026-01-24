@@ -19,6 +19,7 @@ from services.layer_operations import (
     duplicate_layer, serialize_layer_to_text, parse_layer_from_text,
     parse_multiple_layers_from_text
 )
+from services.coa_serializer import parse_coa_for_editor
 
 
 class CoatOfArmsEditor(QMainWindow):
@@ -814,78 +815,21 @@ class CoatOfArmsEditor(QMainWindow):
 	def _apply_coa_data(self, coa_data):
 		"""Apply parsed CoA data to editor"""
 		
-		# Get the CoA object (first key)
-		coa_id = list(coa_data.keys())[0]
-		coa = coa_data[coa_id]
+		# Parse CoA using service
+		parsed = parse_coa_for_editor(coa_data)
+		base_data = parsed['base']
+		layers = parsed['layers']
 		
-		# Apply base pattern
-		if 'pattern' in coa:
-			self.canvas_area.canvas_widget.set_base_texture(coa['pattern'])
-		
-		# Apply base colors (CK3 defaults: black, yellow, black)
-		color1_name = coa.get('color1', 'black')
-		color2_name = coa.get('color2', 'yellow')
-		color3_name = coa.get('color3', 'black')
-		
-		base_colors = [
-			color_name_to_rgb(color1_name),
-			color_name_to_rgb(color2_name),
-			color_name_to_rgb(color3_name)
-		]
-		base_color_names = [color1_name, color2_name, color3_name]
-		
-		self.canvas_area.canvas_widget.set_base_colors(base_colors)
-		self.right_sidebar.set_base_colors(base_colors, base_color_names)
+		# Apply base pattern and colors
+		self.canvas_area.canvas_widget.set_base_texture(base_data['pattern'])
+		self.canvas_area.canvas_widget.set_base_colors(base_data['colors'])
+		self.right_sidebar.set_base_colors(base_data['colors'], base_data['color_names'])
 		
 		# Clear existing layers
 		self.right_sidebar.layers = []
 		
-		# Collect all emblem instances with their depth values
-		emblem_instances = []
-		for emblem in coa.get('colored_emblem', []):
-			filename = emblem.get('texture', '')
-			
-			# Get instances, or create default if none exist
-			instances = emblem.get('instance', [])
-			if not instances:
-				# No instance block means default values
-				instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0}]
-			
-			for instance in instances:
-				# Get depth value (default to 0 if not specified)
-				depth = instance.get('depth', 0)
-				
-				# Get color names and RGB values
-				color1_name = emblem.get('color1', 'yellow')
-				color2_name = emblem.get('color2', 'red')
-				color3_name = emblem.get('color3', 'red')
-				
-				layer_data = {
-					'filename': filename,
-					'path': filename,  # Use filename as path - texture system and preview lookup both use this
-					'colors': 3,  # Assume 3 colors for all emblems
-					'pos_x': instance.get('position', [0.5, 0.5])[0],
-					'pos_y': instance.get('position', [0.5, 0.5])[1],
-					'scale_x': instance.get('scale', [1.0, 1.0])[0],
-					'scale_y': instance.get('scale', [1.0, 1.0])[1],
-					'rotation': instance.get('rotation', 0),
-					'color1': color_name_to_rgb(color1_name),
-					'color2': color_name_to_rgb(color2_name),
-					'color3': color_name_to_rgb(color3_name),
-					'color1_name': color1_name,
-					'color2_name': color2_name,
-					'color3_name': color3_name,
-					'depth': depth
-				}
-				emblem_instances.append(layer_data)
-		
-		# Sort by depth (higher depth = further back = first in list for rendering)
-		emblem_instances.sort(key=lambda x: x['depth'], reverse=True)
-		
-		# Add sorted layers to sidebar
-		for layer_data in emblem_instances:
-			# Remove depth from layer data (it's only used for sorting)
-			del layer_data['depth']
+		# Add layers from parsed data
+		for layer_data in layers:
 			self.right_sidebar.layers.append(layer_data)
 			print(f"Added layer: {layer_data['filename']} (depth order)")
 		
