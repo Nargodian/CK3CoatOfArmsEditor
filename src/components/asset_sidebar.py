@@ -1,7 +1,12 @@
-from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, 
-                              QScrollArea, QPushButton, QWidget, QGridLayout, QComboBox)
+# PyQt5 imports
+from PyQt5.QtWidgets import (
+    QFrame, QVBoxLayout, QHBoxLayout, QLabel, 
+    QScrollArea, QPushButton, QWidget, QGridLayout, QComboBox
+)
 from PyQt5.QtCore import Qt, QTimer, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
+
+# Standard library imports
 import json
 import os
 

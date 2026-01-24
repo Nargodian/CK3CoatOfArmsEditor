@@ -1,5 +1,8 @@
+# PyQt5 imports
 from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSizePolicy)
 from PyQt5.QtCore import Qt
+
+# Local component imports
 from .canvas_widget import CoatOfArmsCanvas
 from .transform_widget import TransformWidget
 

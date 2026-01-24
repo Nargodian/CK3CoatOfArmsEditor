@@ -1,12 +1,16 @@
+# PyQt5 imports
 from PyQt5.QtWidgets import QOpenGLWidget
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader, QOpenGLVertexArrayObject, QOpenGLBuffer
+
+# External library imports
 import OpenGL.GL as gl
 import numpy as np
 import os
 import json
 from PIL import Image
 
+# Local imports
 from components.canvas_widgets.shader_manager import ShaderManager
 
 

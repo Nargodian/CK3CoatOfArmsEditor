@@ -1,7 +1,16 @@
-from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QWidget, QTabWidget, QPushButton, QLineEdit, QSlider, QDialog, QGridLayout, QColorDialog, QCheckBox
+# PyQt5 imports
+from PyQt5.QtWidgets import (
+    QFrame, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QWidget, 
+    QTabWidget, QPushButton, QLineEdit, QSlider, QCheckBox
+)
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QColor, QPixmap, QIcon
-from .property_sidebar_widgets import LayerListWidget, ColorPickerDialog, create_color_button, PropertySlider, ScaleEditor
+
+# Local widget imports
+from .property_sidebar_widgets import (
+    LayerListWidget, ColorPickerDialog, create_color_button, 
+    PropertySlider, ScaleEditor
+)
 
 
 class PropertySidebar(QFrame):

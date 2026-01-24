@@ -1,3 +1,4 @@
+# PyQt5 imports
 from PyQt5 import QtCore
 from PyQt5.QtWidgets import QToolBar, QPushButton, QWidget, QSizePolicy, QApplication
 

@@ -1,16 +1,21 @@
-import re
+# PyQt5 imports
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QSplitter, QApplication, QFileDialog, QMessageBox, QStatusBar, QLabel
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPalette, QColor
 
+# Component imports
 from components.toolbar import create_toolbar
 from components.asset_sidebar import AssetSidebar
 from components.canvas_area import CanvasArea
 from components.property_sidebar import PropertySidebar
+
+# Utility imports
 from utils.coa_parser import parse_coa_string, serialize_coa_to_string
 from utils.history_manager import HistoryManager
 from utils.color_utils import color_name_to_rgb, rgb_to_color_name
+
+# Service imports
 from services.file_operations import (
     save_coa_to_file, load_coa_from_file, 
     build_coa_for_save, coa_to_clipboard_text, is_layer_subblock
