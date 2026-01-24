@@ -262,7 +262,6 @@ class TransformWidget(QWidget):
 					self.is_rotating = True
 					self.cached_aabb = (self.pos_x, self.pos_y, self.scale_x, self.scale_y)
 				
-				print(f"[Transform] Mouse press - Ctrl pressed: {self.ctrl_pressed_at_drag_start}, Handle: {self.active_handle}")
 				event.accept()
 				return
 		super().mousePressEvent(event)
@@ -280,7 +279,6 @@ class TransformWidget(QWidget):
 				distance = math.sqrt(dx*dx + dy*dy)
 				
 				if distance > 10:  # Minimum 10 pixels movement to trigger
-					print(f"[Transform] Triggering duplication - distance: {distance:.1f}")
 					self.duplicate_created = True
 					self.layerDuplicated.emit()
 					# Reset drag start to current position for smoother continuation

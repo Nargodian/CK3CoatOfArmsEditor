@@ -313,7 +313,6 @@ class CanvasArea(QFrame):
 				'scale_x': original_max_x - original_min_x,
 				'scale_y': original_max_y - original_min_y
 			}
-			print(f"[Multi-select] Cached original AABB: center=({self._drag_start_aabb['center_x']:.3f}, {self._drag_start_aabb['center_y']:.3f}), size=({self._drag_start_aabb['scale_x']:.3f}, {self._drag_start_aabb['scale_y']:.3f})")
 		
 		# Use cached original AABB
 		original_center_x = self._drag_start_aabb['center_x']
@@ -328,8 +327,6 @@ class CanvasArea(QFrame):
 		# Calculate scale factors (avoid division by zero)
 		scale_factor_x = scale_x / original_scale_x if original_scale_x > 0.001 else 1.0
 		scale_factor_y = scale_y / original_scale_y if original_scale_y > 0.001 else 1.0
-		
-		print(f"[Multi-select] Transform: widget=({scale_x:.3f}, {scale_y:.3f}), original=({original_scale_x:.3f}, {original_scale_y:.3f}), factors=({scale_factor_x:.3f}, {scale_factor_y:.3f})")
 		
 		# Calculate rotation delta (Task 3.6)
 		rotation_delta = rotation - getattr(self, '_initial_group_rotation', 0)
