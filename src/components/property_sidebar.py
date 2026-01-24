@@ -808,6 +808,7 @@ class PropertySidebar(QFrame):
 	def _rebuild_layer_list(self):
 		"""Rebuild the layer list UI (delegates to LayerListWidget)"""
 		if hasattr(self, 'layer_list_widget'):
+			self.layer_list_widget.set_layers(self.layers)
 			self.layer_list_widget.rebuild()
 			# Sync selection state
 			self.layer_list_widget.selected_layer_indices = self.selected_layer_indices
