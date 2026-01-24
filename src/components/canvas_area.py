@@ -279,37 +279,37 @@ class CanvasArea(QFrame):
 					'scale_x': layer.get('scale_x', 0.5),
 					'scale_y': layer.get('scale_y', 0.5)
 				})
-		
-		# Calculate and cache the original group AABB
-		original_min_x = float('inf')
-		original_max_x = float('-inf')
-		original_min_y = float('inf')
-		original_max_y = float('-inf')
-		
-		for layer_state in self._drag_start_layers:
-			pos_x_orig = layer_state['pos_x']
-			pos_y_orig = layer_state['pos_y']
-			scale_x_orig = layer_state['scale_x']
-			scale_y_orig = layer_state['scale_y']
 			
-			layer_min_x = pos_x_orig - scale_x_orig / 2
-			layer_max_x = pos_x_orig + scale_x_orig / 2
-			layer_min_y = pos_y_orig - scale_y_orig / 2
-			layer_max_y = pos_y_orig + scale_y_orig / 2
+			# Calculate and cache the original group AABB (only once at drag start)
+			original_min_x = float('inf')
+			original_max_x = float('-inf')
+			original_min_y = float('inf')
+			original_max_y = float('-inf')
 			
-			original_min_x = min(original_min_x, layer_min_x)
-			original_max_x = max(original_max_x, layer_max_x)
-			original_min_y = min(original_min_y, layer_min_y)
-			original_max_y = max(original_max_y, layer_max_y)
-		
-		# Cache the original AABB
-		self._drag_start_aabb = {
-			'center_x': (original_min_x + original_max_x) / 2,
-			'center_y': (original_min_y + original_max_y) / 2,
-			'scale_x': original_max_x - original_min_x,
-			'scale_y': original_max_y - original_min_y
-		}
-		print(f"[Multi-select] Cached original AABB: center=({self._drag_start_aabb['center_x']:.3f}, {self._drag_start_aabb['center_y']:.3f}), size=({self._drag_start_aabb['scale_x']:.3f}, {self._drag_start_aabb['scale_y']:.3f})")
+			for layer_state in self._drag_start_layers:
+				pos_x_orig = layer_state['pos_x']
+				pos_y_orig = layer_state['pos_y']
+				scale_x_orig = layer_state['scale_x']
+				scale_y_orig = layer_state['scale_y']
+				
+				layer_min_x = pos_x_orig - scale_x_orig / 2
+				layer_max_x = pos_x_orig + scale_x_orig / 2
+				layer_min_y = pos_y_orig - scale_y_orig / 2
+				layer_max_y = pos_y_orig + scale_y_orig / 2
+				
+				original_min_x = min(original_min_x, layer_min_x)
+				original_max_x = max(original_max_x, layer_max_x)
+				original_min_y = min(original_min_y, layer_min_y)
+				original_max_y = max(original_max_y, layer_max_y)
+			
+			# Cache the original AABB
+			self._drag_start_aabb = {
+				'center_x': (original_min_x + original_max_x) / 2,
+				'center_y': (original_min_y + original_max_y) / 2,
+				'scale_x': original_max_x - original_min_x,
+				'scale_y': original_max_y - original_min_y
+			}
+			print(f"[Multi-select] Cached original AABB: center=({self._drag_start_aabb['center_x']:.3f}, {self._drag_start_aabb['center_y']:.3f}), size=({self._drag_start_aabb['scale_x']:.3f}, {self._drag_start_aabb['scale_y']:.3f})")
 		
 		# Use cached original AABB
 		original_center_x = self._drag_start_aabb['center_x']
