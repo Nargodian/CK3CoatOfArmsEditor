@@ -107,6 +107,54 @@ def serialize_layer_to_text(layer):
     return serialize_coa_to_string(data)
 
 
+def _emblem_to_layer_data(emblem):
+    """Convert emblem dict (from parser) to layer data dict (for editor)
+    
+    Args:
+        emblem: Emblem dictionary from CoA parser
+        
+    Returns:
+        Layer data dict compatible with editor's layer format, or None if invalid
+    """
+    # Get emblem properties
+    filename = emblem.get('texture', '')
+    if not filename:
+        return None
+    
+    # Get instance data (use first instance if multiple)
+    instances = emblem.get('instance', [])
+    if not instances:
+        instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0}]
+    instance = instances[0]
+    
+    # Get colors
+    color1_name = emblem.get('color1', 'yellow')
+    color2_name = emblem.get('color2', 'red')
+    color3_name = emblem.get('color3', 'red')
+    
+    # Build layer data
+    layer_data = {
+        'filename': filename,
+        'path': filename,
+        'colors': 3,  # Assume 3 colors
+        'pos_x': instance.get('position', [0.5, 0.5])[0],
+        'pos_y': instance.get('position', [0.5, 0.5])[1],
+        'scale_x': instance.get('scale', [1.0, 1.0])[0],
+        'scale_y': instance.get('scale', [1.0, 1.0])[1],
+        'rotation': instance.get('rotation', 0),
+        'flip_x': False,
+        'flip_y': False,
+        'color1': color_name_to_rgb(color1_name),
+        'color2': color_name_to_rgb(color2_name),
+        'color3': color_name_to_rgb(color3_name),
+        'color1_name': color1_name,
+        'color2_name': color2_name,
+        'color3_name': color3_name
+    }
+    
+    return layer_data
+
+
 def parse_layer_from_text(layer_text):
     """Parse a layer from colored_emblem block format
     
@@ -135,43 +183,8 @@ def parse_layer_from_text(layer_text):
         else:
             emblem = emblem_list
         
-        # Get emblem properties
-        filename = emblem.get('texture', '')
-        if not filename:
-            return None
-        
-        # Get instance data (use first instance if multiple)
-        instances = emblem.get('instance', [])
-        if not instances:
-            instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0}]
-        instance = instances[0]
-        
-        # Get colors
-        color1_name = emblem.get('color1', 'yellow')
-        color2_name = emblem.get('color2', 'red')
-        color3_name = emblem.get('color3', 'red')
-        
-        # Build layer data
-        layer_data = {
-            'filename': filename,
-            'path': filename,
-            'colors': 3,  # Assume 3 colors
-            'pos_x': instance.get('position', [0.5, 0.5])[0],
-            'pos_y': instance.get('position', [0.5, 0.5])[1],
-            'scale_x': instance.get('scale', [1.0, 1.0])[0],
-            'scale_y': instance.get('scale', [1.0, 1.0])[1],
-            'rotation': instance.get('rotation', 0),
-            'flip_x': False,
-            'flip_y': False,
-            'color1': color_name_to_rgb(color1_name),
-            'color2': color_name_to_rgb(color2_name),
-            'color3': color_name_to_rgb(color3_name),
-            'color1_name': color1_name,
-            'color2_name': color2_name,
-            'color3_name': color3_name
-        }
-        
-        return layer_data
+        # Convert emblem to layer data
+        return _emblem_to_layer_data(emblem)
         
     except Exception as e:
         print(f"Error parsing layer: {e}")
@@ -184,6 +197,7 @@ def parse_multiple_layers_from_text(text):
     """Parse multiple layers from clipboard text
     
     Handles text containing multiple colored_emblem blocks.
+    Uses the proper CK3 parser which handles anonymous blocks correctly.
     
     Args:
         text: Text containing one or more colored_emblem blocks
@@ -191,20 +205,32 @@ def parse_multiple_layers_from_text(text):
     Returns:
         List of layer data dictionaries
     """
-    layers_data = []
-    
-    # Split by 'colored_emblem' to handle multiple blocks
-    parts = text.split('colored_emblem')
-    
-    for i, part in enumerate(parts):
-        if i == 0 and not part.strip():
-            continue  # Skip empty first part
+    try:
+        # Parse using proper CK3 parser
+        data = parse_coa_string(text)
+        if not data:
+            return []
         
-        # Reconstruct the colored_emblem block
-        if i > 0:  # Skip first part if it's empty
-            block_text = 'colored_emblem' + part
-            layer_data = parse_layer_from_text(block_text)
+        # Extract colored_emblem list (parser returns it as a list)
+        emblem_list = data.get('colored_emblem')
+        if not emblem_list:
+            return []
+        
+        # Ensure it's a list
+        if not isinstance(emblem_list, list):
+            emblem_list = [emblem_list]
+        
+        # Convert each emblem to layer data
+        layers_data = []
+        for emblem in emblem_list:
+            layer_data = _emblem_to_layer_data(emblem)
             if layer_data:
                 layers_data.append(layer_data)
-    
-    return layers_data
+        
+        return layers_data
+        
+    except Exception as e:
+        print(f"Error parsing multiple layers: {e}")
+        import traceback
+        traceback.print_exc()
+        return []

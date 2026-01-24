@@ -671,16 +671,16 @@ class CoatOfArmsEditor(QMainWindow):
 			QMessageBox.warning(self, "Paste Error", f"Failed to paste layer: {str(e)}")
 	
 	def paste_layer_at_position(self, mouse_pos, canvas_geometry):
-		"""Paste layer at mouse position on canvas with clamping to legal positions"""
+		"""Paste layers at mouse position on canvas with clamping to legal positions"""
 		try:
 			# Get clipboard text
 			layer_text = QApplication.clipboard().text()
 			if not layer_text.strip():
 				return
 			
-			# Parse layer from clipboard using service
-			layer_data = parse_layer_from_text(layer_text)
-			if not layer_data:
+			# Parse layers from clipboard using service (handles multiple)
+			layers_data = parse_multiple_layers_from_text(layer_text)
+			if not layers_data:
 				raise ValueError("Clipboard does not contain valid layer data")
 			
 			# Convert mouse position to normalized coordinates [0-1]
@@ -705,17 +705,19 @@ class CoatOfArmsEditor(QMainWindow):
 			norm_x = max(0.0, min(1.0, norm_x))
 			norm_y = max(0.0, min(1.0, norm_y))
 			
-			# Update layer position
-			layer_data['pos_x'] = norm_x
-			layer_data['pos_y'] = norm_y
+			# Update position for all layers (centered on click)
+			for layer_data in layers_data:
+				layer_data['pos_x'] = norm_x
+				layer_data['pos_y'] = norm_y
 			
-			# Add layer at the top (end of list = frontmost)
-			self.right_sidebar.layers.append(layer_data)
+			# Add all layers at the top (end of list = frontmost)
+			start_index = len(self.right_sidebar.layers)
+			self.right_sidebar.layers.extend(layers_data)
 			
-			# Select the new layer
-			new_index = len(self.right_sidebar.layers) - 1
-			self.right_sidebar.selected_layer_indices = {new_index}
-			self.right_sidebar.last_selected_index = new_index  # Set for shift+click range selection
+			# Select all newly pasted layers
+			new_indices = list(range(start_index, len(self.right_sidebar.layers)))
+			self.right_sidebar.selected_layer_indices = set(new_indices)
+			self.right_sidebar.last_selected_index = new_indices[-1] if new_indices else None
 			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()
@@ -731,9 +733,10 @@ class CoatOfArmsEditor(QMainWindow):
 				self.canvas_area.update_transform_widget_for_layer()
 			
 			# Save to history
-			self._save_state("Paste layer at position")
+			layer_word = "layers" if len(layers_data) > 1 else "layer"
+			self._save_state(f"Paste {len(layers_data)} {layer_word} at position")
 		except Exception as e:
-			QMessageBox.warning(self, "Paste Error", f"Failed to paste layer: {str(e)}")
+			QMessageBox.warning(self, "Paste Error", f"Failed to paste layers: {str(e)}")
 	
 	def _apply_coa_data(self, coa_data):
 		"""Apply parsed CoA data to editor"""
