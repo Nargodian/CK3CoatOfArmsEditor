@@ -294,9 +294,12 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				cos_a = math.cos(angle_rad)
 				sin_a = math.sin(angle_rad)
 				
-				# Scale values
-				half_width = scale_x * 0.6
-				half_height = scale_y * 0.6
+				# Scale values - separate sign (flip) from magnitude
+				scale_sign_x = 1 if scale_x >= 0 else -1
+				scale_sign_y = 1 if scale_y >= 0 else -1
+				half_width = abs(scale_x) * 0.6
+				half_height = abs(scale_y) * 0.6
+				
 				# Define unit quad corners
 				unit_corners = [
 					(-1.0, -1.0),  # Bottom-left
@@ -305,13 +308,16 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					(-1.0,  1.0),  # Top-left
 				]
 				
-				# Apply transformations: rotate first, then scale in screen space, then translate
+				# Apply transformations: flip first, then rotate, then scale magnitude, then translate
 				transformed = []
 				for ux, uy in unit_corners:
-					# First rotate the unit corner
-					rx = ux * cos_a - uy * sin_a
-					ry = ux * sin_a + uy * cos_a
-					# Then scale in screen space (not rotated space)
+					# First apply flip (sign)
+					fx = ux * scale_sign_x
+					fy = uy * scale_sign_y
+					# Then rotate the flipped corner
+					rx = fx * cos_a - fy * sin_a
+					ry = fx * sin_a + fy * cos_a
+					# Then scale by magnitude in screen space
 					sx = rx * half_width
 					sy = ry * half_height
 					# Finally translate to position
