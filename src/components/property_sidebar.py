@@ -33,7 +33,10 @@ class PropertySidebar(QFrame):
 		self.active_drop_zone = None  # Currently highlighted drop zone
 		self._setup_ui()
 	
-	# Selection helper methods
+	# ========================================
+	# Selection Management
+	# ========================================
+	
 	def get_selected_indices(self) -> list:
 		"""Get sorted list of selected layer indices"""
 		return sorted(list(self.selected_layer_indices))
@@ -59,7 +62,10 @@ class PropertySidebar(QFrame):
 		if self.tab_widget.currentIndex() == 2:
 			self.tab_widget.setCurrentIndex(1)  # Switch to Layers tab
 	
-	# Mixed value detection helpers (Phase 4)
+	# ========================================
+	# Property Value Helpers (Multi-Select Support)
+	# ========================================
+	
 	def get_property_value(self, property_name):
 		"""Get property value from selected layers. Returns actual value if all same, 'Mixed' if different.
 		
@@ -102,6 +108,10 @@ class PropertySidebar(QFrame):
 	def has_mixed_values(self, property_name):
 		"""Check if a property has mixed values across selected layers"""
 		return self.get_property_value(property_name) == 'Mixed'
+	
+	# ========================================
+	# UI Setup and Tab Creation
+	# ========================================
 	
 	def _setup_ui(self):
 		"""Setup the property sidebar UI"""
@@ -453,6 +463,9 @@ class PropertySidebar(QFrame):
 				if self.main_window and hasattr(self.main_window, '_save_state'):
 					self.main_window._save_state("Change emblem color")
 	
+	# ========================================
+	# Color Management (Base & Emblem)
+	# ========================================
 	
 	def set_base_color_count(self, count):
 		"""Show/hide base color swatches based on asset color count (1, 2, or 3)"""
@@ -520,6 +533,10 @@ class PropertySidebar(QFrame):
 				btn.show()
 			else:
 				btn.hide()
+	
+	# ========================================
+	# Layer Operations (Add, Delete, Move, Duplicate)
+	# ========================================
 	
 	def _add_layer(self):
 		"""Add empty layer button (placeholder until asset selected)"""
@@ -749,7 +766,10 @@ class PropertySidebar(QFrame):
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
 	
-	# Layer list widget callbacks
+	# ========================================
+	# Layer List Widget Callbacks
+	# ========================================
+	
 	def _on_layer_selection_changed(self):
 		"""Handle layer selection change from layer list widget"""
 		# Sync selection state
@@ -781,6 +801,9 @@ class PropertySidebar(QFrame):
 			layer_word = "layers" if count > 1 else "layer"
 			self.main_window._save_state(f"Reorder {count} {layer_word}")
 	
+	# ========================================
+	# Property Updates and Layer Management
+	# ========================================
 	
 	def _rebuild_layer_list(self):
 		"""Rebuild the layer list UI (delegates to LayerListWidget)"""
@@ -867,6 +890,10 @@ class PropertySidebar(QFrame):
 		# Save to history with debouncing
 		if self.main_window and hasattr(self.main_window, 'save_property_change_debounced'):
 			self.main_window.save_property_change_debounced("Change scale")
+	
+	# ========================================
+	# Layer Property Loading and Selection UI
+	# ========================================
 	
 	def _load_layer_properties(self):
 		"""Load the selected layer's properties into the UI controls"""
