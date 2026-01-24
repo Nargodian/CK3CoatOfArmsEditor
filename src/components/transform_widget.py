@@ -63,6 +63,9 @@ class TransformWidget(QWidget):
 		self.is_rotating = False  # Flag to prevent AABB recalculation during rotation
 		self.cached_aabb = None  # Cache AABB during rotation drag
 		
+		# Multi-selection state
+		self.is_multi_selection = False  # Flag to skip scale clamping for group transforms
+		
 		# Ctrl+drag duplication state
 		self.ctrl_pressed_at_drag_start = False
 		self.duplicate_created = False  # Prevent spam
@@ -82,8 +85,13 @@ class TransformWidget(QWidget):
 			self.setGeometry(0, 0, obj.width(), obj.height())
 		return super().eventFilter(obj, event)
 		
-	def set_transform(self, pos_x, pos_y, scale_x, scale_y, rotation):
-		"""Set the transform values"""
+	def set_transform(self, pos_x, pos_y, scale_x, scale_y, rotation, is_multi_selection=False):
+		"""Set the transform values
+		
+		Args:
+			is_multi_selection: If True, skip scale clamping (group AABB can exceed 1.0)
+		"""
+		self.is_multi_selection = is_multi_selection
 		self.pos_x = pos_x
 		self.pos_y = pos_y
 		self.scale_x = scale_x
@@ -443,10 +451,12 @@ class TransformWidget(QWidget):
 			self.nonUniformScaleUsed.emit()
 		
 		# Clamp scale magnitude while preserving sign (for flipped layers)
-		sign_x = 1 if self.scale_x >= 0 else -1
-		sign_y = 1 if self.scale_y >= 0 else -1
-		self.scale_x = sign_x * max(0.01, min(1.0, abs(self.scale_x)))
-		self.scale_y = sign_y * max(0.01, min(1.0, abs(self.scale_y)))
+		# Only clamp for single emblem transforms, not group transforms (AABB can exceed 1.0)
+		if not self.is_multi_selection:
+			sign_x = 1 if self.scale_x >= 0 else -1
+			sign_y = 1 if self.scale_y >= 0 else -1
+			self.scale_x = sign_x * max(0.01, min(1.0, abs(self.scale_x)))
+			self.scale_y = sign_y * max(0.01, min(1.0, abs(self.scale_y)))
 		
 		# Emit signal
 		self.transformChanged.emit(self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
