@@ -49,7 +49,7 @@ CK3_COLOR_NAMES_ORDERED = [
 # ======================================================================
 
 # Default base pattern colors (if unspecified in CoA data)
-DEFAULT_BASE_COLOR1 = 'black'
+DEFAULT_BASE_COLOR1 = 'red'
 DEFAULT_BASE_COLOR2 = 'yellow'
 DEFAULT_BASE_COLOR3 = 'black'
 
@@ -60,6 +60,7 @@ DEFAULT_EMBLEM_COLOR3 = 'red'
 
 # Default pattern texture
 DEFAULT_PATTERN_TEXTURE = 'pattern__solid.dds'
+DEFAULT_EMBLEM_TEXTURE = 'ce_fleur.dds'
 
 # ======================================================================
 # COORDINATE SYSTEM
@@ -86,8 +87,8 @@ SCALE_MIN = 0.01  # Minimum scale (1% of canvas)
 SCALE_MAX = 1.0   # Maximum scale (100% of canvas)
 
 # Default scale for new layers
-DEFAULT_SCALE_X = 0.5
-DEFAULT_SCALE_Y = 0.5
+DEFAULT_SCALE_X = 0.7
+DEFAULT_SCALE_Y = 0.7
 
 # Unified scale (when scaling uniformly)
 DEFAULT_UNIFIED_SCALE = True
@@ -112,7 +113,6 @@ DEPTH_INCREMENT = 1.0  # Common increment between layers
 
 # Typical depth range in CK3 CoAs
 DEPTH_TYPICAL_MIN = 0.010000
-DEPTH_TYPICAL_MAX = 20.010000
 
 # ======================================================================
 # CANVAS RENDERING

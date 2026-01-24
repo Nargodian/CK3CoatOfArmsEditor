@@ -7,6 +7,13 @@ These functions provide layer manipulation logic independent of the UI.
 
 from utils.coa_parser import parse_coa_string, serialize_coa_to_string
 from utils.color_utils import color_name_to_rgb, rgb_to_color_name
+from constants import (
+    DEFAULT_POSITION_X, DEFAULT_POSITION_Y,
+    DEFAULT_SCALE_X, DEFAULT_SCALE_Y,
+    DEFAULT_ROTATION,
+    DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
+    CK3_NAMED_COLORS
+)
 
 
 def create_default_layer(filename, colors=3, **overrides):
@@ -24,19 +31,19 @@ def create_default_layer(filename, colors=3, **overrides):
         'filename': filename,
         'path': filename,
         'colors': colors,
-        'pos_x': 0.5,
-        'pos_y': 0.5,
-        'scale_x': 1.0,
-        'scale_y': 1.0,
-        'rotation': 0,
+        'pos_x': DEFAULT_POSITION_X,
+        'pos_y': DEFAULT_POSITION_Y,
+        'scale_x': DEFAULT_SCALE_X,
+        'scale_y': DEFAULT_SCALE_Y,
+        'rotation': DEFAULT_ROTATION,
         'flip_x': False,
         'flip_y': False,
-        'color1': [1.0, 1.0, 0.0],  # yellow
-        'color2': [0.8, 0.0, 0.0],  # red
-        'color3': [0.8, 0.0, 0.0],  # red
-        'color1_name': 'yellow',
-        'color2_name': 'red',
-        'color3_name': 'red'
+        'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'],
+        'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'],
+        'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
+        'color1_name': DEFAULT_EMBLEM_COLOR1,
+        'color2_name': DEFAULT_EMBLEM_COLOR2,
+        'color3_name': DEFAULT_EMBLEM_COLOR3
     }
     
     # Apply any overrides
@@ -78,9 +85,9 @@ def serialize_layer_to_text(layer):
         String in CoA colored_emblem format
     """
     instance_data = {
-        "position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
-        "scale": [layer.get('scale_x', 1.0), layer.get('scale_y', 1.0)],
-        "rotation": int(layer.get('rotation', 0))
+        "position": [layer.get('pos_x', DEFAULT_POSITION_X), layer.get('pos_y', DEFAULT_POSITION_Y)],
+        "scale": [layer.get('scale_x', DEFAULT_SCALE_X), layer.get('scale_y', DEFAULT_SCALE_Y)],
+        "rotation": int(layer.get('rotation', DEFAULT_ROTATION))
     }
     
     emblem_data = {

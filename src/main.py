@@ -451,13 +451,14 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.clear_selection()
 			self.right_sidebar._rebuild_layer_list()
 			
-			# Reset base to default pattern and colors (CK3 defaults: black, yellow, black)
-			default_pattern = "pattern__solid.dds"
-			default_color_names = ['black', 'yellow', 'black']
+			# Reset base to default pattern and colors
+			from constants import DEFAULT_PATTERN_TEXTURE, DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3
+			default_pattern = DEFAULT_PATTERN_TEXTURE
+			default_color_names = [DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3]
 			default_colors = [
-				color_name_to_rgb('black'),
-				color_name_to_rgb('yellow'),
-				color_name_to_rgb('black')
+				color_name_to_rgb(DEFAULT_BASE_COLOR1),
+				color_name_to_rgb(DEFAULT_BASE_COLOR2),
+				color_name_to_rgb(DEFAULT_BASE_COLOR3)
 			]
 			
 			self.canvas_area.canvas_widget.set_base_texture(default_pattern)

@@ -33,8 +33,8 @@ class AssetSidebar(QFrame):
 		# Load asset data from JSON files
 		self.asset_data = self._load_asset_data()
 		
-		# Set default category to base patterns (matching Base tab)
-		self.current_category = "__Base_Patterns__"
+		# Set default category to Nature (where ce_fleur.dds is located)
+		self.current_category = "Nature"
 		
 		self.setMinimumWidth(200)
 		self.setMaximumWidth(400)
@@ -61,22 +61,21 @@ class AssetSidebar(QFrame):
 						TEXTURE_PREVIEW_MAP[filename] = image_path
 						
 						category = properties.get("category", None)
-						# Skip assets without a category
-						if not category:
-							continue
-						category = category.title()
-						if category not in asset_data:
-							asset_data[category] = []
-						asset_data[category].append({
-						"filename": png_filename,  # PNG for display
-						"dds_filename": filename,  # DDS for texture lookup
-							"path": image_path,
-							"category": category,
-							"colors": properties.get("colors", 1)
-						})
-		
-		# Load textured emblems
-		textured_emblems_json = "json_output/textured_emblems/50_coa_designer_textured_emblems.json"
+					colors = properties.get("colors", 1)
+					
+					# Skip assets without a category or with 0 colors (blank/empty assets)
+					if not category or colors == 0:
+						continue
+					
+					category = category.title()
+					if category not in asset_data:
+						asset_data[category] = []
+					asset_data[category].append({
+					"filename": png_filename,  # PNG for display
+					"dds_filename": filename,  # DDS for texture lookup
+						"path": image_path,
+						"category": category,
+						"colors": colors
 		if os.path.exists(textured_emblems_json):
 			with open(textured_emblems_json, 'r', encoding='utf-8') as f:
 				data = json.load(f)
