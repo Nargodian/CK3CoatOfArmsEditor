@@ -278,6 +278,21 @@ class CoatOfArmsEditor(QMainWindow):
 			# Otherwise, paste at center
 			self.paste_layer()
 			event.accept()
+		# Delete key for delete layer
+		elif event.key() == Qt.Key_Delete:
+			if self.right_sidebar.get_selected_indices():
+				self.right_sidebar._delete_layer()
+				# Update UI and canvas
+				self.right_sidebar._rebuild_layer_list()
+				self.right_sidebar._update_layer_selection()
+				self.right_sidebar._load_layer_properties()
+				self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+				if self.canvas_area:
+					self.canvas_area.update_transform_widget_for_layer()
+				self._save_state("Delete layer")
+				event.accept()
+			else:
+				super().keyPressEvent(event)
 		else:
 			super().keyPressEvent(event)
 	
@@ -590,24 +605,43 @@ class CoatOfArmsEditor(QMainWindow):
 			QMessageBox.warning(self, "Copy Error", f"Failed to copy layer: {str(e)}")
 	
 	def duplicate_selected_layer(self):
-		"""Duplicate the currently selected layer (called by Ctrl+drag on transform widget)"""
+		"""Duplicate the currently selected layers"""
 		try:
-			# Check if a layer is selected
+			# Check if layers are selected
 			selected_indices = self.right_sidebar.get_selected_indices()
 			if not selected_indices:
 				return
 			
-			layer_idx = selected_indices[0]
-			layer = self.right_sidebar.layers[layer_idx]
+			# Sort indices to maintain order
+			sorted_indices = sorted(selected_indices)
 			
-			# Create a duplicate using service
-			duplicated_layer = duplicate_layer(layer)
+			# Duplicate all selected layers
+			duplicated_layers = []
+			for layer_idx in sorted_indices:
+				if layer_idx < len(self.right_sidebar.layers):
+					layer = self.right_sidebar.layers[layer_idx]
+					duplicated_layer = duplicate_layer(layer)
+					duplicated_layers.append(duplicated_layer)
 			
-			# Insert at the top (index 0) - most in front
-			self.right_sidebar.layers.insert(0, duplicated_layer)
+			if not duplicated_layers:
+				return
 			
-			# Select the new duplicated layer
-			self.right_sidebar.selected_layer_indices = {0}
+			# Determine insertion position
+			if len(selected_indices) > 1:
+				# Multiple layers selected - place at the top (index 0)
+				insert_position = 0
+			else:
+				# Single layer selected - place directly above it (lower index = in front)
+				insert_position = min(sorted_indices)
+			
+			# Insert all duplicated layers at position
+			for i, dup_layer in enumerate(duplicated_layers):
+				self.right_sidebar.layers.insert(insert_position + i, dup_layer)
+			
+			# Select the newly duplicated layers
+			new_indices = set(range(insert_position, insert_position + len(duplicated_layers)))
+			self.right_sidebar.selected_layer_indices = new_indices
+			self.right_sidebar.last_selected_index = insert_position
 			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()
@@ -618,10 +652,11 @@ class CoatOfArmsEditor(QMainWindow):
 			# Update canvas and transform widget
 			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
 			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer(0)
+				self.canvas_area.update_transform_widget_for_layer()
 			
 			# Save to history
-			self._save_state("Duplicate layer")
+			layer_word = "layers" if len(duplicated_layers) > 1 else "layer"
+			self._save_state(f"Duplicate {len(duplicated_layers)} {layer_word}")
 		except Exception as e:
 			QMessageBox.warning(self, "Duplicate Error", f"Failed to duplicate layer: {str(e)}")
 	
