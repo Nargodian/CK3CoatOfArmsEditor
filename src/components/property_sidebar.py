@@ -19,6 +19,8 @@ class PropertySidebar(QFrame):
 		self.main_window = None  # Reference to main window for history
 		self.drag_start_index = None
 		self.drag_start_pos = None
+		self.drop_zones = []  # Drop zone widgets for drag-drop
+		self.active_drop_zone = None  # Currently highlighted drop zone
 		self._setup_ui()
 	
 	# Selection helper methods
@@ -969,14 +971,49 @@ class PropertySidebar(QFrame):
 			event.ignore()
 	
 	def _drag_move_event(self, event):
-		"""Handle drag move over layer list"""
+		"""Handle drag move over layer list and highlight drop zones"""
 		if event.mimeData().hasFormat('application/x-layer-indices'):
+			# Find which drop zone is closest to cursor
+			drop_pos = event.pos()
+			closest_zone = None
+			min_distance = float('inf')
+			
+			for zone in self.drop_zones:
+				zone_center = zone.geometry().center()
+				distance = abs(drop_pos.y() - zone_center.y())
+				if distance < min_distance:
+					min_distance = distance
+					closest_zone = zone
+			
+			# Highlight the closest zone
+			if closest_zone != self.active_drop_zone:
+				# Clear previous highlight
+				if self.active_drop_zone:
+					self.active_drop_zone.setProperty('highlighted', 'false')
+					self.active_drop_zone.style().unpolish(self.active_drop_zone)
+					self.active_drop_zone.style().polish(self.active_drop_zone)
+				
+				# Set new highlight
+				if closest_zone:
+					closest_zone.setProperty('highlighted', 'true')
+					closest_zone.style().unpolish(closest_zone)
+					closest_zone.style().polish(closest_zone)
+				
+				self.active_drop_zone = closest_zone
+			
 			event.accept()
 		else:
 			event.ignore()
 	
 	def _drop_event(self, event):
 		"""Handle drop on layer list to reorder (supports multi-layer)"""
+		# Clear drop zone highlight
+		if self.active_drop_zone:
+			self.active_drop_zone.setProperty('highlighted', 'false')
+			self.active_drop_zone.style().unpolish(self.active_drop_zone)
+			self.active_drop_zone.style().polish(self.active_drop_zone)
+			self.active_drop_zone = None
+		
 		if event.mimeData().hasFormat('application/x-layer-indices'):
 			import json
 			
@@ -988,76 +1025,84 @@ class PropertySidebar(QFrame):
 				event.ignore()
 				return
 			
-			# Determine drop position
+			# Find which drop zone is closest to cursor
 			drop_pos = event.pos()
-			to_index = None
+			closest_zone = None
+			min_distance = float('inf')
 			
-			# Find which layer button the drop is over
-			for i, btn in enumerate(self.layer_buttons):
-				btn_center = btn.geometry().center()
-				if abs(drop_pos.y() - btn_center.y()) < 30:
-					to_index = i
-					break
+			for zone in self.drop_zones:
+				zone_center = zone.geometry().center()
+				distance = abs(drop_pos.y() - zone_center.y())
+				if distance < min_distance:
+					min_distance = distance
+					closest_zone = zone
 			
-			if to_index is None and len(self.layer_buttons) > 0:
-				# Check if dropped below last button
-				last_btn = self.layer_buttons[-1]
-				if drop_pos.y() > last_btn.geometry().bottom():
-					to_index = len(self.layers) - 1
-			
-			if to_index is not None:
-				# Extract layers to be moved (maintain order)
-				dragged_layers = [(idx, self.layers[idx]) for idx in sorted(dragged_indices)]
-				
-				# Calculate target position accounting for removed layers
-				# If moving down, adjust target for layers removed above it
-				min_dragged = min(dragged_indices)
-				max_dragged = max(dragged_indices)
-				
-				# Don't move if already at target
-				if to_index >= min_dragged and to_index <= max_dragged:
-					event.ignore()
-					return
-				
-				# Remove dragged layers from list (highest to lowest)
-				for idx in sorted(dragged_indices, reverse=True):
-					self.layers.pop(idx)
-				
-				# Adjust target index after removals
-				adjusted_to_index = to_index
-				for idx in sorted(dragged_indices):
-					if idx < to_index:
-						adjusted_to_index -= 1
-				
-				# Insert layers at new position
-				for i, (old_idx, layer) in enumerate(dragged_layers):
-					insert_pos = adjusted_to_index + i
-					# Clamp to valid range
-					insert_pos = max(0, min(len(self.layers), insert_pos))
-					self.layers.insert(insert_pos, layer)
-				
-				# Update selection to new indices
-				new_indices = list(range(adjusted_to_index, adjusted_to_index + len(dragged_layers)))
-				self.selected_layer_indices = set(new_indices)
-				self.last_selected_index = new_indices[-1] if new_indices else None
-				
-				self._rebuild_layer_list()
-				self._update_layer_selection()
-				
-				# Update canvas
-				if self.canvas_widget:
-					self.canvas_widget.set_layers(self.layers)
-				
-				# Save to history
-				if self.main_window and hasattr(self.main_window, '_save_state'):
-					layer_word = "layers" if len(dragged_indices) > 1 else "layer"
-					self.main_window._save_state(f"Reorder {len(dragged_indices)} {layer_word}")
-				
-				event.accept()
-			else:
+			if not closest_zone:
 				event.ignore()
+				return
+			
+			# Get the target index from the drop zone
+			target_index = closest_zone.property('drop_index')
+			
+			# Extract layers to be moved (maintain their array order)
+			sorted_indices = sorted(dragged_indices)
+			dragged_layers = [self.layers[idx] for idx in sorted_indices]
+			
+			# Remove dragged layers from list (highest to lowest)
+			for idx in sorted(dragged_indices, reverse=True):
+				self.layers.pop(idx)
+			
+			# Adjust target index after removals
+			adjusted_target = target_index
+			for idx in sorted_indices:
+				if idx < target_index:
+					adjusted_target -= 1
+			
+			# Insert layers at target position
+			for i, layer in enumerate(dragged_layers):
+				insert_pos = adjusted_target + i
+				# Clamp to valid range
+				insert_pos = max(0, min(len(self.layers), insert_pos))
+				self.layers.insert(insert_pos, layer)
+			
+			# Update selection to new indices
+			new_indices = list(range(adjusted_target, adjusted_target + len(dragged_layers)))
+			self.selected_layer_indices = set(new_indices)
+			self.last_selected_index = new_indices[-1] if new_indices else None
+			
+			self._rebuild_layer_list()
+			self._update_layer_selection()
+			
+			# Update canvas
+			if self.canvas_widget:
+				self.canvas_widget.set_layers(self.layers)
+			
+			# Save to history
+			if self.main_window and hasattr(self.main_window, '_save_state'):
+				layer_word = "layers" if len(dragged_indices) > 1 else "layer"
+				self.main_window._save_state(f"Reorder {len(dragged_indices)} {layer_word}")
+			
+			event.accept()
 		else:
 			event.ignore()
+	
+	def _add_drop_zone(self, drop_index, layout_position):
+		"""Add a drop zone separator at the specified position"""
+		drop_zone = QWidget()
+		drop_zone.setFixedHeight(8)
+		drop_zone.setProperty('drop_index', drop_index)
+		drop_zone.setStyleSheet("""
+			QWidget {
+				background-color: transparent;
+				border: none;
+			}
+			QWidget[highlighted="true"] {
+				background-color: rgba(100, 150, 255, 150);
+				border-radius: 2px;
+			}
+		""")
+		self.drop_zones.append(drop_zone)
+		self.layers_layout.insertWidget(layout_position, drop_zone)
 	
 	def _get_preview_path(self, dds_path):
 		"""Convert .dds filename to .png preview path"""
@@ -1075,17 +1120,26 @@ class PropertySidebar(QFrame):
 		return TEXTURE_PREVIEW_MAP.get(filename)
 	
 	def _rebuild_layer_list(self):
-		"""Rebuild the layer list UI"""
-		# Clear existing layer buttons
+		"""Rebuild the layer list UI with drop zones"""
+		# Clear existing layer buttons and drop zones
 		for btn in self.layer_buttons:
 			btn.deleteLater()
 		self.layer_buttons.clear()
+		
+		for zone in self.drop_zones:
+			zone.deleteLater()
+		self.drop_zones.clear()
 		
 		# Remove all widgets except the stretch
 		while self.layers_layout.count() > 1:
 			item = self.layers_layout.takeAt(0)
 			if item.widget():
 				item.widget().deleteLater()
+		
+		# Add drop zone at top (inserts at end of array, appears at top of display)
+		layout_pos = 0
+		self._add_drop_zone(len(self.layers), layout_pos)
+		layout_pos += 1
 		
 		# Add layer buttons in reverse order (top layer = frontmost = last index)
 		for i, layer in enumerate(reversed(self.layers)):
@@ -1195,8 +1249,13 @@ class PropertySidebar(QFrame):
 				}
 			""")
 			
-			self.layers_layout.insertWidget(i, layer_btn)
+			self.layers_layout.insertWidget(layout_pos, layer_btn)
 			self.layer_buttons.append(layer_btn)
+			layout_pos += 1
+			
+			# Add drop zone after this layer (inserts before this layer in array)
+			self._add_drop_zone(actual_index, layout_pos)
+			layout_pos += 1
 	
 	def _update_layer_property(self, prop_name, value):
 		"""Update a property of all selected layers"""
