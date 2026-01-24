@@ -1,0 +1,668 @@
+REFACTORING STRATEGY FOR CK3 COAT OF ARMS EDITOR
+=================================================
+
+OVERVIEW
+--------
+Current codebase has 6 core files totaling ~5879 lines
+Two files are critically large (1585 and 1190 lines)
+Goal is to organize into smaller focused modules for maintainability
+
+PRIORITY ORDER
+--------------
+1. PropertySidebar (1585 lines) - most urgent
+2. Main Window (1190 lines) - high complexity
+3. Canvas Widget (751 lines) - OpenGL complexity
+4. Transform Widget (454 lines) - strategy pattern candidate
+5. Canvas Area (441 lines) - coordination logic
+6. Asset Sidebar (377 lines) - acceptable but improvable
+
+
+REFACTOR 1: PROPERTY_SIDEBAR.PY (1585 -> ~400 lines)
+----------------------------------------------------
+
+Current Structure:
+- Single class handling 3 tabs, layer list, drag-drop, color picking, property editing
+- Too many inline UI creation methods
+- Mixed concerns of UI, state, and business logic
+
+New Structure:
+src/components/property_sidebar/
+    __init__.py
+    property_sidebar.py (400 lines) - main coordination
+    layer_list_widget.py (400 lines) - layer list with drag-drop, thumbnails, selection
+    color_picker.py (150 lines) - custom color dialog and swatches
+    tab_factories.py (300 lines) - create_base_tab, create_layers_tab, create_properties_tab
+    property_editors/ (300 lines total)
+        position_editor.py
+        scale_editor.py
+        rotation_editor.py
+        color_editor.py
+
+Actions:
+- Extract LayerListWidget with drag-drop system, thumbnail rendering, selection management
+- Extract ColorPicker dialog as standalone widget
+- Extract tab creation into factory functions
+- Extract property editor widgets into separate modules
+- Main file becomes coordination layer only
+
+Benefits:
+- Each module under 400 lines
+- Clear separation of UI from logic
+- Easier testing of individual components
+- Reusable color picker and editor widgets
+
+
+REFACTOR 2: MAIN.PY (1190 -> ~400 lines)
+----------------------------------------
+
+Current Structure:
+- Main window with orchestration, file I/O, history, parsing, serialization, color utilities
+- Massive methods for asset selection (150 lines) and CoA serialization (300 lines)
+- Color conversion logic embedded
+
+New Structure:
+src/
+    main.py (400 lines) - window orchestration, UI setup, event routing
+    services/
+        file_operations.py (250 lines) - save, load, export, clipboard operations
+        layer_operations.py (180 lines) - duplicate, delete, copy, paste layers
+        coa_serializer.py (300 lines) - parse and serialize CoA from main.py
+    utils/
+        color_utils.py (150 lines) - hsv conversion, color map, named color lookup
+
+Actions:
+- Extract all file operations (load/save/export) into services/file_operations.py
+- Extract layer manipulation (duplicate/copy/paste) into services/layer_operations.py
+- Extract CoA serialization logic from main.py into services/coa_serializer.py
+- Extract color utilities (named color map, HSV conversions) into utils/color_utils.py
+- Keep main.py focused on UI orchestration and event handling
+
+Benefits:
+- Core business logic separated from UI
+- Services are testable in isolation
+- Color utilities reusable across application
+- Main window easier to understand
+
+
+REFACTOR 3: CANVAS_WIDGET.PY (751 -> ~300 lines)
+------------------------------------------------
+
+Current Structure:
+- Single OpenGL widget handling shaders, textures, rendering
+- 3 shader programs with manual compilation
+- Texture atlas system embedded
+- Complex paintGL with 3 rendering passes
+
+New Structure:
+src/components/canvas/
+    __init__.py
+    canvas_widget.py (300 lines) - main OpenGL widget, render orchestration
+    shader_manager.py (100 lines) - compile, link, bind shaders
+    texture_atlas.py (200 lines) - atlas building, UV mapping, texture loading
+    texture_loaders.py (250 lines) - load_frames, load_masks, load_emblems, load_material
+    render_passes.py (150 lines) - render_base_layer, render_emblems, render_frame
+
+Actions:
+- Extract ShaderManager class for shader compilation and program management
+- Extract TextureAtlas system with UV mapping into separate module
+- Extract all texture loading functions into texture_loaders.py
+- Break paintGL into separate render pass methods
+- Canvas widget coordinates render pipeline only
+
+Benefits:
+- Shader management reusable
+- Texture system can be tested independently
+- Render passes can be optimized individually
+- Clearer OpenGL state management
+
+
+REFACTOR 4: TRANSFORM_WIDGET.PY (454 -> ~150 lines)
+---------------------------------------------------
+
+Current Structure:
+- Single class with massive handle_mouse_move switch statement (150 lines)
+- 9 different handle types with transform logic embedded
+- Handle rendering mixed with interaction
+
+New Structure:
+src/components/transform/
+    __init__.py
+    transform_widget.py (150 lines) - orchestration, rendering, handle detection
+    transform_math.py (100 lines) - coordinate conversions, AABB calculations
+    handles/
+        base_handle.py (50 lines) - abstract handle interface
+        center_handle.py (30 lines) - translate strategy
+        corner_handle.py (50 lines) - scale strategy
+        edge_handle.py (40 lines) - edge scale strategy
+        rotation_handle.py (30 lines) - rotation strategy
+
+Actions:
+- Implement strategy pattern for different handle types
+- Extract transform math utilities (coordinate conversion, constraints)
+- Each handle implements calculate_transform method
+- Widget delegates to appropriate handle strategy
+
+Benefits:
+- Eliminates massive switch statement
+- Each handle type isolated and testable
+- Easy to add new handle types
+- Transform math reusable
+
+
+REFACTOR 5: CANVAS_AREA.PY (441 -> ~160 lines)
+----------------------------------------------
+
+Current Structure:
+- Container widget with transform coordination
+- Complex multi-layer AABB calculation
+- Group transform logic for multiple layers
+
+New Structure:
+src/components/canvas/
+    canvas_area.py (160 lines) - container, event routing
+    transform_coordinator.py (200 lines) - multi-layer AABB, group transforms
+    bottom_bar.py (80 lines) - frame/splendor dropdowns
+
+Actions:
+- Extract TransformCoordinator for multi-selection transform calculations
+- Extract BottomBar widget for frame/splendor controls
+- Canvas area becomes simple container
+
+Benefits:
+- Transform math separated from UI
+- Bottom bar reusable
+- Clearer responsibilities
+
+
+REFACTOR 6: ASSET_SIDEBAR.PY (377 -> ~100 lines)
+------------------------------------------------
+
+Current Structure:
+- Asset browser with loading, filtering, grid layout
+- JSON loading with repetitive code
+- Dynamic grid building
+
+New Structure:
+src/components/assets/
+    asset_sidebar.py (100 lines) - UI coordination
+    asset_loader.py (150 lines) - load JSONs, build texture map
+    asset_grid.py (120 lines) - responsive grid layout logic
+
+Actions:
+- Extract AssetLoader for JSON parsing and TEXTURE_PREVIEW_MAP
+- Extract AssetGrid for responsive grid layout
+- Sidebar coordinates filtering and events only
+
+Benefits:
+- Asset loading reusable
+- Grid layout logic isolated
+- Easier to add new asset types
+
+
+IMPLEMENTATION APPROACH
+-----------------------
+
+Phase 1: Setup Structure
+- Create new directory structures
+- Add __init__.py files
+- Set up imports
+
+Phase 2: Extract Utilities First
+- color_utils.py from main.py
+- transform_math.py from transform_widget.py
+- shader_manager.py from canvas_widget.py
+These have no dependencies on other refactors
+
+Phase 3: Extract Services
+- file_operations.py from main.py
+- layer_operations.py from main.py
+- coa_serializer.py from main.py
+- asset_loader.py from asset_sidebar.py
+
+Phase 4: Extract Widgets
+- layer_list_widget.py from property_sidebar
+- color_picker.py from property_sidebar
+- property_editors from property_sidebar
+- transform_coordinator.py from canvas_area
+- asset_grid.py from asset_sidebar
+
+Phase 5: Extract Specialized
+- texture_atlas.py and texture_loaders.py from canvas_widget
+- render_passes.py from canvas_widget
+- handle strategies from transform_widget
+- tab_factories.py from property_sidebar
+
+Phase 6: Update Main Files
+- Update each main file to use new modules
+- Fix imports throughout
+- Test at each step
+
+
+TESTING STRATEGY
+----------------
+- After each extraction, run application to verify functionality
+- Test undo/redo after refactoring history-related code
+- Test layer operations after refactoring layer code
+- Test rendering after refactoring canvas code
+- Test transform after refactoring transform code
+
+
+DEPENDENCY NOTES
+----------------
+PropertySidebar dependencies:
+- canvas_widget (for updates)
+- canvas_area (for transform widget)
+- main_window (for history)
+
+CanvasWidget dependencies:
+- layers data structure
+- base_colors
+
+TransformWidget dependencies:
+- parent canvas for coordinate space
+
+Main dependencies:
+- all sidebars and canvas
+- history manager
+- coa_parser
+
+Minimize circular dependencies by using signals/callbacks
+
+
+BENEFITS OF REFACTOR
+--------------------
+- Each file under 400 lines (most under 200)
+- Clear separation of concerns
+- Testable components
+- Reusable utilities
+- Easier onboarding for new developers
+- Simpler debugging
+- More maintainable architecture
+- Potential for future features easier
+
+
+REFACTOR 7: UTILS DIRECTORY ANALYSIS
+------------------------------------
+
+Current Utils Files:
+1. coa_parser.py (439 lines)
+2. history_manager.py (155 lines)
+3. texture_consolidate.py (55 lines)
+
+Total: 649 lines
+
+
+7A: COA_PARSER.PY (439 lines)
+-----------------------------
+
+Current Structure:
+- CoAParser class (260 lines) - tokenizer and parser for Clausewitz format
+- CoASerializer class (100 lines) - serializer back to Clausewitz format
+- 4 utility wrapper functions (50 lines)
+- Test main function (30 lines)
+
+Responsibilities:
+- Parsing Clausewitz format text (braces, key-value pairs, nested blocks)
+- Token reading (identifiers, strings, numbers, blocks, arrays)
+- Type inference (strings, numbers, bools, UNKNOWN_TYPE like rgb blocks)
+- Serialization with proper indentation and formatting
+- Handling special cases (colored_emblem arrays, instance arrays)
+
+Logical Groups in CoAParser:
+- Initialization and state (15 lines): __init__, parse_file, parse_string
+- Whitespace and tokenization (80 lines): skip_whitespace, peek_char, read_identifier, read_string
+- Value parsing (90 lines): read_value with UNKNOWN_TYPE handling
+- Block parsing (75 lines): parse_block, parse_array_block, parse_dict_block
+
+Logical Groups in CoASerializer:
+- Initialization (10 lines): __init__, indent management
+- Serialization entry points (30 lines): serialize_to_file, serialize_to_string
+- Value formatting (30 lines): _serialize_value with special string handling
+- Block serialization (30 lines): _serialize_block with colored_emblem and instance arrays
+
+Assessment:
+ACCEPTABLE SIZE - This file is well-organized at 439 lines
+- Single responsibility: parsing/serializing CK3 CoA format
+- Clean separation between parser and serializer classes
+- Utility functions are convenient wrappers
+- Test code could be moved to separate test file
+
+Minor Refactoring Suggestions:
+1. Move test __main__ section to tests/test_coa_parser.py (30 lines saved)
+2. Extract tokenizer methods into separate Tokenizer class if desired
+3. Extract type inference logic into separate module if reused elsewhere
+
+Recommended Action: LEAVE AS-IS OR MINOR CLEANUP ONLY
+- File is well-structured and maintainable at current size
+- Only move test code to proper test directory
+- Consider tokenizer extraction if parser grows beyond 500 lines
+
+
+7B: HISTORY_MANAGER.PY (155 lines)
+----------------------------------
+
+Current Structure:
+- Single HistoryManager class
+- Undo/redo stack management
+- State snapshots with deep copy
+- Listener notification pattern
+- Description tracking for states
+
+Responsibilities:
+- Maintain history stack with configurable max size
+- Save/restore states with deep copy
+- Navigate history (undo/redo)
+- Trim old history when exceeding max
+- Notify UI listeners on history changes
+- Provide descriptions for current/undo/redo states
+
+Logical Groups:
+- Initialization (20 lines): __init__
+- State management (60 lines): save_state, undo, redo
+- State queries (40 lines): can_undo, can_redo, get descriptions
+- Listener pattern (35 lines): add_listener, remove_listener, _notify_listeners
+
+Assessment:
+EXCELLENT SIZE - This file is perfectly scoped at 155 lines
+- Single responsibility: history management
+- Clean API with clear methods
+- Generic design can be reused in other projects
+- Well-documented with docstrings
+- No obvious refactoring needed
+
+Recommended Action: LEAVE AS-IS
+- File is exemplary in organization
+- Could be extracted to separate package for reuse
+- No changes needed
+
+
+7C: TEXTURE_CONSOLIDATE.PY (55 lines)
+-------------------------------------
+
+Current Structure:
+- Two functions for texture atlas creation
+- consolidate_textures: vertical stacking (36 lines)
+- build_texture_atlas: grid-based atlas with 256x256 tiles (19 lines)
+
+Responsibilities:
+- Combine multiple textures into single atlas
+- Track offsets for UV mapping
+- Handle texture resizing and conversion
+
+Issues Found:
+- build_texture_atlas is incomplete/broken
+- Missing import for 'io' module
+- Uses deprecated Image.ANTIALIAS constant
+- Returns None instead of proper atlas
+- Inconsistent with consolidate_textures function
+
+Assessment:
+NEEDS CLEANUP - This file has issues beyond size
+- First function works (consolidate_textures)
+- Second function incomplete and unused
+- Mixed purposes (vertical stack vs grid atlas)
+
+Recommended Action: CLEAN UP OR REMOVE
+1. If build_texture_atlas is unused, remove it (save 19 lines)
+2. If used elsewhere, fix imports and complete implementation
+3. Move to canvas/texture_loaders.py module during canvas refactor
+4. Consolidate_textures can stay as utility if used
+
+Note: This module should be reviewed during canvas_widget refactor (REFACTOR 3)
+      Could be integrated into texture_atlas.py when that is created
+
+
+UTILS DIRECTORY REFACTORING SUMMARY
+------------------------------------
+
+Current State:
+- coa_parser.py: 439 lines - WELL ORGANIZED
+- history_manager.py: 155 lines - EXCELLENT
+- texture_consolidate.py: 55 lines - NEEDS CLEANUP
+
+Proposed Changes:
+
+Option A (Minimal - Recommended):
+- Move coa_parser test code to tests/ (-30 lines)
+- Fix or remove broken build_texture_atlas function
+- Move texture_consolidate into canvas/texture_loaders.py during REFACTOR 3
+Result: Keep 2 clean utils files (coa_parser, history_manager)
+
+Option B (If coa_parser grows):
+src/utils/
+    coa_parser/
+        __init__.py
+        tokenizer.py (100 lines) - whitespace, identifier, string, value reading
+        parser.py (160 lines) - block parsing, type inference
+        serializer.py (130 lines) - formatting and serialization
+        constants.py (20 lines) - special keys like colored_emblem, instance
+    history_manager.py (155 lines) - keep as-is
+    color_utils.py (150 lines) - ADD from main.py refactor
+
+Additional Utils to Add (from main.py REFACTOR 2):
+src/utils/
+    color_utils.py (150 lines) - color conversions, named color map, HSV utilities
+    
+This would come from extracting color code from main.py
+
+
+CODE DUPLICATION AND REDUNDANCY ANALYSIS
+=========================================
+
+CRITICAL FINDINGS - Same Thing Done Multiple Ways
+--------------------------------------------------
+
+1. DUPLICATE LAYER FUNCTIONALITY - THREE IMPLEMENTATIONS
+   
+   Location A: main.py - duplicate_selected_layer() (40 lines)
+   - Called by Ctrl+D keyboard shortcut
+   - Handles single layer only
+   - Uses dict() to copy
+   - Inserts at index 0 (top)
+   - Updates UI and saves to history
+   
+   Location B: property_sidebar.py - _duplicate_layer() (45 lines)
+   - Called by duplicate button in sidebar
+   - Handles multi-selection
+   - Uses dict() to copy
+   - Creates copies with 10px offset
+   - Updates UI and saves to history
+   
+   Location C: property_sidebar.py - _duplicate_layer_at_index() (20 lines)
+   - Called by duplicate button on individual layer
+   - Handles single layer by index
+   - Uses dict() to copy
+   - Simpler implementation
+   
+   ISSUE: Three separate implementations of same functionality
+   BETTER: Location B is most complete (handles multi-select and offset)
+   RECOMMENDATION: Remove A and C, always use B
+   Extract to services/layer_operations.py with single duplicate_layers() function
+   
+   
+2. COLOR CONVERSION - TWO SEPARATE SYSTEMS
+   
+   System A: main.py - _color_name_to_rgb() and _rgb_to_color_name() (80 lines)
+   - Embedded 15-color map in _color_name_to_rgb
+   - Handles rgb { R G B } custom format parsing
+   - Used throughout main.py
+   - Bidirectional conversion
+   
+   System B: tools/extract_ck3_colors.py - parse_named_colors() and hsv_to_rgb() (130 lines)
+   - Parses named_colors.txt file from CK3
+   - Handles RGB, HSV, and HSV360 formats
+   - Generates Python code for color map
+   - One-time extraction tool
+   
+   ISSUE: Main has hardcoded color map that should come from extraction tool
+   BETTER: System B is more complete (handles all CK3 color formats)
+   RECOMMENDATION: 
+   - Extract color_utils.py module from main.py
+   - Include the extraction tool logic for runtime parsing if needed
+   - Keep extraction tool as separate utility
+   - Single source of truth for color map
+   
+   
+3. LAYER DATA DEEP COPY - INCONSISTENT METHODS
+   
+   Method A: main.py - Manual list comprehension
+   'layers': [dict(layer) for layer in self.right_sidebar.layers]
+   - Shallow copy using dict()
+   - Used in _capture_current_state
+   - NOT actually deep copy despite comment
+   
+   Method B: history_manager.py - copy.deepcopy()
+   'data': copy.deepcopy(state_data)
+   - Proper deep copy
+   - Used in save_state/undo/redo
+   - Correct implementation
+   
+   Method C: main.py - Multiple dict() calls
+   duplicated_layer = dict(layer)
+   self.right_sidebar.layers = [dict(layer) for layer in state['layers']]
+   - Shallow copy again
+   - Inconsistent with history manager
+   
+   ISSUE: dict() is shallow copy, not deep - nested lists/dicts not copied
+   BETTER: Method B with copy.deepcopy is correct
+   RECOMMENDATION: Use copy.deepcopy everywhere, remove dict() shallow copies
+   Potential bug with nested color arrays if they were mutable
+   
+   
+4. TEXTURE LOADING - DUPLICATE ATLAS SYSTEMS
+   
+   System A: canvas_widget.py - _load_texture_atlases() (110 lines)
+   - Loads emblems and patterns into 8192x8192 atlases
+   - Creates UV mapping dictionary
+   - Handles multiple atlases
+   - Integrated with OpenGL
+   
+   System B: texture_consolidate.py - consolidate_textures() (25 lines)
+   - Vertical stacking texture consolidation
+   - Returns offset list for UV mapping
+   - Generic numpy implementation
+   
+   System C: texture_consolidate.py - build_texture_atlas() (20 lines)
+   - BROKEN/INCOMPLETE implementation
+   - Attempts 1024 tile grid layout
+   - Missing imports (io module)
+   - Uses deprecated Image.ANTIALIAS
+   - Never returns result
+   
+   ISSUE: Three different approaches, one broken, unclear which is used
+   BETTER: System A is working and production code
+   RECOMMENDATION:
+   - Remove System C entirely (broken and unused)
+   - System B might be prototype for System A
+   - Move System B into canvas/texture_atlas.py if actually used
+   - Otherwise delete texture_consolidate.py entirely
+   
+   
+5. COA PARSING - REDUNDANT WRAPPERS
+   
+   Implementation: coa_parser.py has both classes AND wrapper functions
+   - Classes: CoAParser and CoASerializer (360 lines)
+   - Wrappers: parse_coa_file, parse_coa_string, serialize_coa_to_file, serialize_coa_to_string (50 lines)
+   
+   Usage: main.py only uses wrapper functions, never classes directly
+   
+   ISSUE: Wrapper functions create/destroy parser instances on every call
+   BETTER: Wrappers are convenient for simple use
+   RECOMMENDATION: Keep both - wrappers for convenience, classes for advanced use
+   This is acceptable duplication for API usability
+   
+   
+6. LAYER PROPERTY DEFAULTS - SCATTERED THROUGHOUT CODE
+   
+   Location A: main.py - _on_asset_selected() creates layer
+   new_layer = {
+       'pos_x': 0.5, 'pos_y': 0.5,
+       'scale_x': 0.5, 'scale_y': 0.5,
+       'rotation': 0,
+       'color1': [0.750, 0.525, 0.188],
+       ...
+   }
+   
+   Location B: main.py - _parse_and_apply_coa() creates layer
+   layer_data = {
+       'pos_x': instance.get('position', [0.5, 0.5])[0],
+       'scale_x': instance.get('scale', [1.0, 1.0])[0],  # DIFFERENT DEFAULT
+       'color1': self._color_name_to_rgb(color1_name),
+       ...
+   }
+   
+   Location C: main.py - copy_coa() uses different defaults
+   position: [0.5, 0.5]
+   scale: [1.0, 1.0]  # DIFFERENT AGAIN
+   
+   ISSUE: Inconsistent defaults (0.5 vs 1.0 for scale)
+   BETTER: Single source of truth for defaults
+   RECOMMENDATION: Create LayerDefaults class or constants
+   services/layer_operations.py should have:
+   DEFAULT_LAYER = {
+       'pos_x': 0.5, 'pos_y': 0.5,
+       'scale_x': 1.0, 'scale_y': 1.0,
+       'rotation': 0,
+       ...
+   }
+   
+
+
+REFACTORING PRIORITIES FOR DUPLICATION
+---------------------------------------
+
+Priority 1 - CRITICAL (Bug Risk):
+- Fix shallow copy issue (dict() → copy.deepcopy)
+- Consolidate duplicate layer logic into single implementation
+- Remove broken build_texture_atlas function
+
+Priority 2 - HIGH (Maintenance):
+- Extract color utilities to color_utils.py
+- Create LayerDefaults constants
+- Unify layer creation logic
+
+Priority 3 - MEDIUM (Code Organization):
+- Decide on texture_consolidate.py (delete or integrate)
+- Document why wrappers exist in coa_parser.py
+
+Priority 4 - LOW (Nice to Have):
+- Consistent naming (color_name vs named_color)
+- Consistent ordering of parameters
+
+
+UPDATED UTILS STRUCTURE AFTER ALL REFACTORS
+-------------------------------------------
+
+Recommended Final Structure:
+src/utils/
+    __init__.py
+    coa_parser.py (409 lines) - parser/serializer minus test code
+    history_manager.py (155 lines) - undo/redo system
+    color_utils.py (150 lines) - NEW from main.py
+    transform_math.py (100 lines) - NEW from transform_widget
+Total utils: ~814 lines in 4 focused files
+
+Each file has single clear responsibility
+All files under 450 lines
+History manager is reusable generic component
+Parser handles domain-specific CK3 format
+Color and transform math are pure utility functions
+
+
+ESTIMATED EFFORT
+----------------
+Phase 1: 2 hours (structure setup)
+Phase 2: 4 hours (utilities extraction)
+Phase 3: 6 hours (services)
+Phase 4: 8 hours (widgets)
+Phase 5: 8 hours (specialized)
+Phase 6: 4 hours (integration)
+Phase 7: 2 hours (utils cleanup - move tests, documentation)
+Phase 8: 2.5 hours (critical bug fixes and duplication cleanup)
+Total: ~36.5 hours of focused work
+
+Can be done incrementally over time
+Each phase can be committed separately
+Application remains functional throughout
+
+NOTE: See refactor_tasks.txt for detailed step-by-step task breakdown
