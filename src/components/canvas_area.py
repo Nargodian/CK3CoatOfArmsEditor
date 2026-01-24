@@ -385,6 +385,12 @@ class CanvasArea(QFrame):
 			new_pos_x = max(0.0, min(1.0, new_pos_x))
 			new_pos_y = max(0.0, min(1.0, new_pos_y))
 			
+			# Clamp individual emblem scales to [0.01, 1.0] (even though group AABB can exceed 1.0)
+			sign_x = 1 if new_scale_x >= 0 else -1
+			sign_y = 1 if new_scale_y >= 0 else -1
+			new_scale_x = sign_x * max(0.01, min(1.0, abs(new_scale_x)))
+			new_scale_y = sign_y * max(0.01, min(1.0, abs(new_scale_y)))
+			
 			# Update actual layer
 			layer = self.property_sidebar.layers[idx]
 			layer['pos_x'] = new_pos_x
