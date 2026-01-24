@@ -308,6 +308,11 @@ class TransformWidget(QWidget):
 	def mouseReleaseEvent(self, event):
 		"""Handle mouse release"""
 		if event.button() == Qt.LeftButton and self.active_handle != self.HANDLE_NONE:
+			# Clear rotation state when releasing rotation handle
+			if self.active_handle == self.HANDLE_ROTATE:
+				self.is_rotating = False
+				self.cached_aabb = None
+			
 			self.active_handle = self.HANDLE_NONE
 			self.drag_start_pos = None
 			self.drag_start_transform = None

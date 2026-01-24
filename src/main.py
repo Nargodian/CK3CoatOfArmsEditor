@@ -746,11 +746,13 @@ class CoatOfArmsEditor(QMainWindow):
 			if not layer_data:
 				raise ValueError("Clipboard does not contain valid layer data")
 			
-			# Add layer at the top (index 0)
-			self.right_sidebar.layers.insert(0, layer_data)
+			# Add layer at the top (end of list = frontmost)
+			self.right_sidebar.layers.append(layer_data)
 			
 			# Select the new layer
-			self.right_sidebar.selected_layer_indices = {0}
+			new_index = len(self.right_sidebar.layers) - 1
+			self.right_sidebar.selected_layer_indices = {new_index}
+			self.right_sidebar.last_selected_index = new_index  # Set for shift+click range selection
 			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()
@@ -763,7 +765,7 @@ class CoatOfArmsEditor(QMainWindow):
 			# Update canvas and transform widget
 			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
 			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer(0)
+				self.canvas_area.update_transform_widget_for_layer()
 			
 			# Save to history
 			self._save_state("Paste layer")
@@ -817,11 +819,13 @@ class CoatOfArmsEditor(QMainWindow):
 			layer_data['pos_x'] = norm_x
 			layer_data['pos_y'] = norm_y
 			
-			# Add layer at the top (index 0)
-			self.right_sidebar.layers.insert(0, layer_data)
+			# Add layer at the top (end of list = frontmost)
+			self.right_sidebar.layers.append(layer_data)
 			
 			# Select the new layer
-			self.right_sidebar.selected_layer_indices = {0}
+			new_index = len(self.right_sidebar.layers) - 1
+			self.right_sidebar.selected_layer_indices = {new_index}
+			self.right_sidebar.last_selected_index = new_index  # Set for shift+click range selection
 			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()
@@ -834,7 +838,7 @@ class CoatOfArmsEditor(QMainWindow):
 			# Update canvas and transform widget
 			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
 			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer(0)
+				self.canvas_area.update_transform_widget_for_layer()
 			
 			# Save to history
 			self._save_state("Paste layer at position")

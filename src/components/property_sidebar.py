@@ -694,7 +694,9 @@ class PropertySidebar(QFrame):
 		}
 		self.layers.append(layer)
 		self._rebuild_layer_list()
-		self.selected_layer_indices = {len(self.layers) - 1}
+		new_index = len(self.layers) - 1
+		self.selected_layer_indices = {new_index}
+		self.last_selected_index = new_index  # Set for shift+click range selection
 		self._update_layer_selection()
 		self._load_layer_properties()
 		if self.canvas_widget:
@@ -759,7 +761,9 @@ class PropertySidebar(QFrame):
 			idx = selected_indices[0]
 			layer_copy = self.layers[idx].copy()
 			self.layers.insert(idx + 1, layer_copy)
-			self.selected_layer_indices = {idx + 1}
+			new_index = idx + 1
+			self.selected_layer_indices = {new_index}
+			self.last_selected_index = new_index  # Set for shift+click range selection
 			self._rebuild_layer_list()
 			self._update_layer_selection()
 			self._load_layer_properties()
@@ -802,7 +806,9 @@ class PropertySidebar(QFrame):
 			layer_copy = self.layers[index].copy()
 			self.layers.insert(index + 1, layer_copy)
 			# Select the new duplicate
-			self.selected_layer_indices = {index + 1}
+			new_index = index + 1
+			self.selected_layer_indices = {new_index}
+			self.last_selected_index = new_index  # Set for shift+click range selection
 			self._rebuild_layer_list()
 			self._update_layer_selection()
 			self._load_layer_properties()
@@ -954,17 +960,19 @@ class PropertySidebar(QFrame):
 			if item.widget():
 				item.widget().deleteLater()
 		
-		# Add layer buttons
-		for i, layer in enumerate(self.layers):
+		# Add layer buttons in reverse order (top layer = frontmost = last index)
+		for i, layer in enumerate(reversed(self.layers)):
+			# Calculate actual layer index (reversed)
+			actual_index = len(self.layers) - 1 - i
 			layer_btn = QPushButton()
 			layer_btn.setCheckable(True)
 			layer_btn.setFixedHeight(60)
-			layer_btn.setProperty('layer_index', i)
-			layer_btn.clicked.connect(lambda checked, idx=i: self._select_layer(idx))
+			layer_btn.setProperty('layer_index', actual_index)
+			layer_btn.clicked.connect(lambda checked, idx=actual_index: self._select_layer(idx))
 			
 			# Enable drag functionality
-			layer_btn.mousePressEvent = lambda event, idx=i, btn=layer_btn: self._layer_mouse_press(event, idx, btn)
-			layer_btn.mouseMoveEvent = lambda event, idx=i, btn=layer_btn: self._layer_mouse_move(event, idx, btn)
+			layer_btn.mousePressEvent = lambda event, idx=actual_index, btn=layer_btn: self._layer_mouse_press(event, idx, btn)
+			layer_btn.mouseMoveEvent = lambda event, idx=actual_index, btn=layer_btn: self._layer_mouse_move(event, idx, btn)
 			
 			# Create layout for layer button content
 			btn_layout = QHBoxLayout(layer_btn)
@@ -1017,7 +1025,7 @@ class PropertySidebar(QFrame):
 					background-color: rgba(90, 141, 191, 100);
 				}
 			""")
-			duplicate_btn.clicked.connect(lambda checked, idx=i: self._duplicate_layer_at_index(idx))
+			duplicate_btn.clicked.connect(lambda checked, idx=actual_index: self._duplicate_layer_at_index(idx))
 			inline_layout.addWidget(duplicate_btn)
 			
 			# Delete button
@@ -1038,7 +1046,7 @@ class PropertySidebar(QFrame):
 					background-color: rgba(191, 90, 90, 100);
 				}
 			""")
-			delete_btn.clicked.connect(lambda checked, idx=i: self._delete_layer_at_index(idx))
+			delete_btn.clicked.connect(lambda checked, idx=actual_index: self._delete_layer_at_index(idx))
 			inline_layout.addWidget(delete_btn)
 			
 			btn_layout.addWidget(button_container)
@@ -1364,8 +1372,10 @@ class PropertySidebar(QFrame):
 	
 	def _update_layer_selection(self):
 		"""Update which layer button is checked and multi-select indicator"""
+		# Buttons are in reversed order (top layer = last index = button 0)
 		for i, btn in enumerate(self.layer_buttons):
-			btn.setChecked(i in self.selected_layer_indices)
+			actual_layer_index = len(self.layers) - 1 - i
+			btn.setChecked(actual_layer_index in self.selected_layer_indices)
 		
 		# Update selection indicator labels
 		selected_count = len(self.selected_layer_indices)
