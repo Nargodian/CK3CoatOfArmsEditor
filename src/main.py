@@ -335,11 +335,11 @@ class CoatOfArmsEditor(QMainWindow):
 			# Restore canvas layers
 			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
 			
-			# Update layer properties if a layer is selected
+			# Update layer properties and transform widget if layers are selected
 			selected_indices = list(state.get('selected_layer_indices', set()))
 			if selected_indices:
 				self.right_sidebar._load_layer_properties()
-				self.canvas_area.update_transform_widget_for_layer(selected_indices[0])
+				self.canvas_area.update_transform_widget_for_layer()
 				self.right_sidebar.tab_widget.setTabEnabled(2, True)
 			else:
 				self.right_sidebar.tab_widget.setTabEnabled(2, False)
