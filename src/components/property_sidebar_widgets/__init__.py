@@ -6,5 +6,6 @@ including layer list widgets, property editors, and color pickers.
 """
 
 from .layer_list_widget import LayerListWidget
+from .color_picker import ColorPickerDialog, create_color_button
 
-__all__ = ['LayerListWidget']
+__all__ = ['LayerListWidget', 'ColorPickerDialog', 'create_color_button']

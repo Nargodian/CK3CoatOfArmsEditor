@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QWidget, QTabWidget, QPushButton, QLineEdit, QSlider, QDialog, QGridLayout, QColorDialog, QCheckBox
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QColor, QPixmap, QIcon
-from .property_sidebar_widgets import LayerListWidget
+from .property_sidebar_widgets import LayerListWidget, ColorPickerDialog, create_color_button
 
 
 class PropertySidebar(QFrame):
@@ -475,85 +475,18 @@ class PropertySidebar(QFrame):
 	
 	def _show_color_picker(self, button):
 		"""Show custom color picker dialog with presets"""
-		dialog = QDialog(self)
-		dialog.setWindowTitle("Choose Color")
-		dialog.setModal(True)
+		current_color = button.property("colorValue")
+		color_hex, color_name = ColorPickerDialog.get_color(self, current_color)
 		
-		layout = QVBoxLayout(dialog)
-		layout.setSpacing(10)
-		layout.setContentsMargins(15, 15, 15, 15)
-		
-		# Label
-		label = QLabel("Select a color:")
-		label.setStyleSheet("font-size: 12px; font-weight: bold;")
-		layout.addWidget(label)
-		
-		# CK3 CoA color palette - Official colors from game/common/named_colors/default_colors.txt
-		# Accurate hex values converted from HSV using color_conversions.txt
-		presets = [
-			("#722116", "red", "Red"),
-			("#4C0707", "red_dark", "Red Dark"),
-			("#993A00", "orange", "Orange"),
-			("#BF852F", "yellow", "Yellow"),
-			("#FFAD32", "yellow_light", "Yellow Light"),
-			("#CCC9C7", "white", "White"),
-			("#7F7F7F", "grey", "Grey"),
-			("#191613", "black", "Black"),
-			("#723B1D", "brown", "Brown"),
-			("#1E4C23", "green", "Green"),
-			("#336638", "green_light", "Green Light"),
-			("#2A5D8C", "blue_light", "Blue Light"),
-			("#143E66", "blue", "Blue"),
-			("#072B4C", "blue_dark", "Blue Dark"),
-			("#591A40", "purple", "Purple")
-		]
-		
-		grid_layout = QGridLayout()
-		grid_layout.setSpacing(8)
-		
-		for i, (color_hex, color_id, color_name) in enumerate(presets):
-			preset_btn = QPushButton()
-			preset_btn.setFixedSize(60, 60)
-			preset_btn.setToolTip(color_name)
-			preset_btn.setStyleSheet(f"""
-				QPushButton {{
-					background-color: {color_hex};
-					border-radius: 4px;
-					border: 1px solid rgba(255, 255, 255, 30);
-				}}
-			""")
-			preset_btn.clicked.connect(lambda checked, c=color_hex, cid=color_id, b=button: self._apply_color(b, c, dialog, cid))
-			# 7 colors in first row, 6 in second row
-			if i < 7:
-				row = 0
-				col = i
-			else:
-				row = 1
-				col = i - 7
-			grid_layout.addWidget(preset_btn, row, col)
-		
-		layout.addLayout(grid_layout)
-		
-		# Custom color button
-		custom_btn = QPushButton("Custom Color...")
-		custom_btn.setStyleSheet("""
-			QPushButton {
-				padding: 8px;
-				border-radius: 4px;
-			}
-		""")
-		custom_btn.clicked.connect(lambda: self._show_custom_color_dialog(button, dialog))
-		layout.addWidget(custom_btn)
-		
-		dialog.exec_()
+		if color_hex:
+			self._apply_color(button, color_hex, color_name)
 	
-	def _apply_color(self, button, color_hex, dialog, color_name=None):
+	def _apply_color(self, button, color_hex, color_name=None):
 		"""Apply selected color to button
 		
 		Args:
 			button: The color button being updated
 			color_hex: Hex color value
-			dialog: Parent dialog to close
 			color_name: CK3 color name if from swatch, None if custom
 		"""
 		button.setProperty("colorValue", color_hex)
@@ -564,7 +497,6 @@ class PropertySidebar(QFrame):
 				border-radius: 4px;
 			}}
 		""")
-		dialog.accept()
 		
 		# Update canvas with new colors
 		if button in self.color_buttons:
@@ -598,14 +530,6 @@ class PropertySidebar(QFrame):
 				if self.main_window and hasattr(self.main_window, '_save_state'):
 					self.main_window._save_state("Change emblem color")
 	
-	def _show_custom_color_dialog(self, button, parent_dialog):
-		"""Show Qt's standard color picker"""
-		current_color = QColor(button.property("colorValue"))
-		color = QColorDialog.getColor(current_color, self, "Choose Custom Color")
-		
-		if color.isValid():
-			color_hex = color.name()
-			self._apply_color(button, color_hex, parent_dialog, None)  # None = custom color
 	
 	def set_base_color_count(self, count):
 		"""Show/hide base color swatches based on asset color count (1, 2, or 3)"""
