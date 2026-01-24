@@ -207,11 +207,11 @@ class CanvasArea(QFrame):
 				scale_x = layer.get('scale_x', 0.5)
 				scale_y = layer.get('scale_y', 0.5)
 				
-				# Calculate layer AABB in normalized space
-				layer_min_x = pos_x - scale_x / 2
-				layer_max_x = pos_x + scale_x / 2
-				layer_min_y = pos_y - scale_y / 2
-				layer_max_y = pos_y + scale_y / 2
+				# Calculate layer AABB in normalized space (use abs for negative scales/flips)
+				layer_min_x = pos_x - abs(scale_x) / 2
+				layer_max_x = pos_x + abs(scale_x) / 2
+				layer_min_y = pos_y - abs(scale_y) / 2
+				layer_max_y = pos_y + abs(scale_y) / 2
 				
 				min_x = min(min_x, layer_min_x)
 				max_x = max(max_x, layer_max_x)
@@ -292,10 +292,11 @@ class CanvasArea(QFrame):
 				scale_x_orig = layer_state['scale_x']
 				scale_y_orig = layer_state['scale_y']
 				
-				layer_min_x = pos_x_orig - scale_x_orig / 2
-				layer_max_x = pos_x_orig + scale_x_orig / 2
-				layer_min_y = pos_y_orig - scale_y_orig / 2
-				layer_max_y = pos_y_orig + scale_y_orig / 2
+				# Use abs() to handle negative scales (flipped layers)
+				layer_min_x = pos_x_orig - abs(scale_x_orig) / 2
+				layer_max_x = pos_x_orig + abs(scale_x_orig) / 2
+				layer_min_y = pos_y_orig - abs(scale_y_orig) / 2
+				layer_max_y = pos_y_orig + abs(scale_y_orig) / 2
 				
 				original_min_x = min(original_min_x, layer_min_x)
 				original_max_x = max(original_max_x, layer_max_x)
@@ -372,9 +373,11 @@ class CanvasArea(QFrame):
 				new_pos_x = original_center_x + new_offset_x + position_delta_x
 				new_pos_y = original_center_y + new_offset_y + position_delta_y
 				
-				# Apply scale to layer scale
-				new_scale_x = scale_x_orig * scale_factor_x
-				new_scale_y = scale_y_orig * scale_factor_y
+				# Apply scale to layer scale, preserving flip direction (sign)
+				sign_x = 1 if scale_x_orig >= 0 else -1
+				sign_y = 1 if scale_y_orig >= 0 else -1
+				new_scale_x = sign_x * abs(scale_x_orig) * scale_factor_x
+				new_scale_y = sign_y * abs(scale_y_orig) * scale_factor_y
 			
 			# Update actual layer
 			layer = self.property_sidebar.layers[idx]

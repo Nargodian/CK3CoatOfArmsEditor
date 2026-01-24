@@ -443,8 +443,12 @@ class TransformWidget(QWidget):
 			self.scale_x = start_sx  # Preserve X scale
 			# Emit signal to disable unified scale
 			self.nonUniformScaleUsed.emit()
-		self.scale_x = max(0.01, min(1.0, self.scale_x))
-		self.scale_y = max(0.01, min(1.0, self.scale_y))
+		
+		# Clamp scale magnitude while preserving sign (for flipped layers)
+		sign_x = 1 if self.scale_x >= 0 else -1
+		sign_y = 1 if self.scale_y >= 0 else -1
+		self.scale_x = sign_x * max(0.01, min(1.0, abs(self.scale_x)))
+		self.scale_y = sign_y * max(0.01, min(1.0, abs(self.scale_y)))
 		
 		# Emit signal
 		self.transformChanged.emit(self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)

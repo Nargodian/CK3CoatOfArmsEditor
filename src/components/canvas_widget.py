@@ -290,48 +290,45 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					# CK3 transformation order: position, then rotation, then scale
 					# Calculate rotated and scaled quad vertices
 					import math
-					angle_rad = math.radians(-rotation)  # Negate for opposite rotation
-					cos_a = math.cos(angle_rad)
-					sin_a = math.sin(angle_rad)
-					
-					# Scale values
-					half_width = scale_x * 0.6
-					half_height = scale_y * 0.6
-					
-					# CK3 transformation order: rotate first, then scale (in screen space)
-					# Like squashing a video of a spinning object
-					# Define unit quad corners
-					unit_corners = [
-						(-1.0, -1.0),  # Bottom-left
-						( 1.0, -1.0),  # Bottom-right
-						( 1.0,  1.0),  # Top-right
-						(-1.0,  1.0),  # Top-left
-					]
-					
-					# Apply transformations: rotate first, then scale in screen space, then translate
-					transformed = []
-					for ux, uy in unit_corners:
-						# First rotate the unit corner
-						rx = ux * cos_a - uy * sin_a
-						ry = ux * sin_a + uy * cos_a
-						# Then scale in screen space (not rotated space)
-						sx = rx * half_width
-						sy = ry * half_height
-						# Finally translate to position
-						transformed.append((sx + center_x, sy + center_y))
-					
-					# Update UV coordinates for this layer
-					vertices = np.array([
-						transformed[0][0], transformed[0][1], 0.0,  u0, v1,
-						transformed[1][0], transformed[1][1], 0.0,  u1, v1,
-						transformed[2][0], transformed[2][1], 0.0,  u1, v0,
-						transformed[3][0], transformed[3][1], 0.0,  u0, v0,
-					], dtype=np.float32)
-					
-					self.vbo.bind()
-					self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
-					
-					gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+				angle_rad = math.radians(-rotation)  # Negate for correct rotation direction
+				cos_a = math.cos(angle_rad)
+				sin_a = math.sin(angle_rad)
+				
+				# Scale values
+				half_width = scale_x * 0.6
+				half_height = scale_y * 0.6
+				# Define unit quad corners
+				unit_corners = [
+					(-1.0, -1.0),  # Bottom-left
+					( 1.0, -1.0),  # Bottom-right
+					( 1.0,  1.0),  # Top-right
+					(-1.0,  1.0),  # Top-left
+				]
+				
+				# Apply transformations: rotate first, then scale in screen space, then translate
+				transformed = []
+				for ux, uy in unit_corners:
+					# First rotate the unit corner
+					rx = ux * cos_a - uy * sin_a
+					ry = ux * sin_a + uy * cos_a
+					# Then scale in screen space (not rotated space)
+					sx = rx * half_width
+					sy = ry * half_height
+					# Finally translate to position
+					transformed.append((sx + center_x, sy + center_y))
+				
+				# Update UV coordinates for this layer
+				vertices = np.array([
+					transformed[0][0], transformed[0][1], 0.0,  u0, v1,
+					transformed[1][0], transformed[1][1], 0.0,  u1, v1,
+					transformed[2][0], transformed[2][1], 0.0,  u1, v0,
+					transformed[3][0], transformed[3][1], 0.0,  u0, v0,
+				], dtype=np.float32)
+				
+				self.vbo.bind()
+				self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+				
+				gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 			
 			self.design_shader.release()
 		
