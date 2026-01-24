@@ -257,8 +257,9 @@ class CanvasArea(QFrame):
 				return
 			
 			layer = self.property_sidebar.layers[idx]
-			layer['pos_x'] = pos_x
-			layer['pos_y'] = pos_y
+			# Clamp position to valid range [0, 1]
+			layer['pos_x'] = max(0.0, min(1.0, pos_x))
+			layer['pos_y'] = max(0.0, min(1.0, pos_y))
 			layer['scale_x'] = scale_x
 			layer['scale_y'] = scale_y
 			layer['rotation'] = rotation
@@ -378,6 +379,10 @@ class CanvasArea(QFrame):
 				sign_y = 1 if scale_y_orig >= 0 else -1
 				new_scale_x = sign_x * abs(scale_x_orig) * scale_factor_x
 				new_scale_y = sign_y * abs(scale_y_orig) * scale_factor_y
+			
+			# Clamp positions to valid range [0, 1]
+			new_pos_x = max(0.0, min(1.0, new_pos_x))
+			new_pos_y = max(0.0, min(1.0, new_pos_y))
 			
 			# Update actual layer
 			layer = self.property_sidebar.layers[idx]
