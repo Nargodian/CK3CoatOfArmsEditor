@@ -448,6 +448,16 @@ class LayerListWidget(QWidget):
 		if self.on_selection_changed:
 			self.on_selection_changed()
 	
+	def mousePressEvent(self, event):
+		"""Handle mouse press on empty space to clear selection"""
+		if event.button() == Qt.LeftButton:
+			# Check if we clicked on empty space (not on any child widget)
+			child = self.childAt(event.pos())
+			if child is None or child == self:
+				# Clicked on empty space - clear selection
+				self.clear_selection()
+		super().mousePressEvent(event)
+	
 	def _handle_duplicate(self, index):
 		"""Handle duplicate button click"""
 		if self.on_duplicate_layer:

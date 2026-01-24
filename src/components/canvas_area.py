@@ -180,9 +180,15 @@ class CanvasArea(QFrame):
 			layer = self.property_sidebar.layers[idx]
 			pos_x = layer.get('pos_x', 0.5)
 			pos_y = layer.get('pos_y', 0.5)
-			scale_x = layer.get('scale_x', 0.5)
-			scale_y = layer.get('scale_y', 0.5)
+			scale_x = layer.get('scale_x', 1.0)
+			scale_y = layer.get('scale_y', 1.0)
 			rotation = layer.get('rotation', 0)
+			
+			# Clamp scale to legal range [0.01, 1.0] for single layer widget display
+			sign_x = 1 if scale_x >= 0 else -1
+			sign_y = 1 if scale_y >= 0 else -1
+			scale_x = sign_x * max(0.01, min(1.0, abs(scale_x)))
+			scale_y = sign_y * max(0.01, min(1.0, abs(scale_y)))
 			
 			self.transform_widget.set_transform(pos_x, pos_y, scale_x, scale_y, rotation)
 			self.transform_widget.set_visible(True)
@@ -207,8 +213,8 @@ class CanvasArea(QFrame):
 				layer = self.property_sidebar.layers[idx]
 				pos_x = layer.get('pos_x', 0.5)
 				pos_y = layer.get('pos_y', 0.5)
-				scale_x = layer.get('scale_x', 0.5)
-				scale_y = layer.get('scale_y', 0.5)
+				scale_x = layer.get('scale_x', 1.0)
+				scale_y = layer.get('scale_y', 1.0)
 				
 				# Calculate layer AABB in normalized space (use abs for negative scales/flips)
 				layer_min_x = pos_x - abs(scale_x) / 2
