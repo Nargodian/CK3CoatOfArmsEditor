@@ -665,23 +665,33 @@ class CoatOfArmsEditor(QMainWindow):
 			QMessageBox.critical(self, "Paste Error", f"Failed to paste coat of arms:\n{str(e)}\n\nThe clipboard may not contain valid coat of arms data.")
 	
 	def copy_layer(self):
-		"""Copy currently selected layer to clipboard as CoA sub-block"""
+		"""Copy all selected layers to clipboard as CoA sub-blocks"""
 		try:
-			# Check if a layer is selected
+			# Check if layers are selected
 			selected_indices = self.right_sidebar.get_selected_indices()
 			if not selected_indices:
 				print("No layer selected to copy")
 				return
 			
-			layer_idx = selected_indices[0]
-			layer = self.right_sidebar.layers[layer_idx]
+			# Serialize all selected layers
+			layer_texts = []
+			for layer_idx in selected_indices:
+				if 0 <= layer_idx < len(self.right_sidebar.layers):
+					layer = self.right_sidebar.layers[layer_idx]
+					layer_text = self._serialize_layer_to_string(layer)
+					layer_texts.append(layer_text)
 			
-			# Serialize layer to colored_emblem format
-			layer_text = self._serialize_layer_to_string(layer)
+			if not layer_texts:
+				print("No valid layers to copy")
+				return
+			
+			# Join all layer texts (each is already a complete colored_emblem block)
+			full_text = '\n\n'.join(layer_texts)
 			
 			# Copy to clipboard
-			QApplication.clipboard().setText(layer_text)
-			print(f"Layer '{layer.get('filename', 'Unknown')}' copied to clipboard")
+			QApplication.clipboard().setText(full_text)
+			layer_word = "layers" if len(selected_indices) > 1 else "layer"
+			print(f"{len(selected_indices)} {layer_word} copied to clipboard")
 			
 		except Exception as e:
 			print(f"Error copying layer: {e}")
@@ -733,7 +743,7 @@ class CoatOfArmsEditor(QMainWindow):
 			traceback.print_exc()
 	
 	def paste_layer(self):
-		"""Paste layer from clipboard (as CoA sub-block) and add to layers"""
+		"""Paste layers from clipboard (as CoA sub-blocks) and add to layers"""
 		try:
 			# Get clipboard text
 			layer_text = QApplication.clipboard().text()
@@ -741,18 +751,36 @@ class CoatOfArmsEditor(QMainWindow):
 				print("Paste layer failed: Clipboard is empty")
 				return
 			
-			# Parse layer from clipboard
-			layer_data = self._parse_layer_from_string(layer_text)
-			if not layer_data:
+			# Parse layers from clipboard (may contain multiple colored_emblem blocks)
+			# Split by 'colored_emblem' to handle multiple blocks
+			parts = layer_text.split('colored_emblem')
+			layers_data = []
+			
+			for i, part in enumerate(parts):
+				if i == 0 and not part.strip():
+					continue  # Skip empty first part
+				
+				# Reconstruct the colored_emblem block
+				if i > 0:  # Skip first part if it's empty
+					block_text = 'colored_emblem' + part
+					layer_data = self._parse_layer_from_string(block_text)
+					if layer_data:
+						# Apply small offset to pasted layers (0.02 as per design decision)
+						layer_data['pos_x'] = min(1.0, layer_data.get('pos_x', 0.5) + 0.02)
+						layer_data['pos_y'] = min(1.0, layer_data.get('pos_y', 0.5) + 0.02)
+						layers_data.append(layer_data)
+			
+			if not layers_data:
 				raise ValueError("Clipboard does not contain valid layer data")
 			
-			# Add layer at the top (end of list = frontmost)
-			self.right_sidebar.layers.append(layer_data)
+			# Add all layers at the end (front-most)
+			start_index = len(self.right_sidebar.layers)
+			self.right_sidebar.layers.extend(layers_data)
 			
-			# Select the new layer
-			new_index = len(self.right_sidebar.layers) - 1
-			self.right_sidebar.selected_layer_indices = {new_index}
-			self.right_sidebar.last_selected_index = new_index  # Set for shift+click range selection
+			# Select all newly pasted layers
+			new_indices = list(range(start_index, len(self.right_sidebar.layers)))
+			self.right_sidebar.selected_layer_indices = set(new_indices)
+			self.right_sidebar.last_selected_index = new_indices[-1] if new_indices else None
 			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()
@@ -768,9 +796,10 @@ class CoatOfArmsEditor(QMainWindow):
 				self.canvas_area.update_transform_widget_for_layer()
 			
 			# Save to history
-			self._save_state("Paste layer")
+			layer_word = "layers" if len(layers_data) > 1 else "layer"
+			self._save_state(f"Paste {len(layers_data)} {layer_word}")
 			
-			print(f"Layer '{layer_data.get('filename', 'Unknown')}' pasted successfully")
+			print(f"{len(layers_data)} {layer_word} pasted successfully")
 			
 		except Exception as e:
 			print(f"Paste layer failed: {e}")

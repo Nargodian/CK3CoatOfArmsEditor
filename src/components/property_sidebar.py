@@ -703,77 +703,163 @@ class PropertySidebar(QFrame):
 			self.canvas_widget.set_layers(self.layers)
 	
 	def _delete_layer(self):
-		"""Delete the selected layer"""
+		"""Delete all selected layers"""
 		selected_indices = self.get_selected_indices()
-		if selected_indices and 0 <= selected_indices[0] < len(self.layers):
-			idx = selected_indices[0]
+		if not selected_indices:
+			return
+		
+		# Validate all indices are in range
+		valid_indices = [idx for idx in selected_indices if 0 <= idx < len(self.layers)]
+		if not valid_indices:
+			return
+		
+		# Get top-most deleted position for later selection (before deletion)
+		top_most_index = min(valid_indices)
+		
+		# Delete layers from highest index to lowest to avoid index shifting issues
+		for idx in sorted(valid_indices, reverse=True):
 			self.layers.pop(idx)
-			if idx >= len(self.layers):
-				new_idx = len(self.layers) - 1 if self.layers else None
-				self.selected_layer_indices = {new_idx} if new_idx is not None else set()
+		
+		# Select layer at top-most deleted position if exists, otherwise clear
+		if len(self.layers) > 0:
+			# If top-most deleted was beyond the end, select last layer
+			if top_most_index >= len(self.layers):
+				self.selected_layer_indices = {len(self.layers) - 1}
 			else:
-				self.selected_layer_indices = {idx}
-			self._rebuild_layer_list()
-			self._update_layer_selection()
-			# Update transform widget for selection
-			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer()
-			if self.canvas_widget:
-				self.canvas_widget.set_layers(self.layers)
-			# Save to history
-			if self.main_window and hasattr(self.main_window, '_save_state'):
-				self.main_window._save_state("Delete layer")
+				self.selected_layer_indices = {top_most_index}
+			self.last_selected_index = list(self.selected_layer_indices)[0]
+		else:
+			self.clear_selection()
+			self.last_selected_index = None
+		
+		self._rebuild_layer_list()
+		self._update_layer_selection()
+		# Update transform widget for selection
+		if self.canvas_area:
+			self.canvas_area.update_transform_widget_for_layer()
+		if self.canvas_widget:
+			self.canvas_widget.set_layers(self.layers)
+		# Save to history
+		if self.main_window and hasattr(self.main_window, '_save_state'):
+			layer_word = "layers" if len(valid_indices) > 1 else "layer"
+			self.main_window._save_state(f"Delete {len(valid_indices)} {layer_word}")
 	
 	def _move_layer_up(self):
-		"""Move selected layer up in the list"""
+		"""Move all selected layers up in the list as a group"""
 		selected_indices = self.get_selected_indices()
-		if selected_indices and selected_indices[0] > 0:
-			idx = selected_indices[0]
-			self.layers[idx], self.layers[idx - 1] = self.layers[idx - 1], self.layers[idx]
-			self.selected_layer_indices = {idx - 1}
-			self._rebuild_layer_list()
-			self._update_layer_selection()
-			if self.canvas_widget:
-				self.canvas_widget.set_layers(self.layers)
-			# Save to history
-			if self.main_window and hasattr(self.main_window, '_save_state'):
-				self.main_window._save_state("Move layer up")
+		if not selected_indices:
+			return
+		
+		# Can't move up if any selected layer is at the top (index 0)
+		if min(selected_indices) == 0:
+			return
+		
+		# Extract selected layers maintaining order
+		selected_layers = [(idx, self.layers[idx]) for idx in selected_indices]
+		
+		# Remove selected layers from their current positions (highest to lowest)
+		for idx in sorted(selected_indices, reverse=True):
+			self.layers.pop(idx)
+		
+		# Calculate new indices: each moves up by 1
+		new_indices = [idx - 1 for idx in selected_indices]
+		
+		# Insert layers at new positions (lowest to highest)
+		for new_idx, (old_idx, layer) in zip(sorted(new_indices), sorted(selected_layers)):
+			self.layers.insert(new_idx, layer)
+		
+		# Update selection to new indices
+		self.selected_layer_indices = set(new_indices)
+		self.last_selected_index = max(new_indices) if new_indices else None
+		
+		self._rebuild_layer_list()
+		self._update_layer_selection()
+		if self.canvas_widget:
+			self.canvas_widget.set_layers(self.layers)
+		# Save to history
+		if self.main_window and hasattr(self.main_window, '_save_state'):
+			layer_word = "layers" if len(selected_indices) > 1 else "layer"
+			self.main_window._save_state(f"Move {len(selected_indices)} {layer_word} up")
 	
 	def _move_layer_down(self):
-		"""Move selected layer down in the list"""
+		"""Move all selected layers down in the list as a group"""
 		selected_indices = self.get_selected_indices()
-		if selected_indices and selected_indices[0] < len(self.layers) - 1:
-			idx = selected_indices[0]
-			self.layers[idx], self.layers[idx + 1] = self.layers[idx + 1], self.layers[idx]
-			self.selected_layer_indices = {idx + 1}
-			self._rebuild_layer_list()
-			self._update_layer_selection()
-			if self.canvas_widget:
-				self.canvas_widget.set_layers(self.layers)
-			# Save to history
-			if self.main_window and hasattr(self.main_window, '_save_state'):
-				self.main_window._save_state("Move layer down")
+		if not selected_indices:
+			return
+		
+		# Can't move down if any selected layer is at the bottom (last index)
+		if max(selected_indices) >= len(self.layers) - 1:
+			return
+		
+		# Extract selected layers maintaining order
+		selected_layers = [(idx, self.layers[idx]) for idx in selected_indices]
+		
+		# Remove selected layers from their current positions (highest to lowest)
+		for idx in sorted(selected_indices, reverse=True):
+			self.layers.pop(idx)
+		
+		# Calculate new indices: each moves down by 1
+		new_indices = [idx + 1 for idx in selected_indices]
+		
+		# Insert layers at new positions (lowest to highest)
+		for new_idx, (old_idx, layer) in zip(sorted(new_indices), sorted(selected_layers)):
+			self.layers.insert(new_idx, layer)
+		
+		# Update selection to new indices
+		self.selected_layer_indices = set(new_indices)
+		self.last_selected_index = max(new_indices) if new_indices else None
+		
+		self._rebuild_layer_list()
+		self._update_layer_selection()
+		if self.canvas_widget:
+			self.canvas_widget.set_layers(self.layers)
+		# Save to history
+		if self.main_window and hasattr(self.main_window, '_save_state'):
+			layer_word = "layers" if len(selected_indices) > 1 else "layer"
+			self.main_window._save_state(f"Move {len(selected_indices)} {layer_word} down")
 	
 	def _duplicate_layer(self):
-		"""Duplicate the selected layer"""
+		"""Duplicate all selected layers with offset"""
 		selected_indices = self.get_selected_indices()
-		if selected_indices and 0 <= selected_indices[0] < len(self.layers):
-			idx = selected_indices[0]
+		if not selected_indices:
+			return
+		
+		# Validate all indices are in range
+		valid_indices = [idx for idx in selected_indices if 0 <= idx < len(self.layers)]
+		if not valid_indices:
+			return
+		
+		# Create duplicates with offset position
+		new_layers = []
+		for idx in valid_indices:
 			layer_copy = self.layers[idx].copy()
-			self.layers.insert(idx + 1, layer_copy)
-			new_index = idx + 1
-			self.selected_layer_indices = {new_index}
-			self.last_selected_index = new_index  # Set for shift+click range selection
-			self._rebuild_layer_list()
-			self._update_layer_selection()
-			self._load_layer_properties()
-			# Enable properties tab but don't switch to it
-			self.tab_widget.setTabEnabled(2, True)
-			if self.canvas_widget:
-				self.canvas_widget.set_layers(self.layers)
-			# Save to history
-			if self.main_window and hasattr(self.main_window, '_save_state'):
-				self.main_window._save_state("Duplicate layer")
+			# Apply offset (0.02 in normalized coordinates as per design decision)
+			layer_copy['pos_x'] = min(1.0, layer_copy.get('pos_x', 0.5) + 0.02)
+			layer_copy['pos_y'] = min(1.0, layer_copy.get('pos_y', 0.5) + 0.02)
+			new_layers.append(layer_copy)
+		
+		# Add all duplicates at the end (front-most)
+		self.layers.extend(new_layers)
+		
+		# Clear old selection and select all newly created layers
+		new_indices = list(range(len(self.layers) - len(new_layers), len(self.layers)))
+		self.selected_layer_indices = set(new_indices)
+		self.last_selected_index = new_indices[-1] if new_indices else None
+		
+		self._rebuild_layer_list()
+		self._update_layer_selection()
+		self._load_layer_properties()
+		# Enable properties tab but don't switch to it
+		self.tab_widget.setTabEnabled(2, True)
+		if self.canvas_widget:
+			self.canvas_widget.set_layers(self.layers)
+		# Update transform widget for new selection
+		if self.canvas_area:
+			self.canvas_area.update_transform_widget_for_layer()
+		# Save to history
+		if self.main_window and hasattr(self.main_window, '_save_state'):
+			layer_word = "layers" if len(valid_indices) > 1 else "layer"
+			self.main_window._save_state(f"Duplicate {len(valid_indices)} {layer_word}")
 	
 	def _delete_layer_at_index(self, index):
 		"""Delete a specific layer by index"""
@@ -843,6 +929,7 @@ class PropertySidebar(QFrame):
 		"""Handle mouse move on layer button for drag operation"""
 		from PyQt5.QtCore import Qt, QMimeData, QByteArray
 		from PyQt5.QtGui import QDrag
+		import json
 		
 		if not (event.buttons() & Qt.LeftButton):
 			return
@@ -854,10 +941,20 @@ class PropertySidebar(QFrame):
 		if (event.pos() - self.drag_start_pos).manhattanLength() < 10:
 			return
 		
-		# Start drag
+		# Get selected indices (for multi-layer drag)
+		selected_indices = self.get_selected_indices()
+		
+		# If dragged layer is not in selection, make it the only selection
+		if index not in selected_indices:
+			selected_indices = [index]
+			self.selected_layer_indices = {index}
+			self._update_layer_selection()
+		
+		# Start drag with selected indices
 		drag = QDrag(button)
 		mime_data = QMimeData()
-		mime_data.setData('application/x-layer-index', QByteArray.number(index))
+		# Store all selected indices as JSON array
+		mime_data.setData('application/x-layer-indices', QByteArray(json.dumps(selected_indices).encode('utf-8')))
 		drag.setMimeData(mime_data)
 		
 		# Set drag cursor
@@ -866,22 +963,30 @@ class PropertySidebar(QFrame):
 	
 	def _drag_enter_event(self, event):
 		"""Handle drag enter on layer list"""
-		if event.mimeData().hasFormat('application/x-layer-index'):
+		if event.mimeData().hasFormat('application/x-layer-indices'):
 			event.accept()
 		else:
 			event.ignore()
 	
 	def _drag_move_event(self, event):
 		"""Handle drag move over layer list"""
-		if event.mimeData().hasFormat('application/x-layer-index'):
+		if event.mimeData().hasFormat('application/x-layer-indices'):
 			event.accept()
 		else:
 			event.ignore()
 	
 	def _drop_event(self, event):
-		"""Handle drop on layer list to reorder"""
-		if event.mimeData().hasFormat('application/x-layer-index'):
-			from_index = int(event.mimeData().data('application/x-layer-index'))
+		"""Handle drop on layer list to reorder (supports multi-layer)"""
+		if event.mimeData().hasFormat('application/x-layer-indices'):
+			import json
+			
+			# Get dragged indices
+			dragged_indices_json = bytes(event.mimeData().data('application/x-layer-indices')).decode('utf-8')
+			dragged_indices = json.loads(dragged_indices_json)
+			
+			if not dragged_indices:
+				event.ignore()
+				return
 			
 			# Determine drop position
 			drop_pos = event.pos()
@@ -900,24 +1005,41 @@ class PropertySidebar(QFrame):
 				if drop_pos.y() > last_btn.geometry().bottom():
 					to_index = len(self.layers) - 1
 			
-			if to_index is not None and from_index != to_index:
-				# Reorder layers
-				layer = self.layers.pop(from_index)
-				self.layers.insert(to_index, layer)
+			if to_index is not None:
+				# Extract layers to be moved (maintain order)
+				dragged_layers = [(idx, self.layers[idx]) for idx in sorted(dragged_indices)]
 				
-				# Update selected indices
-				selected_indices = self.get_selected_indices()
-				if selected_indices:
-					old_idx = selected_indices[0]
-					if old_idx == from_index:
-						new_idx = to_index
-					elif from_index < old_idx <= to_index:
-						new_idx = old_idx - 1
-					elif to_index <= old_idx < from_index:
-						new_idx = old_idx + 1
-					else:
-						new_idx = old_idx
-					self.selected_layer_indices = {new_idx}
+				# Calculate target position accounting for removed layers
+				# If moving down, adjust target for layers removed above it
+				min_dragged = min(dragged_indices)
+				max_dragged = max(dragged_indices)
+				
+				# Don't move if already at target
+				if to_index >= min_dragged and to_index <= max_dragged:
+					event.ignore()
+					return
+				
+				# Remove dragged layers from list (highest to lowest)
+				for idx in sorted(dragged_indices, reverse=True):
+					self.layers.pop(idx)
+				
+				# Adjust target index after removals
+				adjusted_to_index = to_index
+				for idx in sorted(dragged_indices):
+					if idx < to_index:
+						adjusted_to_index -= 1
+				
+				# Insert layers at new position
+				for i, (old_idx, layer) in enumerate(dragged_layers):
+					insert_pos = adjusted_to_index + i
+					# Clamp to valid range
+					insert_pos = max(0, min(len(self.layers), insert_pos))
+					self.layers.insert(insert_pos, layer)
+				
+				# Update selection to new indices
+				new_indices = list(range(adjusted_to_index, adjusted_to_index + len(dragged_layers)))
+				self.selected_layer_indices = set(new_indices)
+				self.last_selected_index = new_indices[-1] if new_indices else None
 				
 				self._rebuild_layer_list()
 				self._update_layer_selection()
@@ -925,6 +1047,11 @@ class PropertySidebar(QFrame):
 				# Update canvas
 				if self.canvas_widget:
 					self.canvas_widget.set_layers(self.layers)
+				
+				# Save to history
+				if self.main_window and hasattr(self.main_window, '_save_state'):
+					layer_word = "layers" if len(dragged_indices) > 1 else "layer"
+					self.main_window._save_state(f"Reorder {len(dragged_indices)} {layer_word}")
 				
 				event.accept()
 			else:
