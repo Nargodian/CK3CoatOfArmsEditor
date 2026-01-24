@@ -115,30 +115,16 @@ class TransformWidget(QWidget):
 		center_x = offset_x + size / 2 + canvas_x
 		center_y = offset_y + size / 2 + canvas_y
 		
-		# Scale: canvas uses scale * 0.6 for half dimensions
-		# Base size should represent the emblem's natural size
-		scaled_w = abs(self.scale_x) * 0.6 * (size / 2)
-		scaled_h = abs(self.scale_y) * 0.6 * (size / 2)
+		# Widget box shows fixed size based on scale values only
+		# Rotation doesn't affect the widget box size
+		scale_w = abs(self.scale_x) * 0.6 * (size / 2)
+		scale_h = abs(self.scale_y) * 0.6 * (size / 2)
 		
-		# Create transform
-		transform = QTransform()
-		transform.translate(center_x, center_y)
-		transform.rotate(self.rotation)  # Qt rotation
-		transform.scale(1.0, 1.0)  # Scale already applied to dimensions
-		
-		painter.setTransform(transform)
-		
-		# Draw bounding box (using scaled dimensions)
-		rect = QRectF(-scaled_w, -scaled_h, scaled_w * 2, scaled_h * 2)
-		
-		# Box outline
-		pen = QPen(QColor(90, 141, 191, 200), 2)
-		painter.setPen(pen)
+		# Draw axis-aligned bounding box (fixed size)
+		painter.setPen(QPen(QColor(90, 141, 191, 200), 2))
 		painter.setBrush(Qt.NoBrush)
+		rect = QRectF(center_x - scale_w, center_y - scale_h, scale_w * 2, scale_h * 2)
 		painter.drawRect(rect)
-		
-		# Reset transform for handles (draw in screen space)
-		painter.resetTransform()
 		
 		# Draw handles
 		handle_brush = QBrush(QColor(90, 141, 191, 255))
@@ -146,8 +132,8 @@ class TransformWidget(QWidget):
 		painter.setPen(handle_pen)
 		painter.setBrush(handle_brush)
 		
-		# Get corner positions in screen space
-		corners = self._get_handle_positions(center_x, center_y, scaled_w, scaled_h)
+		# Get corner positions in screen space (fixed box size)
+		corners = self._get_handle_positions(center_x, center_y, scale_w, scale_h)
 		
 		# Draw corner handles
 		for handle_type in [self.HANDLE_TL, self.HANDLE_TR, self.HANDLE_BL, self.HANDLE_BR]:
@@ -173,36 +159,27 @@ class TransformWidget(QWidget):
 		painter.drawLine(center_pos, rot_pos)
 	
 	def _get_handle_positions(self, center_x, center_y, half_w, half_h):
-		"""Calculate handle positions in screen space"""
-		rad = math.radians(self.rotation)
-		cos_r = math.cos(rad)
-		sin_r = math.sin(rad)
-		
-		def rotate_point(x, y):
-			"""Rotate point around origin"""
-			rx = x * cos_r - y * sin_r
-			ry = x * sin_r + y * cos_r
-			return QPointF(center_x + rx, center_y + ry)
-		
+		"""Calculate handle positions in screen space.
+		Widget uses fixed-size box based on scale values.
+		"""
 		positions = {}
 		
-		# Corners
-		positions[self.HANDLE_TL] = rotate_point(-half_w, -half_h)
-		positions[self.HANDLE_TR] = rotate_point(half_w, -half_h)
-		positions[self.HANDLE_BL] = rotate_point(-half_w, half_h)
-		positions[self.HANDLE_BR] = rotate_point(half_w, half_h)
+		# Handles on fixed-size box
+		left = center_x - half_w
+		right = center_x + half_w
+		top = center_y - half_h
+		bottom = center_y + half_h
 		
-		# Edges
-		positions[self.HANDLE_T] = rotate_point(0, -half_h)
-		positions[self.HANDLE_B] = rotate_point(0, half_h)
-		positions[self.HANDLE_L] = rotate_point(-half_w, 0)
-		positions[self.HANDLE_R] = rotate_point(half_w, 0)
-		
-		# Center
+		positions[self.HANDLE_TL] = QPointF(left, top)
+		positions[self.HANDLE_TR] = QPointF(right, top)
+		positions[self.HANDLE_BL] = QPointF(left, bottom)
+		positions[self.HANDLE_BR] = QPointF(right, bottom)
+		positions[self.HANDLE_T] = QPointF(center_x, top)
+		positions[self.HANDLE_B] = QPointF(center_x, bottom)
+		positions[self.HANDLE_L] = QPointF(left, center_y)
+		positions[self.HANDLE_R] = QPointF(right, center_y)
 		positions[self.HANDLE_CENTER] = QPointF(center_x, center_y)
-		
-		# Rotation handle (above top edge)
-		positions[self.HANDLE_ROTATE] = rotate_point(0, -half_h - self.rotation_handle_offset)
+		positions[self.HANDLE_ROTATE] = QPointF(center_x, top - self.rotation_handle_offset)
 		
 		return positions
 	
@@ -315,7 +292,7 @@ class TransformWidget(QWidget):
 			self.pos_y = start_y + delta_y
 			
 		elif self.active_handle == self.HANDLE_ROTATE:
-			# Rotate - calculate angle from center to current position
+			# Rotate - calculate delta angle from start position
 			# Get center in screen coords
 			offset_x = (self.width() - size) / 2
 			offset_y = (self.height() - size) / 2
@@ -324,8 +301,14 @@ class TransformWidget(QWidget):
 			center_x = offset_x + size / 2 + canvas_x
 			center_y = offset_y + size / 2 + canvas_y
 			
-			angle = math.degrees(math.atan2(current_pos.y() - center_y, current_pos.x() - center_x))
-			self.rotation = angle + 90  # Offset so top is 0 degrees
+			# Calculate angle from center to start position
+			start_angle = math.degrees(math.atan2(self.drag_start_pos.y() - center_y, self.drag_start_pos.x() - center_x))
+			# Calculate angle from center to current position
+			current_angle = math.degrees(math.atan2(current_pos.y() - center_y, current_pos.x() - center_x))
+			# Apply delta rotation
+			angle_delta = current_angle - start_angle
+			start_rotation = self.drag_start_transform[4]  # rotation is index 4 in tuple
+			self.rotation = start_rotation + angle_delta
 			
 		elif self.active_handle in [self.HANDLE_TL, self.HANDLE_TR, self.HANDLE_BL, self.HANDLE_BR]:
 			# Corner scale (uniform scaling)
@@ -365,43 +348,40 @@ class TransformWidget(QWidget):
 			self.scale_y = start_sy * scale_factor
 			
 		elif self.active_handle in [self.HANDLE_L, self.HANDLE_R]:
-			# Horizontal scale - improved sensitivity
-			# Calculate offset from center for scaling
+			# Horizontal scale - simple X-axis scaling
 			offset_x = (self.width() - size) / 2
 			offset_y = (self.height() - size) / 2
 			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
 			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
 			center_x = offset_x + size / 2 + canvas_x
+			center_y = offset_y + size / 2 + canvas_y
 			
-			# Use distance-based scaling for better control
-			start_dist_x = abs(self.drag_start_pos.x() - center_x)
-			curr_dist_x = abs(current_pos.x() - center_x)
+			# Calculate horizontal distance change
+			start_dist = abs(self.drag_start_pos.x() - center_x)
+			curr_dist = abs(current_pos.x() - center_x)
 			
-			if start_dist_x > 0:
-				scale_factor = curr_dist_x / start_dist_x
-			else:
-				scale_factor = 1.0
-			
-			self.scale_x = start_sx * scale_factor
+			# Calculate scale factor
+			if start_dist > 0:
+				scale_factor = curr_dist / start_dist
+				self.scale_x = start_sx * scale_factor
 			
 		elif self.active_handle in [self.HANDLE_T, self.HANDLE_B]:
-			# Vertical scale - improved sensitivity
+			# Vertical scale - simple Y-axis scaling
 			offset_x = (self.width() - size) / 2
 			offset_y = (self.height() - size) / 2
 			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
 			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
+			center_x = offset_x + size / 2 + canvas_x
 			center_y = offset_y + size / 2 + canvas_y
 			
-			# Use distance-based scaling for better control
-			start_dist_y = abs(self.drag_start_pos.y() - center_y)
-			curr_dist_y = abs(current_pos.y() - center_y)
+			# Calculate vertical distance change
+			start_dist = abs(self.drag_start_pos.y() - center_y)
+			curr_dist = abs(current_pos.y() - center_y)
 			
-			if start_dist_y > 0:
-				scale_factor = curr_dist_y / start_dist_y
-			else:
-				scale_factor = 1.0
-			
-			self.scale_y = start_sy * scale_factor
+			# Calculate scale factor
+			if start_dist > 0:
+				scale_factor = curr_dist / start_dist
+				self.scale_y = start_sy * scale_factor
 		
 		# Clamp values - strict 0-1 limits
 		self.pos_x = max(0.0, min(1.0, self.pos_x))

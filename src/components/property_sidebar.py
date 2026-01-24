@@ -132,6 +132,8 @@ class PropertySidebar(QFrame):
 		content.dragEnterEvent = self._drag_enter_event
 		content.dragMoveEvent = self._drag_move_event
 		content.dropEvent = self._drop_event
+		# Add mouse press event to deselect on empty area click
+		content.mousePressEvent = self._layers_container_mouse_press
 		
 		self.layers_layout = QVBoxLayout(content)
 		self.layers_layout.setAlignment(Qt.AlignTop)
@@ -672,6 +674,22 @@ class PropertySidebar(QFrame):
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
 	
+	def _layers_container_mouse_press(self, event):
+		"""Handle mouse press on empty area of layers container to deselect"""
+		from PyQt5.QtCore import Qt
+		if event.button() == Qt.LeftButton:
+			# Check if click is on empty area (not on a layer button)
+			child = self.layers_container.childAt(event.pos())
+			if child is None or child not in self.layer_buttons:
+				# Deselect layer
+				self.selected_layer_index = None
+				self._update_layer_selection()
+				# Disable Properties tab (no layer selected)
+				self.tab_widget.setTabEnabled(2, False)
+				if self.canvas_area:
+					self.canvas_area.update_transform_widget_for_layer(None)
+		QWidget.mousePressEvent(self.layers_container, event)
+	
 	def _layer_mouse_press(self, event, index, button):
 		"""Handle mouse press on layer button for drag start"""
 		from PyQt5.QtCore import Qt
@@ -853,6 +871,7 @@ class PropertySidebar(QFrame):
 					background-color: rgba(255, 255, 255, 10);
 					font-size: 10px;
 					padding: 0px;
+					text-align: center;
 				}
 				QPushButton:hover {
 					background-color: rgba(90, 141, 191, 100);
@@ -870,9 +889,10 @@ class PropertySidebar(QFrame):
 					border: 1px solid rgba(255, 100, 100, 60);
 					border-radius: 2px;
 					background-color: rgba(255, 255, 255, 10);
-					font-size: 12px;
+					font-size: 14px;
 					font-weight: bold;
 					padding: 0px;
+					text-align: center;
 				}
 				QPushButton:hover {
 					background-color: rgba(191, 90, 90, 100);

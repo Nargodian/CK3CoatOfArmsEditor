@@ -286,32 +286,39 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					# pos: 0.0-1.0 → -0.8 to 0.8 screen space
 					center_x = (pos_x - 0.5) * 1.1
 					center_y = -(pos_y - 0.5) * 1.1  # Invert Y-axis (CK3 uses top-down, OpenGL uses bottom-up)
-					# scale: 0.0-1.0 → 0.0 to 1.6 screen space
-					half_width = scale_x * 0.6
-					half_height = scale_y * 0.6
 					
-					# Calculate rotated quad vertices
+					# CK3 transformation order: position, then rotation, then scale
+					# Calculate rotated and scaled quad vertices
 					import math
 					angle_rad = math.radians(-rotation)  # Negate for opposite rotation
 					cos_a = math.cos(angle_rad)
 					sin_a = math.sin(angle_rad)
 					
-					# Define quad corners relative to center
-					corners = [
-						(-half_width, -half_height),  # Bottom-left
-						( half_width, -half_height),  # Bottom-right
-						( half_width,  half_height),  # Top-right
-						(-half_width,  half_height),  # Top-left
+					# Scale values
+					half_width = scale_x * 0.6
+					half_height = scale_y * 0.6
+					
+					# CK3 transformation order: rotate first, then scale (in screen space)
+					# Like squashing a video of a spinning object
+					# Define unit quad corners
+					unit_corners = [
+						(-1.0, -1.0),  # Bottom-left
+						( 1.0, -1.0),  # Bottom-right
+						( 1.0,  1.0),  # Top-right
+						(-1.0,  1.0),  # Top-left
 					]
 					
-					# Rotate and translate corners
+					# Apply transformations: rotate first, then scale in screen space, then translate
 					transformed = []
-					for cx, cy in corners:
-						# Rotate
-						rx = cx * cos_a - cy * sin_a
-						ry = cx * sin_a + cy * cos_a
-						# Translate
-						transformed.append((rx + center_x, ry + center_y))
+					for ux, uy in unit_corners:
+						# First rotate the unit corner
+						rx = ux * cos_a - uy * sin_a
+						ry = ux * sin_a + uy * cos_a
+						# Then scale in screen space (not rotated space)
+						sx = rx * half_width
+						sy = ry * half_height
+						# Finally translate to position
+						transformed.append((sx + center_x, sy + center_y))
 					
 					# Update UV coordinates for this layer
 					vertices = np.array([
