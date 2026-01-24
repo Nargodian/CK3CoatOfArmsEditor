@@ -26,17 +26,14 @@ Current Structure:
 - Mixed concerns of UI, state, and business logic
 
 New Structure:
-src/components/property_sidebar/
+src/components/property_sidebar_widgets/  (NOTE: suffix added to avoid name collision)
     __init__.py
-    property_sidebar.py (400 lines) - main coordination
     layer_list_widget.py (400 lines) - layer list with drag-drop, thumbnails, selection
     color_picker.py (150 lines) - custom color dialog and swatches
     tab_factories.py (300 lines) - create_base_tab, create_layers_tab, create_properties_tab
-    property_editors/ (300 lines total)
-        position_editor.py
-        scale_editor.py
-        rotation_editor.py
-        color_editor.py
+    property_editors.py (300 lines) - position, scale, rotation, color editors
+
+NOTE: property_sidebar.py stays at top level to avoid import conflicts
 
 Actions:
 - Extract LayerListWidget with drag-drop system, thumbnail rendering, selection management
@@ -94,9 +91,8 @@ Current Structure:
 - Complex paintGL with 3 rendering passes
 
 New Structure:
-src/components/canvas/
+src/components/canvas_widgets/  (NOTE: suffix added to avoid name collision)
     __init__.py
-    canvas_widget.py (300 lines) - main OpenGL widget, render orchestration
     shader_manager.py (100 lines) - compile, link, bind shaders
     texture_atlas.py (200 lines) - atlas building, UV mapping, texture loading
     texture_loaders.py (250 lines) - load_frames, load_masks, load_emblems, load_material
@@ -125,10 +121,8 @@ Current Structure:
 - Handle rendering mixed with interaction
 
 New Structure:
-src/components/transform/
+src/components/transform_widgets/  (NOTE: suffix added to avoid name collision)
     __init__.py
-    transform_widget.py (150 lines) - orchestration, rendering, handle detection
-    transform_math.py (100 lines) - coordinate conversions, AABB calculations
     handles/
         base_handle.py (50 lines) - abstract handle interface
         center_handle.py (30 lines) - translate strategy
@@ -183,10 +177,12 @@ Current Structure:
 - Dynamic grid building
 
 New Structure:
-src/components/assets/
-    asset_sidebar.py (100 lines) - UI coordination
+src/components/asset_widgets/  (NOTE: suffix added to avoid name collision)
+    __init__.py
     asset_loader.py (150 lines) - load JSONs, build texture map
     asset_grid.py (120 lines) - responsive grid layout logic
+
+NOTE: asset_sidebar.py stays at top level to avoid import conflicts
 
 Actions:
 - Extract AssetLoader for JSON parsing and TEXTURE_PREVIEW_MAP
