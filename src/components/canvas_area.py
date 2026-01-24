@@ -17,7 +17,7 @@ class CanvasArea(QFrame):
 	def mousePressEvent(self, event):
 		"""Handle clicks on canvas background to deselect layers"""
 		# If clicking outside the canvas widget itself, deselect layer
-		if self.property_sidebar and self.property_sidebar.selected_layer_index is not None:
+		if self.property_sidebar and self.property_sidebar.get_selected_indices():
 			# Check if click is on the canvas widget
 			canvas_geometry = self.canvas_widget.geometry()
 			if not canvas_geometry.contains(event.pos()):
@@ -52,6 +52,7 @@ class CanvasArea(QFrame):
 		self.transform_widget.transformChanged.connect(self._on_transform_changed)
 		self.transform_widget.transformEnded.connect(self._on_transform_ended)
 		self.transform_widget.nonUniformScaleUsed.connect(self._on_non_uniform_scale_used)
+		self.transform_widget.layerDuplicated.connect(self._on_layer_duplicated)
 		self.transform_widget.raise_()  # Ensure it's on top
 		
 		layout.addWidget(canvas_container, stretch=1)
@@ -133,50 +134,194 @@ class CanvasArea(QFrame):
 		"""Set reference to property sidebar for layer selection"""
 		self.property_sidebar = sidebar
 	
-	def update_transform_widget_for_layer(self, layer_index):
-		"""Update transform widget to match the selected layer"""
-		if not self.property_sidebar or layer_index is None:
+	def update_transform_widget_for_layer(self, layer_index=None):
+		"""Update transform widget to match selected layer(s)
+		
+		For single selection: shows layer transform directly
+		For multi-selection: calculates screen-space AABB (Axis-Aligned Bounding Box)
+		  from all selected layer positions ± scales/2
+		"""
+		if not self.property_sidebar:
 			self.transform_widget.set_visible(False)
 			return
 		
-		if layer_index < 0 or layer_index >= len(self.property_sidebar.layers):
+		# Get selected indices
+		selected_indices = self.property_sidebar.get_selected_indices()
+		
+		# Use layer_index parameter if provided (backward compatibility)
+		if layer_index is not None:
+			if layer_index < 0 or layer_index >= len(self.property_sidebar.layers):
+				self.transform_widget.set_visible(False)
+				return
+			selected_indices = [layer_index]
+		
+		if not selected_indices:
 			self.transform_widget.set_visible(False)
 			return
 		
-		layer = self.property_sidebar.layers[layer_index]
+		# SINGLE SELECTION: Show layer transform directly
+		if len(selected_indices) == 1:
+			idx = selected_indices[0]
+			if idx < 0 or idx >= len(self.property_sidebar.layers):
+				self.transform_widget.set_visible(False)
+				return
+			
+			layer = self.property_sidebar.layers[idx]
+			pos_x = layer.get('pos_x', 0.5)
+			pos_y = layer.get('pos_y', 0.5)
+			scale_x = layer.get('scale_x', 0.5)
+			scale_y = layer.get('scale_y', 0.5)
+			rotation = layer.get('rotation', 0)
+			
+			self.transform_widget.set_transform(pos_x, pos_y, scale_x, scale_y, rotation)
+			self.transform_widget.set_visible(True)
+			return
 		
-		# Get transform values from layer
-		pos_x = layer.get('pos_x', 0.5)
-		pos_y = layer.get('pos_y', 0.5)
-		scale_x = layer.get('scale_x', 0.5)
-		scale_y = layer.get('scale_y', 0.5)
-		rotation = layer.get('rotation', 0)
+		# MULTI-SELECTION: Calculate screen-space AABB
+		# For each layer: calculate bounding box from position ± scale/2
+		min_x = float('inf')
+		max_x = float('-inf')
+		min_y = float('inf')
+		max_y = float('-inf')
 		
-		# Update transform widget
-		self.transform_widget.set_transform(pos_x, pos_y, scale_x, scale_y, rotation)
+		for idx in selected_indices:
+			if idx < 0 or idx >= len(self.property_sidebar.layers):
+				continue
+			
+			layer = self.property_sidebar.layers[idx]
+			pos_x = layer.get('pos_x', 0.5)
+			pos_y = layer.get('pos_y', 0.5)
+			scale_x = layer.get('scale_x', 0.5)
+			scale_y = layer.get('scale_y', 0.5)
+			
+			# Calculate layer AABB in normalized space
+			layer_min_x = pos_x - scale_x / 2
+			layer_max_x = pos_x + scale_x / 2
+			layer_min_y = pos_y - scale_y / 2
+			layer_max_y = pos_y + scale_y / 2
+			
+			min_x = min(min_x, layer_min_x)
+			max_x = max(max_x, layer_max_x)
+			min_y = min(min_y, layer_min_y)
+			max_y = max(max_y, layer_max_y)
+		
+		# Calculate group center and scale
+		group_pos_x = (min_x + max_x) / 2
+		group_pos_y = (min_y + max_y) / 2
+		group_scale_x = max_x - min_x
+		group_scale_y = max_y - min_y
+		
+		# For multi-selection, rotation display is not meaningful (set to 0)
+		group_rotation = 0
+		
+		self.transform_widget.set_transform(group_pos_x, group_pos_y, group_scale_x, group_scale_y, group_rotation)
 		self.transform_widget.set_visible(True)
 	
 	def _on_transform_changed(self, pos_x, pos_y, scale_x, scale_y, rotation):
-		"""Handle transform changes from the widget"""
-		if not self.property_sidebar or self.property_sidebar.selected_layer_index is None:
+		"""Handle transform changes from the widget
+		
+		For single selection: updates layer directly
+		For multi-selection: applies group transform to all selected layers
+		"""
+		selected_indices = self.property_sidebar.get_selected_indices() if self.property_sidebar else []
+		if not selected_indices:
 			return
 		
-		idx = self.property_sidebar.selected_layer_index
-		if idx < 0 or idx >= len(self.property_sidebar.layers):
+		# SINGLE SELECTION: Direct update
+		if len(selected_indices) == 1:
+			idx = selected_indices[0]
+			if idx < 0 or idx >= len(self.property_sidebar.layers):
+				return
+			
+			layer = self.property_sidebar.layers[idx]
+			layer['pos_x'] = pos_x
+			layer['pos_y'] = pos_y
+			layer['scale_x'] = scale_x
+			layer['scale_y'] = scale_y
+			layer['rotation'] = rotation
+			
+			self.canvas_widget.set_layers(self.property_sidebar.layers)
+			self.property_sidebar._load_layer_properties()
 			return
 		
-		# Update layer data
-		layer = self.property_sidebar.layers[idx]
-		layer['pos_x'] = pos_x
-		layer['pos_y'] = pos_y
-		layer['scale_x'] = scale_x
-		layer['scale_y'] = scale_y
-		layer['rotation'] = rotation
+		# MULTI-SELECTION: Group transform
+		# First, calculate the original group AABB (before transform)
+		original_min_x = float('inf')
+		original_max_x = float('-inf')
+		original_min_y = float('inf')
+		original_max_y = float('-inf')
 		
-		# Update canvas
+		for idx in selected_indices:
+			if idx < 0 or idx >= len(self.property_sidebar.layers):
+				continue
+			
+			layer = self.property_sidebar.layers[idx]
+			pos_x_orig = layer.get('pos_x', 0.5)
+			pos_y_orig = layer.get('pos_y', 0.5)
+			scale_x_orig = layer.get('scale_x', 0.5)
+			scale_y_orig = layer.get('scale_y', 0.5)
+			
+			layer_min_x = pos_x_orig - scale_x_orig / 2
+			layer_max_x = pos_x_orig + scale_x_orig / 2
+			layer_min_y = pos_y_orig - scale_y_orig / 2
+			layer_max_y = pos_y_orig + scale_y_orig / 2
+			
+			original_min_x = min(original_min_x, layer_min_x)
+			original_max_x = max(original_max_x, layer_max_x)
+			original_min_y = min(original_min_y, layer_min_y)
+			original_max_y = max(original_max_y, layer_max_y)
+		
+		# Calculate original group center and scale
+		original_center_x = (original_min_x + original_max_x) / 2
+		original_center_y = (original_min_y + original_max_y) / 2
+		original_scale_x = original_max_x - original_min_x
+		original_scale_y = original_max_y - original_min_y
+		
+		# Calculate transform deltas
+		position_delta_x = pos_x - original_center_x
+		position_delta_y = pos_y - original_center_y
+		
+		# Calculate scale factors (avoid division by zero)
+		scale_factor_x = scale_x / original_scale_x if original_scale_x > 0.001 else 1.0
+		scale_factor_y = scale_y / original_scale_y if original_scale_y > 0.001 else 1.0
+		
+		# Apply transforms to all selected layers
+		import math
+		for idx in selected_indices:
+			if idx < 0 or idx >= len(self.property_sidebar.layers):
+				continue
+			
+			layer = self.property_sidebar.layers[idx]
+			pos_x_orig = layer.get('pos_x', 0.5)
+			pos_y_orig = layer.get('pos_y', 0.5)
+			scale_x_orig = layer.get('scale_x', 0.5)
+			scale_y_orig = layer.get('scale_y', 0.5)
+			
+			# Calculate offset from original group center
+			offset_x = pos_x_orig - original_center_x
+			offset_y = pos_y_orig - original_center_y
+			
+			# Apply scale to offset (element-wise)
+			new_offset_x = offset_x * scale_factor_x
+			new_offset_y = offset_y * scale_factor_y
+			
+			# Apply position delta
+			new_pos_x = original_center_x + new_offset_x + position_delta_x
+			new_pos_y = original_center_y + new_offset_y + position_delta_y
+			
+			# Apply scale to layer scale
+			new_scale_x = scale_x_orig * scale_factor_x
+			new_scale_y = scale_y_orig * scale_factor_y
+			
+			# Update layer
+			layer['pos_x'] = new_pos_x
+			layer['pos_y'] = new_pos_y
+			layer['scale_x'] = new_scale_x
+			layer['scale_y'] = new_scale_y
+			# Note: Individual layer rotations are preserved (not modified for multi-select)
+		
+		# Update canvas and UI
 		self.canvas_widget.set_layers(self.property_sidebar.layers)
-		
-		# Update property sidebar UI
 		self.property_sidebar._load_layer_properties()
 	
 	def _on_transform_ended(self):
@@ -189,6 +334,11 @@ class CanvasArea(QFrame):
 		if self.property_sidebar and hasattr(self.property_sidebar, 'unified_scale_check'):
 			if self.property_sidebar.unified_scale_check.isChecked():
 				self.property_sidebar.unified_scale_check.setChecked(False)
+	
+	def _on_layer_duplicated(self):
+		"""Handle Ctrl+drag layer duplication"""
+		if self.main_window and hasattr(self.main_window, 'duplicate_selected_layer'):
+			self.main_window.duplicate_selected_layer()
 	
 	def _on_frame_changed(self, frame_text):
 		"""Handle frame selection change"""

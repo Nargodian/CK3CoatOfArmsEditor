@@ -135,9 +135,10 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.set_emblem_color_count(color_count)
 			
 			# If a layer is selected, update it with the new asset
-			print(f"[_on_asset_selected] selected_layer_index: {self.right_sidebar.selected_layer_index}")
-			if self.right_sidebar.selected_layer_index is not None:
-				idx = self.right_sidebar.selected_layer_index
+			selected_indices = self.right_sidebar.get_selected_indices()
+			print(f"[_on_asset_selected] selected_indices: {selected_indices}")
+			if selected_indices:
+				idx = selected_indices[0]
 				print(f"[_on_asset_selected] Updating layer {idx}")
 				if 0 <= idx < len(self.right_sidebar.layers):
 					# Preserve existing properties when updating asset
@@ -206,7 +207,7 @@ class CoatOfArmsEditor(QMainWindow):
 				self.right_sidebar.layers.insert(0, new_layer)
 				
 				# Select the new layer
-				self.right_sidebar.selected_layer_index = 0
+				self.right_sidebar.selected_layer_indices = {0}
 				
 				# Update UI
 				self.right_sidebar._rebuild_layer_list()
@@ -243,8 +244,19 @@ class CoatOfArmsEditor(QMainWindow):
 	
 	def keyPressEvent(self, event):
 		"""Handle keyboard shortcuts"""
+		# Ctrl+S for save
+		if event.key() == Qt.Key_S and event.modifiers() == Qt.ControlModifier:
+			self.save_coa()
+			event.accept()
+		# Ctrl+D for duplicate layer
+		elif event.key() == Qt.Key_D and event.modifiers() == Qt.ControlModifier:
+			if self.right_sidebar.get_selected_indices():
+				self.duplicate_selected_layer()
+				event.accept()
+			else:
+				super().keyPressEvent(event)
 		# Ctrl+Z for undo
-		if event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
+		elif event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
 			self.undo()
 			event.accept()
 		# Ctrl+Y for redo
@@ -253,13 +265,23 @@ class CoatOfArmsEditor(QMainWindow):
 			event.accept()
 		# Ctrl+C for copy layer
 		elif event.key() == Qt.Key_C and event.modifiers() == Qt.ControlModifier:
-			if self.right_sidebar.selected_layer_index is not None:
+			if self.right_sidebar.get_selected_indices():
 				self.copy_layer()
 				event.accept()
 			else:
 				super().keyPressEvent(event)
-		# Ctrl+V for paste layer
+		# Ctrl+V for paste layer - will be handled by canvas_area if over canvas
 		elif event.key() == Qt.Key_V and event.modifiers() == Qt.ControlModifier:
+			# Check if mouse is over canvas
+			if hasattr(self, 'canvas_area'):
+				mouse_pos = self.canvas_area.mapFromGlobal(self.cursor().pos())
+				canvas_geometry = self.canvas_area.canvas_widget.geometry()
+				if canvas_geometry.contains(mouse_pos):
+					# Mouse is over canvas, paste at mouse position
+					self.paste_layer_at_position(mouse_pos, canvas_geometry)
+					event.accept()
+					return
+			# Otherwise, paste at center
 			self.paste_layer()
 			event.accept()
 		else:
@@ -271,7 +293,7 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		state = {
 			'layers': [dict(layer) for layer in self.right_sidebar.layers],  # Deep copy
-			'selected_layer_index': self.right_sidebar.selected_layer_index,
+			'selected_layer_indices': set(self.right_sidebar.selected_layer_indices),  # Copy set
 			'base_texture': canvas.base_texture,
 			'base_colors': canvas.base_colors[:],  # Copy list
 			'base_color1_name': getattr(canvas, 'base_color1_name', None),
@@ -290,7 +312,7 @@ class CoatOfArmsEditor(QMainWindow):
 		try:
 			# Restore layers
 			self.right_sidebar.layers = [dict(layer) for layer in state['layers']]
-			self.right_sidebar.selected_layer_index = state['selected_layer_index']
+			self.right_sidebar.selected_layer_indices = set(state.get('selected_layer_indices', set()))
 			self.right_sidebar._rebuild_layer_list()
 			self.right_sidebar._update_layer_selection()
 			
@@ -313,9 +335,10 @@ class CoatOfArmsEditor(QMainWindow):
 			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
 			
 			# Update layer properties if a layer is selected
-			if state['selected_layer_index'] is not None:
+			selected_indices = list(state.get('selected_layer_indices', set()))
+			if selected_indices:
 				self.right_sidebar._load_layer_properties()
-				self.canvas_area.update_transform_widget_for_layer(state['selected_layer_index'])
+				self.canvas_area.update_transform_widget_for_layer(selected_indices[0])
 				self.right_sidebar.tab_widget.setTabEnabled(2, True)
 			else:
 				self.right_sidebar.tab_widget.setTabEnabled(2, False)
@@ -368,10 +391,10 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# Right side: Stats
 		layer_count = len(self.right_sidebar.layers) if hasattr(self, 'right_sidebar') else 0
-		selected = self.right_sidebar.selected_layer_index if hasattr(self, 'right_sidebar') and self.right_sidebar.selected_layer_index is not None else None
+		selected_indices = self.right_sidebar.get_selected_indices() if hasattr(self, 'right_sidebar') else []
 		
-		if selected is not None:
-			right_msg = f"Layers: {layer_count} | Selected: Layer {selected + 1}"
+		if selected_indices:
+			right_msg = f"Layers: {layer_count} | Selected: Layer {selected_indices[0] + 1}"
 		else:
 			right_msg = f"Layers: {layer_count} | No selection"
 		
@@ -412,9 +435,8 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Clear all layers
 			self.right_sidebar.layers = []
-			self.right_sidebar.selected_layer_index = None
+			self.right_sidebar.clear_selection()
 			self.right_sidebar._rebuild_layer_list()
-			self.right_sidebar._update_layer_selection()
 			
 			# Reset base to default pattern and colors (CK3 defaults: black, yellow, black)
 			default_pattern = "pattern__solid.dds"
@@ -646,11 +668,12 @@ class CoatOfArmsEditor(QMainWindow):
 		"""Copy currently selected layer to clipboard as CoA sub-block"""
 		try:
 			# Check if a layer is selected
-			if self.right_sidebar.selected_layer_index is None:
+			selected_indices = self.right_sidebar.get_selected_indices()
+			if not selected_indices:
 				print("No layer selected to copy")
 				return
 			
-			layer_idx = self.right_sidebar.selected_layer_index
+			layer_idx = selected_indices[0]
 			layer = self.right_sidebar.layers[layer_idx]
 			
 			# Serialize layer to colored_emblem format
@@ -662,6 +685,50 @@ class CoatOfArmsEditor(QMainWindow):
 			
 		except Exception as e:
 			print(f"Error copying layer: {e}")
+			import traceback
+			traceback.print_exc()
+	
+	def duplicate_selected_layer(self):
+		"""Duplicate the currently selected layer (called by Ctrl+drag on transform widget)"""
+		try:
+			# Check if a layer is selected
+			selected_indices = self.right_sidebar.get_selected_indices()
+			if not selected_indices:
+				print("No layer selected to duplicate")
+				return
+			
+			layer_idx = selected_indices[0]
+			layer = self.right_sidebar.layers[layer_idx]
+			
+			# Create a deep copy of the layer
+			duplicated_layer = dict(layer)
+			
+			# Insert at the top (index 0) - most in front
+			self.right_sidebar.layers.insert(0, duplicated_layer)
+			
+			# Select the new duplicated layer
+			self.right_sidebar.selected_layer_indices = {0}
+			
+			# Update UI
+			self.right_sidebar._rebuild_layer_list()
+			self.right_sidebar._update_layer_selection()
+			self.right_sidebar._load_layer_properties()
+			
+			# Enable Properties tab
+			self.right_sidebar.tab_widget.setTabEnabled(2, True)
+			
+			# Update canvas and transform widget
+			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			if self.canvas_area:
+				self.canvas_area.update_transform_widget_for_layer(0)
+			
+			# Save to history
+			self._save_state("Duplicate layer")
+			
+			print(f"Layer '{duplicated_layer.get('filename', 'Unknown')}' duplicated successfully")
+			
+		except Exception as e:
+			print(f"Error duplicating layer: {e}")
 			import traceback
 			traceback.print_exc()
 	
@@ -683,7 +750,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.layers.insert(0, layer_data)
 			
 			# Select the new layer
-			self.right_sidebar.selected_layer_index = 0
+			self.right_sidebar.selected_layer_indices = {0}
 			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()
@@ -705,6 +772,77 @@ class CoatOfArmsEditor(QMainWindow):
 			
 		except Exception as e:
 			print(f"Paste layer failed: {e}")
+			if hasattr(self, 'status_left'):
+				self.status_left.setText("Paste layer failed")
+			import traceback
+			traceback.print_exc()
+	
+	def paste_layer_at_position(self, mouse_pos, canvas_geometry):
+		"""Paste layer at mouse position on canvas with clamping to legal positions"""
+		try:
+			# Get clipboard text
+			layer_text = QApplication.clipboard().text()
+			if not layer_text.strip():
+				print("Paste layer failed: Clipboard is empty")
+				return
+			
+			# Parse layer from clipboard
+			layer_data = self._parse_layer_from_string(layer_text)
+			if not layer_data:
+				raise ValueError("Clipboard does not contain valid layer data")
+			
+			# Convert mouse position to normalized coordinates [0-1]
+			# Canvas uses 0.5 as center, so we need to map from widget coords
+			canvas_size = min(canvas_geometry.width(), canvas_geometry.height())
+			canvas_offset_x = (canvas_geometry.width() - canvas_size) / 2
+			canvas_offset_y = (canvas_geometry.height() - canvas_size) / 2
+			
+			# Get mouse position relative to canvas widget
+			local_x = mouse_pos.x() - canvas_geometry.x()
+			local_y = mouse_pos.y() - canvas_geometry.y()
+			
+			# Convert to canvas center coords [-size/2, size/2]
+			canvas_x = local_x - canvas_offset_x - canvas_size / 2
+			canvas_y = local_y - canvas_offset_y - canvas_size / 2
+			
+			# Convert to normalized coords [0-1] (canvas uses 1.1 scale factor)
+			norm_x = (canvas_x / (canvas_size / 2) / 1.1) + 0.5
+			norm_y = (canvas_y / (canvas_size / 2) / 1.1) + 0.5
+			
+			# Clamp to legal positions [0-1]
+			norm_x = max(0.0, min(1.0, norm_x))
+			norm_y = max(0.0, min(1.0, norm_y))
+			
+			# Update layer position
+			layer_data['pos_x'] = norm_x
+			layer_data['pos_y'] = norm_y
+			
+			# Add layer at the top (index 0)
+			self.right_sidebar.layers.insert(0, layer_data)
+			
+			# Select the new layer
+			self.right_sidebar.selected_layer_indices = {0}
+			
+			# Update UI
+			self.right_sidebar._rebuild_layer_list()
+			self.right_sidebar._update_layer_selection()
+			self.right_sidebar._load_layer_properties()
+			
+			# Enable Properties tab
+			self.right_sidebar.tab_widget.setTabEnabled(2, True)
+			
+			# Update canvas and transform widget
+			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			if self.canvas_area:
+				self.canvas_area.update_transform_widget_for_layer(0)
+			
+			# Save to history
+			self._save_state("Paste layer at position")
+			
+			print(f"Layer '{layer_data.get('filename', 'Unknown')}' pasted at ({norm_x:.2f}, {norm_y:.2f})")
+			
+		except Exception as e:
+			print(f"Paste layer at position failed: {e}")
 			if hasattr(self, 'status_left'):
 				self.status_left.setText("Paste layer failed")
 			import traceback

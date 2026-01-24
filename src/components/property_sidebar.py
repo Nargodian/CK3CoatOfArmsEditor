@@ -13,7 +13,8 @@ class PropertySidebar(QFrame):
 		self.setMinimumWidth(250)
 		self.setMaximumWidth(400)
 		self.layers = []  # List of layer data dicts
-		self.selected_layer_index = None
+		self.selected_layer_indices = set()  # Set of selected layer indices for multi-select
+		self.last_selected_index = None  # Track for range selection with Shift+Click
 		self.layer_buttons = []  # Keep track of layer buttons
 		self.canvas_widget = None  # Reference to canvas for updates
 		self.canvas_area = None  # Reference to canvas area for transform widget
@@ -21,6 +22,32 @@ class PropertySidebar(QFrame):
 		self.drag_start_index = None
 		self.drag_start_pos = None
 		self._setup_ui()
+	
+	# Selection helper methods
+	def get_selected_indices(self) -> list:
+		"""Get sorted list of selected layer indices"""
+		return sorted(list(self.selected_layer_indices))
+	
+	def set_selected_indices(self, indices: set):
+		"""Update selection state with new indices"""
+		self.selected_layer_indices = set(indices) if not isinstance(indices, set) else indices
+		self._update_layer_selection()
+	
+	def is_selected(self, index: int) -> bool:
+		"""Check if index is in selection"""
+		return index in self.selected_layer_indices
+	
+	def clear_selection(self):
+		"""Clear selection and update UI"""
+		self.selected_layer_indices.clear()
+		self._update_layer_selection()
+		# Update transform widget to hide
+		if self.canvas_area:
+			self.canvas_area.update_transform_widget_for_layer(None)
+		# Switch to layers tab and disable properties tab
+		self.tab_widget.setTabEnabled(2, False)
+		if self.tab_widget.currentIndex() == 2:
+			self.tab_widget.setCurrentIndex(1)  # Switch to Layers tab
 	
 	def _setup_ui(self):
 		"""Setup the property sidebar UI"""
@@ -212,6 +239,23 @@ class PropertySidebar(QFrame):
 		content_layout = QVBoxLayout(content)
 		content_layout.setAlignment(Qt.AlignTop)
 		content_layout.setSpacing(10)
+		
+		# Multi-selection indicator label (hidden by default)
+		self.multi_select_label = QLabel()
+		self.multi_select_label.setStyleSheet("""
+			QLabel {
+				font-size: 12px;
+				font-weight: bold;
+				padding: 8px;
+				background-color: rgba(90, 141, 191, 30);
+				border: 1px solid #5a8dbf;
+				border-radius: 4px;
+				color: #ffffff;
+			}
+		""")
+		self.multi_select_label.setAlignment(Qt.AlignCenter)
+		self.multi_select_label.setVisible(False)
+		content_layout.addWidget(self.multi_select_label)
 		
 		# Emblem Properties
 		self._add_property_section(content_layout, "Selected Emblem")
@@ -486,8 +530,9 @@ class PropertySidebar(QFrame):
 					self.main_window._save_state("Change base color")
 		elif button in self.emblem_color_buttons:
 			# Emblem color changed
-			if self.selected_layer_index is not None and self.canvas_widget:
-				idx = self.selected_layer_index
+			selected_indices = self.get_selected_indices()
+			if selected_indices and self.canvas_widget:
+				idx = selected_indices[0]  # Use first selected for single selection
 				if 0 <= idx < len(self.layers):
 					# Update layer colors
 					color_idx = self.emblem_color_buttons.index(button)
@@ -593,7 +638,7 @@ class PropertySidebar(QFrame):
 		}
 		self.layers.append(layer)
 		self._rebuild_layer_list()
-		self.selected_layer_index = len(self.layers) - 1
+		self.selected_layer_indices = {len(self.layers) - 1}
 		self._update_layer_selection()
 		self._load_layer_properties()
 		if self.canvas_widget:
@@ -601,15 +646,20 @@ class PropertySidebar(QFrame):
 	
 	def _delete_layer(self):
 		"""Delete the selected layer"""
-		if self.selected_layer_index is not None and 0 <= self.selected_layer_index < len(self.layers):
-			self.layers.pop(self.selected_layer_index)
-			if self.selected_layer_index >= len(self.layers):
-				self.selected_layer_index = len(self.layers) - 1 if self.layers else None
+		selected_indices = self.get_selected_indices()
+		if selected_indices and 0 <= selected_indices[0] < len(self.layers):
+			idx = selected_indices[0]
+			self.layers.pop(idx)
+			if idx >= len(self.layers):
+				new_idx = len(self.layers) - 1 if self.layers else None
+				self.selected_layer_indices = {new_idx} if new_idx is not None else set()
+			else:
+				self.selected_layer_indices = {idx}
 			self._rebuild_layer_list()
 			self._update_layer_selection()
-			# Hide transform widget if no selection
+			# Update transform widget for selection
 			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer(self.selected_layer_index)
+				self.canvas_area.update_transform_widget_for_layer()
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
 			# Save to history
@@ -618,10 +668,11 @@ class PropertySidebar(QFrame):
 	
 	def _move_layer_up(self):
 		"""Move selected layer up in the list"""
-		if self.selected_layer_index is not None and self.selected_layer_index > 0:
-			idx = self.selected_layer_index
+		selected_indices = self.get_selected_indices()
+		if selected_indices and selected_indices[0] > 0:
+			idx = selected_indices[0]
 			self.layers[idx], self.layers[idx - 1] = self.layers[idx - 1], self.layers[idx]
-			self.selected_layer_index = idx - 1
+			self.selected_layer_indices = {idx - 1}
 			self._rebuild_layer_list()
 			self._update_layer_selection()
 			if self.canvas_widget:
@@ -632,10 +683,11 @@ class PropertySidebar(QFrame):
 	
 	def _move_layer_down(self):
 		"""Move selected layer down in the list"""
-		if self.selected_layer_index is not None and self.selected_layer_index < len(self.layers) - 1:
-			idx = self.selected_layer_index
+		selected_indices = self.get_selected_indices()
+		if selected_indices and selected_indices[0] < len(self.layers) - 1:
+			idx = selected_indices[0]
 			self.layers[idx], self.layers[idx + 1] = self.layers[idx + 1], self.layers[idx]
-			self.selected_layer_index = idx + 1
+			self.selected_layer_indices = {idx + 1}
 			self._rebuild_layer_list()
 			self._update_layer_selection()
 			if self.canvas_widget:
@@ -646,10 +698,12 @@ class PropertySidebar(QFrame):
 	
 	def _duplicate_layer(self):
 		"""Duplicate the selected layer"""
-		if self.selected_layer_index is not None and 0 <= self.selected_layer_index < len(self.layers):
-			layer_copy = self.layers[self.selected_layer_index].copy()
-			self.layers.insert(self.selected_layer_index + 1, layer_copy)
-			self.selected_layer_index += 1
+		selected_indices = self.get_selected_indices()
+		if selected_indices and 0 <= selected_indices[0] < len(self.layers):
+			idx = selected_indices[0]
+			layer_copy = self.layers[idx].copy()
+			self.layers.insert(idx + 1, layer_copy)
+			self.selected_layer_indices = {idx + 1}
 			self._rebuild_layer_list()
 			self._update_layer_selection()
 			self._load_layer_properties()
@@ -666,19 +720,23 @@ class PropertySidebar(QFrame):
 		if 0 <= index < len(self.layers):
 			self.layers.pop(index)
 			# Adjust selected index if needed
-			if self.selected_layer_index is not None:
-				if self.selected_layer_index == index:
+			selected_indices = self.get_selected_indices()
+			if selected_indices:
+				if selected_indices[0] == index:
 					# Deleted the selected layer
 					if index >= len(self.layers):
-						self.selected_layer_index = len(self.layers) - 1 if self.layers else None
-				elif self.selected_layer_index > index:
+						new_idx = len(self.layers) - 1 if self.layers else None
+						self.selected_layer_indices = {new_idx} if new_idx is not None else set()
+					else:
+						self.selected_layer_indices = {index}
+				elif selected_indices[0] > index:
 					# Shift selection down if layer below was deleted
-					self.selected_layer_index -= 1
+					self.selected_layer_indices = {selected_indices[0] - 1}
 			self._rebuild_layer_list()
 			self._update_layer_selection()
 			# Update transform widget
 			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer(self.selected_layer_index)
+				self.canvas_area.update_transform_widget_for_layer()
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
 	
@@ -688,14 +746,14 @@ class PropertySidebar(QFrame):
 			layer_copy = self.layers[index].copy()
 			self.layers.insert(index + 1, layer_copy)
 			# Select the new duplicate
-			self.selected_layer_index = index + 1
+			self.selected_layer_indices = {index + 1}
 			self._rebuild_layer_list()
 			self._update_layer_selection()
 			self._load_layer_properties()
 			# Enable properties tab but don't switch to it
 			self.tab_widget.setTabEnabled(2, True)
 			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer(self.selected_layer_index)
+				self.canvas_area.update_transform_widget_for_layer()
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
 	
@@ -707,12 +765,7 @@ class PropertySidebar(QFrame):
 			child = self.layers_container.childAt(event.pos())
 			if child is None or child not in self.layer_buttons:
 				# Deselect layer
-				self.selected_layer_index = None
-				self._update_layer_selection()
-				# Disable Properties tab (no layer selected)
-				self.tab_widget.setTabEnabled(2, False)
-				if self.canvas_area:
-					self.canvas_area.update_transform_widget_for_layer(None)
+				self.clear_selection()
 		QWidget.mousePressEvent(self.layers_container, event)
 	
 	def _layer_mouse_press(self, event, index, button):
@@ -790,13 +843,19 @@ class PropertySidebar(QFrame):
 				layer = self.layers.pop(from_index)
 				self.layers.insert(to_index, layer)
 				
-				# Update selected index
-				if self.selected_layer_index == from_index:
-					self.selected_layer_index = to_index
-				elif from_index < self.selected_layer_index <= to_index:
-					self.selected_layer_index -= 1
-				elif to_index <= self.selected_layer_index < from_index:
-					self.selected_layer_index += 1
+				# Update selected indices
+				selected_indices = self.get_selected_indices()
+				if selected_indices:
+					old_idx = selected_indices[0]
+					if old_idx == from_index:
+						new_idx = to_index
+					elif from_index < old_idx <= to_index:
+						new_idx = old_idx - 1
+					elif to_index <= old_idx < from_index:
+						new_idx = old_idx + 1
+					else:
+						new_idx = old_idx
+					self.selected_layer_indices = {new_idx}
 				
 				self._rebuild_layer_list()
 				self._update_layer_selection()
@@ -950,8 +1009,9 @@ class PropertySidebar(QFrame):
 	
 	def _update_layer_property(self, prop_name, value):
 		"""Update a property of the currently selected layer"""
-		if self.selected_layer_index is not None and 0 <= self.selected_layer_index < len(self.layers):
-			self.layers[self.selected_layer_index][prop_name] = value
+		selected_indices = self.get_selected_indices()
+		if selected_indices and 0 <= selected_indices[0] < len(self.layers):
+			self.layers[selected_indices[0]][prop_name] = value
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
 			# Save to history with debouncing (to avoid spam during slider drags)
@@ -962,8 +1022,9 @@ class PropertySidebar(QFrame):
 		"""Update a property and sync transform widget"""
 		self._update_layer_property(prop_name, value)
 		if self.canvas_area and hasattr(self.canvas_area, 'transform_widget'):
-			if self.selected_layer_index is not None and 0 <= self.selected_layer_index < len(self.layers):
-				layer = self.layers[self.selected_layer_index]
+			selected_indices = self.get_selected_indices()
+			if selected_indices and 0 <= selected_indices[0] < len(self.layers):
+				layer = self.layers[selected_indices[0]]
 				# Update transform widget with current layer state
 				self.canvas_area.transform_widget.set_transform(
 					layer.get('pos_x', 0.5),
@@ -985,7 +1046,8 @@ class PropertySidebar(QFrame):
 			self.scale_y_slider.setVisible(False)
 			self.scale_y_input.setVisible(False)
 			# Sync Y to X when switching to unified
-			if self.selected_layer_index is not None:
+			selected_indices = self.get_selected_indices()
+			if selected_indices:
 				self.scale_y_slider.blockSignals(True)
 				self.scale_y_slider.setValue(self.scale_x_slider.value())
 				self.scale_y_slider.blockSignals(False)
@@ -1000,7 +1062,8 @@ class PropertySidebar(QFrame):
 	
 	def _update_layer_scale(self):
 		"""Update layer scale with flip multipliers applied"""
-		if self.selected_layer_index is not None and 0 <= self.selected_layer_index < len(self.layers):
+		selected_indices = self.get_selected_indices()
+		if selected_indices and 0 <= selected_indices[0] < len(self.layers):
 			# If unified scale, sync Y to X first
 			if self.unified_scale_check.isChecked():
 				self.scale_y_slider.blockSignals(True)
@@ -1017,8 +1080,9 @@ class PropertySidebar(QFrame):
 			if self.flip_y_check.isChecked():
 				scale_y = -scale_y
 			
-			self.layers[self.selected_layer_index]['scale_x'] = scale_x
-			self.layers[self.selected_layer_index]['scale_y'] = scale_y
+			idx = selected_indices[0]
+			self.layers[idx]['scale_x'] = scale_x
+			self.layers[idx]['scale_y'] = scale_y
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
 			# Save to history with debouncing
@@ -1029,8 +1093,9 @@ class PropertySidebar(QFrame):
 		"""Update layer scale and sync transform widget"""
 		self._update_layer_scale()
 		if self.canvas_area and hasattr(self.canvas_area, 'transform_widget'):
-			if self.selected_layer_index is not None and 0 <= self.selected_layer_index < len(self.layers):
-				layer = self.layers[self.selected_layer_index]
+			selected_indices = self.get_selected_indices()
+			if selected_indices and 0 <= selected_indices[0] < len(self.layers):
+				layer = self.layers[selected_indices[0]]
 				# Update transform widget with current layer state
 				self.canvas_area.transform_widget.set_transform(
 					layer.get('pos_x', 0.5),
@@ -1042,8 +1107,9 @@ class PropertySidebar(QFrame):
 	
 	def _load_layer_properties(self):
 		"""Load the selected layer's properties into the UI controls"""
-		if self.selected_layer_index is not None and 0 <= self.selected_layer_index < len(self.layers):
-			layer = self.layers[self.selected_layer_index]
+		selected_indices = self.get_selected_indices()
+		if selected_indices and 0 <= selected_indices[0] < len(self.layers):
+			layer = self.layers[selected_indices[0]]
 			
 			# Block signals while updating to avoid triggering changes
 			self.pos_x_slider.blockSignals(True)
@@ -1095,7 +1161,7 @@ class PropertySidebar(QFrame):
 			
 			# Also update transform widget when loading properties
 			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer(self.selected_layer_index)
+				self.canvas_area.update_transform_widget_for_layer()
 			
 			# Update emblem color buttons from layer colors
 			for i, btn in enumerate(self.emblem_color_buttons):
@@ -1119,39 +1185,77 @@ class PropertySidebar(QFrame):
 					""")
 	
 	def _select_layer(self, index):
-		"""Select a layer, or deselect if clicking the same layer"""
+		"""Select a layer with support for multi-select via Ctrl/Shift modifiers"""
+		from PyQt5.QtWidgets import QApplication
+		from PyQt5.QtCore import Qt
+		
 		if index is None or index < 0:
 			# Deselect
 			self._deselect_layer()
 			return
-			
-		if self.selected_layer_index == index:
-			# Clicking same layer - deselect it
-			self._deselect_layer()
+		
+		# Get modifier keys
+		modifiers = QApplication.keyboardModifiers()
+		ctrl_pressed = modifiers & Qt.ControlModifier
+		shift_pressed = modifiers & Qt.ShiftModifier
+		
+		if ctrl_pressed and self.last_selected_index is not None:
+			# Ctrl+Click: Range selection
+			start = min(index, self.last_selected_index)
+			end = max(index, self.last_selected_index)
+			# Select all indices in range (inclusive)
+			self.selected_layer_indices = set(range(start, end + 1))
+			# Don't update last_selected_index - keep anchor for next ctrl-click
+		elif shift_pressed:
+			# Shift+Click: Toggle selection
+			if index in self.selected_layer_indices:
+				self.selected_layer_indices.discard(index)
+				if not self.selected_layer_indices:
+					# No selection left - disable properties tab
+					self.tab_widget.setTabEnabled(2, False)
+			else:
+				self.selected_layer_indices.add(index)
+				# Enable properties tab
+				self.tab_widget.setTabEnabled(2, True)
+			self.last_selected_index = index
 		else:
-			# Selecting a new layer
-			self.selected_layer_index = index
-			self._update_layer_selection()
+			# Regular click: Single selection (clear others)
+			if index in self.selected_layer_indices and len(self.selected_layer_indices) == 1:
+				# Clicking the only selected layer - deselect it
+				self._deselect_layer()
+				return
+			else:
+				# Select only this layer
+				self.selected_layer_indices = {index}
+				self.last_selected_index = index
+				# Enable properties tab
+				self.tab_widget.setTabEnabled(2, True)
+		
+		# Update UI
+		self._update_layer_selection()
+		
+		# Load properties for first selected layer (or show mixed for multiple)
+		selected_indices = self.get_selected_indices()
+		if selected_indices:
 			self._load_layer_properties()
-			# Enable properties tab
-			self.tab_widget.setTabEnabled(2, True)
 			# Update transform widget in canvas area
 			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer(index)
+				self.canvas_area.update_transform_widget_for_layer()
 	
 	def _deselect_layer(self):
 		"""Deselect the current layer"""
-		self.selected_layer_index = None
-		self._update_layer_selection()
-		# Update transform widget to hide
-		if self.canvas_area:
-			self.canvas_area.update_transform_widget_for_layer(None)
-		# Switch to layers tab and disable properties tab
-		self.tab_widget.setTabEnabled(2, False)
-		if self.tab_widget.currentIndex() == 2:
-			self.tab_widget.setCurrentIndex(1)  # Switch to Layers tab
+		self.clear_selection()
 	
 	def _update_layer_selection(self):
-		"""Update which layer button is checked"""
+		"""Update which layer button is checked and multi-select indicator"""
 		for i, btn in enumerate(self.layer_buttons):
-			btn.setChecked(i == self.selected_layer_index)
+			btn.setChecked(i in self.selected_layer_indices)
+		
+		# Update multi-select indicator label
+		selected_count = len(self.selected_layer_indices)
+		if hasattr(self, 'multi_select_label'):
+			if selected_count > 1:
+				self.multi_select_label.setText(f"Multiple Layers Selected ({selected_count} layers)")
+				self.multi_select_label.setVisible(True)
+			else:
+				self.multi_select_label.setVisible(False)
