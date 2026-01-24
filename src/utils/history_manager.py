@@ -52,8 +52,6 @@ class HistoryManager:
 		
 		# Notify listeners
 		self._notify_listeners()
-		
-		print(f"[History] State saved: {description} (index: {self.current_index}, total: {len(self.history)})")
 	
 	def undo(self):
 		"""
@@ -63,7 +61,6 @@ class HistoryManager:
 			Dictionary containing the previous state, or None if at beginning
 		"""
 		if not self.can_undo():
-			print("[History] Cannot undo - at beginning of history")
 			return None
 		
 		# Move back one position
@@ -74,7 +71,6 @@ class HistoryManager:
 		# Notify listeners
 		self._notify_listeners()
 		
-		print(f"[History] Undo to: {description} (index: {self.current_index})")
 		return copy.deepcopy(state)
 	
 	def redo(self):
@@ -85,7 +81,6 @@ class HistoryManager:
 			Dictionary containing the next state, or None if at end
 		"""
 		if not self.can_redo():
-			print("[History] Cannot redo - at end of history")
 			return None
 		
 		# Move forward one position
@@ -96,7 +91,6 @@ class HistoryManager:
 		# Notify listeners
 		self._notify_listeners()
 		
-		print(f"[History] Redo to: {description} (index: {self.current_index})")
 		return copy.deepcopy(state)
 	
 	def can_undo(self):
@@ -112,7 +106,6 @@ class HistoryManager:
 		self.history = []
 		self.current_index = -1
 		self._notify_listeners()
-		print("[History] History cleared")
 	
 	def add_listener(self, callback):
 		"""
