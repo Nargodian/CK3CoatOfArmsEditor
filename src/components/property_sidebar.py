@@ -541,18 +541,30 @@ class PropertySidebar(QFrame):
 	
 	def _add_layer(self):
 		"""Add empty layer button (placeholder until asset selected)"""
+		from constants import (
+			DEFAULT_POSITION_X, DEFAULT_POSITION_Y,
+			DEFAULT_SCALE_X, DEFAULT_SCALE_Y,
+			DEFAULT_ROTATION,
+			DEFAULT_EMBLEM_TEXTURE,
+			DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
+			CK3_NAMED_COLORS
+		)
+		
 		layer = {
-			'filename': 'Empty Layer',
-			'path': None,
+			'filename': DEFAULT_EMBLEM_TEXTURE,
+			'path': DEFAULT_EMBLEM_TEXTURE,
 			'colors': 1,
-			'pos_x': 0.5,
-			'pos_y': 0.5,
-			'scale_x': 0.5,
-			'scale_y': 0.5,
-			'rotation': 0,
-			'color1': [0.750, 0.525, 0.188],   # yellow (CK3 default)
-			'color2': [0.450, 0.133, 0.090],    # red (CK3 default)
-			'color3': [0.450, 0.133, 0.090]     # red (CK3 default)
+			'pos_x': DEFAULT_POSITION_X,
+			'pos_y': DEFAULT_POSITION_Y,
+			'scale_x': DEFAULT_SCALE_X,
+			'scale_y': DEFAULT_SCALE_Y,
+			'rotation': DEFAULT_ROTATION,
+			'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'],
+			'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'],
+			'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
+			'color1_name': DEFAULT_EMBLEM_COLOR1,
+			'color2_name': DEFAULT_EMBLEM_COLOR2,
+			'color3_name': DEFAULT_EMBLEM_COLOR3
 		}
 		self.layers.append(layer)
 		self._rebuild_layer_list()

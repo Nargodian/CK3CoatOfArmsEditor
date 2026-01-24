@@ -62,6 +62,13 @@ DEFAULT_EMBLEM_COLOR3 = 'red'
 DEFAULT_PATTERN_TEXTURE = 'pattern__solid.dds'
 DEFAULT_EMBLEM_TEXTURE = 'ce_fleur.dds'
 
+# Default asset categories
+DEFAULT_BASE_CATEGORY = '__Base_Patterns__'
+DEFAULT_EMBLEM_CATEGORY = 'Nature'  # Where ce_fleur.dds is located
+
+# Default frame
+DEFAULT_FRAME = 'house'  # Options: 'house', 'dynasty', etc.
+
 # ======================================================================
 # COORDINATE SYSTEM
 # ======================================================================

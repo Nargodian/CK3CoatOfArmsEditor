@@ -8,27 +8,18 @@ and RGB tuples/strings, which is needed for CoA serialization and display.
 """
 
 import re
+import sys
+from pathlib import Path
 
+# Add src directory to path for imports
+src_dir = Path(__file__).resolve().parent.parent
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
 
-# Official CK3 color definitions from game/common/named_colors/default_colors.txt
-# Accurate RGB [0-1] values converted from HSV using color_conversions.txt
-COLOR_MAP = {
-    'black': [0.100, 0.090, 0.075],
-    'blue': [0.080, 0.246, 0.400],
-    'blue_dark': [0.030, 0.170, 0.300],
-    'blue_light': [0.165, 0.365, 0.550],
-    'brown': [0.450, 0.234, 0.117],
-    'green': [0.120, 0.300, 0.138],
-    'green_light': [0.200, 0.400, 0.220],
-    'grey': [0.500, 0.500, 0.500],
-    'orange': [0.600, 0.230, 0.000],
-    'purple': [0.350, 0.105, 0.252],
-    'red': [0.450, 0.133, 0.090],
-    'red_dark': [0.300, 0.030, 0.030],
-    'white': [0.800, 0.792, 0.784],
-    'yellow': [0.750, 0.525, 0.188],
-    'yellow_light': [1.000, 0.680, 0.200]
-}
+from constants import CK3_NAMED_COLORS
+
+# Build COLOR_MAP from constants for backward compatibility
+COLOR_MAP = {name: data['rgb'] for name, data in CK3_NAMED_COLORS.items()}
 
 
 def color_name_to_rgb(color_name):

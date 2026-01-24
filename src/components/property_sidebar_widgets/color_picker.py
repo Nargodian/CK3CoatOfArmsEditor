@@ -7,6 +7,7 @@ Handles color selection with CK3 named color presets and custom colors.
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QGridLayout, QPushButton, QLabel, QColorDialog
 from PyQt5.QtGui import QColor
+from constants import CK3_NAMED_COLORS, CK3_COLOR_NAMES_ORDERED
 
 
 class ColorPickerDialog(QDialog):
@@ -33,25 +34,14 @@ class ColorPickerDialog(QDialog):
 		label.setStyleSheet("font-size: 12px; font-weight: bold;")
 		layout.addWidget(label)
 		
-		# CK3 CoA color palette - Official colors from game/common/named_colors/default_colors.txt
-		# Accurate hex values converted from HSV using color_conversions.txt
-		presets = [
-			("#722116", "red", "Red"),
-			("#4C0707", "red_dark", "Red Dark"),
-			("#993A00", "orange", "Orange"),
-			("#BF852F", "yellow", "Yellow"),
-			("#FFAD32", "yellow_light", "Yellow Light"),
-			("#CCC9C7", "white", "White"),
-			("#7F7F7F", "grey", "Grey"),
-			("#191613", "black", "Black"),
-			("#723B1D", "brown", "Brown"),
-			("#1E4C23", "green", "Green"),
-			("#336638", "green_light", "Green Light"),
-			("#2A5D8C", "blue_light", "Blue Light"),
-			("#143E66", "blue", "Blue"),
-			("#072B4C", "blue_dark", "Blue Dark"),
-			("#591A40", "purple", "Purple")
-		]
+		# Build presets from constants (in UI order)
+		presets = []
+		for color_id in CK3_COLOR_NAMES_ORDERED:
+			color_data = CK3_NAMED_COLORS[color_id]
+			color_hex = color_data['hex']
+			# Convert color_id to display name (e.g., "red_dark" → "Red Dark")
+			display_name = ' '.join(word.capitalize() for word in color_id.split('_'))
+			presets.append((color_hex, color_id, display_name))
 		
 		grid_layout = QGridLayout()
 		grid_layout.setSpacing(8)

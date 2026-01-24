@@ -9,6 +9,7 @@ from PyQt5.QtGui import QIcon, QPixmap
 # Standard library imports
 import json
 import os
+from constants import DEFAULT_BASE_CATEGORY, DEFAULT_EMBLEM_CATEGORY
 
 # Global dictionary mapping texture filenames to preview image paths
 # Key: filename (e.g., "ce_kamon_sorrel.dds"), Value: preview path
@@ -29,12 +30,13 @@ class AssetSidebar(QFrame):
 		self.current_category = None  # Will be set after loading data
 		self.asset_buttons = []
 		self.current_mode = "patterns"  # Start in patterns mode (Base tab)
+		self.last_emblem_category = DEFAULT_EMBLEM_CATEGORY  # Remember last viewed emblem category
 		
 		# Load asset data from JSON files
 		self.asset_data = self._load_asset_data()
 		
-		# Set default category to Nature (where ce_fleur.dds is located)
-		self.current_category = "Nature"
+		# Set default category to base patterns on startup
+		self.current_category = DEFAULT_BASE_CATEGORY
 		
 		self.setMinimumWidth(200)
 		self.setMaximumWidth(400)
@@ -47,6 +49,7 @@ class AssetSidebar(QFrame):
 		
 		# Load emblems and organize by category
 		emblems_json = "json_output/colored_emblems/50_coa_designer_emblems.json"
+		textured_emblems_json = "json_output/coat_of_arms/colored_emblems/50_coa_designer_emblems.json"
 		if os.path.exists(emblems_json):
 			with open(emblems_json, 'r', encoding='utf-8') as f:
 				data = json.load(f)
@@ -61,21 +64,22 @@ class AssetSidebar(QFrame):
 						TEXTURE_PREVIEW_MAP[filename] = image_path
 						
 						category = properties.get("category", None)
-					colors = properties.get("colors", 1)
-					
-					# Skip assets without a category or with 0 colors (blank/empty assets)
-					if not category or colors == 0:
-						continue
-					
-					category = category.title()
-					if category not in asset_data:
-						asset_data[category] = []
-					asset_data[category].append({
-					"filename": png_filename,  # PNG for display
-					"dds_filename": filename,  # DDS for texture lookup
-						"path": image_path,
-						"category": category,
-						"colors": colors
+						colors = properties.get("colors", 1)
+						
+						# Skip assets without a category or with 0 colors (blank/empty assets)
+						if not category or colors == 0:
+							continue
+						
+						category = category.title()
+						if category not in asset_data:
+							asset_data[category] = []
+						asset_data[category].append({
+							"filename": png_filename,  # PNG for display
+							"dds_filename": filename,  # DDS for texture lookup
+							"path": image_path,
+							"category": category,
+							"colors": colors
+						})
 		if os.path.exists(textured_emblems_json):
 			with open(textured_emblems_json, 'r', encoding='utf-8') as f:
 				data = json.load(f)
@@ -97,8 +101,8 @@ class AssetSidebar(QFrame):
 						if category not in asset_data:
 							asset_data[category] = []
 						asset_data[category].append({
-						"filename": png_filename,  # PNG for display
-						"dds_filename": filename,  # DDS for texture lookup
+							"filename": png_filename,  # PNG for display
+							"dds_filename": filename,  # DDS for texture lookup
 							"path": image_path,
 							"category": category,
 							"colors": properties.get("colors", 1)
@@ -152,11 +156,14 @@ class AssetSidebar(QFrame):
 		self.category_combo = QComboBox()
 		# Build category list: only emblem categories (not base patterns)
 		emblem_categories = sorted([k for k in self.asset_data.keys() if not k.startswith("__")])
+		# Block signals during initialization to avoid triggering change_category
+		self.category_combo.blockSignals(True)
 		self.category_combo.addItems(emblem_categories)
 		if self.current_category and not self.current_category.startswith("__"):
 			self.category_combo.setCurrentText(self.current_category)
 		# Hide category dropdown initially (showing base patterns)
 		self.category_combo.setVisible(False)
+		self.category_combo.blockSignals(False)
 		self.category_combo.currentTextChanged.connect(self.change_category)
 		self.category_combo.setStyleSheet("""
 			QComboBox {
@@ -312,6 +319,9 @@ class AssetSidebar(QFrame):
 	def change_category(self, category):
 		"""Update the asset grid when category changes"""
 		self.current_category = category
+		# Remember emblem category for persistence across tab changes
+		if not category.startswith("__"):
+			self.last_emblem_category = category
 		# Properly disconnect and delete existing buttons
 		for btn in self.asset_buttons:
 			try:
@@ -361,13 +371,21 @@ class AssetSidebar(QFrame):
 		else:
 			# Show emblem categories - show category dropdown
 			self.category_combo.setVisible(True)
+			self.category_combo.blockSignals(True)
 			self.category_combo.clear()
 			emblem_categories = sorted([k for k in self.asset_data.keys() if not k.startswith("__")])
 			self.category_combo.addItems(emblem_categories)
 			if emblem_categories:
-				self.current_category = emblem_categories[0]
+				# Use last viewed emblem category if available, otherwise use default
+				if self.last_emblem_category and self.last_emblem_category in emblem_categories:
+					self.current_category = self.last_emblem_category
+				elif DEFAULT_EMBLEM_CATEGORY in emblem_categories:
+					self.current_category = DEFAULT_EMBLEM_CATEGORY
+				else:
+					self.current_category = emblem_categories[0]
 		
 				self.category_combo.setCurrentText(self.current_category)
+			self.category_combo.blockSignals(False)
 		
 		# Rebuild grid with new mode
 		for btn in self.asset_buttons:

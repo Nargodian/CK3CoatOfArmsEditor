@@ -8,6 +8,7 @@ import OpenGL.GL as gl
 import numpy as np
 import os
 import json
+from constants import DEFAULT_FRAME
 from PIL import Image
 
 # Local imports
@@ -36,7 +37,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.default_mask_texture = None  # Default white mask (fallback)
 		self.material_mask_texture = None  # CK3 material texture (dirt/fabric/paint)
 		self.noise_texture = None  # Noise texture for grain effect
-		self.current_frame_name = "dynasty"  # Track current frame name
+		self.current_frame_name = DEFAULT_FRAME  # Track current frame name
 		self.prestige_level = 0  # Current prestige level (0-5)
 	
 	# ========================================
@@ -134,7 +135,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self._load_noise_texture()
 		
 		# Set defaults after initialization
-		self.set_frame("dynasty")
+		self.set_frame(DEFAULT_FRAME)
 		self.set_prestige(3)
 		# Set default base pattern
 		if "pattern__solid_designer.dds" in self.texture_uv_map:
