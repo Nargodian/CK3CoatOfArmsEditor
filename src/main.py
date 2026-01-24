@@ -705,10 +705,23 @@ class CoatOfArmsEditor(QMainWindow):
 			norm_x = max(0.0, min(1.0, norm_x))
 			norm_y = max(0.0, min(1.0, norm_y))
 			
-			# Update position for all layers (centered on click)
-			for layer_data in layers_data:
-				layer_data['pos_x'] = norm_x
-				layer_data['pos_y'] = norm_y
+			# Calculate centroid of pasted layers to preserve relative positions
+			if len(layers_data) > 1:
+				centroid_x = sum(layer.get('pos_x', 0.5) for layer in layers_data) / len(layers_data)
+				centroid_y = sum(layer.get('pos_y', 0.5) for layer in layers_data) / len(layers_data)
+				
+				# Calculate offset from centroid to click position
+				offset_x = norm_x - centroid_x
+				offset_y = norm_y - centroid_y
+				
+				# Apply offset to all layers (preserves relative positions)
+				for layer_data in layers_data:
+					layer_data['pos_x'] = max(0.0, min(1.0, layer_data.get('pos_x', 0.5) + offset_x))
+					layer_data['pos_y'] = max(0.0, min(1.0, layer_data.get('pos_y', 0.5) + offset_y))
+			else:
+				# Single layer - just set to click position
+				layers_data[0]['pos_x'] = norm_x
+				layers_data[0]['pos_y'] = norm_y
 			
 			# Add all layers at the top (end of list = frontmost)
 			start_index = len(self.right_sidebar.layers)
