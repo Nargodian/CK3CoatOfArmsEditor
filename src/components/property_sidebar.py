@@ -1082,8 +1082,10 @@ class PropertySidebar(QFrame):
 	
 	def _update_layer_selection(self):
 		"""Update which layer button is checked and multi-select indicator"""
-		# Delegate to layer list widget
+		# Sync selection state to layer list widget first
 		if hasattr(self, 'layer_list_widget'):
+			self.layer_list_widget.selected_layer_indices = self.selected_layer_indices
+			self.layer_list_widget.last_selected_index = self.last_selected_index
 			self.layer_list_widget.update_selection_visuals()
 		
 		# Update selection indicator labels
