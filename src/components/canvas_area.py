@@ -12,6 +12,10 @@ class CanvasArea(QFrame):
 		self.setStyleSheet("QFrame { background-color: #0d0d0d; }")
 		self.property_sidebar = None  # Will be set by main window
 		self.main_window = None  # Will be set by main window
+		
+		# Cache for multi-layer transform (prevents cumulative transforms)
+		self._drag_start_layers = None
+		
 		self._setup_ui()
 	
 	def mousePressEvent(self, event):
@@ -182,38 +186,47 @@ class CanvasArea(QFrame):
 			return
 		
 		# MULTI-SELECTION: Calculate screen-space AABB
-		# For each layer: calculate bounding box from position ± scale/2
-		min_x = float('inf')
-		max_x = float('-inf')
-		min_y = float('inf')
-		max_y = float('-inf')
-		
-		for idx in selected_indices:
-			if idx < 0 or idx >= len(self.property_sidebar.layers):
-				continue
+		# During rotation, use cached AABB to prevent widget from traveling
+		if self.transform_widget.is_rotating and self.transform_widget.cached_aabb is not None:
+			# Use cached values during rotation
+			group_pos_x, group_pos_y, group_scale_x, group_scale_y = self.transform_widget.cached_aabb
+		else:
+			# Calculate AABB from current layer positions
+			min_x = float('inf')
+			max_x = float('-inf')
+			min_y = float('inf')
+			max_y = float('-inf')
 			
-			layer = self.property_sidebar.layers[idx]
-			pos_x = layer.get('pos_x', 0.5)
-			pos_y = layer.get('pos_y', 0.5)
-			scale_x = layer.get('scale_x', 0.5)
-			scale_y = layer.get('scale_y', 0.5)
+			for idx in selected_indices:
+				if idx < 0 or idx >= len(self.property_sidebar.layers):
+					continue
+				
+				layer = self.property_sidebar.layers[idx]
+				pos_x = layer.get('pos_x', 0.5)
+				pos_y = layer.get('pos_y', 0.5)
+				scale_x = layer.get('scale_x', 0.5)
+				scale_y = layer.get('scale_y', 0.5)
+				
+				# Calculate layer AABB in normalized space
+				layer_min_x = pos_x - scale_x / 2
+				layer_max_x = pos_x + scale_x / 2
+				layer_min_y = pos_y - scale_y / 2
+				layer_max_y = pos_y + scale_y / 2
+				
+				min_x = min(min_x, layer_min_x)
+				max_x = max(max_x, layer_max_x)
+				min_y = min(min_y, layer_min_y)
+				max_y = max(max_y, layer_max_y)
 			
-			# Calculate layer AABB in normalized space
-			layer_min_x = pos_x - scale_x / 2
-			layer_max_x = pos_x + scale_x / 2
-			layer_min_y = pos_y - scale_y / 2
-			layer_max_y = pos_y + scale_y / 2
+			# Calculate group center and scale
+			group_pos_x = (min_x + max_x) / 2
+			group_pos_y = (min_y + max_y) / 2
+			group_scale_x = max_x - min_x
+			group_scale_y = max_y - min_y
 			
-			min_x = min(min_x, layer_min_x)
-			max_x = max(max_x, layer_max_x)
-			min_y = min(min_y, layer_min_y)
-			max_y = max(max_y, layer_max_y)
-		
-		# Calculate group center and scale
-		group_pos_x = (min_x + max_x) / 2
-		group_pos_y = (min_y + max_y) / 2
-		group_scale_x = max_x - min_x
-		group_scale_y = max_y - min_y
+			# Cache AABB when rotation starts
+			if not self.transform_widget.is_rotating:
+				self.transform_widget.cached_aabb = (group_pos_x, group_pos_y, group_scale_x, group_scale_y)
 		
 		# Store initial group state for rotation calculations (Task 3.6)
 		if not hasattr(self, '_initial_group_center'):
@@ -225,7 +238,6 @@ class CanvasArea(QFrame):
 		
 		self.transform_widget.set_transform(group_pos_x, group_pos_y, group_scale_x, group_scale_y, group_rotation)
 		self.transform_widget.set_visible(True)
-	
 	def _on_transform_changed(self, pos_x, pos_y, scale_x, scale_y, rotation):
 		"""Handle transform changes from the widget
 		
@@ -254,21 +266,32 @@ class CanvasArea(QFrame):
 			return
 		
 		# MULTI-SELECTION: Group transform
-		# First, calculate the original group AABB (before transform)
+		# Cache original layer states at drag start to prevent cumulative transforms
+		if self._drag_start_layers is None:
+			self._drag_start_layers = []
+			for idx in selected_indices:
+				if idx < 0 or idx >= len(self.property_sidebar.layers):
+					continue
+				layer = self.property_sidebar.layers[idx]
+				self._drag_start_layers.append({
+					'index': idx,
+					'pos_x': layer.get('pos_x', 0.5),
+					'pos_y': layer.get('pos_y', 0.5),
+					'scale_x': layer.get('scale_x', 0.5),
+					'scale_y': layer.get('scale_y', 0.5)
+				})
+		
+		# Calculate the original group AABB from cached positions
 		original_min_x = float('inf')
 		original_max_x = float('-inf')
 		original_min_y = float('inf')
 		original_max_y = float('-inf')
 		
-		for idx in selected_indices:
-			if idx < 0 or idx >= len(self.property_sidebar.layers):
-				continue
-			
-			layer = self.property_sidebar.layers[idx]
-			pos_x_orig = layer.get('pos_x', 0.5)
-			pos_y_orig = layer.get('pos_y', 0.5)
-			scale_x_orig = layer.get('scale_x', 0.5)
-			scale_y_orig = layer.get('scale_y', 0.5)
+		for layer_state in self._drag_start_layers:
+			pos_x_orig = layer_state['pos_x']
+			pos_y_orig = layer_state['pos_y']
+			scale_x_orig = layer_state['scale_x']
+			scale_y_orig = layer_state['scale_y']
 			
 			layer_min_x = pos_x_orig - scale_x_orig / 2
 			layer_max_x = pos_x_orig + scale_x_orig / 2
@@ -297,46 +320,54 @@ class CanvasArea(QFrame):
 		# Calculate rotation delta (Task 3.6)
 		rotation_delta = rotation - getattr(self, '_initial_group_rotation', 0)
 		
-		# Apply transforms to all selected layers
+		# Apply transforms to all selected layers using cached states
 		import math
-		for idx in selected_indices:
+		for layer_state in self._drag_start_layers:
+			idx = layer_state['index']
 			if idx < 0 or idx >= len(self.property_sidebar.layers):
 				continue
 			
-			layer = self.property_sidebar.layers[idx]
-			pos_x_orig = layer.get('pos_x', 0.5)
-			pos_y_orig = layer.get('pos_y', 0.5)
-			scale_x_orig = layer.get('scale_x', 0.5)
-			scale_y_orig = layer.get('scale_y', 0.5)
+			# Get original positions from cache
+			pos_x_orig = layer_state['pos_x']
+			pos_y_orig = layer_state['pos_y']
+			scale_x_orig = layer_state['scale_x']
+			scale_y_orig = layer_state['scale_y']
 			
 			# Calculate offset from original group center
 			offset_x = pos_x_orig - original_center_x
 			offset_y = pos_y_orig - original_center_y
 			
-			# Apply rotation to offset (Task 3.6: rotate positions around group center)
-			if abs(rotation_delta) > 0.01:  # Only if rotation changed
+			# Check if we're rotating (ferris wheel behavior: only positions change)
+			if self.transform_widget.is_rotating:
+				# ROTATION ONLY: Apply rotation to offset, no scaling
 				rotation_rad = math.radians(rotation_delta)
 				cos_r = math.cos(rotation_rad)
 				sin_r = math.sin(rotation_rad)
-				# 2D rotation matrix
 				new_offset_x = offset_x * cos_r - offset_y * sin_r
 				new_offset_y = offset_x * sin_r + offset_y * cos_r
-				offset_x = new_offset_x
-				offset_y = new_offset_y
+				
+				# Apply position delta
+				new_pos_x = original_center_x + new_offset_x + position_delta_x
+				new_pos_y = original_center_y + new_offset_y + position_delta_y
+				
+				# Keep scales unchanged
+				new_scale_x = scale_x_orig
+				new_scale_y = scale_y_orig
+			else:
+				# SCALE/POSITION: Apply scale to offset and layer scales
+				new_offset_x = offset_x * scale_factor_x
+				new_offset_y = offset_y * scale_factor_y
+				
+				# Apply position delta
+				new_pos_x = original_center_x + new_offset_x + position_delta_x
+				new_pos_y = original_center_y + new_offset_y + position_delta_y
+				
+				# Apply scale to layer scale
+				new_scale_x = scale_x_orig * scale_factor_x
+				new_scale_y = scale_y_orig * scale_factor_y
 			
-			# Apply scale to offset (element-wise)
-			new_offset_x = offset_x * scale_factor_x
-			new_offset_y = offset_y * scale_factor_y
-			
-			# Apply position delta
-			new_pos_x = original_center_x + new_offset_x + position_delta_x
-			new_pos_y = original_center_y + new_offset_y + position_delta_y
-			
-			# Apply scale to layer scale
-			new_scale_x = scale_x_orig * scale_factor_x
-			new_scale_y = scale_y_orig * scale_factor_y
-			
-			# Update layer
+			# Update actual layer
+			layer = self.property_sidebar.layers[idx]
 			layer['pos_x'] = new_pos_x
 			layer['pos_y'] = new_pos_y
 			layer['scale_x'] = new_scale_x
@@ -349,6 +380,9 @@ class CanvasArea(QFrame):
 	
 	def _on_transform_ended(self):
 		"""Handle transform drag end - save to history"""
+		# Clear drag cache for next operation
+		self._drag_start_layers = None
+		
 		if self.main_window and hasattr(self.main_window, '_save_state'):
 			self.main_window._save_state("Transform layer")
 	
