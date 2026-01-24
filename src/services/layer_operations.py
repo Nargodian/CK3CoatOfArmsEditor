@@ -2,15 +2,209 @@
 CK3 Coat of Arms Editor - Layer Operations Service
 
 This module handles layer creation, duplication, and manipulation operations.
-
-Functions to be extracted from main.py and property_sidebar.py:
-- TODO: create_default_layer(filename, colors=3, **overrides) - Create new layer with defaults
-- TODO: duplicate_layers(layers, indices, offset=10) - Duplicate selected layers
-- TODO: copy_layer_to_text(layer) -> str - Serialize layer to text
-- TODO: parse_layer_from_text(text) -> dict - Parse layer from text
-
-These functions provide layer manipulation logic independent of the UI,
-making it easier to test and maintain layer operations.
+These functions provide layer manipulation logic independent of the UI.
 """
 
-# Placeholder - functions will be extracted in Phase 3
+from utils.coa_parser import parse_coa_string, serialize_coa_to_string
+from utils.color_utils import color_name_to_rgb, rgb_to_color_name
+
+
+def create_default_layer(filename, colors=3, **overrides):
+    """Create new layer with default values
+    
+    Args:
+        filename: Texture filename for the layer
+        colors: Number of colors (1, 2, or 3)
+        **overrides: Optional property overrides (pos_x, pos_y, scale_x, etc.)
+        
+    Returns:
+        Dictionary with layer data
+    """
+    layer_data = {
+        'filename': filename,
+        'path': filename,
+        'colors': colors,
+        'pos_x': 0.5,
+        'pos_y': 0.5,
+        'scale_x': 1.0,
+        'scale_y': 1.0,
+        'rotation': 0,
+        'flip_x': False,
+        'flip_y': False,
+        'color1': [1.0, 1.0, 0.0],  # yellow
+        'color2': [0.8, 0.0, 0.0],  # red
+        'color3': [0.8, 0.0, 0.0],  # red
+        'color1_name': 'yellow',
+        'color2_name': 'red',
+        'color3_name': 'red'
+    }
+    
+    # Apply any overrides
+    layer_data.update(overrides)
+    
+    return layer_data
+
+
+def duplicate_layer(layer, offset_x=0.0, offset_y=0.0):
+    """Duplicate a layer with optional position offset
+    
+    Args:
+        layer: Source layer dictionary
+        offset_x: X position offset for duplicate
+        offset_y: Y position offset for duplicate
+        
+    Returns:
+        New layer dictionary (deep copy)
+    """
+    # Create a deep copy
+    duplicated = dict(layer)
+    
+    # Apply offset if provided
+    if offset_x != 0.0:
+        duplicated['pos_x'] = min(1.0, max(0.0, layer.get('pos_x', 0.5) + offset_x))
+    if offset_y != 0.0:
+        duplicated['pos_y'] = min(1.0, max(0.0, layer.get('pos_y', 0.5) + offset_y))
+    
+    return duplicated
+
+
+def serialize_layer_to_text(layer):
+    """Serialize a single layer to colored_emblem block format
+    
+    Args:
+        layer: Layer dictionary
+        
+    Returns:
+        String in CoA colored_emblem format
+    """
+    instance_data = {
+        "position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
+        "scale": [layer.get('scale_x', 1.0), layer.get('scale_y', 1.0)],
+        "rotation": int(layer.get('rotation', 0))
+    }
+    
+    emblem_data = {
+        "texture": layer.get('filename', ''),
+        "instance": [instance_data]
+    }
+    
+    # Add colors only if they differ from defaults (yellow, red, red)
+    color1_str = rgb_to_color_name(layer.get('color1', [1.0, 1.0, 1.0]), layer.get('color1_name'))
+    color2_str = rgb_to_color_name(layer.get('color2', [1.0, 1.0, 1.0]), layer.get('color2_name'))
+    color3_str = rgb_to_color_name(layer.get('color3', [1.0, 1.0, 1.0]), layer.get('color3_name'))
+    
+    if color1_str != 'yellow':
+        emblem_data['color1'] = color1_str
+    if color2_str != 'red':
+        emblem_data['color2'] = color2_str
+    if color3_str != 'red':
+        emblem_data['color3'] = color3_str
+    
+    # Wrap in colored_emblem block
+    data = {"colored_emblem": emblem_data}
+    
+    # Serialize using CoA serializer
+    return serialize_coa_to_string(data)
+
+
+def parse_layer_from_text(layer_text):
+    """Parse a layer from colored_emblem block format
+    
+    Args:
+        layer_text: Text containing colored_emblem block
+        
+    Returns:
+        Layer data dict compatible with editor's layer format, or None if parse fails
+    """
+    try:
+        # Parse the text
+        data = parse_coa_string(layer_text)
+        if not data:
+            return None
+        
+        # Extract colored_emblem block (it's returned as a list)
+        emblem_list = data.get('colored_emblem')
+        if not emblem_list:
+            return None
+        
+        # Get first emblem if it's a list
+        if isinstance(emblem_list, list):
+            if len(emblem_list) == 0:
+                return None
+            emblem = emblem_list[0]
+        else:
+            emblem = emblem_list
+        
+        # Get emblem properties
+        filename = emblem.get('texture', '')
+        if not filename:
+            return None
+        
+        # Get instance data (use first instance if multiple)
+        instances = emblem.get('instance', [])
+        if not instances:
+            instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0}]
+        instance = instances[0]
+        
+        # Get colors
+        color1_name = emblem.get('color1', 'yellow')
+        color2_name = emblem.get('color2', 'red')
+        color3_name = emblem.get('color3', 'red')
+        
+        # Build layer data
+        layer_data = {
+            'filename': filename,
+            'path': filename,
+            'colors': 3,  # Assume 3 colors
+            'pos_x': instance.get('position', [0.5, 0.5])[0],
+            'pos_y': instance.get('position', [0.5, 0.5])[1],
+            'scale_x': instance.get('scale', [1.0, 1.0])[0],
+            'scale_y': instance.get('scale', [1.0, 1.0])[1],
+            'rotation': instance.get('rotation', 0),
+            'flip_x': False,
+            'flip_y': False,
+            'color1': color_name_to_rgb(color1_name),
+            'color2': color_name_to_rgb(color2_name),
+            'color3': color_name_to_rgb(color3_name),
+            'color1_name': color1_name,
+            'color2_name': color2_name,
+            'color3_name': color3_name
+        }
+        
+        return layer_data
+        
+    except Exception as e:
+        print(f"Error parsing layer: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def parse_multiple_layers_from_text(text):
+    """Parse multiple layers from clipboard text
+    
+    Handles text containing multiple colored_emblem blocks.
+    
+    Args:
+        text: Text containing one or more colored_emblem blocks
+        
+    Returns:
+        List of layer data dictionaries
+    """
+    layers_data = []
+    
+    # Split by 'colored_emblem' to handle multiple blocks
+    parts = text.split('colored_emblem')
+    
+    for i, part in enumerate(parts):
+        if i == 0 and not part.strip():
+            continue  # Skip empty first part
+        
+        # Reconstruct the colored_emblem block
+        if i > 0:  # Skip first part if it's empty
+            block_text = 'colored_emblem' + part
+            layer_data = parse_layer_from_text(block_text)
+            if layer_data:
+                layers_data.append(layer_data)
+    
+    return layers_data

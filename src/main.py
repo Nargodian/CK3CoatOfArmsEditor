@@ -11,6 +11,14 @@ from components.property_sidebar import PropertySidebar
 from utils.coa_parser import parse_coa_string, serialize_coa_to_string
 from utils.history_manager import HistoryManager
 from utils.color_utils import color_name_to_rgb, rgb_to_color_name
+from services.file_operations import (
+    save_coa_to_file, load_coa_from_file, 
+    build_coa_for_save, coa_to_clipboard_text, is_layer_subblock
+)
+from services.layer_operations import (
+    duplicate_layer, serialize_layer_to_text, parse_layer_from_text,
+    parse_multiple_layers_from_text
+)
 
 
 class CoatOfArmsEditor(QMainWindow):
@@ -474,48 +482,19 @@ class CoatOfArmsEditor(QMainWindow):
 			# Get current state
 			canvas = self.canvas_area.canvas_widget
 			base_colors = self.right_sidebar.get_base_colors()
+			base_color_names = [
+				getattr(canvas, 'base_color1_name', 'black'),
+				getattr(canvas, 'base_color2_name', 'yellow'),
+				getattr(canvas, 'base_color3_name', 'black')
+			]
 			
-			# Build CoA data structure (same as copy)
-			coa_data = {
-				"coa_export": {
-					"custom": True,
-					"pattern": canvas.base_texture or "pattern__solid.dds",
-					"color1": rgb_to_color_name(base_colors[0], self.canvas_area.canvas_widget.base_color1_name),
-					"color2": rgb_to_color_name(base_colors[1], self.canvas_area.canvas_widget.base_color2_name),
-					"color3": rgb_to_color_name(base_colors[2], self.canvas_area.canvas_widget.base_color3_name)
-				}
-			}
-			
-			# Add layers grouped by texture
-			if self.right_sidebar.layers:
-				coa_data["coa_export"]["colored_emblem"] = []
-				texture_groups = {}
-				
-				for layer in self.right_sidebar.layers:
-					texture = layer.get('filename', layer.get('path', ''))
-					if texture not in texture_groups:
-						texture_groups[texture] = []
-					texture_groups[texture].append(layer)
-				
-				for texture, layers in texture_groups.items():
-					emblem = {
-						"texture": texture,
-						"color1": rgb_to_color_name(layers[0].get('color1'), layers[0].get('color1_name')),
-						"instance": []
-					}
-					
-					for layer in layers:
-						instance = {
-							"position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
-							"scale": [layer.get('scale_x', 1.0), layer.get('scale_y', 1.0)],
-							"rotation": layer.get('rotation', 0)
-						}
-						emblem["instance"].append(instance)
-					
-					coa_data["coa_export"]["colored_emblem"].append(emblem)
-			
-			# Serialize to string
-			coa_string = serialize_coa_to_string(coa_data)
+			# Build CoA data structure using service
+			coa_data = build_coa_for_save(
+				base_colors, 
+				canvas.base_texture, 
+				self.right_sidebar.layers,
+				base_color_names
+			)
 			
 			# Open save file dialog
 			filename, _ = QFileDialog.getSaveFileName(
@@ -526,9 +505,7 @@ class CoatOfArmsEditor(QMainWindow):
 			)
 			
 			if filename:
-				with open(filename, 'w', encoding='utf-8') as f:
-					f.write(coa_string)
-				print(f"CoA saved to {filename}")
+				save_coa_to_file(coa_data, filename)
 			
 		except Exception as e:
 			print(f"Error saving CoA: {e}")
@@ -550,18 +527,15 @@ class CoatOfArmsEditor(QMainWindow):
 			if not filename:
 				return
 			
-			# Read file
-			with open(filename, 'r', encoding='utf-8') as f:
-				coa_text = f.read()
+			# Load and parse file using service
+			coa_data = load_coa_from_file(filename)
 			
-			# Parse using existing paste logic
-			self._parse_and_apply_coa(coa_text)
+			# Apply to editor
+			self._apply_coa_data(coa_data)
 			
 			# Clear history and save initial state after loading
 			self.history_manager.clear()
 			self._save_state("Load CoA")
-			
-			print(f"CoA loaded from {filename}")
 			
 		except Exception as e:
 			print(f"Error loading CoA: {e}")
@@ -575,60 +549,21 @@ class CoatOfArmsEditor(QMainWindow):
 			# Get current state
 			canvas = self.canvas_area.canvas_widget
 			base_colors = self.right_sidebar.get_base_colors()
+			base_color_names = [
+				getattr(canvas, 'base_color1_name', 'black'),
+				getattr(canvas, 'base_color2_name', 'yellow'),
+				getattr(canvas, 'base_color3_name', 'black')
+			]
 			
-			# Build CoA data structure
-			coa_data = {
-				"coa_clipboard": {
-					"custom": True,
-					"pattern": canvas.base_texture or "pattern__solid_designer.dds",
-					"colored_emblem": []
-				}
-			}
+			# Build clipboard text using service
+			coa_text = coa_to_clipboard_text(
+				base_colors,
+				canvas.base_texture,
+				self.right_sidebar.layers,
+				base_color_names
+			)
 			
-			# Add base colors only if they differ from defaults (black, yellow, black)
-			color1_str = rgb_to_color_name(base_colors[0], getattr(canvas, 'base_color1_name', None))
-			color2_str = rgb_to_color_name(base_colors[1], getattr(canvas, 'base_color2_name', None))
-			color3_str = rgb_to_color_name(base_colors[2], getattr(canvas, 'base_color3_name', None))
-			
-			if color1_str != 'black':
-				coa_data["coa_clipboard"]["color1"] = color1_str
-			if color2_str != 'yellow':
-				coa_data["coa_clipboard"]["color2"] = color2_str
-			if color3_str != 'black':
-				coa_data["coa_clipboard"]["color3"] = color3_str
-			
-			# Add emblem layers with depth values
-			for layer_idx, layer in enumerate(self.right_sidebar.layers):
-				instance = {
-					"position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
-					"scale": [layer.get('scale_x', 1.0), layer.get('scale_y', 1.0)],
-					"rotation": int(layer.get('rotation', 0))
-				}
-				# Add depth for all layers except the first (layer 0 = frontmost, no depth)
-				if layer_idx > 0:
-					instance['depth'] = float(layer_idx) + 0.01
-				
-				emblem = {
-					"texture": layer.get('filename', ''),
-					"instance": [instance]
-				}
-				
-				# Add emblem colors only if they differ from defaults (yellow, red, red)
-				color1_str = rgb_to_color_name(layer.get('color1', [1.0, 1.0, 1.0]), layer.get('color1_name'))
-				color2_str = rgb_to_color_name(layer.get('color2', [1.0, 1.0, 1.0]), layer.get('color2_name'))
-				color3_str = rgb_to_color_name(layer.get('color3', [1.0, 1.0, 1.0]), layer.get('color3_name'))
-				
-				if color1_str != 'yellow':
-					emblem['color1'] = color1_str
-				if color2_str != 'red':
-					emblem['color2'] = color2_str
-				if color3_str != 'red':
-					emblem['color3'] = color3_str
-				
-				coa_data["coa_clipboard"]["colored_emblem"].append(emblem)
-			
-			# Serialize and copy to clipboard
-			coa_text = serialize_coa_to_string(coa_data)
+			# Copy to clipboard
 			QApplication.clipboard().setText(coa_text)
 			print("CoA copied to clipboard")
 			
@@ -648,13 +583,18 @@ class CoatOfArmsEditor(QMainWindow):
 				return
 			
 			# Smart detection: check if this is a layer sub-block or full CoA
-			if self._is_layer_subblock(coa_text):
+			if is_layer_subblock(coa_text):
 				# This is a layer, paste as layer instead
 				self.paste_layer()
 				return
 			
-			# Parse and apply using shared method
-			self._parse_and_apply_coa(coa_text)
+			# Parse CoA data
+			coa_data = parse_coa_string(coa_text)
+			if not coa_data:
+				raise ValueError("Failed to parse coat of arms data - not a valid CK3 format")
+			
+			# Apply to editor
+			self._apply_coa_data(coa_data)
 			
 			# Save to history after pasting
 			self._save_state("Paste CoA")
@@ -674,12 +614,12 @@ class CoatOfArmsEditor(QMainWindow):
 				print("No layer selected to copy")
 				return
 			
-			# Serialize all selected layers
+			# Serialize all selected layers using service
 			layer_texts = []
 			for layer_idx in selected_indices:
 				if 0 <= layer_idx < len(self.right_sidebar.layers):
 					layer = self.right_sidebar.layers[layer_idx]
-					layer_text = self._serialize_layer_to_string(layer)
+					layer_text = serialize_layer_to_text(layer)
 					layer_texts.append(layer_text)
 			
 			if not layer_texts:
@@ -711,8 +651,8 @@ class CoatOfArmsEditor(QMainWindow):
 			layer_idx = selected_indices[0]
 			layer = self.right_sidebar.layers[layer_idx]
 			
-			# Create a deep copy of the layer
-			duplicated_layer = dict(layer)
+			# Create a duplicate using service
+			duplicated_layer = duplicate_layer(layer)
 			
 			# Insert at the top (index 0) - most in front
 			self.right_sidebar.layers.insert(0, duplicated_layer)
@@ -752,27 +692,16 @@ class CoatOfArmsEditor(QMainWindow):
 				print("Paste layer failed: Clipboard is empty")
 				return
 			
-			# Parse layers from clipboard (may contain multiple colored_emblem blocks)
-			# Split by 'colored_emblem' to handle multiple blocks
-			parts = layer_text.split('colored_emblem')
-			layers_data = []
-			
-			for i, part in enumerate(parts):
-				if i == 0 and not part.strip():
-					continue  # Skip empty first part
-				
-				# Reconstruct the colored_emblem block
-				if i > 0:  # Skip first part if it's empty
-					block_text = 'colored_emblem' + part
-					layer_data = self._parse_layer_from_string(block_text)
-					if layer_data:
-						# Apply small offset to pasted layers (0.02 as per design decision)
-						layer_data['pos_x'] = min(1.0, layer_data.get('pos_x', 0.5) + 0.02)
-						layer_data['pos_y'] = min(1.0, layer_data.get('pos_y', 0.5) + 0.02)
-						layers_data.append(layer_data)
+			# Parse layers from clipboard using service
+			layers_data = parse_multiple_layers_from_text(layer_text)
 			
 			if not layers_data:
 				raise ValueError("Clipboard does not contain valid layer data")
+			
+			# Apply small offset to pasted layers (0.02 as per design decision)
+			for layer_data in layers_data:
+				layer_data['pos_x'] = min(1.0, layer_data.get('pos_x', 0.5) + 0.02)
+				layer_data['pos_y'] = min(1.0, layer_data.get('pos_y', 0.5) + 0.02)
 			
 			# Add all layers at the end (front-most)
 			start_index = len(self.right_sidebar.layers)
@@ -818,8 +747,8 @@ class CoatOfArmsEditor(QMainWindow):
 				print("Paste layer failed: Clipboard is empty")
 				return
 			
-			# Parse layer from clipboard
-			layer_data = self._parse_layer_from_string(layer_text)
+			# Parse layer from clipboard using service
+			layer_data = parse_layer_from_text(layer_text)
 			if not layer_data:
 				raise ValueError("Clipboard does not contain valid layer data")
 			
@@ -881,129 +810,9 @@ class CoatOfArmsEditor(QMainWindow):
 				self.status_left.setText("Paste layer failed")
 			import traceback
 			traceback.print_exc()
-	
-	def _is_layer_subblock(self, text):
-		"""Detect if clipboard text is a layer sub-block vs full CoA
 		
-		A layer sub-block starts with 'colored_emblem = {' and doesn't have
-		pattern or top-level CoA structure.
-		"""
-		text = text.strip()
-		# Check if it starts with colored_emblem
-		if text.startswith('colored_emblem'):
-			return True
-		# Check if it doesn't contain pattern (which is always in full CoA)
-		if 'pattern' not in text:
-			# Might be a layer if it has texture and instance
-			if 'texture' in text and 'instance' in text:
-				return True
-		return False
-	
-	def _serialize_layer_to_string(self, layer):
-		"""Serialize a single layer to colored_emblem block format"""
-		instance_data = {
-			"position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
-			"scale": [layer.get('scale_x', 1.0), layer.get('scale_y', 1.0)],
-			"rotation": int(layer.get('rotation', 0))
-		}
-		
-		emblem_data = {
-			"texture": layer.get('filename', ''),
-			"instance": [instance_data]
-		}
-		
-		# Add colors only if they differ from defaults (yellow, red, red)
-		color1_str = rgb_to_color_name(layer.get('color1', [1.0, 1.0, 1.0]), layer.get('color1_name'))
-		color2_str = rgb_to_color_name(layer.get('color2', [1.0, 1.0, 1.0]), layer.get('color2_name'))
-		color3_str = rgb_to_color_name(layer.get('color3', [1.0, 1.0, 1.0]), layer.get('color3_name'))
-		
-		if color1_str != 'yellow':
-			emblem_data['color1'] = color1_str
-		if color2_str != 'red':
-			emblem_data['color2'] = color2_str
-		if color3_str != 'red':
-			emblem_data['color3'] = color3_str
-		
-		# Wrap in colored_emblem block
-		data = {"colored_emblem": emblem_data}
-		
-		# Serialize using CoA serializer
-		return serialize_coa_to_string(data)
-	
-	def _parse_layer_from_string(self, layer_text):
-		"""Parse a layer from colored_emblem block format
-		
-		Returns a layer data dict compatible with the editor's layer format.
-		"""
-		try:
-			# Parse the text
-			data = parse_coa_string(layer_text)
-			if not data:
-				return None
-			
-			# Extract colored_emblem block (it's returned as a list)
-			emblem_list = data.get('colored_emblem')
-			if not emblem_list:
-				return None
-			
-			# Get first emblem if it's a list
-			if isinstance(emblem_list, list):
-				if len(emblem_list) == 0:
-					return None
-				emblem = emblem_list[0]
-			else:
-				emblem = emblem_list
-			
-			# Get emblem properties
-			filename = emblem.get('texture', '')
-			if not filename:
-				return None
-			
-			# Get instance data (use first instance if multiple)
-			instances = emblem.get('instance', [])
-			if not instances:
-				instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0}]
-			instance = instances[0]
-			
-			# Get colors
-			color1_name = emblem.get('color1', 'yellow')
-			color2_name = emblem.get('color2', 'red')
-			color3_name = emblem.get('color3', 'red')
-			
-			# Build layer data
-			layer_data = {
-				'filename': filename,
-				'path': filename,
-				'colors': 3,  # Assume 3 colors
-				'pos_x': instance.get('position', [0.5, 0.5])[0],
-				'pos_y': instance.get('position', [0.5, 0.5])[1],
-				'scale_x': instance.get('scale', [1.0, 1.0])[0],
-				'scale_y': instance.get('scale', [1.0, 1.0])[1],
-				'rotation': instance.get('rotation', 0),
-				'flip_x': False,
-				'flip_y': False,
-				'color1': color_name_to_rgb(color1_name),
-				'color2': color_name_to_rgb(color2_name),
-				'color3': color_name_to_rgb(color3_name),
-				'color1_name': color1_name,
-				'color2_name': color2_name,
-				'color3_name': color3_name
-			}
-			
-			return layer_data
-			
-		except Exception as e:
-			print(f"Error parsing layer: {e}")
-			import traceback
-			traceback.print_exc()
-			return None
-	
-	def _parse_and_apply_coa(self, coa_text):
-		"""Shared method to parse CoA text and apply to editor"""
-		# Parse CoA data
-		coa_data = parse_coa_string(coa_text)
-		if not coa_data:
-			raise ValueError("Failed to parse coat of arms data - not a valid CK3 format")
+	def _apply_coa_data(self, coa_data):
+		"""Apply parsed CoA data to editor"""
 		
 		# Get the CoA object (first key)
 		coa_id = list(coa_data.keys())[0]
