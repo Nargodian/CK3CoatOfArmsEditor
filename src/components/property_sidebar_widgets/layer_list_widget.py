@@ -59,11 +59,14 @@ class LayerListWidget(QWidget):
 			zone.deleteLater()
 		self.drop_zones.clear()
 		
-		# Remove all widgets except the stretch
-		while self.layers_layout.count() > 1:
+		# Clear all widgets from layout
+		while self.layers_layout.count() > 0:
 			item = self.layers_layout.takeAt(0)
 			if item.widget():
 				item.widget().deleteLater()
+			elif item.spacerItem():
+				# Remove spacer items too
+				pass
 		
 		# Add drop zone at top (inserts at end of array, appears at top of display)
 		layout_pos = 0
@@ -83,6 +86,9 @@ class LayerListWidget(QWidget):
 			# Add drop zone after this layer
 			self._add_drop_zone(actual_index, layout_pos)
 			layout_pos += 1
+		
+		# Re-add stretch at the end
+		self.layers_layout.addStretch()
 	
 	def _create_layer_button(self, actual_index):
 		"""Create a layer button widget"""
