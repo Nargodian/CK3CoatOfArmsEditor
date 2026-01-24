@@ -39,6 +39,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.current_frame_name = "dynasty"  # Track current frame name
 		self.prestige_level = 0  # Current prestige level (0-5)
 	
+	# ========================================
+	# Qt OpenGL Widget Overrides
+	# ========================================
+	
 	def resizeEvent(self, event):
 		"""Override resize to maintain square aspect"""
 		super().resizeEvent(event)
@@ -50,6 +54,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def sizeHint(self):
 		"""Suggest square aspect ratio"""
 		return QSize(600, 600)
+	
+	# ========================================
+	# OpenGL Initialization and Rendering
+	# ========================================
 		
 	def initializeGL(self):
 		"""Initialize OpenGL context and shaders"""
@@ -337,6 +345,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.basic_shader.release()
 		
 		self.vao.release()
+	
+	# ========================================
+	# Texture Loading and Atlas Management
+	# ========================================
 			
 	def _load_texture_atlases(self):
 		"""Load texture atlases from emblem files and patterns, create UV mappings"""
@@ -350,27 +362,14 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				with open(pattern_json_path, 'r', encoding='utf-8') as f:
 					pattern_data = json.load(f)
 				
-				print(f"Pattern JSON loaded, {len(pattern_data)} entries")
 				for filename, props in pattern_data.items():
 					if props is None or filename == "\ufeff" or filename == "":
 						continue
-				# Load all patterns (even invisible) - asset sidebar will filter display
+					# Load all patterns (even invisible) - asset sidebar will filter display
 					png_filename = filename.replace('.dds', '.png')
 					image_path = f"source_coa_files/patterns/{png_filename}"
 					if os.path.exists(image_path):
 						emblem_files.append((filename, image_path))  # Store .dds name as key
-						if len(emblem_files) <= 3:  # Debug first few
-							print(f"Added pattern: {filename} -> {image_path}")
-					else:
-						if len(emblem_files) <= 3:
-							print(f"Pattern file not found: {image_path}")
-			else:
-				print(f"Pattern JSON not found!")
-			
-			# Load emblems
-			json_path = "json_output/colored_emblems/50_coa_designer_emblems.json"
-			if not os.path.exists(json_path):
-				print(f"Warning: {json_path} not found")
 				return
 			
 			with open(json_path, 'r', encoding='utf-8') as f:
@@ -384,10 +383,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				image_path = f"source_coa_files/colored_emblems/{png_filename}"
 				if os.path.exists(image_path):
 					emblem_files.append((filename, image_path))  # Store .dds name as key
-			
-			if not emblem_files:
-				print("No emblem/pattern files found")
-				return
 			
 			# Build texture atlas (32x32 grid of 256x256 images = 8192x8192)
 			atlas_size = 8192
@@ -447,19 +442,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, atlas_data.tobytes())
 				
 				self.texture_atlases.append(texture_id)
-				print(f"Loaded atlas {atlas_idx + 1}/{num_atlases} with {end_idx - start_idx} textures")
-			
-			print(f"Texture atlas system initialized: {len(self.texture_atlases)} atlases, {len(self.texture_uv_map)} textures")
-			
+		
 		except Exception as e:
 			print(f"Error loading texture atlases: {e}")
-			import traceback
-			traceback.print_exc()
-	
-	def set_texture(self, filename):
-		"""Set the current texture to display by filename"""
-		if filename in self.texture_uv_map:
-			self.current_texture = filename
 			self.update()  # Trigger repaint
 	
 	def _load_frame_textures(self):
@@ -467,7 +452,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		try:
 			frame_dir = "coa_frames"
 			if not os.path.exists(frame_dir):
-				print(f"Warning: {frame_dir} not found")
 				return
 			
 			frame_files = {
@@ -513,7 +497,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 						
 						# Skip invalid masks (all black RGB, which would block everything)
 						if max_rgb == 0:
-							print(f"Skipping invalid mask for {name} (all black)")
 							continue
 						
 						# Resize mask to match expected canvas size (800x800)
@@ -538,13 +521,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 						               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, mask_data.tobytes())
 						
 						self.frame_masks[name] = mask_id
-			
-			print(f"Loaded {len(self.frame_textures)} frame textures")
-			
 		except Exception as e:
 			print(f"Error loading frame textures: {e}")
-			import traceback
-			traceback.print_exc()
 	
 	def _load_mask_texture(self):
 		"""Create a default white square mask texture matching real frame masks"""
@@ -574,13 +552,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			
 			gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, size, size,
 			               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, mask_data.tobytes())
-			
-			print(f"Created default square mask texture ({size}x{size})")
-			
 		except Exception as e:
 			print(f"Error creating default mask texture: {e}")
-			import traceback
-			traceback.print_exc()
 	
 	def _load_material_mask_texture(self):
 		"""Load CK3 material mask texture (coa_mask_texture.png) for dirt/fabric/paint effects"""
@@ -608,10 +581,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, img.width, img.height,
 				               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data.tobytes())
 				gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
-				
-				print(f"Loaded material mask texture: {img.width}x{img.height} (resized from 256x256)")
 			else:
-				print(f"Warning: Material mask not found at {material_mask_path}")
 				# Create a white fallback texture
 				size = 256
 				mask_data = np.full((size, size, 4), 255, dtype=np.uint8)
@@ -624,11 +594,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
 				gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, size, size,
 				               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, mask_data.tobytes())
-				
 		except Exception as e:
 			print(f"Error loading material mask texture: {e}")
-			import traceback
-			traceback.print_exc()
 	
 	def _load_noise_texture(self):
 		"""Load noise texture for grain effect"""
@@ -652,10 +619,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				
 				gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, img.width, img.height,
 				               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data.tobytes())
-				
-				print(f"Loaded noise texture: {img.width}x{img.height}")
 			else:
-				print(f"Warning: Noise texture not found at {noise_path}")
+				# Create a white fallback texture
 				# Create a white fallback (no grain effect)
 				size = 64
 				noise_data = np.full((size, size, 4), 255, dtype=np.uint8)
@@ -668,11 +633,12 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
 				gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, size, size,
 				               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, noise_data.tobytes())
-				
 		except Exception as e:
 			print(f"Error loading noise texture: {e}")
-			import traceback
-			traceback.print_exc()
+	
+	# ========================================
+	# Texture and Frame Management
+	# ========================================
 	
 	def set_frame(self, frame_name):
 		"""Set the frame by name and update mask accordingly"""
