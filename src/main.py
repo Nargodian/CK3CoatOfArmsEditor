@@ -124,123 +124,102 @@ class CoatOfArmsEditor(QMainWindow):
 		else:
 			self.left_sidebar.switch_mode("emblems")
 	
+	# ========================================
+	# Asset Selection Handlers
+	# ========================================
+	
 	def _on_asset_selected(self, asset_data):
-		"""Handle asset selection - update color swatches based on asset color count"""
-		print(f"[_on_asset_selected] Asset selected: {asset_data}")
-		
+		"""
+		Handle asset selection from sidebar.
+		- Base tab: Updates base pattern texture
+		- Layers/Properties tab: Updates selected layer or creates new layer
+		"""
 		color_count = asset_data.get("colors", 1)
 		filename = asset_data.get("filename")
-		
-		print(f"[_on_asset_selected] filename: {filename}, color_count: {color_count}")
-		
-		# Update color swatches based on which tab is active
+		dds_filename = asset_data.get('dds_filename', filename)
 		current_tab = self.right_sidebar.tab_widget.currentIndex()
-		print(f"[_on_asset_selected] current_tab: {current_tab}")
 		
 		if current_tab == 0:  # Base tab
-			print(f"[_on_asset_selected] Base tab - setting base texture: {filename}")
-			self.right_sidebar.set_base_color_count(color_count)
-			# Base is not a layer, update canvas base texture
-			if filename:
-				self.canvas_area.canvas_widget.set_base_texture(filename)
-				# Save to history (base texture changed)
-				self._save_state("Change base texture")
+			self._apply_base_texture(filename, color_count)
 		else:  # Layers or Properties tab
-			print(f"[_on_asset_selected] Layers/Properties tab - setting emblem color count")
-			self.right_sidebar.set_emblem_color_count(color_count)
+			self._apply_emblem_texture(dds_filename, color_count)
+	
+	def _apply_base_texture(self, filename, color_count):
+		"""Apply texture to base pattern"""
+		self.right_sidebar.set_base_color_count(color_count)
+		if filename:
+			self.canvas_area.canvas_widget.set_base_texture(filename)
+			self._save_state("Change base texture")
+	
+	def _apply_emblem_texture(self, dds_filename, color_count):
+		"""Apply texture to selected layer or create new layer"""
+		self.right_sidebar.set_emblem_color_count(color_count)
+		selected_indices = self.right_sidebar.get_selected_indices()
+		
+		if selected_indices:
+			self._update_layer_texture(selected_indices[0], dds_filename, color_count)
+		else:
+			self._create_layer_with_texture(dds_filename, color_count)
+	
+	def _update_layer_texture(self, idx, dds_filename, color_count):
+		"""Update existing layer's texture while preserving other properties"""
+		if 0 <= idx < len(self.right_sidebar.layers):
+			old_layer = self.right_sidebar.layers[idx]
 			
-			# If a layer is selected, update it with the new asset
-			selected_indices = self.right_sidebar.get_selected_indices()
-			print(f"[_on_asset_selected] selected_indices: {selected_indices}")
-			if selected_indices:
-				idx = selected_indices[0]
-				print(f"[_on_asset_selected] Updating layer {idx}")
-				if 0 <= idx < len(self.right_sidebar.layers):
-					# Preserve existing properties when updating asset
-					old_layer = self.right_sidebar.layers[idx]
-					print(f"[_on_asset_selected] Old layer: {old_layer}")
-					
-					# Use DDS filename for both filename and path (texture system expects DDS)
-					dds_filename = asset_data.get('dds_filename', asset_data.get('filename', ''))
-					print(f"[_on_asset_selected] Using DDS filename: {dds_filename}")
-					
-					new_layer = {
-						'filename': dds_filename,
-						'path': dds_filename,
-						'colors': color_count,
-						'depth': old_layer.get('depth', idx),  # Preserve depth
-						'pos_x': old_layer.get('pos_x', 0.5),
-						'pos_y': old_layer.get('pos_y', 0.5),
-					'scale_x': old_layer.get('scale_x', 1.0),
-					'scale_y': old_layer.get('scale_y', 1.0),
-					'rotation': old_layer.get('rotation', 0),
-					'color1': old_layer.get('color1', [0.750, 0.525, 0.188]),
-					'color2': old_layer.get('color2', [0.450, 0.133, 0.090]),
-					'color3': old_layer.get('color3', [0.450, 0.133, 0.090]),
-						'color1_name': old_layer.get('color1_name'),
-						'color2_name': old_layer.get('color2_name'),
-						'color3_name': old_layer.get('color3_name')
-					}
-					self.right_sidebar.layers[idx] = new_layer
-					print(f"[_on_asset_selected] New layer: {new_layer}")
-					
-					print(f"[_on_asset_selected] Rebuilding layer list")
-					self.right_sidebar._rebuild_layer_list()
-					self.right_sidebar._update_layer_selection()
-					
-					print(f"[_on_asset_selected] Updating canvas with {len(self.right_sidebar.layers)} layers")
-					# Update canvas with new layers
-					self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-					print(f"[_on_asset_selected] Canvas updated successfully")
-					
-					# Save to history (layer texture changed)
-					self._save_state("Change layer texture")
-			else:
-				# No layer selected - create a new layer at the top with this asset
-				print(f"[_on_asset_selected] No layer selected - creating new layer at top")
-				dds_filename = asset_data.get('dds_filename', asset_data.get('filename', ''))
-				
-				new_layer = {
-					'filename': dds_filename,
-					'path': dds_filename,
-					'colors': color_count,
-					'depth': 0,
-					'pos_x': 0.5,
-					'pos_y': 0.5,
-					'scale_x': 0.5,
-					'scale_y': 0.5,
-					'rotation': 0,
-					'color1': [0.750, 0.525, 0.188],
-					'color2': [0.450, 0.133, 0.090],
-					'color3': [0.450, 0.133, 0.090],
-					'color1_name': None,
-					'color2_name': None,
-					'color3_name': None
-				}
-				
-				# Insert at the beginning (top of stack)
-				self.right_sidebar.layers.insert(0, new_layer)
-				
-				# Select the new layer
-				self.right_sidebar.selected_layer_indices = {0}
-				
-				# Update UI
-				self.right_sidebar._rebuild_layer_list()
-				self.right_sidebar._update_layer_selection()
-				self.right_sidebar._load_layer_properties()
-				
-				# Enable Properties tab
-				self.right_sidebar.tab_widget.setTabEnabled(2, True)
-				
-				# Update canvas and transform widget
-				self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-				if self.canvas_area:
-					self.canvas_area.update_transform_widget_for_layer(0)
-				
-				# Save to history (new layer created)
-				self._save_state("Create layer")
-				
-				print(f"[_on_asset_selected] New layer created and selected at index 0")
+			# Preserve all existing properties, update only texture-related fields
+			self.right_sidebar.layers[idx] = {
+				**old_layer,
+				'filename': dds_filename,
+				'path': dds_filename,
+				'colors': color_count
+			}
+			
+			# Update UI and canvas
+			self.right_sidebar._rebuild_layer_list()
+			self.right_sidebar._update_layer_selection()
+			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			self._save_state("Change layer texture")
+	
+	def _create_layer_with_texture(self, dds_filename, color_count):
+		"""Create new layer with selected texture at top of stack"""
+		new_layer = {
+			'filename': dds_filename,
+			'path': dds_filename,
+			'colors': color_count,
+			'depth': 0,
+			'pos_x': 0.5,
+			'pos_y': 0.5,
+			'scale_x': 0.5,
+			'scale_y': 0.5,
+			'rotation': 0,
+			'color1': [0.750, 0.525, 0.188],
+			'color2': [0.450, 0.133, 0.090],
+			'color3': [0.450, 0.133, 0.090],
+			'color1_name': None,
+			'color2_name': None,
+			'color3_name': None
+		}
+		
+		# Insert at beginning and select
+		self.right_sidebar.layers.insert(0, new_layer)
+		self.right_sidebar.selected_layer_indices = {0}
+		
+		# Update UI
+		self.right_sidebar._rebuild_layer_list()
+		self.right_sidebar._update_layer_selection()
+		self.right_sidebar._load_layer_properties()
+		self.right_sidebar.tab_widget.setTabEnabled(2, True)
+		
+		# Update canvas and transform widget
+		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+		if self.canvas_area:
+			self.canvas_area.update_transform_widget_for_layer(0)
+		
+		self._save_state("Create layer")
+	
+	# ========================================
+	# Window Events
+	# ========================================
 	
 	def resizeEvent(self, event):
 		"""Handle window resize to recalculate grid columns in asset sidebar"""
@@ -424,14 +403,12 @@ class CoatOfArmsEditor(QMainWindow):
 		state = self.history_manager.undo()
 		if state:
 			self._restore_state(state)
-			print(f"Undid: {self.history_manager.get_current_description()}")
 	
 	def redo(self):
 		"""Redo the last undone action"""
 		state = self.history_manager.redo()
 		if state:
 			self._restore_state(state)
-			print(f"Redid: {self.history_manager.get_current_description()}")
 	
 	def new_coa(self):
 		"""Clear everything and start with default empty CoA"""
@@ -475,12 +452,8 @@ class CoatOfArmsEditor(QMainWindow):
 			# Clear history and save initial state
 			self.history_manager.clear()
 			self._save_state("New CoA")
-			
-			print("New CoA created - reset to defaults")
 		except Exception as e:
-			print(f"Error creating new CoA: {e}")
-			import traceback
-			traceback.print_exc()
+			QMessageBox.critical(self, "Error", f"Error creating new CoA: {e}")
 	
 	def save_coa(self):
 		"""Save current CoA to .txt file"""
@@ -512,11 +485,7 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			if filename:
 				save_coa_to_file(coa_data, filename)
-			
 		except Exception as e:
-			print(f"Error saving CoA: {e}")
-			import traceback
-			traceback.print_exc()
 			QMessageBox.critical(self, "Save Error", f"Failed to save coat of arms:\n{str(e)}")
 	
 	def load_coa(self):
@@ -542,11 +511,7 @@ class CoatOfArmsEditor(QMainWindow):
 			# Clear history and save initial state after loading
 			self.history_manager.clear()
 			self._save_state("Load CoA")
-			
 		except Exception as e:
-			print(f"Error loading CoA: {e}")
-			import traceback
-			traceback.print_exc()
 			QMessageBox.critical(self, "Load Error", f"Failed to load coat of arms:\n{str(e)}\n\nThe file may not contain valid coat of arms data.")
 	
 	def copy_coa(self):
@@ -571,12 +536,8 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Copy to clipboard
 			QApplication.clipboard().setText(coa_text)
-			print("CoA copied to clipboard")
-			
 		except Exception as e:
-			print(f"Error copying CoA: {e}")
-			import traceback
-			traceback.print_exc()
+			QMessageBox.warning(self, "Copy Error", f"Failed to copy coat of arms: {str(e)}")
 	
 	def paste_coa(self):
 		"""Paste CoA from clipboard and apply to editor"""
@@ -584,7 +545,6 @@ class CoatOfArmsEditor(QMainWindow):
 			# Get clipboard text
 			coa_text = QApplication.clipboard().text()
 			if not coa_text.strip():
-				print("Clipboard is empty")
 				QMessageBox.warning(self, "Paste Error", "Clipboard is empty.")
 				return
 			
@@ -604,11 +564,7 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Save to history after pasting
 			self._save_state("Paste CoA")
-			
 		except Exception as e:
-			print(f"Error pasting CoA: {e}")
-			import traceback
-			traceback.print_exc()
 			QMessageBox.critical(self, "Paste Error", f"Failed to paste coat of arms:\n{str(e)}\n\nThe clipboard may not contain valid coat of arms data.")
 	
 	def copy_layer(self):
@@ -617,7 +573,6 @@ class CoatOfArmsEditor(QMainWindow):
 			# Check if layers are selected
 			selected_indices = self.right_sidebar.get_selected_indices()
 			if not selected_indices:
-				print("No layer selected to copy")
 				return
 			
 			# Serialize all selected layers using service
@@ -628,22 +583,11 @@ class CoatOfArmsEditor(QMainWindow):
 					layer_text = serialize_layer_to_text(layer)
 					layer_texts.append(layer_text)
 			
-			if not layer_texts:
-				print("No valid layers to copy")
-				return
-			
-			# Join all layer texts (each is already a complete colored_emblem block)
-			full_text = '\n\n'.join(layer_texts)
-			
-			# Copy to clipboard
-			QApplication.clipboard().setText(full_text)
-			layer_word = "layers" if len(selected_indices) > 1 else "layer"
-			print(f"{len(selected_indices)} {layer_word} copied to clipboard")
-			
+			if layer_texts:
+				full_text = '\n\n'.join(layer_texts)
+				QApplication.clipboard().setText(full_text)
 		except Exception as e:
-			print(f"Error copying layer: {e}")
-			import traceback
-			traceback.print_exc()
+			QMessageBox.warning(self, "Copy Error", f"Failed to copy layer: {str(e)}")
 	
 	def duplicate_selected_layer(self):
 		"""Duplicate the currently selected layer (called by Ctrl+drag on transform widget)"""
@@ -651,7 +595,6 @@ class CoatOfArmsEditor(QMainWindow):
 			# Check if a layer is selected
 			selected_indices = self.right_sidebar.get_selected_indices()
 			if not selected_indices:
-				print("No layer selected to duplicate")
 				return
 			
 			layer_idx = selected_indices[0]
@@ -670,8 +613,6 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar._rebuild_layer_list()
 			self.right_sidebar._update_layer_selection()
 			self.right_sidebar._load_layer_properties()
-			
-			# Enable Properties tab
 			self.right_sidebar.tab_widget.setTabEnabled(2, True)
 			
 			# Update canvas and transform widget
@@ -681,13 +622,8 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Save to history
 			self._save_state("Duplicate layer")
-			
-			print(f"Layer '{duplicated_layer.get('filename', 'Unknown')}' duplicated successfully")
-			
 		except Exception as e:
-			print(f"Error duplicating layer: {e}")
-			import traceback
-			traceback.print_exc()
+			QMessageBox.warning(self, "Duplicate Error", f"Failed to duplicate layer: {str(e)}")
 	
 	def paste_layer(self):
 		"""Paste layers from clipboard (as CoA sub-blocks) and add to layers"""
@@ -695,7 +631,6 @@ class CoatOfArmsEditor(QMainWindow):
 			# Get clipboard text
 			layer_text = QApplication.clipboard().text()
 			if not layer_text.strip():
-				print("Paste layer failed: Clipboard is empty")
 				return
 			
 			# Parse layers from clipboard using service
@@ -722,8 +657,6 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar._rebuild_layer_list()
 			self.right_sidebar._update_layer_selection()
 			self.right_sidebar._load_layer_properties()
-			
-			# Enable Properties tab
 			self.right_sidebar.tab_widget.setTabEnabled(2, True)
 			
 			# Update canvas and transform widget
@@ -734,15 +667,8 @@ class CoatOfArmsEditor(QMainWindow):
 			# Save to history
 			layer_word = "layers" if len(layers_data) > 1 else "layer"
 			self._save_state(f"Paste {len(layers_data)} {layer_word}")
-			
-			print(f"{len(layers_data)} {layer_word} pasted successfully")
-			
 		except Exception as e:
-			print(f"Paste layer failed: {e}")
-			if hasattr(self, 'status_left'):
-				self.status_left.setText("Paste layer failed")
-			import traceback
-			traceback.print_exc()
+			QMessageBox.warning(self, "Paste Error", f"Failed to paste layer: {str(e)}")
 	
 	def paste_layer_at_position(self, mouse_pos, canvas_geometry):
 		"""Paste layer at mouse position on canvas with clamping to legal positions"""
@@ -750,7 +676,6 @@ class CoatOfArmsEditor(QMainWindow):
 			# Get clipboard text
 			layer_text = QApplication.clipboard().text()
 			if not layer_text.strip():
-				print("Paste layer failed: Clipboard is empty")
 				return
 			
 			# Parse layer from clipboard using service
@@ -807,19 +732,9 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Save to history
 			self._save_state("Paste layer at position")
-			
-			print(f"Layer '{layer_data.get('filename', 'Unknown')}' pasted at ({norm_x:.2f}, {norm_y:.2f})")
-			
 		except Exception as e:
-			print(f"Paste layer at position failed: {e}")
-			if hasattr(self, 'status_left'):
-				self.status_left.setText("Paste layer failed")
-			import traceback
-			traceback.print_exc()
-		
-	def _apply_coa_data(self, coa_data):
+			QMessageBox.warning(self, "Paste Error", f"Failed to paste layer: {str(e)}")
 		"""Apply parsed CoA data to editor"""
-		
 		# Parse CoA using service
 		parsed = parse_coa_for_editor(coa_data)
 		base_data = parsed['base']
@@ -830,23 +745,17 @@ class CoatOfArmsEditor(QMainWindow):
 		self.canvas_area.canvas_widget.set_base_colors(base_data['colors'])
 		self.right_sidebar.set_base_colors(base_data['colors'], base_data['color_names'])
 		
-		# Clear existing layers
-		self.right_sidebar.layers = []
-		
-		# Add layers from parsed data
-		for layer_data in layers:
-			self.right_sidebar.layers.append(layer_data)
-			print(f"Added layer: {layer_data['filename']} (depth order)")
+		# Clear existing layers and add parsed layers
+		self.right_sidebar.layers = list(layers)
 		
 		# Update UI - switch to Layers tab and rebuild
-		self.right_sidebar.tab_widget.setCurrentIndex(1)  # Switch to Layers tab
+		self.right_sidebar.tab_widget.setCurrentIndex(1)
 		self.right_sidebar._rebuild_layer_list()
 		if len(self.right_sidebar.layers) > 0:
 			self.right_sidebar._select_layer(0)
 		
 		# Update canvas
 		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-		print(f"CoA loaded - {len(self.right_sidebar.layers)} layers created")
 
 	def _find_asset_path(self, filename):
 		"""Find the display path for an asset by filename"""
@@ -861,7 +770,7 @@ class CoatOfArmsEditor(QMainWindow):
 
 
 def main():
-	print("Starting Coat of Arms Designer...")
+	"""Main entry point for the Coat of Arms Designer application"""
 	app = QtWidgets.QApplication([])
 	
 	# Use Fusion style with dark palette
