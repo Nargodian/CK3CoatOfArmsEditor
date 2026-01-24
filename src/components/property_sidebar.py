@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QWidget, QTabWidget, QPushButton, QLineEdit, QSlider, QDialog, QGridLayout, QColorDialog, QCheckBox
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QColor, QPixmap, QIcon
-from .property_sidebar_widgets import LayerListWidget, ColorPickerDialog, create_color_button
+from .property_sidebar_widgets import LayerListWidget, ColorPickerDialog, create_color_button, PropertySlider, ScaleEditor
 
 
 class PropertySidebar(QFrame):
@@ -337,39 +337,26 @@ class PropertySidebar(QFrame):
 		
 		# Instance Properties
 		self._add_property_section(content_layout, "Instance")
-		self.pos_x_slider, self.pos_x_input = self._add_slider_field(content_layout, "Position X", 0.5, 0.0, 1.0)
-		self.pos_y_slider, self.pos_y_input = self._add_slider_field(content_layout, "Position Y", 0.5, 0.0, 1.0)
 		
-		# Scale sliders (unified or separate)
-		self.scale_x_label, self.scale_x_slider, self.scale_x_input = self._add_slider_field_with_label(content_layout, "Scale", 0.5, 0.0, 1.0)
-		self.scale_y_label, self.scale_y_slider, self.scale_y_input = self._add_slider_field_with_label(content_layout, "Scale Y", 0.5, 0.0, 1.0)
-		self.scale_y_label.setVisible(False)
-		self.scale_y_slider.setVisible(False)
-		self.scale_y_input.setVisible(False)
+		# Position sliders using PropertySlider
+		self.pos_x_editor = PropertySlider("Position X", 0.5, 0.0, 1.0)
+		self.pos_x_editor.valueChanged.connect(lambda v: self._update_layer_property_and_widget('pos_x', v))
+		content_layout.addWidget(self.pos_x_editor)
 		
-		# Unified scale and flip checkboxes together
-		options_layout = QHBoxLayout()
-		self.unified_scale_check = QCheckBox("Unified Scale")
-		self.unified_scale_check.setChecked(True)
-		self.unified_scale_check.stateChanged.connect(self._toggle_unified_scale)
-		self.flip_x_check = QCheckBox("Flip X")
-		self.flip_y_check = QCheckBox("Flip Y")
-		self.flip_x_check.stateChanged.connect(lambda: self._update_layer_scale())
-		self.flip_y_check.stateChanged.connect(lambda: self._update_layer_scale())
-		options_layout.addWidget(self.unified_scale_check)
-		options_layout.addWidget(self.flip_x_check)
-		options_layout.addWidget(self.flip_y_check)
-		options_layout.addStretch()
-		content_layout.addLayout(options_layout)
+		self.pos_y_editor = PropertySlider("Position Y", 0.5, 0.0, 1.0)
+		self.pos_y_editor.valueChanged.connect(lambda v: self._update_layer_property_and_widget('pos_y', v))
+		content_layout.addWidget(self.pos_y_editor)
 		
-		self.rotation_slider, self.rotation_input = self._add_slider_field(content_layout, "Rotation", 0, 0, 360, is_int=True)
+		# Scale editor with unified/separate and flip options
+		self.scale_editor = ScaleEditor()
+		self.scale_editor.valueChanged.connect(self._update_layer_scale_and_widget)
+		content_layout.addWidget(self.scale_editor)
 		
-		# Connect slider changes to update current layer
-		self.pos_x_slider.valueChanged.connect(lambda: self._update_layer_property_and_widget('pos_x', self.pos_x_slider.value() / 100.0))
-		self.pos_y_slider.valueChanged.connect(lambda: self._update_layer_property_and_widget('pos_y', self.pos_y_slider.value() / 100.0))
-		self.scale_x_slider.valueChanged.connect(lambda: self._update_layer_scale_and_widget())
-		self.scale_y_slider.valueChanged.connect(lambda: self._update_layer_scale_and_widget())
-		self.rotation_slider.valueChanged.connect(lambda: self._update_layer_property_and_widget('rotation', self.rotation_slider.value()))
+		# Rotation slider
+		self.rotation_editor = PropertySlider("Rotation", 0, 0, 360, is_int=True)
+		self.rotation_editor.valueChanged.connect(lambda v: self._update_layer_property_and_widget('rotation', v))
+		content_layout.addWidget(self.rotation_editor)
+		
 		scroll.setWidget(content)
 		return scroll
 	
@@ -399,79 +386,6 @@ class PropertySidebar(QFrame):
 		""")
 		layout.addWidget(prop_input)
 	
-	def _add_slider_field(self, layout, label, value, min_val, max_val, is_int=False):
-		"""Add a slider with a small input box to its left"""
-		label_widget, slider, input_box = self._add_slider_field_with_label(layout, label, value, min_val, max_val, is_int)
-		return slider, input_box
-	
-	def _add_slider_field_with_label(self, layout, label, value, min_val, max_val, is_int=False):
-		"""Add a slider with a small input box to its left, returning label widget too"""
-		# Label
-		prop_label = QLabel(f"{label}:")
-		prop_label.setStyleSheet("padding: 2px 5px; font-size: 11px;")
-		layout.addWidget(prop_label)
-		
-		# Horizontal layout for slider and input box
-		slider_layout = QHBoxLayout()
-		slider_layout.setSpacing(5)
-		
-		# Small input box
-		value_input = QLineEdit()
-		value_input.setFixedWidth(50)
-		if is_int:
-			value_input.setText(str(int(value)))
-		else:
-			value_input.setText(f"{value:.2f}")
-		value_input.setStyleSheet("""
-			QLineEdit {
-				padding: 4px;
-				border-radius: 3px;
-				font-size: 10px;
-			}
-		""")
-		slider_layout.addWidget(value_input)
-		
-		# Slider
-		slider = QSlider(Qt.Horizontal)
-		if is_int:
-			slider.setMinimum(int(min_val))
-			slider.setMaximum(int(max_val))
-			slider.setValue(int(value))
-		else:
-			# For float values, use integer slider with 100x multiplier
-			slider.setMinimum(int(min_val * 100))
-			slider.setMaximum(int(max_val * 100))
-			slider.setValue(int(value * 100))
-		
-		slider.setStyleSheet("""
-			QSlider::groove:horizontal {
-				height: 6px;
-				border-radius: 3px;
-				background-color: rgba(255, 255, 255, 20);
-			}
-			QSlider::handle:horizontal {
-				width: 12px;
-				margin: -4px 0;
-				border-radius: 6px;
-				background-color: #5a8dbf;
-			}
-			QSlider::handle:horizontal:hover {
-				background-color: #6a9dcf;
-			}
-		""")
-		
-		# Connect slider to input box
-		if is_int:
-			slider.valueChanged.connect(lambda v: value_input.setText(str(v)))
-			value_input.textChanged.connect(lambda t: slider.setValue(int(t)) if t.isdigit() else None)
-		else:
-			slider.valueChanged.connect(lambda v: value_input.setText(f"{v/100:.2f}"))
-			value_input.textChanged.connect(lambda t: slider.setValue(int(float(t) * 100)) if t.replace('.','').replace('-','').isdigit() else None)
-		
-		slider_layout.addWidget(slider)
-		layout.addLayout(slider_layout)
-		
-		return prop_label, slider, value_input
 	
 	def _show_color_picker(self, button):
 		"""Show custom color picker dialog with presets"""
@@ -910,53 +824,15 @@ class PropertySidebar(QFrame):
 					layer.get('rotation', 0)
 				)
 	
-	def _toggle_unified_scale(self, state):
-		"""Toggle between unified and separate scale sliders"""
-		is_unified = self.unified_scale_check.isChecked()
-		
-		if is_unified:
-			# Update label to just "Scale"
-			self.scale_x_label.setText("Scale:")
-			# Hide Y slider
-			self.scale_y_label.setVisible(False)
-			self.scale_y_slider.setVisible(False)
-			self.scale_y_input.setVisible(False)
-			# Sync Y to X when switching to unified
-			selected_indices = self.get_selected_indices()
-			if selected_indices:
-				self.scale_y_slider.blockSignals(True)
-				self.scale_y_slider.setValue(self.scale_x_slider.value())
-				self.scale_y_slider.blockSignals(False)
-				self._update_layer_scale()
-		else:
-			# Update label back to "Scale X"
-			self.scale_x_label.setText("Scale X:")
-			# Show both sliders
-			self.scale_y_label.setVisible(True)
-			self.scale_y_slider.setVisible(True)
-			self.scale_y_input.setVisible(True)
 	
-	def _update_layer_scale(self):
+	def _update_layer_scale_and_widget(self):
 		"""Update layer scale with flip multipliers applied to all selected layers"""
 		selected_indices = self.get_selected_indices()
 		if not selected_indices:
 			return
 		
-		# If unified scale, sync Y to X first
-		if self.unified_scale_check.isChecked():
-			self.scale_y_slider.blockSignals(True)
-			self.scale_y_slider.setValue(self.scale_x_slider.value())
-			self.scale_y_slider.blockSignals(False)
-		
-		# Get scale values
-		scale_x = self.scale_x_slider.value() / 100.0
-		scale_y = self.scale_y_slider.value() / 100.0
-		
-		# Apply flip multipliers
-		if self.flip_x_check.isChecked():
-			scale_x = -scale_x
-		if self.flip_y_check.isChecked():
-			scale_y = -scale_y
+		# Get scale values with flip applied
+		scale_x, scale_y = self.scale_editor.get_scale_values()
 		
 		# Apply to ALL selected layers
 		for idx in selected_indices:
@@ -967,18 +843,10 @@ class PropertySidebar(QFrame):
 		if self.canvas_widget:
 			self.canvas_widget.set_layers(self.layers)
 		
-		# Save to history with debouncing
-		if self.main_window and hasattr(self.main_window, 'save_property_change_debounced'):
-			self.main_window.save_property_change_debounced("Change scale")
-	
-	def _update_layer_scale_and_widget(self):
-		"""Update layer scale and sync transform widget"""
-		self._update_layer_scale()
+		# Update transform widget
 		if self.canvas_area and hasattr(self.canvas_area, 'transform_widget'):
-			selected_indices = self.get_selected_indices()
 			if selected_indices and 0 <= selected_indices[0] < len(self.layers):
 				layer = self.layers[selected_indices[0]]
-				# Update transform widget with current layer state
 				self.canvas_area.transform_widget.set_transform(
 					layer.get('pos_x', 0.5),
 					layer.get('pos_y', 0.5),
@@ -986,6 +854,10 @@ class PropertySidebar(QFrame):
 					abs(layer.get('scale_y', 0.5)),
 					layer.get('rotation', 0)
 				)
+		
+		# Save to history with debouncing
+		if self.main_window and hasattr(self.main_window, 'save_property_change_debounced'):
+			self.main_window.save_property_change_debounced("Change scale")
 	
 	def _load_layer_properties(self):
 		"""Load the selected layer's properties into the UI controls"""
@@ -994,13 +866,10 @@ class PropertySidebar(QFrame):
 			return
 		
 		# Block signals while updating to avoid triggering changes
-		self.pos_x_slider.blockSignals(True)
-		self.pos_y_slider.blockSignals(True)
-		self.scale_x_slider.blockSignals(True)
-		self.scale_y_slider.blockSignals(True)
-		self.rotation_slider.blockSignals(True)
-		self.flip_x_check.blockSignals(True)
-		self.flip_y_check.blockSignals(True)
+		self.pos_x_editor.blockSignals(True)
+		self.pos_y_editor.blockSignals(True)
+		self.scale_editor.blockSignals(True)
+		self.rotation_editor.blockSignals(True)
 		
 		# Get property values (may be 'Mixed' for multi-select)
 		pos_x = self.get_property_value('pos_x')
@@ -1011,73 +880,51 @@ class PropertySidebar(QFrame):
 		
 		# Position X
 		if pos_x == 'Mixed':
-			self.pos_x_input.setText('—')
-			self.pos_x_slider.setValue(50)  # Neutral position
+			self.pos_x_editor.value_input.setText('—')
+			self.pos_x_editor.setValue(0.5)
 		else:
-			pos_x_val = int((pos_x or 0.5) * 100)
-			self.pos_x_slider.setValue(pos_x_val)
-			self.pos_x_input.setText(f"{pos_x_val/100:.2f}")
+			self.pos_x_editor.setValue(pos_x or 0.5)
 		
 		# Position Y
 		if pos_y == 'Mixed':
-			self.pos_y_input.setText('—')
-			self.pos_y_slider.setValue(50)  # Neutral position
+			self.pos_y_editor.value_input.setText('—')
+			self.pos_y_editor.setValue(0.5)
 		else:
-			pos_y_val = int((pos_y or 0.5) * 100)
-			self.pos_y_slider.setValue(pos_y_val)
-			self.pos_y_input.setText(f"{pos_y_val/100:.2f}")
+			self.pos_y_editor.setValue(pos_y or 0.5)
 		
-		# Scale X with flip detection
-		if scale_x_raw == 'Mixed':
-			self.scale_x_input.setText('—')
-			self.scale_x_slider.setValue(50)  # Neutral position
-			self.flip_x_check.setChecked(False)
-			self.flip_x_check.setEnabled(False)  # Disable mixed flip
+		# Scale X and Y with flip detection
+		if scale_x_raw == 'Mixed' or scale_y_raw == 'Mixed':
+			self.scale_editor.scale_x_slider.value_input.setText('—')
+			self.scale_editor.scale_y_slider.value_input.setText('—')
+			self.scale_editor.set_scale_values(0.5, 0.5)
+			self.scale_editor.flip_x_check.setEnabled(False)
+			self.scale_editor.flip_y_check.setEnabled(False)
 		else:
 			scale_x = scale_x_raw or 0.5
-			self.flip_x_check.setChecked(scale_x < 0)
-			self.flip_x_check.setEnabled(True)
-			scale_x_val = int(abs(scale_x) * 100)
-			self.scale_x_slider.setValue(scale_x_val)
-			self.scale_x_input.setText(f"{scale_x_val/100:.2f}")
-		
-		# Scale Y with flip detection
-		if scale_y_raw == 'Mixed':
-			self.scale_y_input.setText('—')
-			self.scale_y_slider.setValue(50)  # Neutral position
-			self.flip_y_check.setChecked(False)
-			self.flip_y_check.setEnabled(False)  # Disable mixed flip
-		else:
 			scale_y = scale_y_raw or 0.5
-			self.flip_y_check.setChecked(scale_y < 0)
-			self.flip_y_check.setEnabled(True)
-			scale_y_val = int(abs(scale_y) * 100)
-			self.scale_y_slider.setValue(scale_y_val)
-			self.scale_y_input.setText(f"{scale_y_val/100:.2f}")
+			self.scale_editor.set_scale_values(scale_x, scale_y)
+			self.scale_editor.flip_x_check.setEnabled(True)
+			self.scale_editor.flip_y_check.setEnabled(True)
 		
 		# Rotation
 		if rotation == 'Mixed':
-			self.rotation_input.setText('—')
-			self.rotation_slider.setValue(0)  # Neutral position
+			self.rotation_editor.value_input.setText('—')
+			self.rotation_editor.setValue(0)
 		else:
-			rotation_val = int(rotation or 0)
-			self.rotation_slider.setValue(rotation_val)
-			self.rotation_input.setText(str(rotation_val))
+			self.rotation_editor.setValue(rotation or 0)
 		
-		# Check if X and Y scales are different or mixed
+		# Check if X and Y scales are different or mixed - update unified checkbox
 		if scale_x_raw == 'Mixed' or scale_y_raw == 'Mixed':
-			self.unified_scale_check.setChecked(False)
+			self.scale_editor.unified_check.setChecked(False)
 		elif scale_x_raw is not None and scale_y_raw is not None:
 			if abs(abs(scale_x_raw) - abs(scale_y_raw)) > 0.01:
-				self.unified_scale_check.setChecked(False)
+				self.scale_editor.unified_check.setChecked(False)
 		
-		self.pos_x_slider.blockSignals(False)
-		self.pos_y_slider.blockSignals(False)
-		self.scale_x_slider.blockSignals(False)
-		self.scale_y_slider.blockSignals(False)
-		self.rotation_slider.blockSignals(False)
-		self.flip_x_check.blockSignals(False)
-		self.flip_y_check.blockSignals(False)
+		# Restore signals
+		self.pos_x_editor.blockSignals(False)
+		self.pos_y_editor.blockSignals(False)
+		self.scale_editor.blockSignals(False)
+		self.rotation_editor.blockSignals(False)
 		
 		# Update transform widget
 		if self.canvas_area:

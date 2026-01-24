@@ -7,5 +7,6 @@ including layer list widgets, property editors, and color pickers.
 
 from .layer_list_widget import LayerListWidget
 from .color_picker import ColorPickerDialog, create_color_button
+from .property_editors import PropertySlider, ScaleEditor
 
-__all__ = ['LayerListWidget', 'ColorPickerDialog', 'create_color_button']
+__all__ = ['LayerListWidget', 'ColorPickerDialog', 'create_color_button', 'PropertySlider', 'ScaleEditor']
