@@ -370,19 +370,21 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					image_path = f"source_coa_files/patterns/{png_filename}"
 					if os.path.exists(image_path):
 						emblem_files.append((filename, image_path))  # Store .dds name as key
-				return
 			
-			with open(json_path, 'r', encoding='utf-8') as f:
-				emblem_data = json.load(f)
-			
-			for filename, props in emblem_data.items():
-				if props is None or filename == "\ufeff":
-					continue
-			# Load all emblems (even invisible) - asset sidebar will filter display
-				png_filename = filename.replace('.dds', '.png')
-				image_path = f"source_coa_files/colored_emblems/{png_filename}"
-				if os.path.exists(image_path):
-					emblem_files.append((filename, image_path))  # Store .dds name as key
+			# Load emblems
+			emblem_json_path = "json_output/colored_emblems/50_coa_designer_emblems.json"
+			if os.path.exists(emblem_json_path):
+				with open(emblem_json_path, 'r', encoding='utf-8') as f:
+					emblem_data = json.load(f)
+				
+				for filename, props in emblem_data.items():
+					if props is None or filename == "\ufeff":
+						continue
+					# Load all emblems (even invisible) - asset sidebar will filter display
+					png_filename = filename.replace('.dds', '.png')
+					image_path = f"source_coa_files/colored_emblems/{png_filename}"
+					if os.path.exists(image_path):
+						emblem_files.append((filename, image_path))  # Store .dds name as key
 			
 			# Build texture atlas (32x32 grid of 256x256 images = 8192x8192)
 			atlas_size = 8192

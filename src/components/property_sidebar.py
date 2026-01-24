@@ -813,14 +813,6 @@ class PropertySidebar(QFrame):
 			self.layer_list_widget.selected_layer_indices = self.selected_layer_indices
 			self.layer_list_widget.last_selected_index = self.last_selected_index
 			self.layer_list_widget.update_selection_visuals()
-		else:
-			# Fallback for initialization (should not reach here in normal operation)
-			pass
-			layout_pos += 1
-			
-			# Add drop zone after this layer (inserts before this layer in array)
-			self._add_drop_zone(actual_index, layout_pos)
-			layout_pos += 1
 	
 	def _update_layer_property(self, prop_name, value):
 		"""Update a property of all selected layers"""

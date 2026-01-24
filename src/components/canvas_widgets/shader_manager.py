@@ -20,9 +20,11 @@ class ShaderManager:
         """
         if shader_dir is None:
             # Default to shaders directory relative to src/
+            # Current file is in src/components/canvas_widgets/
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            src_dir = os.path.dirname(os.path.dirname(current_dir))
-            self.shader_dir = os.path.join(src_dir, 'shaders')
+            # Go up 3 levels: canvas_widgets -> components -> src
+            src_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+            self.shader_dir = os.path.join(src_dir, 'src', 'shaders')
         else:
             self.shader_dir = shader_dir
     

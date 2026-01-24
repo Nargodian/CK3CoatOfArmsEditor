@@ -734,6 +734,8 @@ class CoatOfArmsEditor(QMainWindow):
 			self._save_state("Paste layer at position")
 		except Exception as e:
 			QMessageBox.warning(self, "Paste Error", f"Failed to paste layer: {str(e)}")
+	
+	def _apply_coa_data(self, coa_data):
 		"""Apply parsed CoA data to editor"""
 		# Parse CoA using service
 		parsed = parse_coa_for_editor(coa_data)
