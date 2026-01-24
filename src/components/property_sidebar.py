@@ -17,6 +17,7 @@ class PropertySidebar(QFrame):
 		self.layer_buttons = []  # Keep track of layer buttons
 		self.canvas_widget = None  # Reference to canvas for updates
 		self.canvas_area = None  # Reference to canvas area for transform widget
+		self.main_window = None  # Reference to main window for history
 		self.drag_start_index = None
 		self.drag_start_pos = None
 		self._setup_ui()
@@ -480,6 +481,9 @@ class PropertySidebar(QFrame):
 				for i, btn in enumerate(self.color_buttons):
 					color_name_prop = btn.property("colorName")
 					setattr(self.canvas_widget, f'base_color{i+1}_name', color_name_prop)
+				# Save to history
+				if self.main_window and hasattr(self.main_window, '_save_state'):
+					self.main_window._save_state("Change base color")
 		elif button in self.emblem_color_buttons:
 			# Emblem color changed
 			if self.selected_layer_index is not None and self.canvas_widget:
@@ -492,6 +496,9 @@ class PropertySidebar(QFrame):
 					self.layers[idx][f'color{color_idx+1}'] = color_rgb
 					self.layers[idx][f'color{color_idx+1}_name'] = color_name  # Store name or None
 					self.canvas_widget.set_layers(self.layers)
+					# Save to history
+					if self.main_window and hasattr(self.main_window, '_save_state'):
+						self.main_window._save_state("Change emblem color")
 	
 	def _show_custom_color_dialog(self, button, parent_dialog):
 		"""Show Qt's standard color picker"""
@@ -605,6 +612,9 @@ class PropertySidebar(QFrame):
 				self.canvas_area.update_transform_widget_for_layer(self.selected_layer_index)
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
+			# Save to history
+			if self.main_window and hasattr(self.main_window, '_save_state'):
+				self.main_window._save_state("Delete layer")
 	
 	def _move_layer_up(self):
 		"""Move selected layer up in the list"""
@@ -616,6 +626,9 @@ class PropertySidebar(QFrame):
 			self._update_layer_selection()
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
+			# Save to history
+			if self.main_window and hasattr(self.main_window, '_save_state'):
+				self.main_window._save_state("Move layer up")
 	
 	def _move_layer_down(self):
 		"""Move selected layer down in the list"""
@@ -627,6 +640,9 @@ class PropertySidebar(QFrame):
 			self._update_layer_selection()
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
+			# Save to history
+			if self.main_window and hasattr(self.main_window, '_save_state'):
+				self.main_window._save_state("Move layer down")
 	
 	def _duplicate_layer(self):
 		"""Duplicate the selected layer"""
@@ -636,8 +652,14 @@ class PropertySidebar(QFrame):
 			self.selected_layer_index += 1
 			self._rebuild_layer_list()
 			self._update_layer_selection()
+			self._load_layer_properties()
+			# Enable properties tab but don't switch to it
+			self.tab_widget.setTabEnabled(2, True)
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
+			# Save to history
+			if self.main_window and hasattr(self.main_window, '_save_state'):
+				self.main_window._save_state("Duplicate layer")
 	
 	def _delete_layer_at_index(self, index):
 		"""Delete a specific layer by index"""
@@ -669,6 +691,9 @@ class PropertySidebar(QFrame):
 			self.selected_layer_index = index + 1
 			self._rebuild_layer_list()
 			self._update_layer_selection()
+			self._load_layer_properties()
+			# Enable properties tab but don't switch to it
+			self.tab_widget.setTabEnabled(2, True)
 			if self.canvas_area:
 				self.canvas_area.update_transform_widget_for_layer(self.selected_layer_index)
 			if self.canvas_widget:
@@ -929,6 +954,9 @@ class PropertySidebar(QFrame):
 			self.layers[self.selected_layer_index][prop_name] = value
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
+			# Save to history with debouncing (to avoid spam during slider drags)
+			if self.main_window and hasattr(self.main_window, 'save_property_change_debounced'):
+				self.main_window.save_property_change_debounced(f"Change {prop_name}")
 	
 	def _update_layer_property_and_widget(self, prop_name, value):
 		"""Update a property and sync transform widget"""
@@ -993,6 +1021,9 @@ class PropertySidebar(QFrame):
 			self.layers[self.selected_layer_index]['scale_y'] = scale_y
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
+			# Save to history with debouncing
+			if self.main_window and hasattr(self.main_window, 'save_property_change_debounced'):
+				self.main_window.save_property_change_debounced("Change scale")
 	
 	def _update_layer_scale_and_widget(self):
 		"""Update layer scale and sync transform widget"""
@@ -1049,6 +1080,10 @@ class PropertySidebar(QFrame):
 			rotation_val = int(layer.get('rotation', 0))
 			self.rotation_slider.setValue(rotation_val)
 			self.rotation_input.setText(str(rotation_val))
+			
+			# Check if X and Y scales are different, uncheck unified scale if so
+			if abs(abs(scale_x) - abs(scale_y)) > 0.01:  # Allow small tolerance for floating point
+				self.unified_scale_check.setChecked(False)
 			
 			self.pos_x_slider.blockSignals(False)
 			self.pos_y_slider.blockSignals(False)

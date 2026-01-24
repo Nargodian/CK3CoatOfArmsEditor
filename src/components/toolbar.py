@@ -16,10 +16,20 @@ def create_toolbar(parent):
 	undo_btn = QPushButton("Undo")
 	redo_btn = QPushButton("Redo")
 	
+	# Store references to undo/redo buttons for state management
+	parent.undo_btn = undo_btn
+	parent.redo_btn = redo_btn
+	
 	# Connect buttons to parent methods
 	new_btn.clicked.connect(parent.new_coa)
 	open_btn.clicked.connect(parent.load_coa)
 	save_btn.clicked.connect(parent.save_coa)
+	undo_btn.clicked.connect(parent.undo)
+	redo_btn.clicked.connect(parent.redo)
+	
+	# Initially disable undo/redo
+	undo_btn.setEnabled(False)
+	redo_btn.setEnabled(False)
 	
 	toolbar.addWidget(new_btn)
 	toolbar.addWidget(open_btn)
@@ -35,8 +45,8 @@ def create_toolbar(parent):
 	
 	# Add copy/paste buttons on the right
 	toolbar.addSeparator()
-	copy_btn = QPushButton("Copy")
-	paste_btn = QPushButton("Paste")
+	copy_btn = QPushButton("Copy to Clipboard")
+	paste_btn = QPushButton("Paste from Clipboard")
 	
 	# Connect copy/paste to parent methods
 	copy_btn.clicked.connect(parent.copy_coa)

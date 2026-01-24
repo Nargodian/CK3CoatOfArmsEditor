@@ -1,7 +1,7 @@
 import re
 from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QSplitter, QApplication, QFileDialog, QMessageBox
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QSplitter, QApplication, QFileDialog, QMessageBox, QStatusBar, QLabel
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPalette, QColor
 
 from components.toolbar import create_toolbar
@@ -9,6 +9,7 @@ from components.asset_sidebar import AssetSidebar
 from components.canvas_area import CanvasArea
 from components.property_sidebar import PropertySidebar
 from utils.coa_parser import parse_coa_string, serialize_coa_to_string
+from utils.history_manager import HistoryManager
 
 
 class CoatOfArmsEditor(QMainWindow):
@@ -17,6 +18,19 @@ class CoatOfArmsEditor(QMainWindow):
 		self.setWindowTitle("Coat Of Arms Designer")
 		self.resize(1280, 720)
 		self.setMinimumSize(1280, 720)
+		
+		# Initialize history manager
+		self.history_manager = HistoryManager(max_history=50)
+		self.history_manager.add_listener(self._on_history_changed)
+		
+		# Debounce timer for property changes (avoid spamming history on slider drags)
+		self.property_change_timer = QTimer()
+		self.property_change_timer.setSingleShot(True)
+		self.property_change_timer.timeout.connect(self._save_property_change)
+		self._pending_property_change = None
+		
+		# Flag to prevent saving state during undo/redo
+		self._is_applying_history = False
 		
 		self.setup_ui()
 	
@@ -45,6 +59,7 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# Right properties sidebar
 		self.right_sidebar = PropertySidebar(self)
+		self.right_sidebar.main_window = self
 		splitter.addWidget(self.right_sidebar)
 		
 		# Connect canvas to property sidebar for layer updates
@@ -53,6 +68,7 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# Connect canvas area to property sidebar for transform widget
 		self.canvas_area.set_property_sidebar(self.right_sidebar)
+		self.canvas_area.main_window = self
 		
 		# Initialize base colors in canvas from property sidebar
 		base_colors = self.right_sidebar.get_base_colors()
@@ -71,6 +87,16 @@ class CoatOfArmsEditor(QMainWindow):
 		splitter.setCollapsible(2, False)
 		
 		main_layout.addWidget(splitter)
+		
+		# Add status bar at bottom with left and right sections
+		self.status_left = QLabel("Ready")
+		self.status_right = QLabel("")
+		self.statusBar().addWidget(self.status_left, 1)  # stretch=1 for left
+		self.statusBar().addPermanentWidget(self.status_right)  # permanent widget for right
+		self.statusBar().setStyleSheet("QStatusBar { border-top: 1px solid rgba(255, 255, 255, 40); padding: 4px; }")
+		
+		# Update status bar with initial stats
+		self._update_status_bar()
 		
 		# Note: Cannot set frame/base here - OpenGL not initialized yet
 		# Will be set after show() triggers initializeGL()
@@ -102,6 +128,8 @@ class CoatOfArmsEditor(QMainWindow):
 			# Base is not a layer, update canvas base texture
 			if filename:
 				self.canvas_area.canvas_widget.set_base_texture(filename)
+				# Save to history (base texture changed)
+				self._save_state("Change base texture")
 		else:  # Layers or Properties tab
 			print(f"[_on_asset_selected] Layers/Properties tab - setting emblem color count")
 			self.right_sidebar.set_emblem_color_count(color_count)
@@ -148,6 +176,9 @@ class CoatOfArmsEditor(QMainWindow):
 					# Update canvas with new layers
 					self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
 					print(f"[_on_asset_selected] Canvas updated successfully")
+					
+					# Save to history (layer texture changed)
+					self._save_state("Change layer texture")
 			else:
 				# No layer selected - create a new layer at the top with this asset
 				print(f"[_on_asset_selected] No layer selected - creating new layer at top")
@@ -190,6 +221,9 @@ class CoatOfArmsEditor(QMainWindow):
 				if self.canvas_area:
 					self.canvas_area.update_transform_widget_for_layer(0)
 				
+				# Save to history (new layer created)
+				self._save_state("Create layer")
+				
 				print(f"[_on_asset_selected] New layer created and selected at index 0")
 	
 	def resizeEvent(self, event):
@@ -197,6 +231,158 @@ class CoatOfArmsEditor(QMainWindow):
 		super().resizeEvent(event)
 		if hasattr(self, 'left_sidebar'):
 			self.left_sidebar.handle_resize()
+	
+	def showEvent(self, event):
+		"""Handle window show - save initial state after UI is set up"""
+		super().showEvent(event)
+		# Save initial state on first show (after OpenGL is initialized)
+		if not hasattr(self, '_initial_state_saved'):
+			self._initial_state_saved = True
+			# Use a timer to ensure everything is fully initialized
+			QTimer.singleShot(100, lambda: self._save_state("Initial state"))
+	
+	def keyPressEvent(self, event):
+		"""Handle keyboard shortcuts"""
+		# Ctrl+Z for undo
+		if event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
+			self.undo()
+			event.accept()
+		# Ctrl+Y for redo
+		elif event.key() == Qt.Key_Y and event.modifiers() == Qt.ControlModifier:
+			self.redo()
+			event.accept()
+		else:
+			super().keyPressEvent(event)
+	
+	def _capture_current_state(self):
+		"""Capture the current state for history"""
+		canvas = self.canvas_area.canvas_widget
+		
+		state = {
+			'layers': [dict(layer) for layer in self.right_sidebar.layers],  # Deep copy
+			'selected_layer_index': self.right_sidebar.selected_layer_index,
+			'base_texture': canvas.base_texture,
+			'base_colors': canvas.base_colors[:],  # Copy list
+			'base_color1_name': getattr(canvas, 'base_color1_name', None),
+			'base_color2_name': getattr(canvas, 'base_color2_name', None),
+			'base_color3_name': getattr(canvas, 'base_color3_name', None),
+			# TODO: Add frame and splendor level when implemented
+		}
+		return state
+	
+	def _restore_state(self, state):
+		"""Restore a state from history"""
+		if not state:
+			return
+		
+		self._is_applying_history = True
+		try:
+			# Restore layers
+			self.right_sidebar.layers = [dict(layer) for layer in state['layers']]
+			self.right_sidebar.selected_layer_index = state['selected_layer_index']
+			self.right_sidebar._rebuild_layer_list()
+			self.right_sidebar._update_layer_selection()
+			
+			# Restore base
+			self.canvas_area.canvas_widget.set_base_texture(state['base_texture'])
+			self.canvas_area.canvas_widget.set_base_colors(state['base_colors'])
+			self.canvas_area.canvas_widget.base_color1_name = state.get('base_color1_name')
+			self.canvas_area.canvas_widget.base_color2_name = state.get('base_color2_name')
+			self.canvas_area.canvas_widget.base_color3_name = state.get('base_color3_name')
+			
+			# Update property sidebar base colors
+			base_color_names = [
+				state.get('base_color1_name'),
+				state.get('base_color2_name'),
+				state.get('base_color3_name')
+			]
+			self.right_sidebar.set_base_colors(state['base_colors'], base_color_names)
+			
+			# Restore canvas layers
+			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			
+			# Update layer properties if a layer is selected
+			if state['selected_layer_index'] is not None:
+				self.right_sidebar._load_layer_properties()
+				self.canvas_area.update_transform_widget_for_layer(state['selected_layer_index'])
+				self.right_sidebar.tab_widget.setTabEnabled(2, True)
+			else:
+				self.right_sidebar.tab_widget.setTabEnabled(2, False)
+				self.canvas_area.transform_widget.set_visible(False)
+		finally:
+			self._is_applying_history = False
+			# Update status bar after state is fully restored
+			self._update_status_bar()
+	
+	def _save_state(self, description):
+		"""Save current state to history"""
+		if self._is_applying_history:
+			return  # Don't save state during undo/redo
+		
+		state = self._capture_current_state()
+		self.history_manager.save_state(state, description)
+	
+	def _save_property_change(self):
+		"""Called by timer to save property change to history (debounced)"""
+		if self._pending_property_change:
+			self._save_state(self._pending_property_change)
+			self._pending_property_change = None
+	
+	def save_property_change_debounced(self, description):
+		"""
+		Schedule a property change to be saved after a delay.
+		This prevents spamming the history when dragging sliders.
+		"""
+		self._pending_property_change = description
+		self.property_change_timer.stop()
+		self.property_change_timer.start(500)  # 500ms delay
+	
+	def _on_history_changed(self, can_undo, can_redo):
+		"""Called when history state changes to update UI"""
+		if hasattr(self, 'undo_btn'):
+			self.undo_btn.setEnabled(can_undo)
+		if hasattr(self, 'redo_btn'):
+			self.redo_btn.setEnabled(can_redo)
+		# Update status bar with current action
+		self._update_status_bar()
+	
+	def _update_status_bar(self):
+		"""Update status bar with current action and stats"""
+		# Left side: Last action
+		current_desc = self.history_manager.get_current_description()
+		if current_desc:
+			left_msg = f"Last action: {current_desc}"
+		else:
+			left_msg = "Ready"
+		
+		# Right side: Stats
+		layer_count = len(self.right_sidebar.layers) if hasattr(self, 'right_sidebar') else 0
+		selected = self.right_sidebar.selected_layer_index if hasattr(self, 'right_sidebar') and self.right_sidebar.selected_layer_index is not None else None
+		
+		if selected is not None:
+			right_msg = f"Layers: {layer_count} | Selected: Layer {selected + 1}"
+		else:
+			right_msg = f"Layers: {layer_count} | No selection"
+		
+		# Update labels
+		if hasattr(self, 'status_left'):
+			self.status_left.setText(left_msg)
+		if hasattr(self, 'status_right'):
+			self.status_right.setText(right_msg)
+	
+	def undo(self):
+		"""Undo the last action"""
+		state = self.history_manager.undo()
+		if state:
+			self._restore_state(state)
+			print(f"Undid: {self.history_manager.get_current_description()}")
+	
+	def redo(self):
+		"""Redo the last undone action"""
+		state = self.history_manager.redo()
+		if state:
+			self._restore_state(state)
+			print(f"Redid: {self.history_manager.get_current_description()}")
 	
 	def new_coa(self):
 		"""Clear everything and start with default empty CoA"""
@@ -238,6 +424,10 @@ class CoatOfArmsEditor(QMainWindow):
 			# Switch to Base tab
 			self.right_sidebar.tab_widget.setCurrentIndex(0)
 			
+			# Clear history and save initial state
+			self.history_manager.clear()
+			self._save_state("New CoA")
+			
 			print("New CoA created - reset to defaults")
 		except Exception as e:
 			print(f"Error creating new CoA: {e}")
@@ -256,9 +446,9 @@ class CoatOfArmsEditor(QMainWindow):
 				"coa_export": {
 					"custom": True,
 					"pattern": canvas.base_texture or "pattern__solid.dds",
-					"color1": self._format_color_for_export(base_colors[0], self.canvas_area.canvas_widget.base_color1_name),
-					"color2": self._format_color_for_export(base_colors[1], self.canvas_area.canvas_widget.base_color2_name),
-					"color3": self._format_color_for_export(base_colors[2], self.canvas_area.canvas_widget.base_color3_name)
+					"color1": self._rgb_to_color_name(base_colors[0], self.canvas_area.canvas_widget.base_color1_name),
+					"color2": self._rgb_to_color_name(base_colors[1], self.canvas_area.canvas_widget.base_color2_name),
+					"color3": self._rgb_to_color_name(base_colors[2], self.canvas_area.canvas_widget.base_color3_name)
 				}
 			}
 			
@@ -276,7 +466,7 @@ class CoatOfArmsEditor(QMainWindow):
 				for texture, layers in texture_groups.items():
 					emblem = {
 						"texture": texture,
-						"color1": self._format_color_for_export(layers[0].get('color1'), layers[0].get('color1_name')),
+						"color1": self._rgb_to_color_name(layers[0].get('color1'), layers[0].get('color1_name')),
 						"instance": []
 					}
 					
@@ -332,6 +522,11 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Parse using existing paste logic
 			self._parse_and_apply_coa(coa_text)
+			
+			# Clear history and save initial state after loading
+			self.history_manager.clear()
+			self._save_state("Load CoA")
+			
 			print(f"CoA loaded from {filename}")
 			
 		except Exception as e:
@@ -420,6 +615,9 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Parse and apply using shared method
 			self._parse_and_apply_coa(coa_text)
+			
+			# Save to history after pasting
+			self._save_state("Paste CoA")
 			
 		except Exception as e:
 			print(f"Error pasting CoA: {e}")

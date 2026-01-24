@@ -11,6 +11,7 @@ class CanvasArea(QFrame):
 		super().__init__(parent)
 		self.setStyleSheet("QFrame { background-color: #0d0d0d; }")
 		self.property_sidebar = None  # Will be set by main window
+		self.main_window = None  # Will be set by main window
 		self._setup_ui()
 	
 	def mousePressEvent(self, event):
@@ -49,6 +50,8 @@ class CanvasArea(QFrame):
 		self.transform_widget = TransformWidget(self.canvas_widget)
 		self.transform_widget.set_visible(False)
 		self.transform_widget.transformChanged.connect(self._on_transform_changed)
+		self.transform_widget.transformEnded.connect(self._on_transform_ended)
+		self.transform_widget.nonUniformScaleUsed.connect(self._on_non_uniform_scale_used)
 		self.transform_widget.raise_()  # Ensure it's on top
 		
 		layout.addWidget(canvas_container, stretch=1)
@@ -58,7 +61,7 @@ class CanvasArea(QFrame):
 		layout.addWidget(bottom_bar)
 	
 	def _create_bottom_bar(self):
-		"""Create the bottom bar with frame and prestige dropdowns"""
+		"""Create the bottom bar with frame and splendor dropdowns"""
 		bottom_bar = QFrame()
 		bottom_bar.setStyleSheet("QFrame { background-color: #353535; border-top: 1px solid; }")
 		bottom_bar.setFixedHeight(50)
@@ -75,20 +78,28 @@ class CanvasArea(QFrame):
 		frame_options = ["None", "Dynasty", "House", "House China", "House Japan"] + \
 		                [f"House Frame {i:02d}" for i in range(2, 31)]
 		self.frame_combo = self._create_combo_box(frame_options)
-		self.frame_combo.setCurrentIndex(1)  # Default to Dynasty
+		self.frame_combo.setCurrentIndex(2)  # Default to House
 		self.frame_combo.currentTextChanged.connect(self._on_frame_changed)
 		bottom_layout.addWidget(self.frame_combo)
 		
 		bottom_layout.addSpacing(20)
 		
-		# Prestige dropdown
-		prestige_label = QLabel("Prestige:")
-		prestige_label.setStyleSheet("font-size: 11px; border: none;")
-		bottom_layout.addWidget(prestige_label)
+		# Splendor dropdown
+		splendor_label = QLabel("Splendor:")
+		splendor_label.setStyleSheet("font-size: 11px; border: none;")
+		bottom_layout.addWidget(splendor_label)
 		
-		self.prestige_combo = self._create_combo_box(["Level 0", "Level 1", "Level 2", "Level 3", "Level 4", "Level 5"])
-		self.prestige_combo.currentIndexChanged.connect(self._on_prestige_changed)
-		bottom_layout.addWidget(self.prestige_combo)
+		self.splendor_combo = self._create_combo_box([
+			"Base Origins / Obscure",
+			"Insignificant / Noteworthy",
+			"Reputable / Well-Known",
+			"Significant / Famous",
+			"Glorious / Fabled",
+			"Legendary"
+		])
+		self.splendor_combo.setCurrentIndex(3)  # Default to Significant/Famous
+		self.splendor_combo.currentIndexChanged.connect(self._on_splendor_changed)
+		bottom_layout.addWidget(self.splendor_combo)
 		
 		bottom_layout.addStretch()
 		
@@ -168,6 +179,17 @@ class CanvasArea(QFrame):
 		# Update property sidebar UI
 		self.property_sidebar._load_layer_properties()
 	
+	def _on_transform_ended(self):
+		"""Handle transform drag end - save to history"""
+		if self.main_window and hasattr(self.main_window, '_save_state'):
+			self.main_window._save_state("Transform layer")
+	
+	def _on_non_uniform_scale_used(self):
+		"""Handle non-uniform scaling from transform widget - disable unified scale"""
+		if self.property_sidebar and hasattr(self.property_sidebar, 'unified_scale_check'):
+			if self.property_sidebar.unified_scale_check.isChecked():
+				self.property_sidebar.unified_scale_check.setChecked(False)
+	
 	def _on_frame_changed(self, frame_text):
 		"""Handle frame selection change"""
 		# Convert display text to frame name
@@ -188,6 +210,6 @@ class CanvasArea(QFrame):
 		
 		self.canvas_widget.set_frame(frame_name)
 	
-	def _on_prestige_changed(self, index):
-		"""Handle prestige level change"""
-		self.canvas_widget.set_prestige(index)
+	def _on_splendor_changed(self, index):
+		"""Handle splendor level change"""
+		self.canvas_widget.set_splendor(index)

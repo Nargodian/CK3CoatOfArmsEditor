@@ -20,6 +20,8 @@ class TransformWidget(QWidget):
 	
 	# Signals
 	transformChanged = pyqtSignal(float, float, float, float, float)  # pos_x, pos_y, scale_x, scale_y, rotation
+	nonUniformScaleUsed = pyqtSignal()  # Emitted when side handles are used for non-uniform scaling
+	transformEnded = pyqtSignal()  # Emitted when drag ends (for history saving)
 	
 	# Handle types
 	HANDLE_NONE = 0
@@ -263,6 +265,8 @@ class TransformWidget(QWidget):
 			self.active_handle = self.HANDLE_NONE
 			self.drag_start_pos = None
 			self.drag_start_transform = None
+			# Emit signal for history saving
+			self.transformEnded.emit()
 			event.accept()
 			return
 		super().mouseReleaseEvent(event)
@@ -364,6 +368,8 @@ class TransformWidget(QWidget):
 			if start_dist > 0:
 				scale_factor = curr_dist / start_dist
 				self.scale_x = start_sx * scale_factor
+				# Emit signal to disable unified scale
+				self.nonUniformScaleUsed.emit()
 			
 		elif self.active_handle in [self.HANDLE_T, self.HANDLE_B]:
 			# Vertical scale - simple Y-axis scaling
@@ -382,6 +388,8 @@ class TransformWidget(QWidget):
 			if start_dist > 0:
 				scale_factor = curr_dist / start_dist
 				self.scale_y = start_sy * scale_factor
+				# Emit signal to disable unified scale
+				self.nonUniformScaleUsed.emit()
 		
 		# Clamp values - strict 0-1 limits
 		self.pos_x = max(0.0, min(1.0, self.pos_x))
