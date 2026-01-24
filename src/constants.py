@@ -18,21 +18,21 @@ Based on: docs/specifications/coat_of_arms_format_specifics.txt
 # Source: game/common/named_colors/default_colors.txt (HSV → RGB conversion)
 
 CK3_NAMED_COLORS = {
-    'red':          [0.450, 0.133, 0.090],  # #732217
-    'red_dark':     [0.300, 0.030, 0.030],  # #4D0808
-    'orange':       [0.600, 0.230, 0.000],  # #993B00
-    'yellow':       [0.750, 0.525, 0.188],  # #BF8630
-    'yellow_light': [1.000, 0.680, 0.200],  # #FFAD33
-    'white':        [0.800, 0.792, 0.784],  # #CCCAC8
-    'grey':         [0.500, 0.500, 0.500],  # #808080
-    'black':        [0.100, 0.090, 0.075],  # #19170E
-    'brown':        [0.450, 0.234, 0.117],  # #733C1E
-    'green':        [0.120, 0.300, 0.138],  # #1F4D23
-    'green_light':  [0.200, 0.400, 0.220],  # #336638
-    'blue_light':   [0.165, 0.365, 0.550],  # #2A5D8C
-    'blue':         [0.080, 0.246, 0.400],  # #143E66
-    'blue_dark':    [0.030, 0.170, 0.300],  # #082B4D
-    'purple':       [0.350, 0.105, 0.252],  # #591B40
+    'red':          {'rgb': [0.450, 0.133, 0.090], 'hex': '#732217'},
+    'red_dark':     {'rgb': [0.300, 0.030, 0.030], 'hex': '#4D0808'},
+    'orange':       {'rgb': [0.600, 0.230, 0.000], 'hex': '#993B00'},
+    'yellow':       {'rgb': [0.750, 0.525, 0.188], 'hex': '#BF8630'},
+    'yellow_light': {'rgb': [1.000, 0.680, 0.200], 'hex': '#FFAD33'},
+    'white':        {'rgb': [0.800, 0.792, 0.784], 'hex': '#CCCAC8'},
+    'grey':         {'rgb': [0.500, 0.500, 0.500], 'hex': '#808080'},
+    'black':        {'rgb': [0.100, 0.090, 0.075], 'hex': '#19170E'},
+    'brown':        {'rgb': [0.450, 0.234, 0.117], 'hex': '#733C1E'},
+    'green':        {'rgb': [0.120, 0.300, 0.138], 'hex': '#1F4D23'},
+    'green_light':  {'rgb': [0.200, 0.400, 0.220], 'hex': '#336638'},
+    'blue_light':   {'rgb': [0.165, 0.365, 0.550], 'hex': '#2A5D8C'},
+    'blue':         {'rgb': [0.080, 0.246, 0.400], 'hex': '#143E66'},
+    'blue_dark':    {'rgb': [0.030, 0.170, 0.300], 'hex': '#082B4D'},
+    'purple':       {'rgb': [0.350, 0.105, 0.252], 'hex': '#591B40'},
 }
 
 # Color names in UI order (for color picker display)
