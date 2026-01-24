@@ -104,9 +104,6 @@ class LayerListWidget(QWidget):
 		layer_btn.mousePressEvent = lambda event, idx=actual_index, btn=layer_btn: self._layer_mouse_press(event, idx, btn)
 		layer_btn.mouseMoveEvent = lambda event, idx=actual_index, btn=layer_btn: self._layer_mouse_move(event, idx, btn)
 		
-		# Store button container reference for hover handling
-		layer_btn.setProperty('button_container', None)
-		
 		# Create layout for layer button content
 		btn_layout = QHBoxLayout(layer_btn)
 		btn_layout.setContentsMargins(5, 5, 5, 5)
@@ -133,16 +130,9 @@ class LayerListWidget(QWidget):
 		name_label.setStyleSheet("border: none; font-size: 11px;")
 		btn_layout.addWidget(name_label, stretch=1)
 		
-		# Add inline duplicate and delete buttons
+		# Add inline color, duplicate and delete buttons
 		button_container = self._create_inline_buttons(actual_index)
 		btn_layout.addWidget(button_container)
-		
-		# Store button container reference for hover handling
-		layer_btn.setProperty('button_container', button_container)
-		
-		# Add hover event handling
-		layer_btn.enterEvent = lambda event, btn=layer_btn: self._on_layer_enter(event, btn)
-		layer_btn.leaveEvent = lambda event, btn=layer_btn: self._on_layer_leave(event, btn)
 		
 		layer_btn.setStyleSheet("""
 			QPushButton {
@@ -212,6 +202,9 @@ class LayerListWidget(QWidget):
 		
 		inline_layout.addWidget(color_container)
 		
+		# Add small gap between color and action buttons
+		inline_layout.addSpacing(3)
+		
 		# Action buttons container (duplicate/delete)
 		action_container = QWidget()
 		action_container.setStyleSheet("border: none;")
@@ -261,10 +254,6 @@ class LayerListWidget(QWidget):
 		action_layout.addWidget(delete_btn)
 		
 		inline_layout.addWidget(action_container)
-		
-		# Hide color buttons initially (show on hover)
-		color_container.setVisible(False)
-		button_container.setProperty('color_container', color_container)
 		
 		return button_container
 	
@@ -537,19 +526,3 @@ class LayerListWidget(QWidget):
 		"""Handle color button click - open color picker"""
 		if self.on_color_changed:
 			self.on_color_changed(index, color_index)
-	
-	def _on_layer_enter(self, event, layer_btn):
-		"""Show color buttons on hover"""
-		button_container = layer_btn.property('button_container')
-		if button_container:
-			color_container = button_container.property('color_container')
-			if color_container:
-				color_container.setVisible(True)
-	
-	def _on_layer_leave(self, event, layer_btn):
-		"""Hide color buttons when hover ends"""
-		button_container = layer_btn.property('button_container')
-		if button_container:
-			color_container = button_container.property('color_container')
-			if color_container:
-				color_container.setVisible(False)

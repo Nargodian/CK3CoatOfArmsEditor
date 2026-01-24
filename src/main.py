@@ -285,6 +285,20 @@ class CoatOfArmsEditor(QMainWindow):
 				event.accept()
 			else:
 				super().keyPressEvent(event)
+		# Ctrl+A for select all layers
+		elif event.key() == Qt.Key_A and event.modifiers() & Qt.ControlModifier:
+			if self.right_sidebar.layers:
+				# Select all layer indices
+				all_indices = set(range(len(self.right_sidebar.layers)))
+				self.right_sidebar.set_selected_indices(all_indices)
+				# Update transform widget for multi-selection
+				if self.canvas_area:
+					self.canvas_area.update_transform_widget_for_layer()
+				# Enable properties tab
+				self.right_sidebar.tab_widget.setTabEnabled(2, True)
+				event.accept()
+			else:
+				super().keyPressEvent(event)
 		else:
 			super().keyPressEvent(event)
 	
