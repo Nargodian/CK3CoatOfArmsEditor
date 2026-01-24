@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QWidget, QTabWidget, QPushButton, QLineEdit, QSlider, QDialog, QGridLayout, QColorDialog, QCheckBox
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QColor, QPixmap, QIcon
+from .property_sidebar_widgets import LayerListWidget
 
 
 class PropertySidebar(QFrame):
@@ -197,23 +198,17 @@ class PropertySidebar(QFrame):
 		scroll.setWidgetResizable(True)
 		scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 		
-		content = QWidget()
-		content.setAcceptDrops(True)
-		# Store reference for drag-drop
-		self.layers_container = content
-		content.dragEnterEvent = self._drag_enter_event
-		content.dragMoveEvent = self._drag_move_event
-		content.dropEvent = self._drop_event
-		# Add mouse press event to deselect on empty area click
-		content.mousePressEvent = self._layers_container_mouse_press
+		# Use LayerListWidget
+		self.layer_list_widget = LayerListWidget()
+		self.layer_list_widget.set_layers(self.layers)
 		
-		self.layers_layout = QVBoxLayout(content)
-		self.layers_layout.setAlignment(Qt.AlignTop)
-		self.layers_layout.setSpacing(5)
-		self.layers_layout.setContentsMargins(5, 5, 5, 5)
+		# Setup callbacks
+		self.layer_list_widget.on_selection_changed = self._on_layer_selection_changed
+		self.layer_list_widget.on_layers_reordered = self._on_layers_reordered
+		self.layer_list_widget.on_duplicate_layer = self._duplicate_layer_at_index
+		self.layer_list_widget.on_delete_layer = self._delete_layer_at_index
 		
-		self.layers_layout.addStretch()
-		scroll.setWidget(content)
+		scroll.setWidget(self.layer_list_widget)
 		container_layout.addWidget(scroll)
 		
 		# Layer control buttons at bottom
@@ -896,7 +891,7 @@ class PropertySidebar(QFrame):
 			# Select the new duplicate
 			new_index = index + 1
 			self.selected_layer_indices = {new_index}
-			self.last_selected_index = new_index  # Set for shift+click range selection
+			self.last_selected_index = new_index
 			self._rebuild_layer_list()
 			self._update_layer_selection()
 			self._load_layer_properties()
@@ -907,350 +902,50 @@ class PropertySidebar(QFrame):
 			if self.canvas_widget:
 				self.canvas_widget.set_layers(self.layers)
 	
-	def _layers_container_mouse_press(self, event):
-		"""Handle mouse press on empty area of layers container to deselect"""
-		from PyQt5.QtCore import Qt
-		if event.button() == Qt.LeftButton:
-			# Check if click is on empty area (not on a layer button)
-			child = self.layers_container.childAt(event.pos())
-			if child is None or child not in self.layer_buttons:
-				# Deselect layer
-				self.clear_selection()
-		QWidget.mousePressEvent(self.layers_container, event)
-	
-	def _layer_mouse_press(self, event, index, button):
-		"""Handle mouse press on layer button for drag start"""
-		from PyQt5.QtCore import Qt
-		if event.button() == Qt.LeftButton:
-			self.drag_start_index = index
-			self.drag_start_pos = event.pos()
-		# Call original handler
-		QPushButton.mousePressEvent(button, event)
-	
-	def _layer_mouse_move(self, event, index, button):
-		"""Handle mouse move on layer button for drag operation"""
-		from PyQt5.QtCore import Qt, QMimeData, QByteArray
-		from PyQt5.QtGui import QDrag
-		import json
+	# Layer list widget callbacks
+	def _on_layer_selection_changed(self):
+		"""Handle layer selection change from layer list widget"""
+		# Sync selection state
+		self.selected_layer_indices = self.layer_list_widget.selected_layer_indices
+		self.last_selected_index = self.layer_list_widget.last_selected_index
 		
-		if not (event.buttons() & Qt.LeftButton):
-			return
-		
-		if self.drag_start_index is None:
-			return
-		
-		# Check if dragged far enough
-		if (event.pos() - self.drag_start_pos).manhattanLength() < 10:
-			return
-		
-		# Get selected indices (for multi-layer drag)
+		# Update properties tab state
 		selected_indices = self.get_selected_indices()
-		
-		# If dragged layer is not in selection, make it the only selection
-		if index not in selected_indices:
-			selected_indices = [index]
-			self.selected_layer_indices = {index}
-			self._update_layer_selection()
-		
-		# Start drag with selected indices
-		drag = QDrag(button)
-		mime_data = QMimeData()
-		# Store all selected indices as JSON array
-		mime_data.setData('application/x-layer-indices', QByteArray(json.dumps(selected_indices).encode('utf-8')))
-		drag.setMimeData(mime_data)
-		
-		# Set drag cursor
-		drag.exec_(Qt.MoveAction)
-		self.drag_start_index = None
-	
-	def _drag_enter_event(self, event):
-		"""Handle drag enter on layer list"""
-		if event.mimeData().hasFormat('application/x-layer-indices'):
-			event.accept()
+		if selected_indices:
+			self.tab_widget.setTabEnabled(2, True)
+			self._load_layer_properties()
+			if self.canvas_area:
+				self.canvas_area.update_transform_widget_for_layer()
 		else:
-			event.ignore()
+			self.tab_widget.setTabEnabled(2, False)
+			if self.tab_widget.currentIndex() == 2:
+				self.tab_widget.setCurrentIndex(1)
+			if self.canvas_area:
+				self.canvas_area.update_transform_widget_for_layer(None)
 	
-	def _drag_move_event(self, event):
-		"""Handle drag move over layer list and highlight drop zones"""
-		if event.mimeData().hasFormat('application/x-layer-indices'):
-			# Find which drop zone is closest to cursor
-			drop_pos = event.pos()
-			closest_zone = None
-			min_distance = float('inf')
-			
-			for zone in self.drop_zones:
-				zone_center = zone.geometry().center()
-				distance = abs(drop_pos.y() - zone_center.y())
-				if distance < min_distance:
-					min_distance = distance
-					closest_zone = zone
-			
-			# Highlight the closest zone
-			if closest_zone != self.active_drop_zone:
-				# Clear previous highlight
-				if self.active_drop_zone:
-					self.active_drop_zone.setProperty('highlighted', 'false')
-					self.active_drop_zone.style().unpolish(self.active_drop_zone)
-					self.active_drop_zone.style().polish(self.active_drop_zone)
-				
-				# Set new highlight
-				if closest_zone:
-					closest_zone.setProperty('highlighted', 'true')
-					closest_zone.style().unpolish(closest_zone)
-					closest_zone.style().polish(closest_zone)
-				
-				self.active_drop_zone = closest_zone
-			
-			event.accept()
-		else:
-			event.ignore()
+	def _on_layers_reordered(self, count):
+		"""Handle layers reordered from layer list widget"""
+		# Update canvas
+		if self.canvas_widget:
+			self.canvas_widget.set_layers(self.layers)
+		
+		# Save to history
+		if self.main_window and hasattr(self.main_window, '_save_state'):
+			layer_word = "layers" if count > 1 else "layer"
+			self.main_window._save_state(f"Reorder {count} {layer_word}")
 	
-	def _drop_event(self, event):
-		"""Handle drop on layer list to reorder (supports multi-layer)"""
-		# Clear drop zone highlight
-		if self.active_drop_zone:
-			self.active_drop_zone.setProperty('highlighted', 'false')
-			self.active_drop_zone.style().unpolish(self.active_drop_zone)
-			self.active_drop_zone.style().polish(self.active_drop_zone)
-			self.active_drop_zone = None
-		
-		if event.mimeData().hasFormat('application/x-layer-indices'):
-			import json
-			
-			# Get dragged indices
-			dragged_indices_json = bytes(event.mimeData().data('application/x-layer-indices')).decode('utf-8')
-			dragged_indices = json.loads(dragged_indices_json)
-			
-			if not dragged_indices:
-				event.ignore()
-				return
-			
-			# Find which drop zone is closest to cursor
-			drop_pos = event.pos()
-			closest_zone = None
-			min_distance = float('inf')
-			
-			for zone in self.drop_zones:
-				zone_center = zone.geometry().center()
-				distance = abs(drop_pos.y() - zone_center.y())
-				if distance < min_distance:
-					min_distance = distance
-					closest_zone = zone
-			
-			if not closest_zone:
-				event.ignore()
-				return
-			
-			# Get the target index from the drop zone
-			target_index = closest_zone.property('drop_index')
-			
-			# Extract layers to be moved (maintain their array order)
-			sorted_indices = sorted(dragged_indices)
-			dragged_layers = [self.layers[idx] for idx in sorted_indices]
-			
-			# Remove dragged layers from list (highest to lowest)
-			for idx in sorted(dragged_indices, reverse=True):
-				self.layers.pop(idx)
-			
-			# Adjust target index after removals
-			adjusted_target = target_index
-			for idx in sorted_indices:
-				if idx < target_index:
-					adjusted_target -= 1
-			
-			# Insert layers at target position
-			for i, layer in enumerate(dragged_layers):
-				insert_pos = adjusted_target + i
-				# Clamp to valid range
-				insert_pos = max(0, min(len(self.layers), insert_pos))
-				self.layers.insert(insert_pos, layer)
-			
-			# Update selection to new indices
-			new_indices = list(range(adjusted_target, adjusted_target + len(dragged_layers)))
-			self.selected_layer_indices = set(new_indices)
-			self.last_selected_index = new_indices[-1] if new_indices else None
-			
-			self._rebuild_layer_list()
-			self._update_layer_selection()
-			
-			# Update canvas
-			if self.canvas_widget:
-				self.canvas_widget.set_layers(self.layers)
-			
-			# Save to history
-			if self.main_window and hasattr(self.main_window, '_save_state'):
-				layer_word = "layers" if len(dragged_indices) > 1 else "layer"
-				self.main_window._save_state(f"Reorder {len(dragged_indices)} {layer_word}")
-			
-			event.accept()
-		else:
-			event.ignore()
-	
-	def _add_drop_zone(self, drop_index, layout_position):
-		"""Add a drop zone separator at the specified position"""
-		drop_zone = QWidget()
-		drop_zone.setFixedHeight(8)
-		drop_zone.setProperty('drop_index', drop_index)
-		drop_zone.setStyleSheet("""
-			QWidget {
-				background-color: transparent;
-				border: none;
-			}
-			QWidget[highlighted="true"] {
-				background-color: rgba(100, 150, 255, 150);
-				border-radius: 2px;
-			}
-		""")
-		self.drop_zones.append(drop_zone)
-		self.layers_layout.insertWidget(layout_position, drop_zone)
-	
-	def _get_preview_path(self, dds_path):
-		"""Convert .dds filename to .png preview path"""
-		import os
-		from .asset_sidebar import TEXTURE_PREVIEW_MAP
-		
-		# Check if it's already a full path (from asset sidebar)
-		if os.path.exists(dds_path):
-			return dds_path
-		
-		# Extract just the filename if it's a full path
-		filename = os.path.basename(dds_path) if '/' in dds_path or '\\' in dds_path else dds_path
-		
-		# Look up in the global texture preview map
-		return TEXTURE_PREVIEW_MAP.get(filename)
 	
 	def _rebuild_layer_list(self):
-		"""Rebuild the layer list UI with drop zones"""
-		# Clear existing layer buttons and drop zones
-		for btn in self.layer_buttons:
-			btn.deleteLater()
-		self.layer_buttons.clear()
-		
-		for zone in self.drop_zones:
-			zone.deleteLater()
-		self.drop_zones.clear()
-		
-		# Remove all widgets except the stretch
-		while self.layers_layout.count() > 1:
-			item = self.layers_layout.takeAt(0)
-			if item.widget():
-				item.widget().deleteLater()
-		
-		# Add drop zone at top (inserts at end of array, appears at top of display)
-		layout_pos = 0
-		self._add_drop_zone(len(self.layers), layout_pos)
-		layout_pos += 1
-		
-		# Add layer buttons in reverse order (top layer = frontmost = last index)
-		for i, layer in enumerate(reversed(self.layers)):
-			# Calculate actual layer index (reversed)
-			actual_index = len(self.layers) - 1 - i
-			layer_btn = QPushButton()
-			layer_btn.setCheckable(True)
-			layer_btn.setFixedHeight(60)
-			layer_btn.setProperty('layer_index', actual_index)
-			layer_btn.clicked.connect(lambda checked, idx=actual_index: self._select_layer(idx))
-			
-			# Enable drag functionality
-			layer_btn.mousePressEvent = lambda event, idx=actual_index, btn=layer_btn: self._layer_mouse_press(event, idx, btn)
-			layer_btn.mouseMoveEvent = lambda event, idx=actual_index, btn=layer_btn: self._layer_mouse_move(event, idx, btn)
-			
-			# Create layout for layer button content
-			btn_layout = QHBoxLayout(layer_btn)
-			btn_layout.setContentsMargins(5, 5, 5, 5)
-			btn_layout.setSpacing(8)
-			
-			# Add preview icon
-			icon_label = QLabel()
-			icon_label.setFixedSize(48, 48)
-			icon_label.setStyleSheet("border: 1px solid rgba(255, 255, 255, 40); border-radius: 3px;")
-			
-			layer_path = layer.get('path')
-			if layer_path:
-				# Convert .dds path to .png preview path
-				preview_path = self._get_preview_path(layer_path)
-				if preview_path:
-					pixmap = QPixmap(preview_path)
-					if not pixmap.isNull():
-						icon_label.setPixmap(pixmap.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-			
-			btn_layout.addWidget(icon_label)
-			
-			# Add layer name
-			name_label = QLabel(layer.get('filename', 'Empty Layer'))
-			name_label.setWordWrap(True)
-			name_label.setStyleSheet("border: none; font-size: 11px;")
-			btn_layout.addWidget(name_label, stretch=1)
-			
-			# Add inline delete and duplicate buttons
-			button_container = QWidget()
-			button_container.setStyleSheet("border: none;")
-			inline_layout = QVBoxLayout(button_container)
-			inline_layout.setContentsMargins(0, 0, 0, 0)
-			inline_layout.setSpacing(2)
-			
-			# Duplicate button
-			duplicate_btn = QPushButton("⎘")
-			duplicate_btn.setFixedSize(20, 20)
-			duplicate_btn.setToolTip("Duplicate Layer")
-			duplicate_btn.setStyleSheet("""
-				QPushButton {
-					border: 1px solid rgba(255, 255, 255, 60);
-					border-radius: 2px;
-					background-color: rgba(255, 255, 255, 10);
-					font-size: 10px;
-					padding: 0px;
-					text-align: center;
-				}
-				QPushButton:hover {
-					background-color: rgba(90, 141, 191, 100);
-				}
-			""")
-			duplicate_btn.clicked.connect(lambda checked, idx=actual_index: self._duplicate_layer_at_index(idx))
-			inline_layout.addWidget(duplicate_btn)
-			
-			# Delete button
-			delete_btn = QPushButton("×")
-			delete_btn.setFixedSize(20, 20)
-			delete_btn.setToolTip("Delete Layer")
-			delete_btn.setStyleSheet("""
-				QPushButton {
-					border: 1px solid rgba(255, 100, 100, 60);
-					border-radius: 2px;
-					background-color: rgba(255, 255, 255, 10);
-					font-size: 14px;
-					font-weight: bold;
-					padding: 0px;
-					text-align: center;
-				}
-				QPushButton:hover {
-					background-color: rgba(191, 90, 90, 100);
-				}
-			""")
-			delete_btn.clicked.connect(lambda checked, idx=actual_index: self._delete_layer_at_index(idx))
-			inline_layout.addWidget(delete_btn)
-			
-			btn_layout.addWidget(button_container)
-			
-			layer_btn.setStyleSheet("""
-				QPushButton {
-					text-align: left;
-					border: 1px solid rgba(255, 255, 255, 40);
-					border-radius: 4px;
-					background-color: rgba(255, 255, 255, 10);
-				}
-				QPushButton:hover {
-					background-color: rgba(255, 255, 255, 20);
-					border: 1px solid rgba(255, 255, 255, 60);
-				}
-				QPushButton:checked {
-					border: 2px solid #5a8dbf;
-					background-color: rgba(90, 141, 191, 30);
-				}
-			""")
-			
-			self.layers_layout.insertWidget(layout_pos, layer_btn)
-			self.layer_buttons.append(layer_btn)
+		"""Rebuild the layer list UI (delegates to LayerListWidget)"""
+		if hasattr(self, 'layer_list_widget'):
+			self.layer_list_widget.rebuild()
+			# Sync selection state
+			self.layer_list_widget.selected_layer_indices = self.selected_layer_indices
+			self.layer_list_widget.last_selected_index = self.last_selected_index
+			self.layer_list_widget.update_selection_visuals()
+		else:
+			# Fallback for initialization (should not reach here in normal operation)
+			pass
 			layout_pos += 1
 			
 			# Add drop zone after this layer (inserts before this layer in array)
@@ -1502,55 +1197,47 @@ class PropertySidebar(QFrame):
 	
 	def _select_layer(self, index):
 		"""Handle layer selection with modifier key support"""
-		# Get current keyboard modifiers
-		from PyQt5.QtWidgets import QApplication
-		from PyQt5.QtCore import Qt
-		modifiers = QApplication.keyboardModifiers()
-		ctrl_pressed = modifiers & Qt.ControlModifier
-		shift_pressed = modifiers & Qt.ShiftModifier
-		
-		if shift_pressed and self.last_selected_index is not None:
-			# Shift+Click: Range selection
-			start = min(index, self.last_selected_index)
-			end = max(index, self.last_selected_index)
-			# Select all indices in range (inclusive)
-			self.selected_layer_indices = set(range(start, end + 1))
-			# Don't update last_selected_index - keep anchor for next shift-click
-		elif ctrl_pressed:
-			# Ctrl+Click: Toggle selection
-			if index in self.selected_layer_indices:
-				self.selected_layer_indices.discard(index)
-				if not self.selected_layer_indices:
-					# No selection left - disable properties tab
-					self.tab_widget.setTabEnabled(2, False)
-			else:
-				self.selected_layer_indices.add(index)
-				# Enable properties tab
-				self.tab_widget.setTabEnabled(2, True)
-			self.last_selected_index = index
+		# Delegate to layer list widget which handles the selection logic
+		if hasattr(self, 'layer_list_widget'):
+			# The widget will call _on_layer_selection_changed which syncs back to us
+			self.layer_list_widget._select_layer(index)
 		else:
-			# Regular click: Single selection (clear others)
-			if index in self.selected_layer_indices and len(self.selected_layer_indices) == 1:
-				# Clicking the only selected layer - deselect it
-				self._deselect_layer()
-				return
-			else:
-				# Select only this layer
-				self.selected_layer_indices = {index}
+			# Fallback for old code paths
+			from PyQt5.QtWidgets import QApplication
+			from PyQt5.QtCore import Qt
+			modifiers = QApplication.keyboardModifiers()
+			ctrl_pressed = modifiers & Qt.ControlModifier
+			shift_pressed = modifiers & Qt.ShiftModifier
+			
+			if shift_pressed and self.last_selected_index is not None:
+				start = min(index, self.last_selected_index)
+				end = max(index, self.last_selected_index)
+				self.selected_layer_indices = set(range(start, end + 1))
+			elif ctrl_pressed:
+				if index in self.selected_layer_indices:
+					self.selected_layer_indices.discard(index)
+					if not self.selected_layer_indices:
+						self.tab_widget.setTabEnabled(2, False)
+				else:
+					self.selected_layer_indices.add(index)
+					self.tab_widget.setTabEnabled(2, True)
 				self.last_selected_index = index
-				# Enable properties tab
-				self.tab_widget.setTabEnabled(2, True)
-		
-		# Update UI
-		self._update_layer_selection()
-		
-		# Load properties for selected layers
-		selected_indices = self.get_selected_indices()
-		if selected_indices:
-			self._load_layer_properties()
-			# Update transform widget in canvas area
-			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer()
+			else:
+				if index in self.selected_layer_indices and len(self.selected_layer_indices) == 1:
+					self._deselect_layer()
+					return
+				else:
+					self.selected_layer_indices = {index}
+					self.last_selected_index = index
+					self.tab_widget.setTabEnabled(2, True)
+			
+			self._update_layer_selection()
+			
+			selected_indices = self.get_selected_indices()
+			if selected_indices:
+				self._load_layer_properties()
+				if self.canvas_area:
+					self.canvas_area.update_transform_widget_for_layer()
 	
 	def _deselect_layer(self):
 		"""Deselect the current layer"""
@@ -1558,10 +1245,9 @@ class PropertySidebar(QFrame):
 	
 	def _update_layer_selection(self):
 		"""Update which layer button is checked and multi-select indicator"""
-		# Buttons are in reversed order (top layer = last index = button 0)
-		for i, btn in enumerate(self.layer_buttons):
-			actual_layer_index = len(self.layers) - 1 - i
-			btn.setChecked(actual_layer_index in self.selected_layer_indices)
+		# Delegate to layer list widget
+		if hasattr(self, 'layer_list_widget'):
+			self.layer_list_widget.update_selection_visuals()
 		
 		# Update selection indicator labels
 		selected_count = len(self.selected_layer_indices)
