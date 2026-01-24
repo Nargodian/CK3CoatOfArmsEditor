@@ -22,6 +22,7 @@ class TransformWidget(QWidget):
 	transformChanged = pyqtSignal(float, float, float, float, float)  # pos_x, pos_y, scale_x, scale_y, rotation
 	nonUniformScaleUsed = pyqtSignal()  # Emitted when side handles are used for non-uniform scaling
 	transformEnded = pyqtSignal()  # Emitted when drag ends (for history saving)
+	layerDuplicated = pyqtSignal()  # Emitted when Ctrl+drag duplicates layer
 	
 	# Handle types
 	HANDLE_NONE = 0
@@ -57,6 +58,14 @@ class TransformWidget(QWidget):
 		self.drag_start_pos = None
 		self.drag_start_transform = None
 		self.visible = False
+		
+		# Rotation drag state (Task 3.2)
+		self.is_rotating = False  # Flag to prevent AABB recalculation during rotation
+		self.cached_aabb = None  # Cache AABB during rotation drag
+		
+		# Ctrl+drag duplication state
+		self.ctrl_pressed_at_drag_start = False
+		self.duplicate_created = False  # Prevent spam
 		
 		# Handle size
 		self.handle_size = 8
@@ -225,6 +234,16 @@ class TransformWidget(QWidget):
 			if distance <= hit_distance:
 				return handle_type
 		
+		# If no handle hit, check if we're inside the AABB (for translation)
+		# This makes the entire bounding box grabbable for moving
+		left = center_x - scaled_w
+		right = center_x + scaled_w
+		top = center_y - scaled_h
+		bottom = center_y + scaled_h
+		
+		if left <= pos.x() <= right and top <= pos.y() <= bottom:
+			return self.HANDLE_CENTER  # Treat as center handle (translation)
+		
 		return self.HANDLE_NONE
 	
 	def mousePressEvent(self, event):
@@ -234,6 +253,16 @@ class TransformWidget(QWidget):
 			if self.active_handle != self.HANDLE_NONE:
 				self.drag_start_pos = event.pos()
 				self.drag_start_transform = (self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
+				# Track Ctrl key state at drag start (explicit check)
+				self.ctrl_pressed_at_drag_start = (event.modifiers() & Qt.ControlModifier) == Qt.ControlModifier
+				self.duplicate_created = False  # Reset spam protection
+				
+				# Task 3.2: Set rotation flag and cache AABB
+				if self.active_handle == self.HANDLE_ROTATE:
+					self.is_rotating = True
+					self.cached_aabb = (self.pos_x, self.pos_y, self.scale_x, self.scale_y)
+				
+				print(f"[Transform] Mouse press - Ctrl pressed: {self.ctrl_pressed_at_drag_start}, Handle: {self.active_handle}")
 				event.accept()
 				return
 		super().mousePressEvent(event)
@@ -241,6 +270,23 @@ class TransformWidget(QWidget):
 	def mouseMoveEvent(self, event):
 		"""Handle mouse move"""
 		if self.active_handle != self.HANDLE_NONE and self.drag_start_pos:
+			# Check for Ctrl+drag duplication (only once per drag, only for translation/center handle)
+			if (self.ctrl_pressed_at_drag_start and 
+			    not self.duplicate_created and 
+			    self.active_handle == self.HANDLE_CENTER):
+				# Check if mouse has moved enough to trigger duplication (avoid accidental triggers)
+				dx = event.pos().x() - self.drag_start_pos.x()
+				dy = event.pos().y() - self.drag_start_pos.y()
+				distance = math.sqrt(dx*dx + dy*dy)
+				
+				if distance > 10:  # Minimum 10 pixels movement to trigger
+					print(f"[Transform] Triggering duplication - distance: {distance:.1f}")
+					self.duplicate_created = True
+					self.layerDuplicated.emit()
+					# Reset drag start to current position for smoother continuation
+					self.drag_start_pos = event.pos()
+					self.drag_start_transform = (self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
+			
 			self._handle_drag(event.pos())
 			event.accept()
 			return

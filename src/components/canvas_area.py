@@ -141,6 +141,10 @@ class CanvasArea(QFrame):
 		For multi-selection: calculates screen-space AABB (Axis-Aligned Bounding Box)
 		  from all selected layer positions ± scales/2
 		"""
+		# Reset initial group state when selection changes (Task 3.6)
+		self._initial_group_center = None
+		self._initial_group_rotation = 0
+		
 		if not self.property_sidebar:
 			self.transform_widget.set_visible(False)
 			return
@@ -211,7 +215,12 @@ class CanvasArea(QFrame):
 		group_scale_x = max_x - min_x
 		group_scale_y = max_y - min_y
 		
-		# For multi-selection, rotation display is not meaningful (set to 0)
+		# Store initial group state for rotation calculations (Task 3.6)
+		if not hasattr(self, '_initial_group_center'):
+			self._initial_group_center = (group_pos_x, group_pos_y)
+			self._initial_group_rotation = 0
+		
+		# For multi-selection, start rotation at 0
 		group_rotation = 0
 		
 		self.transform_widget.set_transform(group_pos_x, group_pos_y, group_scale_x, group_scale_y, group_rotation)
@@ -285,6 +294,9 @@ class CanvasArea(QFrame):
 		scale_factor_x = scale_x / original_scale_x if original_scale_x > 0.001 else 1.0
 		scale_factor_y = scale_y / original_scale_y if original_scale_y > 0.001 else 1.0
 		
+		# Calculate rotation delta (Task 3.6)
+		rotation_delta = rotation - getattr(self, '_initial_group_rotation', 0)
+		
 		# Apply transforms to all selected layers
 		import math
 		for idx in selected_indices:
@@ -300,6 +312,17 @@ class CanvasArea(QFrame):
 			# Calculate offset from original group center
 			offset_x = pos_x_orig - original_center_x
 			offset_y = pos_y_orig - original_center_y
+			
+			# Apply rotation to offset (Task 3.6: rotate positions around group center)
+			if abs(rotation_delta) > 0.01:  # Only if rotation changed
+				rotation_rad = math.radians(rotation_delta)
+				cos_r = math.cos(rotation_rad)
+				sin_r = math.sin(rotation_rad)
+				# 2D rotation matrix
+				new_offset_x = offset_x * cos_r - offset_y * sin_r
+				new_offset_y = offset_x * sin_r + offset_y * cos_r
+				offset_x = new_offset_x
+				offset_y = new_offset_y
 			
 			# Apply scale to offset (element-wise)
 			new_offset_x = offset_x * scale_factor_x
@@ -318,7 +341,7 @@ class CanvasArea(QFrame):
 			layer['pos_y'] = new_pos_y
 			layer['scale_x'] = new_scale_x
 			layer['scale_y'] = new_scale_y
-			# Note: Individual layer rotations are preserved (not modified for multi-select)
+			# Task 3.6: Individual layer rotations are preserved (NOT modified)
 		
 		# Update canvas and UI
 		self.canvas_widget.set_layers(self.property_sidebar.layers)
