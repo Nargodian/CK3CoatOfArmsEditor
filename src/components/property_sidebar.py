@@ -1,6 +1,4 @@
-from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, 
-                              QScrollArea, QWidget, QTabWidget, QPushButton,
-                              QLineEdit, QSlider, QDialog, QGridLayout, QColorDialog, QCheckBox)
+from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QWidget, QTabWidget, QPushButton, QLineEdit, QSlider, QDialog, QGridLayout, QColorDialog, QCheckBox
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QColor, QPixmap, QIcon
 
@@ -48,6 +46,50 @@ class PropertySidebar(QFrame):
 		self.tab_widget.setTabEnabled(2, False)
 		if self.tab_widget.currentIndex() == 2:
 			self.tab_widget.setCurrentIndex(1)  # Switch to Layers tab
+	
+	# Mixed value detection helpers (Phase 4)
+	def get_property_value(self, property_name):
+		"""Get property value from selected layers. Returns actual value if all same, 'Mixed' if different.
+		
+		Args:
+			property_name: String key for layer property (e.g., 'pos_x', 'scale_x', 'rotation')
+		
+		Returns:
+			- Actual value if all selected layers have the same value
+			- 'Mixed' string if values differ
+			- None if no layers selected
+		"""
+		selected_indices = self.get_selected_indices()
+		if not selected_indices:
+			return None
+		
+		# Single selection - return actual value
+		if len(selected_indices) == 1:
+			idx = selected_indices[0]
+			if idx < len(self.layers):
+				return self.layers[idx].get(property_name)
+			return None
+		
+		# Multi-selection - check if all values are the same
+		values = []
+		for idx in selected_indices:
+			if idx < len(self.layers):
+				val = self.layers[idx].get(property_name)
+				values.append(val)
+		
+		if not values:
+			return None
+		
+		# Check if all values are equal
+		first_val = values[0]
+		if all(v == first_val for v in values):
+			return first_val
+		
+		return 'Mixed'
+	
+	def has_mixed_values(self, property_name):
+		"""Check if a property has mixed values across selected layers"""
+		return self.get_property_value(property_name) == 'Mixed'
 	
 	def _setup_ui(self):
 		"""Setup the property sidebar UI"""
@@ -257,8 +299,21 @@ class PropertySidebar(QFrame):
 		self.multi_select_label.setVisible(False)
 		content_layout.addWidget(self.multi_select_label)
 		
+		# Single layer name label (hidden by default)
+		self.single_layer_label = QLabel()
+		self.single_layer_label.setStyleSheet("""
+			QLabel {
+				font-size: 12px;
+				font-weight: bold;
+				padding: 6px;
+				color: #ddd;
+			}
+		""")
+		self.single_layer_label.setAlignment(Qt.AlignCenter)
+		content_layout.addWidget(self.single_layer_label)
+		
 		# Emblem Properties
-		self._add_property_section(content_layout, "Selected Emblem")
+		self._add_property_section(content_layout, "Properties")
 		
 		# Color swatches for emblem
 		self.emblem_color_layout = QHBoxLayout()
@@ -280,7 +335,6 @@ class PropertySidebar(QFrame):
 			color_btn.clicked.connect(lambda checked, btn=color_btn: self._show_color_picker(btn))
 			self.emblem_color_buttons.append(color_btn)
 			self.emblem_color_layout.addWidget(color_btn)
-		
 		self.emblem_color_layout.addStretch()
 		content_layout.addLayout(self.emblem_color_layout)
 		
@@ -529,21 +583,23 @@ class PropertySidebar(QFrame):
 				if self.main_window and hasattr(self.main_window, '_save_state'):
 					self.main_window._save_state("Change base color")
 		elif button in self.emblem_color_buttons:
-			# Emblem color changed
+			# Emblem color changed - apply to ALL selected layers
 			selected_indices = self.get_selected_indices()
 			if selected_indices and self.canvas_widget:
-				idx = selected_indices[0]  # Use first selected for single selection
-				if 0 <= idx < len(self.layers):
-					# Update layer colors
-					color_idx = self.emblem_color_buttons.index(button)
-					color = QColor(color_hex)
-					color_rgb = [color.redF(), color.greenF(), color.blueF()]
-					self.layers[idx][f'color{color_idx+1}'] = color_rgb
-					self.layers[idx][f'color{color_idx+1}_name'] = color_name  # Store name or None
-					self.canvas_widget.set_layers(self.layers)
-					# Save to history
-					if self.main_window and hasattr(self.main_window, '_save_state'):
-						self.main_window._save_state("Change emblem color")
+				color_idx = self.emblem_color_buttons.index(button)
+				color = QColor(color_hex)
+				color_rgb = [color.redF(), color.greenF(), color.blueF()]
+				
+				# Apply to all selected layers
+				for idx in selected_indices:
+					if 0 <= idx < len(self.layers):
+						self.layers[idx][f'color{color_idx+1}'] = color_rgb
+						self.layers[idx][f'color{color_idx+1}_name'] = color_name  # Store name or None
+				
+				self.canvas_widget.set_layers(self.layers)
+				# Save to history
+				if self.main_window and hasattr(self.main_window, '_save_state'):
+					self.main_window._save_state("Change emblem color")
 	
 	def _show_custom_color_dialog(self, button, parent_dialog):
 		"""Show Qt's standard color picker"""
@@ -629,8 +685,8 @@ class PropertySidebar(QFrame):
 			'colors': 1,
 			'pos_x': 0.5,
 			'pos_y': 0.5,
-			'scale_x': 1.0,
-			'scale_y': 1.0,
+			'scale_x': 0.5,
+			'scale_y': 0.5,
 			'rotation': 0,
 			'color1': [0.750, 0.525, 0.188],   # yellow (CK3 default)
 			'color2': [0.450, 0.133, 0.090],    # red (CK3 default)
@@ -1008,15 +1064,22 @@ class PropertySidebar(QFrame):
 			self.layer_buttons.append(layer_btn)
 	
 	def _update_layer_property(self, prop_name, value):
-		"""Update a property of the currently selected layer"""
+		"""Update a property of all selected layers"""
 		selected_indices = self.get_selected_indices()
-		if selected_indices and 0 <= selected_indices[0] < len(self.layers):
-			self.layers[selected_indices[0]][prop_name] = value
-			if self.canvas_widget:
-				self.canvas_widget.set_layers(self.layers)
-			# Save to history with debouncing (to avoid spam during slider drags)
-			if self.main_window and hasattr(self.main_window, 'save_property_change_debounced'):
-				self.main_window.save_property_change_debounced(f"Change {prop_name}")
+		if not selected_indices:
+			return
+		
+		# Apply to ALL selected layers
+		for idx in selected_indices:
+			if 0 <= idx < len(self.layers):
+				self.layers[idx][prop_name] = value
+		
+		if self.canvas_widget:
+			self.canvas_widget.set_layers(self.layers)
+		
+		# Save to history with debouncing (to avoid spam during slider drags)
+		if self.main_window and hasattr(self.main_window, 'save_property_change_debounced'):
+			self.main_window.save_property_change_debounced(f"Change {prop_name}")
 	
 	def _update_layer_property_and_widget(self, prop_name, value):
 		"""Update a property and sync transform widget"""
@@ -1061,33 +1124,39 @@ class PropertySidebar(QFrame):
 			self.scale_y_input.setVisible(True)
 	
 	def _update_layer_scale(self):
-		"""Update layer scale with flip multipliers applied"""
+		"""Update layer scale with flip multipliers applied to all selected layers"""
 		selected_indices = self.get_selected_indices()
-		if selected_indices and 0 <= selected_indices[0] < len(self.layers):
-			# If unified scale, sync Y to X first
-			if self.unified_scale_check.isChecked():
-				self.scale_y_slider.blockSignals(True)
-				self.scale_y_slider.setValue(self.scale_x_slider.value())
-				self.scale_y_slider.blockSignals(False)
-			
-			# Get scale values
-			scale_x = self.scale_x_slider.value() / 100.0
-			scale_y = self.scale_y_slider.value() / 100.0
-			
-			# Apply flip multipliers
-			if self.flip_x_check.isChecked():
-				scale_x = -scale_x
-			if self.flip_y_check.isChecked():
-				scale_y = -scale_y
-			
-			idx = selected_indices[0]
-			self.layers[idx]['scale_x'] = scale_x
-			self.layers[idx]['scale_y'] = scale_y
-			if self.canvas_widget:
-				self.canvas_widget.set_layers(self.layers)
-			# Save to history with debouncing
-			if self.main_window and hasattr(self.main_window, 'save_property_change_debounced'):
-				self.main_window.save_property_change_debounced("Change scale")
+		if not selected_indices:
+			return
+		
+		# If unified scale, sync Y to X first
+		if self.unified_scale_check.isChecked():
+			self.scale_y_slider.blockSignals(True)
+			self.scale_y_slider.setValue(self.scale_x_slider.value())
+			self.scale_y_slider.blockSignals(False)
+		
+		# Get scale values
+		scale_x = self.scale_x_slider.value() / 100.0
+		scale_y = self.scale_y_slider.value() / 100.0
+		
+		# Apply flip multipliers
+		if self.flip_x_check.isChecked():
+			scale_x = -scale_x
+		if self.flip_y_check.isChecked():
+			scale_y = -scale_y
+		
+		# Apply to ALL selected layers
+		for idx in selected_indices:
+			if 0 <= idx < len(self.layers):
+				self.layers[idx]['scale_x'] = scale_x
+				self.layers[idx]['scale_y'] = scale_y
+		
+		if self.canvas_widget:
+			self.canvas_widget.set_layers(self.layers)
+		
+		# Save to history with debouncing
+		if self.main_window and hasattr(self.main_window, 'save_property_change_debounced'):
+			self.main_window.save_property_change_debounced("Change scale")
 	
 	def _update_layer_scale_and_widget(self):
 		"""Update layer scale and sync transform widget"""
@@ -1108,106 +1177,153 @@ class PropertySidebar(QFrame):
 	def _load_layer_properties(self):
 		"""Load the selected layer's properties into the UI controls"""
 		selected_indices = self.get_selected_indices()
-		if selected_indices and 0 <= selected_indices[0] < len(self.layers):
-			layer = self.layers[selected_indices[0]]
-			
-			# Block signals while updating to avoid triggering changes
-			self.pos_x_slider.blockSignals(True)
-			self.pos_y_slider.blockSignals(True)
-			self.scale_x_slider.blockSignals(True)
-			self.scale_y_slider.blockSignals(True)
-			self.rotation_slider.blockSignals(True)
-			self.flip_x_check.blockSignals(True)
-			self.flip_y_check.blockSignals(True)
-			
-			pos_x_val = int(layer.get('pos_x', 0.5) * 100)
-			pos_y_val = int(layer.get('pos_y', 0.5) * 100)
-			self.pos_x_slider.setValue(pos_x_val)
-			self.pos_y_slider.setValue(pos_y_val)
-			self.pos_x_input.setText(f"{pos_x_val/100:.2f}")
-			self.pos_y_input.setText(f"{pos_y_val/100:.2f}")
-			
-			# Handle scale with flip detection
-			scale_x = layer.get('scale_x', 0.5)
-			scale_y = layer.get('scale_y', 0.5)
-			
-			# Set flip checkboxes based on sign
-			self.flip_x_check.setChecked(scale_x < 0)
-			self.flip_y_check.setChecked(scale_y < 0)
-			
-			# Set slider values to absolute values
-			scale_x_val = int(abs(scale_x) * 100)
-			scale_y_val = int(abs(scale_y) * 100)
-			self.scale_x_slider.setValue(scale_x_val)
-			self.scale_y_slider.setValue(scale_y_val)
-			self.scale_x_input.setText(f"{scale_x_val/100:.2f}")
-			self.scale_y_input.setText(f"{scale_y_val/100:.2f}")
-			
-			rotation_val = int(layer.get('rotation', 0))
-			self.rotation_slider.setValue(rotation_val)
-			self.rotation_input.setText(str(rotation_val))
-			
-			# Check if X and Y scales are different, uncheck unified scale if so
-			if abs(abs(scale_x) - abs(scale_y)) > 0.01:  # Allow small tolerance for floating point
-				self.unified_scale_check.setChecked(False)
-			
-			self.pos_x_slider.blockSignals(False)
-			self.pos_y_slider.blockSignals(False)
-			self.scale_x_slider.blockSignals(False)
-			self.scale_y_slider.blockSignals(False)
-			self.rotation_slider.blockSignals(False)
-			self.flip_x_check.blockSignals(False)
-			self.flip_y_check.blockSignals(False)
-			
-			# Also update transform widget when loading properties
-			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer()
-			
-			# Update emblem color buttons from layer colors
-			for i, btn in enumerate(self.emblem_color_buttons):
-				color_key = f'color{i+1}'
-				color_name_key = f'color{i+1}_name'
-				if color_key in layer:
-					color_rgb = layer[color_key]
-					color_hex = '#{:02x}{:02x}{:02x}'.format(
-						int(color_rgb[0] * 255),
-						int(color_rgb[1] * 255),
-						int(color_rgb[2] * 255)
-					)
-					btn.setProperty("colorValue", color_hex)
-					# Also restore the color name if it exists (for proper serialization)
-					btn.setProperty("colorName", layer.get(color_name_key))
-					btn.setStyleSheet(f"""
-						QPushButton {{
-							background-color: {color_hex};
-							border-radius: 4px;
-						}}
-					""")
-	
-	def _select_layer(self, index):
-		"""Select a layer with support for multi-select via Ctrl/Shift modifiers"""
-		from PyQt5.QtWidgets import QApplication
-		from PyQt5.QtCore import Qt
-		
-		if index is None or index < 0:
-			# Deselect
-			self._deselect_layer()
+		if not selected_indices:
 			return
 		
-		# Get modifier keys
+		# Block signals while updating to avoid triggering changes
+		self.pos_x_slider.blockSignals(True)
+		self.pos_y_slider.blockSignals(True)
+		self.scale_x_slider.blockSignals(True)
+		self.scale_y_slider.blockSignals(True)
+		self.rotation_slider.blockSignals(True)
+		self.flip_x_check.blockSignals(True)
+		self.flip_y_check.blockSignals(True)
+		
+		# Get property values (may be 'Mixed' for multi-select)
+		pos_x = self.get_property_value('pos_x')
+		pos_y = self.get_property_value('pos_y')
+		scale_x_raw = self.get_property_value('scale_x')
+		scale_y_raw = self.get_property_value('scale_y')
+		rotation = self.get_property_value('rotation')
+		
+		# Position X
+		if pos_x == 'Mixed':
+			self.pos_x_input.setText('—')
+			self.pos_x_slider.setValue(50)  # Neutral position
+		else:
+			pos_x_val = int((pos_x or 0.5) * 100)
+			self.pos_x_slider.setValue(pos_x_val)
+			self.pos_x_input.setText(f"{pos_x_val/100:.2f}")
+		
+		# Position Y
+		if pos_y == 'Mixed':
+			self.pos_y_input.setText('—')
+			self.pos_y_slider.setValue(50)  # Neutral position
+		else:
+			pos_y_val = int((pos_y or 0.5) * 100)
+			self.pos_y_slider.setValue(pos_y_val)
+			self.pos_y_input.setText(f"{pos_y_val/100:.2f}")
+		
+		# Scale X with flip detection
+		if scale_x_raw == 'Mixed':
+			self.scale_x_input.setText('—')
+			self.scale_x_slider.setValue(50)  # Neutral position
+			self.flip_x_check.setChecked(False)
+			self.flip_x_check.setEnabled(False)  # Disable mixed flip
+		else:
+			scale_x = scale_x_raw or 0.5
+			self.flip_x_check.setChecked(scale_x < 0)
+			self.flip_x_check.setEnabled(True)
+			scale_x_val = int(abs(scale_x) * 100)
+			self.scale_x_slider.setValue(scale_x_val)
+			self.scale_x_input.setText(f"{scale_x_val/100:.2f}")
+		
+		# Scale Y with flip detection
+		if scale_y_raw == 'Mixed':
+			self.scale_y_input.setText('—')
+			self.scale_y_slider.setValue(50)  # Neutral position
+			self.flip_y_check.setChecked(False)
+			self.flip_y_check.setEnabled(False)  # Disable mixed flip
+		else:
+			scale_y = scale_y_raw or 0.5
+			self.flip_y_check.setChecked(scale_y < 0)
+			self.flip_y_check.setEnabled(True)
+			scale_y_val = int(abs(scale_y) * 100)
+			self.scale_y_slider.setValue(scale_y_val)
+			self.scale_y_input.setText(f"{scale_y_val/100:.2f}")
+		
+		# Rotation
+		if rotation == 'Mixed':
+			self.rotation_input.setText('—')
+			self.rotation_slider.setValue(0)  # Neutral position
+		else:
+			rotation_val = int(rotation or 0)
+			self.rotation_slider.setValue(rotation_val)
+			self.rotation_input.setText(str(rotation_val))
+		
+		# Check if X and Y scales are different or mixed
+		if scale_x_raw == 'Mixed' or scale_y_raw == 'Mixed':
+			self.unified_scale_check.setChecked(False)
+		elif scale_x_raw is not None and scale_y_raw is not None:
+			if abs(abs(scale_x_raw) - abs(scale_y_raw)) > 0.01:
+				self.unified_scale_check.setChecked(False)
+		
+		self.pos_x_slider.blockSignals(False)
+		self.pos_y_slider.blockSignals(False)
+		self.scale_x_slider.blockSignals(False)
+		self.scale_y_slider.blockSignals(False)
+		self.rotation_slider.blockSignals(False)
+		self.flip_x_check.blockSignals(False)
+		self.flip_y_check.blockSignals(False)
+		
+		# Update transform widget
+		if self.canvas_area:
+			self.canvas_area.update_transform_widget_for_layer()
+		
+		# Update emblem color buttons - show mixed state if colors differ
+		for i, btn in enumerate(self.emblem_color_buttons):
+			color_key = f'color{i+1}'
+			color_value = self.get_property_value(color_key)
+			
+			if color_value == 'Mixed':
+				# Show mixed state
+				btn.setStyleSheet(f"""
+					QPushButton {{
+						background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+							stop:0 #888, stop:0.5 #bbb, stop:1 #888);
+						border: 2px solid #555;
+						border-radius: 4px;
+					}}
+				""")
+				btn.setProperty("colorValue", None)
+				btn.setProperty("colorName", None)
+			elif color_value is not None:
+				# Single value - show color
+				color_rgb = color_value
+				color_hex = '#{:02x}{:02x}{:02x}'.format(
+					int(color_rgb[0] * 255),
+					int(color_rgb[1] * 255),
+					int(color_rgb[2] * 255)
+				)
+				btn.setProperty("colorValue", color_hex)
+				# Get color name if available
+				color_name = self.get_property_value(f'color{i+1}_name')
+				btn.setProperty("colorName", color_name if color_name != 'Mixed' else None)
+				btn.setStyleSheet(f"""
+				QPushButton {{
+					background-color: {color_hex};
+					border-radius: 4px;
+				}}
+			""")
+	
+	def _select_layer(self, index):
+		"""Handle layer selection with modifier key support"""
+		# Get current keyboard modifiers
+		from PyQt5.QtWidgets import QApplication
+		from PyQt5.QtCore import Qt
 		modifiers = QApplication.keyboardModifiers()
 		ctrl_pressed = modifiers & Qt.ControlModifier
 		shift_pressed = modifiers & Qt.ShiftModifier
 		
-		if ctrl_pressed and self.last_selected_index is not None:
-			# Ctrl+Click: Range selection
+		if shift_pressed and self.last_selected_index is not None:
+			# Shift+Click: Range selection
 			start = min(index, self.last_selected_index)
 			end = max(index, self.last_selected_index)
 			# Select all indices in range (inclusive)
 			self.selected_layer_indices = set(range(start, end + 1))
-			# Don't update last_selected_index - keep anchor for next ctrl-click
-		elif shift_pressed:
-			# Shift+Click: Toggle selection
+			# Don't update last_selected_index - keep anchor for next shift-click
+		elif ctrl_pressed:
+			# Ctrl+Click: Toggle selection
 			if index in self.selected_layer_indices:
 				self.selected_layer_indices.discard(index)
 				if not self.selected_layer_indices:
@@ -1234,7 +1350,7 @@ class PropertySidebar(QFrame):
 		# Update UI
 		self._update_layer_selection()
 		
-		# Load properties for first selected layer (or show mixed for multiple)
+		# Load properties for selected layers
 		selected_indices = self.get_selected_indices()
 		if selected_indices:
 			self._load_layer_properties()
@@ -1251,11 +1367,23 @@ class PropertySidebar(QFrame):
 		for i, btn in enumerate(self.layer_buttons):
 			btn.setChecked(i in self.selected_layer_indices)
 		
-		# Update multi-select indicator label
+		# Update selection indicator labels
 		selected_count = len(self.selected_layer_indices)
-		if hasattr(self, 'multi_select_label'):
+		if hasattr(self, 'multi_select_label') and hasattr(self, 'single_layer_label'):
 			if selected_count > 1:
+				# Show multi-select indicator
 				self.multi_select_label.setText(f"Multiple Layers Selected ({selected_count} layers)")
 				self.multi_select_label.setVisible(True)
-			else:
+				self.single_layer_label.setVisible(False)
+			elif selected_count == 1:
+				# Show single layer name
+				idx = list(self.selected_layer_indices)[0]
+				if 0 <= idx < len(self.layers):
+					layer_name = self.layers[idx].get('filename', 'Unknown Layer')
+					self.single_layer_label.setText(f"Layer: {layer_name}")
+					self.single_layer_label.setVisible(True)
 				self.multi_select_label.setVisible(False)
+			else:
+				# No selection
+				self.multi_select_label.setVisible(False)
+				self.single_layer_label.setVisible(False)

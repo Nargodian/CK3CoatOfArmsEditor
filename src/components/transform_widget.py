@@ -414,9 +414,10 @@ class TransformWidget(QWidget):
 			if start_dist > 0:
 				scale_factor = curr_dist / start_dist
 				self.scale_x = start_sx * scale_factor
-				# Emit signal to disable unified scale
-				self.nonUniformScaleUsed.emit()
-			
+			self.scale_y = start_sy  # Preserve Y scale
+			# Emit signal to disable unified scale
+			self.nonUniformScaleUsed.emit()
+		
 		elif self.active_handle in [self.HANDLE_T, self.HANDLE_B]:
 			# Vertical scale - simple Y-axis scaling
 			offset_x = (self.width() - size) / 2
@@ -434,12 +435,9 @@ class TransformWidget(QWidget):
 			if start_dist > 0:
 				scale_factor = curr_dist / start_dist
 				self.scale_y = start_sy * scale_factor
-				# Emit signal to disable unified scale
-				self.nonUniformScaleUsed.emit()
-		
-		# Clamp values - strict 0-1 limits
-		self.pos_x = max(0.0, min(1.0, self.pos_x))
-		self.pos_y = max(0.0, min(1.0, self.pos_y))
+			self.scale_x = start_sx  # Preserve X scale
+			# Emit signal to disable unified scale
+			self.nonUniformScaleUsed.emit()
 		self.scale_x = max(0.01, min(1.0, self.scale_x))
 		self.scale_y = max(0.01, min(1.0, self.scale_y))
 		

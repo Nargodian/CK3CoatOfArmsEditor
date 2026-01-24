@@ -239,8 +239,7 @@ class CanvasArea(QFrame):
 		self.transform_widget.set_transform(group_pos_x, group_pos_y, group_scale_x, group_scale_y, group_rotation)
 		self.transform_widget.set_visible(True)
 	def _on_transform_changed(self, pos_x, pos_y, scale_x, scale_y, rotation):
-		"""Handle transform changes from the widget
-		
+		"""Handle transform changes from the widget		
 		For single selection: updates layer directly
 		For multi-selection: applies group transform to all selected layers
 		"""
@@ -281,7 +280,7 @@ class CanvasArea(QFrame):
 					'scale_y': layer.get('scale_y', 0.5)
 				})
 		
-		# Calculate the original group AABB from cached positions
+		# Calculate and cache the original group AABB
 		original_min_x = float('inf')
 		original_max_x = float('-inf')
 		original_min_y = float('inf')
@@ -303,11 +302,20 @@ class CanvasArea(QFrame):
 			original_min_y = min(original_min_y, layer_min_y)
 			original_max_y = max(original_max_y, layer_max_y)
 		
-		# Calculate original group center and scale
-		original_center_x = (original_min_x + original_max_x) / 2
-		original_center_y = (original_min_y + original_max_y) / 2
-		original_scale_x = original_max_x - original_min_x
-		original_scale_y = original_max_y - original_min_y
+		# Cache the original AABB
+		self._drag_start_aabb = {
+			'center_x': (original_min_x + original_max_x) / 2,
+			'center_y': (original_min_y + original_max_y) / 2,
+			'scale_x': original_max_x - original_min_x,
+			'scale_y': original_max_y - original_min_y
+		}
+		print(f"[Multi-select] Cached original AABB: center=({self._drag_start_aabb['center_x']:.3f}, {self._drag_start_aabb['center_y']:.3f}), size=({self._drag_start_aabb['scale_x']:.3f}, {self._drag_start_aabb['scale_y']:.3f})")
+		
+		# Use cached original AABB
+		original_center_x = self._drag_start_aabb['center_x']
+		original_center_y = self._drag_start_aabb['center_y']
+		original_scale_x = self._drag_start_aabb['scale_x']
+		original_scale_y = self._drag_start_aabb['scale_y']
 		
 		# Calculate transform deltas
 		position_delta_x = pos_x - original_center_x
@@ -316,6 +324,8 @@ class CanvasArea(QFrame):
 		# Calculate scale factors (avoid division by zero)
 		scale_factor_x = scale_x / original_scale_x if original_scale_x > 0.001 else 1.0
 		scale_factor_y = scale_y / original_scale_y if original_scale_y > 0.001 else 1.0
+		
+		print(f"[Multi-select] Transform: widget=({scale_x:.3f}, {scale_y:.3f}), original=({original_scale_x:.3f}, {original_scale_y:.3f}), factors=({scale_factor_x:.3f}, {scale_factor_y:.3f})")
 		
 		# Calculate rotation delta (Task 3.6)
 		rotation_delta = rotation - getattr(self, '_initial_group_rotation', 0)
@@ -374,14 +384,20 @@ class CanvasArea(QFrame):
 			layer['scale_y'] = new_scale_y
 			# Task 3.6: Individual layer rotations are preserved (NOT modified)
 		
-		# Update canvas and UI
+		# Update canvas
 		self.canvas_widget.set_layers(self.property_sidebar.layers)
-		self.property_sidebar._load_layer_properties()
+		# Don't reload properties during drag - it's expensive and causes UI issues
+		# Properties will be reloaded when drag ends
 	
 	def _on_transform_ended(self):
 		"""Handle transform drag end - save to history"""
 		# Clear drag cache for next operation
 		self._drag_start_layers = None
+		self._drag_start_aabb = None
+		
+		# Reload properties to update UI with final values
+		if self.property_sidebar:
+			self.property_sidebar._load_layer_properties()
 		
 		if self.main_window and hasattr(self.main_window, '_save_state'):
 			self.main_window._save_state("Transform layer")

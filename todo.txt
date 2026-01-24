@@ -1,0 +1,73 @@
+1. Change prestige to splendor to match in-game
+	- update variable names (prestige_level → splendor_level)
+	- update UI labels and tooltips
+	- update comments/documentation
+
+2. Bugs
+	- prestige is correctly defaulting but the dropdown still shows level 0
+
+3. Redo frames to follow the in-game levels
+	- Base Origins = 0
+	- Obscure = 0
+	- Insignificant = 1
+	- Noteworthy = 1
+	- Reputable = 2
+	- Well-Known = 2
+	- Significant = 3
+	- Famous = 3
+	- Glorious = 4
+	- Fabled = 4
+	- Legendary = 5
+
+4. Rename toolbar buttons to clarify context
+	- "Copy to Clipboard" (exports full CoA)
+	- "Paste from Clipboard" (imports full CoA)
+
+5. Undo/Redo System
+	- create undo history
+	- hook up undo and redo to undo history
+	- connect actions taken:
+		- layer operations
+			- create
+			- delete
+			- reordering
+			- duplicating
+		- properties
+			- position (pos_x, pos_y)
+			- scale (scale_x, scale_y)
+			- rotation
+			- flip (flip_x, flip_y)
+			- unified scale toggle
+			- emblem colors (color1, color2, color3)
+			- base colors (pattern color1, color2, color3)
+			- base pattern/texture changes
+			- emblem texture changes
+			- avoid spam when sliding up and down
+		- CoA level operations
+			- frame changes
+			- splendor level changes
+			- new/open/save operations
+	- grey out undo when there's no more to undo (beginning)
+	- grey out redo when there's no more to redo (latest)
+	- ctrl+z undo
+	- ctrl+y redo
+
+6. Layer Copy/Paste System
+	- ctrl+c copy layer (serialized as CoA sub-block)
+	- ctrl+v paste layer (from serialized sub-block)
+	- smart paste detection (for paste from clipboard): if clipboard contains layer sub-block, paste as layer instead of throwing error
+
+7. Other Features
+	- ctrl+s saves
+	- new layers add or add from the assets will be placed on the top of the layer stack ie the most in front
+	- in widget make sure the layers are displaced in the layer tab
+		- top for most infront
+		- bottom for most behind
+	- (when mouse is over the top of the canvas)
+		- ctrl+v paste layer
+		- will be placed at the mouse position
+		- with the position clamped to the nearest legal position
+		- otherwise it will just paste over the top
+	- make any area of the transform AABB grabbable for translation
+	- ctrl+drag with a transform widget duplicates layer
+		- be careful not to spam that and only let it fire once per drag
