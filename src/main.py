@@ -251,6 +251,17 @@ class CoatOfArmsEditor(QMainWindow):
 		elif event.key() == Qt.Key_Y and event.modifiers() == Qt.ControlModifier:
 			self.redo()
 			event.accept()
+		# Ctrl+C for copy layer
+		elif event.key() == Qt.Key_C and event.modifiers() == Qt.ControlModifier:
+			if self.right_sidebar.selected_layer_index is not None:
+				self.copy_layer()
+				event.accept()
+			else:
+				super().keyPressEvent(event)
+		# Ctrl+V for paste layer
+		elif event.key() == Qt.Key_V and event.modifiers() == Qt.ControlModifier:
+			self.paste_layer()
+			event.accept()
 		else:
 			super().keyPressEvent(event)
 	
@@ -613,6 +624,12 @@ class CoatOfArmsEditor(QMainWindow):
 				QMessageBox.warning(self, "Paste Error", "Clipboard is empty.")
 				return
 			
+			# Smart detection: check if this is a layer sub-block or full CoA
+			if self._is_layer_subblock(coa_text):
+				# This is a layer, paste as layer instead
+				self.paste_layer()
+				return
+			
 			# Parse and apply using shared method
 			self._parse_and_apply_coa(coa_text)
 			
@@ -624,6 +641,190 @@ class CoatOfArmsEditor(QMainWindow):
 			import traceback
 			traceback.print_exc()
 			QMessageBox.critical(self, "Paste Error", f"Failed to paste coat of arms:\n{str(e)}\n\nThe clipboard may not contain valid coat of arms data.")
+	
+	def copy_layer(self):
+		"""Copy currently selected layer to clipboard as CoA sub-block"""
+		try:
+			# Check if a layer is selected
+			if self.right_sidebar.selected_layer_index is None:
+				print("No layer selected to copy")
+				return
+			
+			layer_idx = self.right_sidebar.selected_layer_index
+			layer = self.right_sidebar.layers[layer_idx]
+			
+			# Serialize layer to colored_emblem format
+			layer_text = self._serialize_layer_to_string(layer)
+			
+			# Copy to clipboard
+			QApplication.clipboard().setText(layer_text)
+			print(f"Layer '{layer.get('filename', 'Unknown')}' copied to clipboard")
+			
+		except Exception as e:
+			print(f"Error copying layer: {e}")
+			import traceback
+			traceback.print_exc()
+	
+	def paste_layer(self):
+		"""Paste layer from clipboard (as CoA sub-block) and add to layers"""
+		try:
+			# Get clipboard text
+			layer_text = QApplication.clipboard().text()
+			if not layer_text.strip():
+				print("Paste layer failed: Clipboard is empty")
+				return
+			
+			# Parse layer from clipboard
+			layer_data = self._parse_layer_from_string(layer_text)
+			if not layer_data:
+				raise ValueError("Clipboard does not contain valid layer data")
+			
+			# Add layer at the top (index 0)
+			self.right_sidebar.layers.insert(0, layer_data)
+			
+			# Select the new layer
+			self.right_sidebar.selected_layer_index = 0
+			
+			# Update UI
+			self.right_sidebar._rebuild_layer_list()
+			self.right_sidebar._update_layer_selection()
+			self.right_sidebar._load_layer_properties()
+			
+			# Enable Properties tab
+			self.right_sidebar.tab_widget.setTabEnabled(2, True)
+			
+			# Update canvas and transform widget
+			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			if self.canvas_area:
+				self.canvas_area.update_transform_widget_for_layer(0)
+			
+			# Save to history
+			self._save_state("Paste layer")
+			
+			print(f"Layer '{layer_data.get('filename', 'Unknown')}' pasted successfully")
+			
+		except Exception as e:
+			print(f"Paste layer failed: {e}")
+			if hasattr(self, 'status_left'):
+				self.status_left.setText("Paste layer failed")
+			import traceback
+			traceback.print_exc()
+	
+	def _is_layer_subblock(self, text):
+		"""Detect if clipboard text is a layer sub-block vs full CoA
+		
+		A layer sub-block starts with 'colored_emblem = {' and doesn't have
+		pattern or top-level CoA structure.
+		"""
+		text = text.strip()
+		# Check if it starts with colored_emblem
+		if text.startswith('colored_emblem'):
+			return True
+		# Check if it doesn't contain pattern (which is always in full CoA)
+		if 'pattern' not in text:
+			# Might be a layer if it has texture and instance
+			if 'texture' in text and 'instance' in text:
+				return True
+		return False
+	
+	def _serialize_layer_to_string(self, layer):
+		"""Serialize a single layer to colored_emblem block format"""
+		instance_data = {
+			"position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
+			"scale": [layer.get('scale_x', 1.0), layer.get('scale_y', 1.0)],
+			"rotation": int(layer.get('rotation', 0))
+		}
+		
+		emblem_data = {
+			"texture": layer.get('filename', ''),
+			"instance": [instance_data]
+		}
+		
+		# Add colors only if they differ from defaults (yellow, red, red)
+		color1_str = self._rgb_to_color_name(layer.get('color1', [1.0, 1.0, 1.0]), layer.get('color1_name'))
+		color2_str = self._rgb_to_color_name(layer.get('color2', [1.0, 1.0, 1.0]), layer.get('color2_name'))
+		color3_str = self._rgb_to_color_name(layer.get('color3', [1.0, 1.0, 1.0]), layer.get('color3_name'))
+		
+		if color1_str != 'yellow':
+			emblem_data['color1'] = color1_str
+		if color2_str != 'red':
+			emblem_data['color2'] = color2_str
+		if color3_str != 'red':
+			emblem_data['color3'] = color3_str
+		
+		# Wrap in colored_emblem block
+		data = {"colored_emblem": emblem_data}
+		
+		# Serialize using CoA serializer
+		return serialize_coa_to_string(data)
+	
+	def _parse_layer_from_string(self, layer_text):
+		"""Parse a layer from colored_emblem block format
+		
+		Returns a layer data dict compatible with the editor's layer format.
+		"""
+		try:
+			# Parse the text
+			data = parse_coa_string(layer_text)
+			if not data:
+				return None
+			
+			# Extract colored_emblem block (it's returned as a list)
+			emblem_list = data.get('colored_emblem')
+			if not emblem_list:
+				return None
+			
+			# Get first emblem if it's a list
+			if isinstance(emblem_list, list):
+				if len(emblem_list) == 0:
+					return None
+				emblem = emblem_list[0]
+			else:
+				emblem = emblem_list
+			
+			# Get emblem properties
+			filename = emblem.get('texture', '')
+			if not filename:
+				return None
+			
+			# Get instance data (use first instance if multiple)
+			instances = emblem.get('instance', [])
+			if not instances:
+				instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0}]
+			instance = instances[0]
+			
+			# Get colors
+			color1_name = emblem.get('color1', 'yellow')
+			color2_name = emblem.get('color2', 'red')
+			color3_name = emblem.get('color3', 'red')
+			
+			# Build layer data
+			layer_data = {
+				'filename': filename,
+				'path': filename,
+				'colors': 3,  # Assume 3 colors
+				'pos_x': instance.get('position', [0.5, 0.5])[0],
+				'pos_y': instance.get('position', [0.5, 0.5])[1],
+				'scale_x': instance.get('scale', [1.0, 1.0])[0],
+				'scale_y': instance.get('scale', [1.0, 1.0])[1],
+				'rotation': instance.get('rotation', 0),
+				'flip_x': False,
+				'flip_y': False,
+				'color1': self._color_name_to_rgb(color1_name),
+				'color2': self._color_name_to_rgb(color2_name),
+				'color3': self._color_name_to_rgb(color3_name),
+				'color1_name': color1_name,
+				'color2_name': color2_name,
+				'color3_name': color3_name
+			}
+			
+			return layer_data
+			
+		except Exception as e:
+			print(f"Error parsing layer: {e}")
+			import traceback
+			traceback.print_exc()
+			return None
 	
 	def _parse_and_apply_coa(self, coa_text):
 		"""Shared method to parse CoA text and apply to editor"""
