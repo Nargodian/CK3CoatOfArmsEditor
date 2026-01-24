@@ -76,32 +76,29 @@ def build_coa_for_save(base_colors, base_texture, layers, base_color_names):
         }
     }
     
-    # Add layers grouped by texture
+    # Add layers as separate colored_emblem blocks (CK3 format)
     if layers:
         coa_data["coa_export"]["colored_emblem"] = []
-        texture_groups = {}
         
-        for layer in layers:
+        for depth_index, layer in enumerate(layers):
             texture = layer.get('filename', layer.get('path', ''))
-            if texture not in texture_groups:
-                texture_groups[texture] = []
-            texture_groups[texture].append(layer)
-        
-        for texture, grouped_layers in texture_groups.items():
+            instance = {
+                "position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
+                "scale": [layer.get('scale_x', 1.0), layer.get('scale_y', 1.0)],
+                "rotation": int(layer.get('rotation', 0))
+            }
+            # Add depth: higher depth = further back
+            # First layer (frontmost) = no depth, subsequent layers get increasing depth
+            if depth_index < len(layers) - 1:
+                # Calculate depth from back: last layer gets highest depth
+                depth_from_back = len(layers) - 1 - depth_index
+                instance["depth"] = float(depth_from_back) + 0.01
+            
             emblem = {
                 "texture": texture,
-                "color1": rgb_to_color_name(grouped_layers[0].get('color1'), grouped_layers[0].get('color1_name')),
-                "instance": []
+                "color1": rgb_to_color_name(layer.get('color1'), layer.get('color1_name')),
+                "instance": [instance]
             }
-            
-            for layer in grouped_layers:
-                instance = {
-                    "position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
-                    "scale": [layer.get('scale_x', 1.0), layer.get('scale_y', 1.0)],
-                    "rotation": layer.get('rotation', 0)
-                }
-                emblem["instance"].append(instance)
-            
             coa_data["coa_export"]["colored_emblem"].append(emblem)
     
     return coa_data
@@ -146,26 +143,18 @@ def build_coa_for_clipboard(base_colors, base_texture, layers, base_color_names)
             "scale": [layer.get('scale_x', 1.0), layer.get('scale_y', 1.0)],
             "rotation": int(layer.get('rotation', 0))
         }
-        # Add depth for all layers except the first (layer 0 = frontmost, no depth)
-        if layer_idx > 0:
-            instance['depth'] = float(layer_idx) + 0.01
+        # Add depth: higher depth = further back
+        # First layer (frontmost) = no depth, subsequent layers get increasing depth
+        if layer_idx < len(layers) - 1:
+            # Calculate depth from back: last layer gets highest depth
+            depth_from_back = len(layers) - 1 - layer_idx
+            instance['depth'] = float(depth_from_back) + 0.01
         
         emblem = {
             "texture": layer.get('filename', ''),
+            "color1": rgb_to_color_name(layer.get('color1'), layer.get('color1_name')),
             "instance": [instance]
         }
-        
-        # Add emblem colors only if they differ from defaults (yellow, red, red)
-        color1_str = rgb_to_color_name(layer.get('color1', [1.0, 1.0, 1.0]), layer.get('color1_name'))
-        color2_str = rgb_to_color_name(layer.get('color2', [1.0, 1.0, 1.0]), layer.get('color2_name'))
-        color3_str = rgb_to_color_name(layer.get('color3', [1.0, 1.0, 1.0]), layer.get('color3_name'))
-        
-        if color1_str != 'yellow':
-            emblem['color1'] = color1_str
-        if color2_str != 'red':
-            emblem['color2'] = color2_str
-        if color3_str != 'red':
-            emblem['color3'] = color3_str
         
         coa_data["coa_clipboard"]["colored_emblem"].append(emblem)
     

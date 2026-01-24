@@ -1,0 +1,302 @@
+coa_rd_dynasty_3446239394={
+	custom=yes
+	pattern="pattern__solid_designer.dds"
+	color1=yellow_light
+	color2=rgb { 191 134 48 }
+	color3=rgb { 25 23 19 }
+	colored_emblem={
+		color1=red_dark
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_seal_pictorial_frame_oval_full.dds"
+		instance={
+			position={ 0.220747 0.758006 }
+			scale={ 0.316074 0.251133 }
+			rotation=304
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_crescent.dds"
+		instance={
+			position={ 0.766277 0.634391 }
+			scale={ 1.000000 0.732785 }
+			depth=1.010000
+			rotation=276
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_mena_horn.dds"
+		instance={
+			position={ 0.257171 0.269312 }
+			depth=2.010000
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_mena_horn.dds"
+		instance={
+			position={ 0.496965 0.090226 }
+			scale={ 1.000000 0.810656 }
+			depth=3.010000
+			rotation=123
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_mena_horn.dds"
+		instance={
+			position={ 0.663910 0.600167 }
+			scale={ 1.000000 0.810656 }
+			depth=4.010000
+			rotation=160
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_mena_horn.dds"
+		instance={
+			position={ 0.493929 0.150933 }
+			scale={ 1.000000 0.810656 }
+			depth=5.010000
+			rotation=123
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_triskel_sassanian.dds"
+		instance={
+			position={ 0.257171 0.075049 }
+			depth=6.010000
+			rotation=12
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_bull_horn.dds"
+		instance={
+			position={ 0.524283 0.515177 }
+			depth=7.010000
+			rotation=277
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_bull_horn.dds"
+		instance={
+			position={ 0.524283 0.393762 }
+			depth=8.010000
+			rotation=94
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_mena_horn.dds"
+		instance={
+			position={ 0.519730 0.802019 }
+			scale={ 0.847025 0.455225 }
+			depth=9.010000
+			rotation=-41
+		}
+
+	}
+
+	colored_emblem={
+		color1=yellow_light
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_mena_horn.dds"
+		instance={
+			position={ 0.082638 0.000000 }
+			depth=10.010000
+			rotation=60
+		}
+
+	}
+
+	colored_emblem={
+		color1=yellow_light
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_seal_pictorial_frame_oval_full.dds"
+		instance={
+			position={ 0.591061 0.709440 }
+			scale={ 0.405539 0.322217 }
+			depth=11.010000
+			rotation=264
+		}
+
+	}
+
+	colored_emblem={
+		color1=yellow_light
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_seal_pictorial_frame_oval_full.dds"
+		instance={
+			position={ 0.326984 0.205570 }
+			scale={ 0.427408 0.339593 }
+			depth=12.010000
+			rotation=279
+		}
+
+	}
+
+	colored_emblem={
+		color1=yellow_light
+		texture="ce_kamon_sorrel.dds"
+		instance={
+			position={ 0.703369 0.003035 }
+			scale={ 0.806496 0.378924 }
+			depth=13.010000
+			rotation=-13
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_letter_i.dds"
+		instance={
+			position={ 0.885491 0.000000 }
+			scale={ 1.000000 0.847689 }
+			depth=14.010000
+			rotation=731
+		}
+
+	}
+
+	colored_emblem={
+		color1=yellow_light
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_letter_i.dds"
+		instance={
+			position={ 0.991729 0.000000 }
+			scale={ 1.000000 0.847689 }
+			depth=15.010000
+			rotation=725
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		texture="ce_chevron_in_chief.dds"
+		instance={
+			position={ 0.509106 0.788359 }
+			depth=16.010000
+			rotation=178
+		}
+
+	}
+
+	colored_emblem={
+		color1=blue
+		texture="ce_chevron_in_chief.dds"
+		instance={
+			position={ 0.521248 0.885491 }
+			depth=17.010000
+			rotation=178
+		}
+
+	}
+
+	colored_emblem={
+		color1=blue
+		texture="ce_chevron_in_chief.dds"
+		instance={
+			position={ 0.515177 1.000000 }
+			depth=18.010000
+			rotation=178
+		}
+
+	}
+
+	colored_emblem={
+		color1=blue
+		texture="ce_billet.dds"
+		instance={
+			position={ 0.986493 1.000000 }
+			scale={ 1.000000 0.687899 }
+			depth=19.010000
+			rotation=221
+		}
+
+	}
+
+	colored_emblem={
+		color1=blue
+		texture="ce_billet.dds"
+		instance={
+			position={ 0.000000 1.000000 }
+			scale={ 1.000000 0.687899 }
+			depth=20.010000
+			rotation=149
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		texture="ce_block_03.dds"
+		instance={
+			position={ 0.503035 0.000000 }
+			scale={ 1.000000 0.350797 }
+			depth=21.010000
+		}
+
+	}
+
+	colored_emblem={
+		color1=red_dark
+		color2=rgb { 115 34 23 }
+		color3=rgb { 115 34 23 }
+		texture="ce_mena_horn.dds"
+		instance={
+			position={ 0.119062 0.258689 }
+			depth=22.010000
+		}
+
+	}
+
+}
