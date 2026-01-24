@@ -226,6 +226,7 @@ class PropertySidebar(QFrame):
 		self.layer_list_widget.on_layers_reordered = self._on_layers_reordered
 		self.layer_list_widget.on_duplicate_layer = self._duplicate_layer_at_index
 		self.layer_list_widget.on_delete_layer = self._delete_layer_at_index
+		self.layer_list_widget.on_color_changed = self._on_layer_color_changed
 		
 		scroll.setWidget(self.layer_list_widget)
 		container_layout.addWidget(scroll)
@@ -769,6 +770,42 @@ class PropertySidebar(QFrame):
 	# ========================================
 	# Layer List Widget Callbacks
 	# ========================================
+	
+	def _on_layer_color_changed(self, layer_index, color_index):
+		"""Handle color button click from layer list - open color picker for that layer's color"""
+		if 0 <= layer_index < len(self.layers):
+			layer = self.layers[layer_index]
+			color_key = f'color{color_index}'
+			color_name_key = f'color{color_index}_name'
+			
+			# Get current color
+			current_color_rgb = layer.get(color_key, [1.0, 1.0, 1.0])
+			r, g, b = int(current_color_rgb[0] * 255), int(current_color_rgb[1] * 255), int(current_color_rgb[2] * 255)
+			current_color_hex = f'#{r:02x}{g:02x}{b:02x}'
+			
+			# Show color picker
+			color_hex, color_name = ColorPickerDialog.get_color(self, current_color_hex)
+			
+			if color_hex:
+				# Convert hex to RGB float
+				from PyQt5.QtGui import QColor
+				color = QColor(color_hex)
+				color_rgb = [color.redF(), color.greenF(), color.blueF()]
+				
+				# Update layer
+				layer[color_key] = color_rgb
+				layer[color_name_key] = color_name  # Store name or None
+				
+				# Rebuild layer list to update color button display
+				self._rebuild_layer_list()
+				
+				# Update canvas
+				if self.canvas_widget:
+					self.canvas_widget.set_layers(self.layers)
+				
+				# Save to history
+				if self.main_window and hasattr(self.main_window, '_save_state'):
+					self.main_window._save_state(f"Change layer color {color_index}")
 	
 	def _on_layer_selection_changed(self):
 		"""Handle layer selection change from layer list widget"""

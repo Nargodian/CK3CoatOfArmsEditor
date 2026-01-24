@@ -39,7 +39,7 @@ void main()
 	
 	// Apply noise grain for texture
 	float noise = texture(noiseSampler, maskCoord).r;
-	outputColour = mix(outputColour, outputColour * noise, 0.2);
+	outputColour = mix(outputColour, outputColour * noise, 0.1);
 	
 	FragColor=vec4(outputColour,textureMask.a*coaMaskValue);
 }

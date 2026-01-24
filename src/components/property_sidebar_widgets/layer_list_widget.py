@@ -31,6 +31,7 @@ class LayerListWidget(QWidget):
 		self.on_layers_reordered = None
 		self.on_duplicate_layer = None
 		self.on_delete_layer = None
+		self.on_color_changed = None
 		
 		self._setup_ui()
 	
@@ -103,6 +104,9 @@ class LayerListWidget(QWidget):
 		layer_btn.mousePressEvent = lambda event, idx=actual_index, btn=layer_btn: self._layer_mouse_press(event, idx, btn)
 		layer_btn.mouseMoveEvent = lambda event, idx=actual_index, btn=layer_btn: self._layer_mouse_move(event, idx, btn)
 		
+		# Store button container reference for hover handling
+		layer_btn.setProperty('button_container', None)
+		
 		# Create layout for layer button content
 		btn_layout = QHBoxLayout(layer_btn)
 		btn_layout.setContentsMargins(5, 5, 5, 5)
@@ -133,6 +137,13 @@ class LayerListWidget(QWidget):
 		button_container = self._create_inline_buttons(actual_index)
 		btn_layout.addWidget(button_container)
 		
+		# Store button container reference for hover handling
+		layer_btn.setProperty('button_container', button_container)
+		
+		# Add hover event handling
+		layer_btn.enterEvent = lambda event, btn=layer_btn: self._on_layer_enter(event, btn)
+		layer_btn.leaveEvent = lambda event, btn=layer_btn: self._on_layer_leave(event, btn)
+		
 		layer_btn.setStyleSheet("""
 			QPushButton {
 				text-align: left;
@@ -153,12 +164,60 @@ class LayerListWidget(QWidget):
 		return layer_btn
 	
 	def _create_inline_buttons(self, actual_index):
-		"""Create inline duplicate and delete buttons for a layer"""
+		"""Create inline duplicate, delete, and color buttons for a layer"""
 		button_container = QWidget()
 		button_container.setStyleSheet("border: none;")
-		inline_layout = QVBoxLayout(button_container)
+		inline_layout = QHBoxLayout(button_container)
 		inline_layout.setContentsMargins(0, 0, 0, 0)
 		inline_layout.setSpacing(2)
+		
+		# Color buttons container (stacked vertically like traffic lights)
+		layer = self.layers[actual_index]
+		num_colors = layer.get('colors', 3)
+		
+		color_container = QWidget()
+		color_container.setStyleSheet("border: none;")
+		color_layout = QVBoxLayout(color_container)
+		color_layout.setContentsMargins(0, 0, 0, 0)
+		color_layout.setSpacing(1)
+		
+		# Create color buttons based on layer's color count
+		for color_idx in range(1, num_colors + 1):
+			color_btn = QPushButton()
+			color_btn.setFixedSize(16, 16)
+			color_btn.setToolTip(f"Color {color_idx}")
+			
+			# Get current color and set background
+			color_key = f'color{color_idx}'
+			color_rgb = layer.get(color_key, [1.0, 1.0, 1.0])
+			r, g, b = int(color_rgb[0] * 255), int(color_rgb[1] * 255), int(color_rgb[2] * 255)
+			
+			color_btn.setStyleSheet(f"""
+				QPushButton {{
+					border: 1px solid rgba(255, 255, 255, 80);
+					border-radius: 2px;
+					background-color: rgb({r}, {g}, {b});
+					padding: 0px;
+				}}
+				QPushButton:hover {{
+					border: 2px solid rgba(255, 255, 255, 150);
+				}}
+			""")
+			color_btn.clicked.connect(lambda checked, idx=actual_index, c_idx=color_idx: self._handle_color_pick(idx, c_idx))
+			color_layout.addWidget(color_btn)
+		
+		# Add stretch if less than 3 colors to maintain vertical spacing
+		if num_colors < 3:
+			color_layout.addStretch()
+		
+		inline_layout.addWidget(color_container)
+		
+		# Action buttons container (duplicate/delete)
+		action_container = QWidget()
+		action_container.setStyleSheet("border: none;")
+		action_layout = QVBoxLayout(action_container)
+		action_layout.setContentsMargins(0, 0, 0, 0)
+		action_layout.setSpacing(2)
 		
 		# Duplicate button
 		duplicate_btn = QPushButton("⎘")
@@ -178,7 +237,7 @@ class LayerListWidget(QWidget):
 			}
 		""")
 		duplicate_btn.clicked.connect(lambda checked: self._handle_duplicate(actual_index))
-		inline_layout.addWidget(duplicate_btn)
+		action_layout.addWidget(duplicate_btn)
 		
 		# Delete button
 		delete_btn = QPushButton("×")
@@ -199,7 +258,13 @@ class LayerListWidget(QWidget):
 			}
 		""")
 		delete_btn.clicked.connect(lambda checked: self._handle_delete(actual_index))
-		inline_layout.addWidget(delete_btn)
+		action_layout.addWidget(delete_btn)
+		
+		inline_layout.addWidget(action_container)
+		
+		# Hide color buttons initially (show on hover)
+		color_container.setVisible(False)
+		button_container.setProperty('color_container', color_container)
 		
 		return button_container
 	
@@ -467,3 +532,24 @@ class LayerListWidget(QWidget):
 		"""Handle delete button click"""
 		if self.on_delete_layer:
 			self.on_delete_layer(index)
+	
+	def _handle_color_pick(self, index, color_index):
+		"""Handle color button click - open color picker"""
+		if self.on_color_changed:
+			self.on_color_changed(index, color_index)
+	
+	def _on_layer_enter(self, event, layer_btn):
+		"""Show color buttons on hover"""
+		button_container = layer_btn.property('button_container')
+		if button_container:
+			color_container = button_container.property('color_container')
+			if color_container:
+				color_container.setVisible(True)
+	
+	def _on_layer_leave(self, event, layer_btn):
+		"""Hide color buttons when hover ends"""
+		button_container = layer_btn.property('button_container')
+		if button_container:
+			color_container = button_container.property('color_container')
+			if color_container:
+				color_container.setVisible(False)
