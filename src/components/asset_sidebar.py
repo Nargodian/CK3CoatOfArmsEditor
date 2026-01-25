@@ -422,20 +422,34 @@ class AssetSidebar(QFrame):
 				'background3': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'])
 			}
 		
+		# Get background colors from base color buttons (always from Base tab)
+		base_colors = self.right_sidebar.get_base_colors()
+		background1 = tuple(base_colors[0]) if len(base_colors) > 0 else tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb'])
+		background2 = tuple(base_colors[1]) if len(base_colors) > 1 else tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb'])
+		background3 = tuple(base_colors[2]) if len(base_colors) > 2 else tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'])
+		
 		# Get selected layer indices
 		selected_indices = self.right_sidebar.get_selected_indices()
 		if not selected_indices:
 			# Use first layer or defaults
 			if self.right_sidebar.layers:
 				layer = self.right_sidebar.layers[0]
+				return {
+					'color1': layer.get('color1', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'])),
+					'color2': layer.get('color2', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'])),
+					'color3': layer.get('color3', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'])),
+					'background1': background1,
+					'background2': background2,
+					'background3': background3
+				}
 			else:
 				return {
 					'color1': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb']),
 					'color2': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb']),
 					'color3': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb']),
-					'background1': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb']),
-					'background2': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb']),
-					'background3': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'])
+					'background1': background1,
+					'background2': background2,
+					'background3': background3
 				}
 		else:
 			layer = self.right_sidebar.layers[selected_indices[0]]
@@ -445,9 +459,9 @@ class AssetSidebar(QFrame):
 			'color1': layer.get('color1', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'])),
 			'color2': layer.get('color2', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'])),
 			'color3': layer.get('color3', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'])),
-			'background1': layer.get('background1', tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb'])),
-			'background2': layer.get('background2', tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb'])),
-			'background3': layer.get('background3', tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb']))
+			'background1': background1,
+			'background2': background2,
+			'background3': background3
 		}
 	
 	def _create_asset_preview(self, asset, colors):
@@ -457,9 +471,23 @@ class AssetSidebar(QFrame):
 		# Try to get atlas path
 		try:
 			if self.current_mode == "emblems":
+				from utils.color_utils import get_contrasting_background
+				
+				# For emblems, use smart contrast background
+				emblem_color1 = colors['color1']
+				base_background_color1 = colors['background1']
+				
+				# Create new colors dict with contrasting background
+				emblem_colors = {
+					'color1': emblem_color1,
+					'color2': colors['color2'],
+					'color3': colors['color3'],
+					'background1': get_contrasting_background(emblem_color1, base_background_color1)
+				}
+				
 				atlas_path = get_atlas_path(filename, 'emblem')
 				if atlas_path.exists():
-					return composite_emblem_atlas(str(atlas_path), colors, size=self.current_icon_size)
+					return composite_emblem_atlas(str(atlas_path), emblem_colors, size=self.current_icon_size)
 			elif self.current_mode == "patterns":
 				atlas_path = get_atlas_path(filename, 'pattern')
 				if atlas_path.exists():

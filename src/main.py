@@ -182,6 +182,10 @@ class CoatOfArmsEditor(QMainWindow):
 				'colors': color_count
 			}
 			
+			# Invalidate thumbnail cache for this layer since texture changed
+			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
+				self.right_sidebar.layer_list_widget.invalidate_thumbnail(idx)
+			
 			# Update UI and canvas
 			self.right_sidebar._rebuild_layer_list()
 			self.right_sidebar._update_layer_selection()

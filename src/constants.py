@@ -70,6 +70,19 @@ DEFAULT_EMBLEM_CATEGORY = 'Nature'  # Where ce_fleur.dds is located
 DEFAULT_FRAME = 'house'  # Options: 'house', 'dynasty', etc.
 
 # ======================================================================
+# HIGH CONTRAST FALLBACK COLORS
+# ======================================================================
+
+# For layer thumbnails and asset previews when emblem color is too similar to background
+# Use CK3's defined black and white for authentic appearance
+HIGH_CONTRAST_DARK = CK3_NAMED_COLORS['black']['rgb']   # [0.100, 0.090, 0.075]
+HIGH_CONTRAST_LIGHT = CK3_NAMED_COLORS['white']['rgb']  # [0.800, 0.792, 0.784]
+
+# Minimum color distance threshold (Euclidean distance in RGB space)
+# Below this threshold, fallback to high contrast colors
+MIN_COLOR_DISTANCE = 0.1
+
+# ======================================================================
 # COORDINATE SYSTEM
 # ======================================================================
 

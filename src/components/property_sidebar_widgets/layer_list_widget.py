@@ -10,7 +10,9 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel,
 from PyQt5.QtCore import Qt, QMimeData, QByteArray, QSize
 from PyQt5.QtGui import QPixmap, QDrag
 import json
+import math
 from utils.atlas_compositor import composite_emblem_atlas, get_atlas_path
+from constants import HIGH_CONTRAST_DARK, HIGH_CONTRAST_LIGHT
 
 
 class LayerListWidget(QWidget):
@@ -551,19 +553,27 @@ class LayerListWidget(QWidget):
 		if not filename:
 			return None
 		
-		# Get background color1 from base layer if available
-		background1 = (0.5, 0.5, 0.5)  # Default gray
-		if self.property_sidebar:
+		from utils.color_utils import get_contrasting_background
+		
+		# Get actual layer colors (in 0-1 range)
+		emblem_color1 = layer.get('color1', [0.75, 0.525, 0.188])
+		
+		# Get base background color from property sidebar (not from layer data)
+		if self.property_sidebar and hasattr(self.property_sidebar, 'get_base_colors'):
 			base_colors = self.property_sidebar.get_base_colors()
-			if base_colors and len(base_colors) > 0:
-				background1 = tuple(base_colors[0])  # Use first background color
+			base_background_color1 = base_colors[0] if len(base_colors) > 0 else [0.45, 0.133, 0.090]
+		else:
+			base_background_color1 = [0.45, 0.133, 0.090]
+		
+		# Choose background color with smart contrast
+		background_color = get_contrasting_background(emblem_color1, base_background_color1)
 		
 		# Extract colors from layer (already in 0-1 range)
 		colors = {
 			'color1': tuple(layer.get('color1', [0.75, 0.525, 0.188])),
 			'color2': tuple(layer.get('color2', [0.45, 0.133, 0.090])),
 			'color3': tuple(layer.get('color3', [0.45, 0.133, 0.090])),
-			'background1': background1
+			'background1': background_color
 		}
 		
 		try:

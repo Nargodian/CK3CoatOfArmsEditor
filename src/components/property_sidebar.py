@@ -458,6 +458,16 @@ class PropertySidebar(QFrame):
 				for i, btn in enumerate(self.color_buttons):
 					color_name_prop = btn.property("colorName")
 					setattr(self.canvas_widget, f'base_color{i+1}_name', color_name_prop)
+				
+				# Clear layer thumbnail cache since background colors changed
+				if hasattr(self, 'layer_list_widget') and self.layer_list_widget:
+					self.layer_list_widget.clear_thumbnail_cache()
+					self._rebuild_layer_list()
+				
+				# Update asset sidebar pattern previews with new background colors
+				if self.main_window and hasattr(self.main_window, 'left_sidebar'):
+					self.main_window.left_sidebar.update_asset_colors()
+				
 				# Save to history
 				if self.main_window and hasattr(self.main_window, '_save_state'):
 					self.main_window._save_state("Change base color")
