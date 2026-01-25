@@ -123,6 +123,28 @@ def get_frames_dir() -> Path:
     return get_assets_dir() / "coa_frames"
 
 
+def get_resource_path(*path_parts) -> Path:
+    """Get path to a bundled resource file (e.g., noise.png, shaders).
+    
+    In frozen mode, resources are extracted to sys._MEIPASS by PyInstaller.
+    In development mode, resources are relative to the editor directory.
+    
+    Args:
+        *path_parts: Path components (e.g., 'assets', 'noise.png')
+    
+    Returns:
+        Path: Full path to the resource
+    """
+    if getattr(sys, 'frozen', False):
+        # Running as PyInstaller executable - use temporary extraction folder
+        return Path(sys._MEIPASS).joinpath(*path_parts)
+    else:
+        # Development mode - resources are in editor/ directory
+        # This file is in editor/src/utils/, so go up 2 levels to editor/
+        editor_dir = Path(__file__).resolve().parent.parent.parent
+        return editor_dir.joinpath(*path_parts)
+
+
 def check_assets_exist() -> tuple[bool, list[str]]:
     """Check if required asset directories exist.
     

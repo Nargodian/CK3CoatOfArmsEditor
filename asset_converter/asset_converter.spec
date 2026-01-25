@@ -6,6 +6,9 @@ This builds the asset converter executable with DDS loading capabilities.
 Run with: pyinstaller asset_converter.spec
 """
 
+import os
+base_dir = os.path.dirname(os.path.abspath(SPECPATH))
+
 block_cipher = None
 
 a = Analysis(
@@ -54,7 +57,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,  # TODO: Add icon file if available
+    icon=os.path.join(base_dir, 'icon_assets.ico'),
 )
 
 coll = COLLECT(

@@ -1,3 +1,14 @@
+import sys
+import os
+
+# Add editor/src to path so imports work when running directly
+if __name__ == "__main__":
+	# Get the directory containing this file (editor/src)
+	current_dir = os.path.dirname(os.path.abspath(__file__))
+	# Add it to the Python path
+	if current_dir not in sys.path:
+		sys.path.insert(0, current_dir)
+
 # PyQt5 imports
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QSplitter, QApplication, QFileDialog, QMessageBox, QStatusBar, QLabel

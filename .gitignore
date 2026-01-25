@@ -56,3 +56,6 @@ Thumbs.db
 *.tmp
 *.bak
 *.broken
+
+# Source files (design assets)
+*.psd

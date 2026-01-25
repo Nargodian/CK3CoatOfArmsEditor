@@ -6,6 +6,9 @@ This builds the main editor executable with bundled shaders.
 Run with: pyinstaller editor.spec
 """
 
+import os
+base_dir = os.path.dirname(os.path.abspath(SPECPATH))
+
 block_cipher = None
 
 a = Analysis(
@@ -14,6 +17,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('src/shaders', 'shaders'),  # Bundle shaders into executable
+        ('assets/noise.png', 'assets'),  # Bundle noise texture
     ],
     hiddenimports=[
         'PyQt5.sip',
@@ -56,7 +60,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,  # TODO: Add icon file if available
+    icon=os.path.join(base_dir, 'icon.ico'),
 )
 
 coll = COLLECT(

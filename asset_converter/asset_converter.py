@@ -667,48 +667,44 @@ class ConversionWorker(QThread):
     def convert_metadata(self) -> bool:
         """Convert CK3 .txt metadata files to JSON."""
         try:
-            metadata_dir = self.ck3_dir / "game" / "common" / "coat_of_arms"
+            metadata_dir = self.ck3_dir / "game" / "gfx" / "coat_of_arms"
+            self.progress.emit(f"Metadata dir: {metadata_dir}", 0, 0)
             
             # Convert emblems metadata
             emblems_txt = metadata_dir / "colored_emblems" / "50_coa_designer_emblems.txt"
+            self.progress.emit(f"Checking emblems: {emblems_txt}", 0, 0)
             if emblems_txt.exists():
+                self.progress.emit("Parsing emblems file...", 0, 0)
                 data = parse_ck3_file(emblems_txt)
                 output_path = self.output_dir / "coa_emblems" / "metadata" / "50_coa_designer_emblems.json"
                 output_path.parent.mkdir(parents=True, exist_ok=True)
+                self.progress.emit(f"Writing to: {output_path}", 0, 0)
                 with open(output_path, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2)
+                self.progress.emit("Emblems metadata converted", 0, 0)
+            else:
+                self.progress.emit(f"Emblems file not found: {emblems_txt}", 0, 0)
             
             # Convert patterns metadata
             patterns_txt = metadata_dir / "patterns" / "50_coa_designer_patterns.txt"
+            self.progress.emit(f"Checking patterns: {patterns_txt}", 0, 0)
             if patterns_txt.exists():
+                self.progress.emit("Parsing patterns file...", 0, 0)
                 data = parse_ck3_file(patterns_txt)
                 output_path = self.output_dir / "coa_patterns" / "metadata" / "50_coa_designer_patterns.json"
                 output_path.parent.mkdir(parents=True, exist_ok=True)
+                self.progress.emit(f"Writing to: {output_path}", 0, 0)
                 with open(output_path, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2)
-            
-            # Convert color palettes
-            palettes_txt = metadata_dir / "color_palettes" / "50_coa_designer_palettes.txt"
-            if palettes_txt.exists():
-                data = parse_ck3_file(palettes_txt)
-                output_path = self.output_dir / "coa_emblems" / "metadata" / "50_coa_designer_palettes.json"
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, indent=2)
-            
-            # Convert emblem layouts
-            layouts_txt = metadata_dir / "emblem_layouts" / "50_coa_designer_emblem_layouts.txt"
-            if layouts_txt.exists():
-                data = parse_ck3_file(layouts_txt)
-                output_path = self.output_dir / "coa_emblems" / "metadata" / "50_coa_designer_emblem_layouts.json"
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, indent=2)
+                self.progress.emit("Patterns metadata converted", 0, 0)
+            else:
+                self.progress.emit(f"Patterns file not found: {patterns_txt}", 0, 0)
             
             return True
             
         except Exception as e:
             self.log_error(f"Metadata conversion error: {str(e)}")
+            self.progress.emit(f"Metadata error: {str(e)}", 0, 0)
             return False
 
 
@@ -871,9 +867,12 @@ class AssetConverterGUI(QMainWindow):
         output_dir = Path(self.output_path_edit.text())
         
         # Disable UI during conversion
+        self.convert_btn.setText("Converting...")
         self.convert_btn.setEnabled(False)
         self.ck3_browse_btn.setEnabled(False)
         self.output_browse_btn.setEnabled(False)
+        self.ck3_path_edit.setEnabled(False)
+        self.output_path_edit.setEnabled(False)
         
         self.log_text.clear()
         self.log(f"Starting conversion from: {ck3_dir}")
@@ -898,13 +897,23 @@ class AssetConverterGUI(QMainWindow):
         
         if success:
             QMessageBox.information(self, "Success", message)
+            # Change button to close app
+            self.convert_btn.setText("Conversion Done - Close")
+            self.convert_btn.clicked.disconnect()
+            self.convert_btn.clicked.connect(self.close)
+            self.convert_btn.setEnabled(True)
+            # Keep text fields disabled
         else:
             QMessageBox.critical(self, "Error", message)
+            # Reset button for retry on error
+            self.convert_btn.setText("Start Conversion")
+            self.convert_btn.setEnabled(True)
+            # Re-enable UI for retry
+            self.ck3_browse_btn.setEnabled(True)
+            self.output_browse_btn.setEnabled(True)
+            self.ck3_path_edit.setEnabled(True)
+            self.output_path_edit.setEnabled(True)
         
-        # Re-enable UI
-        self.convert_btn.setEnabled(True)
-        self.ck3_browse_btn.setEnabled(True)
-        self.output_browse_btn.setEnabled(True)
         self.progress_bar.setValue(0 if not success else 100)
 
 

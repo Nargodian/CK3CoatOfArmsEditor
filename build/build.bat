@@ -78,6 +78,14 @@ if errorlevel 1 (
     echo Warning: Could not merge AssetConverter dependencies
 )
 
+REM Copy README
+copy /Y README.txt dist\merged\README.txt
+if errorlevel 1 (
+    echo ERROR: Failed to copy README
+    exit /b 1
+)
+echo Copied README.txt
+
 echo.
 echo ========================================
 echo Build Complete!
@@ -86,6 +94,7 @@ echo.
 echo Executables are in: dist\merged\
 echo   - CoatOfArmsEditor.exe (main editor)
 echo   - AssetConverter.exe (asset extraction tool)
+echo   - README.txt (usage instructions)
 echo   - _internal\ (shared libraries)
 echo.
 echo Next steps:
@@ -94,9 +103,8 @@ echo 2. Run AssetConverter.exe to extract CK3 assets
 echo 3. Run CoatOfArmsEditor.exe to create coat of arms
 echo.
 echo To create a distribution zip:
-echo   - Copy dist\merged\ to desired location
-echo   - Create README.txt with usage instructions
-echo   - Zip the folder for distribution
+echo   - Zip the dist\merged\ folder for distribution
+echo   - README.txt is already included
 echo.
 
 REM Exit cleanly
