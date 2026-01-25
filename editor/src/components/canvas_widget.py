@@ -617,12 +617,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def _load_noise_texture(self):
 		"""Load noise texture for grain effect"""
 		try:
-			# Load from ck3_assets directory (legacy path - these might not exist in new structure)
-			# For now, keep this as-is since these are editor-specific assets, not CK3 assets
-			base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-			noise_path = os.path.join(base_dir, 'source_coa_files', 'noise.png')
-			
-			if os.path.exists(noise_path):
+		from utils.path_resolver import get_base_dir
+		base_dir = get_base_dir()
+		noise_path = os.path.join(base_dir, 'editor', 'assets', 'noise.png')
 				img = Image.open(noise_path).convert('RGBA')
 				img_data = np.array(img)
 				
