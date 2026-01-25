@@ -28,7 +28,8 @@ from services.coa_serializer import parse_coa_for_editor
 from constants import (
     DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
     DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
-    CK3_NAMED_COLORS
+    CK3_NAMED_COLORS, DEFAULT_SCALE_X, DEFAULT_SCALE_Y,
+    DEFAULT_FLIP_X, DEFAULT_FLIP_Y, DEFAULT_ROTATION
 )
 
 
@@ -201,9 +202,11 @@ class CoatOfArmsEditor(QMainWindow):
 			'depth': 0,
 			'pos_x': 0.5,
 			'pos_y': 0.5,
-			'scale_x': 0.5,
-			'scale_y': 0.5,
-			'rotation': 0,
+			'scale_x': DEFAULT_SCALE_X,
+			'scale_y': DEFAULT_SCALE_Y,
+			'flip_x': DEFAULT_FLIP_X,
+			'flip_y': DEFAULT_FLIP_Y,
+			'rotation': DEFAULT_ROTATION,
 			'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'],
 			'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'],
 			'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
@@ -219,13 +222,12 @@ class CoatOfArmsEditor(QMainWindow):
 		# Update UI
 		self.right_sidebar._rebuild_layer_list()
 		self.right_sidebar._update_layer_selection()
-		self.right_sidebar._load_layer_properties()
-		self.right_sidebar.tab_widget.setTabEnabled(2, True)
 		
-		# Update canvas and transform widget
+		# Update canvas
 		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-		if self.canvas_area:
-			self.canvas_area.update_transform_widget_for_layer(0)
+		
+		# Trigger selection change callback to update properties and transform widget
+		self.right_sidebar._on_layer_selection_changed()
 		
 		self._save_state("Create layer")
 	

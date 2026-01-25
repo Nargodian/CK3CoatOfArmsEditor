@@ -570,6 +570,7 @@ class PropertySidebar(QFrame):
 		from constants import (
 			DEFAULT_POSITION_X, DEFAULT_POSITION_Y,
 			DEFAULT_SCALE_X, DEFAULT_SCALE_Y,
+			DEFAULT_FLIP_X, DEFAULT_FLIP_Y,
 			DEFAULT_ROTATION,
 			DEFAULT_EMBLEM_TEXTURE,
 			DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
@@ -584,6 +585,8 @@ class PropertySidebar(QFrame):
 			'pos_y': DEFAULT_POSITION_Y,
 			'scale_x': DEFAULT_SCALE_X,
 			'scale_y': DEFAULT_SCALE_Y,
+			'flip_x': DEFAULT_FLIP_X,
+			'flip_y': DEFAULT_FLIP_Y,
 			'rotation': DEFAULT_ROTATION,
 			'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'],
 			'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'],
@@ -598,9 +601,11 @@ class PropertySidebar(QFrame):
 		self.selected_layer_indices = {new_index}
 		self.last_selected_index = new_index  # Set for shift+click range selection
 		self._update_layer_selection()
-		self._load_layer_properties()
 		if self.canvas_widget:
 			self.canvas_widget.set_layers(self.layers)
+		
+		# Trigger selection change callback to update properties and transform widget
+		self._on_layer_selection_changed()
 	
 	def _delete_layer(self):
 		"""Delete all selected layers"""
@@ -857,10 +862,6 @@ class PropertySidebar(QFrame):
 		# Sync selection state
 		self.selected_layer_indices = self.layer_list_widget.selected_layer_indices
 		self.last_selected_index = self.layer_list_widget.last_selected_index
-		
-		# Update asset sidebar previews with selected layer colors
-		if self.main_window and hasattr(self.main_window, 'left_sidebar'):
-			self.main_window.left_sidebar.update_asset_colors()
 		
 		# Update properties tab state
 		selected_indices = self.get_selected_indices()
