@@ -333,8 +333,8 @@ class CanvasArea(QFrame):
 		original_scale_x = self._drag_start_aabb['scale_x']
 		original_scale_y = self._drag_start_aabb['scale_y']
 		
-		# Sync cache if widget scale changed (e.g., rotation reset recalculated AABB)
-		if abs(scale_x - original_scale_x) > 0.001 or abs(scale_y - original_scale_y) > 0.001:
+		# Sync cache if widget scale changed during rotation (rotation reset recalculates AABB)
+		if self.transform_widget.is_rotating and (abs(scale_x - original_scale_x) > 0.001 or abs(scale_y - original_scale_y) > 0.001):
 			self._drag_start_aabb = {'center_x': pos_x, 'center_y': pos_y, 'scale_x': scale_x, 'scale_y': scale_y}
 			original_center_x, original_center_y, original_scale_x, original_scale_y = pos_x, pos_y, scale_x, scale_y
 		
