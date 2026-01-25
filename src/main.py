@@ -664,16 +664,21 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.selected_layer_indices = new_indices
 			self.right_sidebar.last_selected_index = insert_position
 			
-			# Update UI
+			# Clear layer thumbnail cache since indices have shifted
+			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
+				self.right_sidebar.layer_list_widget.clear_thumbnail_cache()
+			
+			# Rebuild the layer list UI
 			self.right_sidebar._rebuild_layer_list()
-			self.right_sidebar._update_layer_selection()
-			self.right_sidebar._load_layer_properties()
-			self.right_sidebar.tab_widget.setTabEnabled(2, True)
 			
 			# Update canvas and transform widget
 			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
 			if self.canvas_area:
 				self.canvas_area.update_transform_widget_for_layer()
+			
+			# Force immediate canvas redraw and window preview update
+			self.canvas_area.canvas_widget.repaint()
+			self.repaint()  # Update main window and taskbar preview
 			
 			# Save to history
 			layer_word = "layers" if len(duplicated_layers) > 1 else "layer"
