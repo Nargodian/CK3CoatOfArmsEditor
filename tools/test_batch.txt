@@ -1,1 +1,0 @@
-source_coa_files/colored_emblems/ce_boar_head.png

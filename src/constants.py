@@ -49,14 +49,14 @@ CK3_COLOR_NAMES_ORDERED = [
 # ======================================================================
 
 # Default base pattern colors (if unspecified in CoA data)
-DEFAULT_BASE_COLOR1 = 'red'
+DEFAULT_BASE_COLOR1 = 'purple'
 DEFAULT_BASE_COLOR2 = 'yellow'
 DEFAULT_BASE_COLOR3 = 'black'
 
 # Default emblem colors (if unspecified in colored_emblem block)
 DEFAULT_EMBLEM_COLOR1 = 'yellow'
 DEFAULT_EMBLEM_COLOR2 = 'red'
-DEFAULT_EMBLEM_COLOR3 = 'red'
+DEFAULT_EMBLEM_COLOR3 = 'blue'
 
 # Default pattern texture
 DEFAULT_PATTERN_TEXTURE = 'pattern__solid.dds'
