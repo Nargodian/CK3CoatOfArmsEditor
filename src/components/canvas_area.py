@@ -266,7 +266,8 @@ class CanvasArea(QFrame):
 			layer['rotation'] = rotation
 			
 			self.canvas_widget.set_layers(self.property_sidebar.layers)
-			self.property_sidebar._load_layer_properties()
+			# Don't reload properties during drag - causes feedback loop that resets flip state
+			# Properties will be reloaded when drag ends in _on_transform_ended()
 			return
 		
 		# MULTI-SELECTION: Group transform
@@ -290,23 +291,6 @@ class CanvasArea(QFrame):
 			original_max_x = float('-inf')
 			original_min_y = float('inf')
 			original_max_y = float('-inf')
-			
-			for layer_state in self._drag_start_layers:
-				pos_x_orig = layer_state['pos_x']
-				pos_y_orig = layer_state['pos_y']
-				scale_x_orig = layer_state['scale_x']
-				scale_y_orig = layer_state['scale_y']
-				
-				# Use abs() to handle negative scales (flipped layers)
-				layer_min_x = pos_x_orig - abs(scale_x_orig) / 2
-				layer_max_x = pos_x_orig + abs(scale_x_orig) / 2
-				layer_min_y = pos_y_orig - abs(scale_y_orig) / 2
-				layer_max_y = pos_y_orig + abs(scale_y_orig) / 2
-				
-				original_min_x = min(original_min_x, layer_min_x)
-				original_max_x = max(original_max_x, layer_max_x)
-				original_min_y = min(original_min_y, layer_min_y)
-				original_max_y = max(original_max_y, layer_max_y)
 			
 			# Cache the original AABB
 			self._drag_start_aabb = {
@@ -375,23 +359,19 @@ class CanvasArea(QFrame):
 				new_pos_x = original_center_x + new_offset_x + position_delta_x
 				new_pos_y = original_center_y + new_offset_y + position_delta_y
 				
-				# Apply scale to layer scale, preserving flip direction (sign)
-				sign_x = 1 if scale_x_orig >= 0 else -1
-				sign_y = 1 if scale_y_orig >= 0 else -1
-				new_scale_x = sign_x * abs(scale_x_orig) * scale_factor_x
-				new_scale_y = sign_y * abs(scale_y_orig) * scale_factor_y
+				# Apply scale to layer scale (scales are always positive now, flip is separate)
+				new_scale_x = scale_x_orig * scale_factor_x
+				new_scale_y = scale_y_orig * scale_factor_y
 			
 			# Clamp positions to valid range [0, 1]
 			new_pos_x = max(0.0, min(1.0, new_pos_x))
 			new_pos_y = max(0.0, min(1.0, new_pos_y))
 			
-			# Clamp individual emblem scales to [0.01, 1.0] (even though group AABB can exceed 1.0)
-			sign_x = 1 if new_scale_x >= 0 else -1
-			sign_y = 1 if new_scale_y >= 0 else -1
-			new_scale_x = sign_x * max(0.01, min(1.0, abs(new_scale_x)))
-			new_scale_y = sign_y * max(0.01, min(1.0, abs(new_scale_y)))
+			# Clamp individual emblem scales to [0.01, 1.0]
+			new_scale_x = max(0.01, min(1.0, new_scale_x))
+			new_scale_y = max(0.01, min(1.0, new_scale_y))
 			
-			# Update actual layer
+			# Update actual layer (flip_x and flip_y are preserved automatically)
 			layer = self.property_sidebar.layers[idx]
 			layer['pos_x'] = new_pos_x
 			layer['pos_y'] = new_pos_y

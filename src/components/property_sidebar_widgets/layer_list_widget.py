@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel,
 from PyQt5.QtCore import Qt, QMimeData, QByteArray, QSize
 from PyQt5.QtGui import QPixmap, QDrag
 import json
+from utils.atlas_compositor import composite_emblem_atlas, get_atlas_path
 
 
 class LayerListWidget(QWidget):
@@ -25,6 +26,7 @@ class LayerListWidget(QWidget):
 		self.active_drop_zone = None
 		self.drag_start_index = None
 		self.drag_start_pos = None
+		self.thumbnail_cache = {}  # layer_index -> QPixmap cache
 		
 		# Callbacks (set by parent)
 		self.on_selection_changed = None
@@ -109,18 +111,15 @@ class LayerListWidget(QWidget):
 		btn_layout.setContentsMargins(5, 5, 5, 5)
 		btn_layout.setSpacing(8)
 		
-		# Add preview icon
+		# Add preview icon with dynamic coloring
 		icon_label = QLabel()
 		icon_label.setFixedSize(48, 48)
 		icon_label.setStyleSheet("border: 1px solid rgba(255, 255, 255, 40); border-radius: 3px;")
 		
-		layer_path = layer.get('path')
-		if layer_path:
-			preview_path = self._get_preview_path(layer_path)
-			if preview_path:
-				pixmap = QPixmap(preview_path)
-				if not pixmap.isNull():
-					icon_label.setPixmap(pixmap.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+		# Generate colored thumbnail
+		thumbnail = self._generate_layer_thumbnail(actual_index, size=48)
+		if thumbnail and not thumbnail.isNull():
+			icon_label.setPixmap(thumbnail)
 		
 		btn_layout.addWidget(icon_label)
 		
@@ -526,3 +525,68 @@ class LayerListWidget(QWidget):
 		"""Handle color button click - open color picker"""
 		if self.on_color_changed:
 			self.on_color_changed(index, color_index)
+	
+	def _generate_layer_thumbnail(self, layer_index, size=48):
+		"""Generate a dynamically colored thumbnail for a layer
+		
+		Args:
+			layer_index: Index of layer in layers list
+			size: Thumbnail size (square)
+		
+		Returns:
+			QPixmap thumbnail or None
+		"""
+		# Check cache first
+		cache_key = (layer_index, size)
+		if cache_key in self.thumbnail_cache:
+			return self.thumbnail_cache[cache_key]
+		
+		if layer_index < 0 or layer_index >= len(self.layers):
+			return None
+		
+		layer = self.layers[layer_index]
+		filename = layer.get('filename', '')
+		
+		if not filename:
+			return None
+		
+		# Extract colors from layer (already in 0-1 range)
+		colors = {
+			'color1': tuple(layer.get('color1', [0.75, 0.525, 0.188])),
+			'color2': tuple(layer.get('color2', [0.45, 0.133, 0.090])),
+			'color3': tuple(layer.get('color3', [0.45, 0.133, 0.090])),
+			'background1': (0.5, 0.5, 0.5)  # Gray background for thumbnail
+		}
+		
+		try:
+			# Try atlas compositor first
+			atlas_path = get_atlas_path(filename, 'emblem')
+			if atlas_path.exists():
+				thumbnail = composite_emblem_atlas(str(atlas_path), colors, size=size)
+				if thumbnail and not thumbnail.isNull():
+					self.thumbnail_cache[cache_key] = thumbnail
+					return thumbnail
+		except Exception as e:
+			pass
+		
+		# Fallback to static preview
+		preview_path = self._get_preview_path(filename)
+		if preview_path:
+			pixmap = QPixmap(preview_path)
+			if not pixmap.isNull():
+				thumbnail = pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+				self.thumbnail_cache[cache_key] = thumbnail
+				return thumbnail
+		
+		return None
+	
+	def invalidate_thumbnail(self, layer_index):
+		"""Invalidate cached thumbnail for a specific layer"""
+		# Remove all size variants for this layer
+		keys_to_remove = [k for k in self.thumbnail_cache.keys() if k[0] == layer_index]
+		for key in keys_to_remove:
+			del self.thumbnail_cache[key]
+	
+	def clear_thumbnail_cache(self):
+		"""Clear all cached thumbnails"""
+		self.thumbnail_cache.clear()

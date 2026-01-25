@@ -8,7 +8,11 @@ import OpenGL.GL as gl
 import numpy as np
 import os
 import json
-from constants import DEFAULT_FRAME
+from constants import (
+	DEFAULT_FRAME,
+	DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
+	CK3_NAMED_COLORS
+)
 from PIL import Image
 
 # Local imports
@@ -28,7 +32,11 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.texture_atlases = []  # List of OpenGL texture IDs
 		self.texture_uv_map = {}  # filename -> (atlas_index, u0, v0, u1, v1)
 		self.base_texture = None  # Base pattern texture
-		self.base_colors = [[0.439, 0.129, 0.086], [0.588, 0.224, 0.0], [0.733, 0.510, 0.180]]  # Default base colors
+		self.base_colors = [
+			CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb'],
+			CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb'],
+			CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb']
+		]  # Default base colors from constants
 		self.layers = []  # List of layer data from property sidebar
 		self.frame_texture = None  # Current frame texture
 		self.frame_textures = {}  # Frame name -> texture ID
@@ -259,6 +267,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					pos_y = layer.get('pos_y', 0.5)
 					scale_x = layer.get('scale_x', 0.5)
 					scale_y = layer.get('scale_y', 0.5)
+					flip_x = layer.get('flip_x', False)
+					flip_y = layer.get('flip_y', False)
 					rotation = layer.get('rotation', 0)
 					
 					# Convert properties to screen coordinates
@@ -273,11 +283,11 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				cos_a = math.cos(angle_rad)
 				sin_a = math.sin(angle_rad)
 				
-				# Scale values - separate sign (flip) from magnitude
-				scale_sign_x = 1 if scale_x >= 0 else -1
-				scale_sign_y = 1 if scale_y >= 0 else -1
-				half_width = abs(scale_x) * 0.6
-				half_height = abs(scale_y) * 0.6
+				# Apply flip separately from scale magnitude
+				scale_sign_x = -1 if flip_x else 1
+				scale_sign_y = -1 if flip_y else 1
+				half_width = scale_x * 0.6
+				half_height = scale_y * 0.6
 				
 				# Define unit quad corners
 				unit_corners = [

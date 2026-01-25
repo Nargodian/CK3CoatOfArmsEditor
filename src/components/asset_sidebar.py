@@ -9,7 +9,13 @@ from PyQt5.QtGui import QIcon, QPixmap
 # Standard library imports
 import json
 import os
-from constants import DEFAULT_BASE_CATEGORY, DEFAULT_EMBLEM_CATEGORY
+from constants import (
+    DEFAULT_BASE_CATEGORY, DEFAULT_EMBLEM_CATEGORY,
+    DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
+    DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
+    CK3_NAMED_COLORS
+)
+from utils.atlas_compositor import composite_emblem_atlas, composite_pattern_atlas, get_atlas_path
 
 # Global dictionary mapping texture filenames to preview image paths
 # Key: filename (e.g., "ce_kamon_sorrel.dds"), Value: preview path
@@ -31,6 +37,7 @@ class AssetSidebar(QFrame):
 		self.asset_buttons = []
 		self.current_mode = "patterns"  # Start in patterns mode (Base tab)
 		self.last_emblem_category = DEFAULT_EMBLEM_CATEGORY  # Remember last viewed emblem category
+		self.right_sidebar = None  # Will be set by parent to access layer colors
 		
 		# Load asset data from JSON files
 		self.asset_data = self._load_asset_data()
@@ -229,7 +236,7 @@ class AssetSidebar(QFrame):
 		layout.addWidget(scroll_area)
 	
 	def build_asset_grid(self):
-		"""Build responsive grid of asset icons"""
+		"""Build responsive grid of asset icons with dynamic color compositing"""
 		# Clear previous items
 		self.clear_layout(self.assets_grid)
 		# Clear button list
@@ -237,6 +244,9 @@ class AssetSidebar(QFrame):
 		
 		# Get assets for current category
 		assets = self._get_filtered_assets()
+		
+		# Get current layer colors for compositing
+		colors = self._get_current_layer_colors()
 		
 		# Calculate number of columns based on available width
 		scroll_width = self.scroll_area.viewport().width()
@@ -251,8 +261,8 @@ class AssetSidebar(QFrame):
 			item = QPushButton()
 			item.setFixedSize(self.current_icon_size, self.current_icon_size)
 			
-			# Load and set icon from file
-			pixmap = QPixmap(asset["path"])
+			# Generate dynamic composite or fall back to static preview
+			pixmap = self._create_asset_preview(asset, colors)
 			if not pixmap.isNull():
 				icon = QIcon(pixmap)
 				item.setIcon(icon)
@@ -396,4 +406,114 @@ class AssetSidebar(QFrame):
 			btn.deleteLater()
 		self.asset_buttons.clear()
 		self.clear_layout(self.assets_grid)
+		self.build_asset_grid()
+	
+	def _get_current_layer_colors(self):
+		"""Get colors from currently selected layer for preview compositing"""
+		if not self.right_sidebar or not hasattr(self.right_sidebar, 'layers'):
+			# Return default colors
+			return {
+				'color1': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb']),
+				'color2': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb']),
+				'color3': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb']),
+				'background1': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb']),
+				'background2': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb']),
+				'background3': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'])
+			}
+		
+		# Get selected layer indices
+		selected_indices = self.right_sidebar.get_selected_indices()
+		if not selected_indices:
+			# Use first layer or defaults
+			if self.right_sidebar.layers:
+				layer = self.right_sidebar.layers[0]
+			else:
+				return {
+					'color1': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb']),
+					'color2': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb']),
+					'color3': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb']),
+					'background1': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb']),
+					'background2': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb']),
+					'background3': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'])
+				}
+		else:
+			layer = self.right_sidebar.layers[selected_indices[0]]
+		
+		# Extract colors from layer (stored as 0-1 range floats)
+		return {
+			'color1': layer.get('color1', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'])),
+			'color2': layer.get('color2', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'])),
+			'color3': layer.get('color3', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'])),
+			'background1': layer.get('background1', tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb'])),
+			'background2': layer.get('background2', tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb'])),
+			'background3': layer.get('background3', tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb']))
+		}
+	
+	def _create_asset_preview(self, asset, colors):
+		"""Create a dynamically colored preview for an asset"""
+		filename = asset.get('filename', '')
+		
+		# Try to get atlas path
+		try:
+			if self.current_mode == "emblems":
+				atlas_path = get_atlas_path(filename, 'emblem')
+				if atlas_path.exists():
+					return composite_emblem_atlas(str(atlas_path), colors, size=self.current_icon_size)
+			elif self.current_mode == "patterns":
+				atlas_path = get_atlas_path(filename, 'pattern')
+				if atlas_path.exists():
+					# Patterns are 2:1 ratio - render full size then scale to fit button
+					bg_colors = {
+						'background1': colors['background1'],
+						'background2': colors['background2'],
+						'background3': colors['background3']
+					}
+					# Create at 2:1 ratio (wider than tall)
+					pattern_pixmap = composite_pattern_atlas(str(atlas_path), bg_colors, 
+						size=(self.current_icon_size, self.current_icon_size // 2))
+					
+					# Create centered composite on square canvas
+					result = QPixmap(self.current_icon_size, self.current_icon_size)
+					result.fill(Qt.transparent)
+					from PyQt5.QtGui import QPainter
+					painter = QPainter(result)
+					# Center the pattern vertically
+					y_offset = (self.current_icon_size - (self.current_icon_size // 2)) // 2
+					painter.drawPixmap(0, y_offset, pattern_pixmap)
+					painter.end()
+					return result
+		except Exception as e:
+			# Fall back to static preview
+			print(f"Atlas compositor error for {filename}: {e}")
+			import traceback
+			traceback.print_exc()
+			pass
+		
+		# Fallback: use static preview
+		pixmap = QPixmap(asset["path"])
+		if not pixmap.isNull():
+			# For patterns (2:1 ratio), center them in a square canvas like atlas compositor does
+			if self.current_mode == "patterns" and pixmap.width() > pixmap.height():
+				# Scale pattern to fit width
+				pattern_scaled = pixmap.scaled(self.current_icon_size, self.current_icon_size // 2,
+					Qt.KeepAspectRatio, Qt.SmoothTransformation)
+				# Create square canvas
+				result = QPixmap(self.current_icon_size, self.current_icon_size)
+				result.fill(Qt.transparent)
+				from PyQt5.QtGui import QPainter
+				painter = QPainter(result)
+				# Center vertically
+				y_offset = (self.current_icon_size - pattern_scaled.height()) // 2
+				painter.drawPixmap(0, y_offset, pattern_scaled)
+				painter.end()
+				return result
+			else:
+				# For emblems or other assets, use normal scaling
+				if pixmap.width() != self.current_icon_size:
+					pixmap = pixmap.scaled(self.current_icon_size, self.current_icon_size, 
+						Qt.KeepAspectRatio, Qt.SmoothTransformation)
+		return pixmap
+	
+	def update_asset_colors(self):
+		"""Rebuild asset grid when layer colors change"""
 		self.build_asset_grid()

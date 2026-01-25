@@ -452,7 +452,10 @@ class TransformWidget(QWidget):
 		
 		# Clamp scale magnitude while preserving sign (for flipped layers)
 		# Only clamp for single emblem transforms, not group transforms (AABB can exceed 1.0)
-		if not self.is_multi_selection:
+		# Only clamp when actually modifying scale (skip rotation and translation)
+		scale_handles = [self.HANDLE_TL, self.HANDLE_TR, self.HANDLE_BL, self.HANDLE_BR,
+		                  self.HANDLE_L, self.HANDLE_R, self.HANDLE_T, self.HANDLE_B]
+		if not self.is_multi_selection and self.active_handle in scale_handles:
 			sign_x = 1 if self.scale_x >= 0 else -1
 			sign_y = 1 if self.scale_y >= 0 else -1
 			self.scale_x = sign_x * max(0.01, min(1.0, abs(self.scale_x)))

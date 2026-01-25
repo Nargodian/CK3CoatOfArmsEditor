@@ -11,6 +11,11 @@ from .property_sidebar_widgets import (
     LayerListWidget, ColorPickerDialog, create_color_button, 
     PropertySlider, ScaleEditor
 )
+from constants import (
+    DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
+    DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
+    CK3_NAMED_COLORS
+)
 
 
 class PropertySidebar(QFrame):
@@ -184,8 +189,13 @@ class PropertySidebar(QFrame):
 		self.base_color_layout.setContentsMargins(5, 5, 5, 5)
 		
 		self.color_buttons = []
-		# Default base colors: black, yellow, black
-		for i, color in enumerate(["#191713", "#BF8630", "#191713"], 1):
+		# Default base colors: red, yellow, black
+		default_base_colors = [
+			CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['hex'],
+			CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['hex'],
+			CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['hex']
+		]
+		for i, color in enumerate(default_base_colors, 1):
 			color_btn = QPushButton()
 			color_btn.setFixedSize(60, 60)
 			color_btn.setProperty("colorValue", color)
@@ -223,7 +233,7 @@ class PropertySidebar(QFrame):
 		
 		# Setup callbacks
 		self.layer_list_widget.on_selection_changed = self._on_layer_selection_changed
-		self.layer_list_widget.on_layers_reordered = self._on_layers_reordered
+		self.layer_list_widget.on_layers_reordered = self._on_layer_reorder
 		self.layer_list_widget.on_duplicate_layer = self._duplicate_layer_at_index
 		self.layer_list_widget.on_delete_layer = self._delete_layer_at_index
 		self.layer_list_widget.on_color_changed = self._on_layer_color_changed
@@ -339,7 +349,12 @@ class PropertySidebar(QFrame):
 		
 		self.emblem_color_buttons = []
 		# Default emblem colors: yellow, red, red
-		for i, color in enumerate(["#BF8630", "#732216", "#732216"], 1):
+		default_emblem_colors = [
+			CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['hex'],
+			CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['hex'],
+			CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['hex']
+		]
+		for i, color in enumerate(default_emblem_colors, 1):
 			color_btn = QPushButton()
 			color_btn.setFixedSize(60, 60)
 			color_btn.setProperty("colorValue", color)
@@ -458,11 +473,11 @@ class PropertySidebar(QFrame):
 					if 0 <= idx < len(self.layers):
 						self.layers[idx][f'color{color_idx+1}'] = color_rgb
 						self.layers[idx][f'color{color_idx+1}_name'] = color_name  # Store name or None
-				
-				self.canvas_widget.set_layers(self.layers)
-				# Save to history
-				if self.main_window and hasattr(self.main_window, '_save_state'):
-					self.main_window._save_state("Change emblem color")
+					# Invalidate thumbnail cache for this layer
+					self.layer_list_widget.invalidate_thumbnail(idx)
+			
+			# Rebuild layer list to update thumbnails
+			self._rebuild_layer_list()
 	
 	# ========================================
 	# Color Management (Base & Emblem)
@@ -808,22 +823,33 @@ class PropertySidebar(QFrame):
 				layer[color_key] = color_rgb
 				layer[color_name_key] = color_name  # Store name or None
 				
-				# Rebuild layer list to update color button display
+				# Invalidate thumbnail cache for this layer
+				self.layer_list_widget.invalidate_thumbnail(layer_index)
+				
+				# Rebuild layer list to update color button display and thumbnail
 				self._rebuild_layer_list()
 				
 				# Update canvas
 				if self.canvas_widget:
 					self.canvas_widget.set_layers(self.layers)
 				
+				# Update asset sidebar previews with new colors
+				if self.main_window and hasattr(self.main_window, 'left_sidebar'):
+					self.main_window.left_sidebar.update_asset_colors()
+				
 				# Save to history
 				if self.main_window and hasattr(self.main_window, '_save_state'):
 					self.main_window._save_state(f"Change layer color {color_index}")
-	
+
 	def _on_layer_selection_changed(self):
 		"""Handle layer selection change from layer list widget"""
 		# Sync selection state
 		self.selected_layer_indices = self.layer_list_widget.selected_layer_indices
 		self.last_selected_index = self.layer_list_widget.last_selected_index
+		
+		# Update asset sidebar previews with selected layer colors
+		if self.main_window and hasattr(self.main_window, 'left_sidebar'):
+			self.main_window.left_sidebar.update_asset_colors()
 		
 		# Update properties tab state
 		selected_indices = self.get_selected_indices()
@@ -839,14 +865,33 @@ class PropertySidebar(QFrame):
 			if self.canvas_area:
 				self.canvas_area.update_transform_widget_for_layer(None)
 	
-	def _on_layers_reordered(self, count):
-		"""Handle layers reordered from layer list widget"""
-		# Update canvas
+	def _on_layer_reorder(self, new_order):
+		"""Handle layer reordering from drag-drop"""
+		# Reorder layers list
+		reordered = [self.layers[i] for i in new_order]
+		self.layers = reordered
+		
+		# Update selection indices to match new positions
+		new_selected = []
+		for old_idx in self.selected_layer_indices:
+			if old_idx < len(new_order):
+				new_idx = new_order.index(old_idx)
+				new_selected.append(new_idx)
+		
+		self.selected_layer_indices = sorted(new_selected)
+		if self.last_selected_index in self.selected_layer_indices:
+			self.last_selected_index = self.selected_layer_indices[-1]
+		elif self.selected_layer_indices:
+			self.last_selected_index = self.selected_layer_indices[-1]
+		
+		# Update UI
+		self._rebuild_layer_list()
 		if self.canvas_widget:
 			self.canvas_widget.set_layers(self.layers)
 		
-		# Save to history
+		# Save state
 		if self.main_window and hasattr(self.main_window, '_save_state'):
+			count = len(new_order)
 			layer_word = "layers" if count > 1 else "layer"
 			self.main_window._save_state(f"Reorder {count} {layer_word}")
 	
@@ -905,14 +950,16 @@ class PropertySidebar(QFrame):
 		if not selected_indices:
 			return
 		
-		# Get scale values with flip applied
-		scale_x, scale_y = self.scale_editor.get_scale_values()
+		# Get scale values and flip states separately
+		scale_x, scale_y, flip_x, flip_y = self.scale_editor.get_scale_values()
 		
 		# Apply to ALL selected layers
 		for idx in selected_indices:
 			if 0 <= idx < len(self.layers):
 				self.layers[idx]['scale_x'] = scale_x
 				self.layers[idx]['scale_y'] = scale_y
+				self.layers[idx]['flip_x'] = flip_x
+				self.layers[idx]['flip_y'] = flip_y
 		
 		if self.canvas_widget:
 			self.canvas_widget.set_layers(self.layers)
@@ -974,13 +1021,15 @@ class PropertySidebar(QFrame):
 		if scale_x_raw == 'Mixed' or scale_y_raw == 'Mixed':
 			self.scale_editor.scale_x_slider.value_input.setText('—')
 			self.scale_editor.scale_y_slider.value_input.setText('—')
-			self.scale_editor.set_scale_values(0.5, 0.5)
+			self.scale_editor.set_scale_values(0.5, 0.5, False, False)
 			self.scale_editor.flip_x_check.setEnabled(False)
 			self.scale_editor.flip_y_check.setEnabled(False)
 		else:
 			scale_x = scale_x_raw or 0.5
 			scale_y = scale_y_raw or 0.5
-			self.scale_editor.set_scale_values(scale_x, scale_y)
+			flip_x = self.get_property_value('flip_x') or False
+			flip_y = self.get_property_value('flip_y') or False
+			self.scale_editor.set_scale_values(scale_x, scale_y, flip_x, flip_y)
 			self.scale_editor.flip_x_check.setEnabled(True)
 			self.scale_editor.flip_y_check.setEnabled(True)
 		
@@ -1004,9 +1053,8 @@ class PropertySidebar(QFrame):
 		self.scale_editor.blockSignals(False)
 		self.rotation_editor.blockSignals(False)
 		
-		# Update transform widget
-		if self.canvas_area:
-			self.canvas_area.update_transform_widget_for_layer()
+		# DON'T update transform widget here - it uses abs() which destroys flip state
+		# Transform widget is updated when layer selection changes, not when UI loads
 		
 		# Update emblem color buttons - show mixed state if colors differ
 		for i, btn in enumerate(self.emblem_color_buttons):

@@ -95,16 +95,16 @@ def serialize_layer_to_text(layer):
         "instance": [instance_data]
     }
     
-    # Add colors only if they differ from defaults (yellow, red, red)
+    # Add colors only if they differ from defaults
     color1_str = rgb_to_color_name(layer.get('color1', [1.0, 1.0, 1.0]), layer.get('color1_name'))
     color2_str = rgb_to_color_name(layer.get('color2', [1.0, 1.0, 1.0]), layer.get('color2_name'))
     color3_str = rgb_to_color_name(layer.get('color3', [1.0, 1.0, 1.0]), layer.get('color3_name'))
     
-    if color1_str != 'yellow':
+    if color1_str != DEFAULT_EMBLEM_COLOR1:
         emblem_data['color1'] = color1_str
-    if color2_str != 'red':
+    if color2_str != DEFAULT_EMBLEM_COLOR2:
         emblem_data['color2'] = color2_str
-    if color3_str != 'red':
+    if color3_str != DEFAULT_EMBLEM_COLOR3:
         emblem_data['color3'] = color3_str
     
     # Wrap in colored_emblem block
@@ -135,9 +135,9 @@ def _emblem_to_layer_data(emblem):
     instance = instances[0]
     
     # Get colors
-    color1_name = emblem.get('color1', 'yellow')
-    color2_name = emblem.get('color2', 'red')
-    color3_name = emblem.get('color3', 'red')
+    color1_name = emblem.get('color1', DEFAULT_EMBLEM_COLOR1)
+    color2_name = emblem.get('color2', DEFAULT_EMBLEM_COLOR2)
+    color3_name = emblem.get('color3', DEFAULT_EMBLEM_COLOR3)
     
     # Build layer data
     layer_data = {

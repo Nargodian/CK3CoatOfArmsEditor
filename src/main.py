@@ -25,6 +25,11 @@ from services.layer_operations import (
     parse_multiple_layers_from_text
 )
 from services.coa_serializer import parse_coa_for_editor
+from constants import (
+    DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
+    DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
+    CK3_NAMED_COLORS
+)
 
 
 class CoatOfArmsEditor(QMainWindow):
@@ -76,6 +81,9 @@ class CoatOfArmsEditor(QMainWindow):
 		self.right_sidebar = PropertySidebar(self)
 		self.right_sidebar.main_window = self
 		splitter.addWidget(self.right_sidebar)
+		
+		# Connect sidebars together
+		self.left_sidebar.right_sidebar = self.right_sidebar
 		
 		# Connect canvas to property sidebar for layer updates
 		self.right_sidebar.canvas_widget = self.canvas_area.canvas_widget
@@ -192,12 +200,12 @@ class CoatOfArmsEditor(QMainWindow):
 			'scale_x': 0.5,
 			'scale_y': 0.5,
 			'rotation': 0,
-			'color1': [0.750, 0.525, 0.188],
-			'color2': [0.450, 0.133, 0.090],
-			'color3': [0.450, 0.133, 0.090],
-			'color1_name': None,
-			'color2_name': None,
-			'color3_name': None
+			'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'],
+			'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'],
+			'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
+			'color1_name': DEFAULT_EMBLEM_COLOR1,
+			'color2_name': DEFAULT_EMBLEM_COLOR2,
+			'color3_name': DEFAULT_EMBLEM_COLOR3
 		}
 		
 		# Insert at beginning and select

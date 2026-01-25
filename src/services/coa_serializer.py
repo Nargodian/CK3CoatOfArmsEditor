@@ -82,14 +82,20 @@ def extract_emblem_layers(coa):
             color2_name = emblem.get('color2', 'red')
             color3_name = emblem.get('color3', 'red')
             
+            # Split scale into magnitude and flip state
+            scale_x_raw = instance.get('scale', [1.0, 1.0])[0]
+            scale_y_raw = instance.get('scale', [1.0, 1.0])[1]
+            
             layer_data = {
                 'filename': filename,
                 'path': filename,  # Use filename as path - texture system and preview lookup both use this
                 'colors': 3,  # Assume 3 colors for all emblems
                 'pos_x': instance.get('position', [0.5, 0.5])[0],
                 'pos_y': instance.get('position', [0.5, 0.5])[1],
-                'scale_x': instance.get('scale', [1.0, 1.0])[0],
-                'scale_y': instance.get('scale', [1.0, 1.0])[1],
+                'scale_x': abs(scale_x_raw),  # Always store as positive
+                'scale_y': abs(scale_y_raw),  # Always store as positive
+                'flip_x': scale_x_raw < 0,    # Track flip separately
+                'flip_y': scale_y_raw < 0,    # Track flip separately
                 'rotation': instance.get('rotation', 0),
                 'color1': color_name_to_rgb(color1_name),
                 'color2': color_name_to_rgb(color2_name),

@@ -233,44 +233,38 @@ class ScaleEditor(QWidget):
 		self.valueChanged.emit()
 	
 	def get_scale_values(self):
-		"""Get scale X and Y values with flip applied
+		"""Get scale X and Y values (always positive) and flip states
 		
 		Returns:
-			Tuple of (scale_x, scale_y) with sign for flip
+			Tuple of (scale_x, scale_y, flip_x, flip_y)
 		"""
 		scale_x = self.scale_x_slider.value()
 		scale_y = self.scale_y_slider.value()
+		flip_x = self.flip_x_check.isChecked()
+		flip_y = self.flip_y_check.isChecked()
 		
-		if self.flip_x_check.isChecked():
-			scale_x = -scale_x
-		if self.flip_y_check.isChecked():
-			scale_y = -scale_y
-		
-		return scale_x, scale_y
+		return scale_x, scale_y, flip_x, flip_y
 	
-	def set_scale_values(self, scale_x, scale_y):
-		"""Set scale values (detects flip from negative values)"""
+	def set_scale_values(self, scale_x, scale_y, flip_x=False, flip_y=False):
+		"""Set scale values and flip states separately
+		
+		Args:
+			scale_x: Scale X value (should be positive)
+			scale_y: Scale Y value (should be positive)
+			flip_x: Flip X state (bool)
+			flip_y: Flip Y state (bool)
+		"""
 		# Block signals during update
 		self.scale_x_slider.blockSignals(True)
 		self.scale_y_slider.blockSignals(True)
 		self.flip_x_check.blockSignals(True)
 		self.flip_y_check.blockSignals(True)
 		
-		# Handle negative values as flipped
-		if scale_x < 0:
-			self.flip_x_check.setChecked(True)
-			scale_x = abs(scale_x)
-		else:
-			self.flip_x_check.setChecked(False)
-		
-		if scale_y < 0:
-			self.flip_y_check.setChecked(True)
-			scale_y = abs(scale_y)
-		else:
-			self.flip_y_check.setChecked(False)
-		
-		self.scale_x_slider.setValue(scale_x)
-		self.scale_y_slider.setValue(scale_y)
+		# Use absolute values and set flip states separately
+		self.scale_x_slider.setValue(abs(scale_x))
+		self.scale_y_slider.setValue(abs(scale_y))
+		self.flip_x_check.setChecked(flip_x)
+		self.flip_y_check.setChecked(flip_y)
 		
 		# Restore signals
 		self.scale_x_slider.blockSignals(False)

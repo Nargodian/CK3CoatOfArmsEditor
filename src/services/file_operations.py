@@ -7,6 +7,7 @@ Separates file operations from UI logic.
 
 from utils.coa_parser import parse_coa_string, serialize_coa_to_string
 from utils.color_utils import rgb_to_color_name
+from constants import DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3
 
 
 def save_coa_to_file(coa_data, filename):
@@ -82,9 +83,17 @@ def build_coa_for_save(base_colors, base_texture, layers, base_color_names):
         
         for depth_index, layer in enumerate(layers):
             texture = layer.get('filename', layer.get('path', ''))
+            # Combine flip and scale for export
+            scale_x = layer.get('scale_x', 1.0)
+            scale_y = layer.get('scale_y', 1.0)
+            if layer.get('flip_x', False):
+                scale_x = -scale_x
+            if layer.get('flip_y', False):
+                scale_y = -scale_y
+            
             instance = {
                 "position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
-                "scale": [layer.get('scale_x', 1.0), layer.get('scale_y', 1.0)],
+                "scale": [scale_x, scale_y],
                 "rotation": int(layer.get('rotation', 0))
             }
             # Add depth: higher depth = further back
@@ -124,23 +133,31 @@ def build_coa_for_clipboard(base_colors, base_texture, layers, base_color_names)
         }
     }
     
-    # Add base colors only if they differ from defaults (black, yellow, black)
+    # Add base colors only if they differ from defaults
     color1_str = rgb_to_color_name(base_colors[0], base_color_names[0])
     color2_str = rgb_to_color_name(base_colors[1], base_color_names[1])
     color3_str = rgb_to_color_name(base_colors[2], base_color_names[2])
     
-    if color1_str != 'black':
+    if color1_str != DEFAULT_BASE_COLOR1:
         coa_data["coa_clipboard"]["color1"] = color1_str
-    if color2_str != 'yellow':
+    if color2_str != DEFAULT_BASE_COLOR2:
         coa_data["coa_clipboard"]["color2"] = color2_str
-    if color3_str != 'black':
+    if color3_str != DEFAULT_BASE_COLOR3:
         coa_data["coa_clipboard"]["color3"] = color3_str
     
     # Add emblem layers with depth values
     for layer_idx, layer in enumerate(layers):
+        # Combine flip and scale for export
+        scale_x = layer.get('scale_x', 1.0)
+        scale_y = layer.get('scale_y', 1.0)
+        if layer.get('flip_x', False):
+            scale_x = -scale_x
+        if layer.get('flip_y', False):
+            scale_y = -scale_y
+        
         instance = {
             "position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
-            "scale": [layer.get('scale_x', 1.0), layer.get('scale_y', 1.0)],
+            "scale": [scale_x, scale_y],
             "rotation": int(layer.get('rotation', 0))
         }
         # Add depth: higher depth = further back
