@@ -5,6 +5,8 @@ This module handles layer creation, duplication, and manipulation operations.
 These functions provide layer manipulation logic independent of the UI.
 """
 
+import os
+import json
 from utils.coa_parser import parse_coa_string, serialize_coa_to_string
 from utils.color_utils import color_name_to_rgb, rgb_to_color_name
 from constants import (
@@ -14,6 +16,37 @@ from constants import (
     DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
     CK3_NAMED_COLORS
 )
+
+# Cache for texture metadata (color counts)
+_TEXTURE_METADATA_CACHE = None
+
+def _get_texture_color_count(filename):
+    """Get the number of colors for a texture from JSON metadata
+    
+    Args:
+        filename: Texture filename (e.g., 'ce_lion.dds')
+        
+    Returns:
+        Number of colors (1, 2, or 3), defaults to 3 if not found
+    """
+    global _TEXTURE_METADATA_CACHE
+    
+    # Load cache on first use
+    if _TEXTURE_METADATA_CACHE is None:
+        _TEXTURE_METADATA_CACHE = {}
+        json_path = "json_output/colored_emblems/50_coa_designer_emblems.json"
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    for tex_filename, properties in data.items():
+                        if properties and isinstance(properties, dict):
+                            _TEXTURE_METADATA_CACHE[tex_filename] = properties.get('colors', 3)
+            except Exception as e:
+                print(f"Warning: Could not load texture metadata: {e}")
+    
+    # Look up color count
+    return _TEXTURE_METADATA_CACHE.get(filename, 3)
 
 
 def create_default_layer(filename, colors=3, **overrides):
@@ -139,11 +172,14 @@ def _emblem_to_layer_data(emblem):
     color2_name = emblem.get('color2', DEFAULT_EMBLEM_COLOR2)
     color3_name = emblem.get('color3', DEFAULT_EMBLEM_COLOR3)
     
+    # Look up actual color count from texture metadata
+    color_count = _get_texture_color_count(filename)
+    
     # Build layer data
     layer_data = {
         'filename': filename,
         'path': filename,
-        'colors': 3,  # Assume 3 colors
+        'colors': color_count,
         'pos_x': instance.get('position', [0.5, 0.5])[0],
         'pos_y': instance.get('position', [0.5, 0.5])[1],
         'scale_x': instance.get('scale', [1.0, 1.0])[0],

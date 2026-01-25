@@ -1002,6 +1002,19 @@ class PropertySidebar(QFrame):
 		if not selected_indices:
 			return
 		
+		# Update emblem color count based on layer's texture
+		# For multi-select, use the maximum color count across all selected layers
+		color_counts = []
+		for idx in selected_indices:
+			if 0 <= idx < len(self.layers):
+				layer = self.layers[idx]
+				color_counts.append(layer.get('colors', 3))
+		
+		if color_counts:
+			# Use max color count so all relevant colors are shown
+			max_color_count = max(color_counts)
+			self.set_emblem_color_count(max_color_count)
+		
 		# Block signals while updating to avoid triggering changes
 		self.pos_x_editor.blockSignals(True)
 		self.pos_y_editor.blockSignals(True)
