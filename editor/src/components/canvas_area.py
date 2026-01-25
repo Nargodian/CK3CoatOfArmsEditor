@@ -328,6 +328,11 @@ class CanvasArea(QFrame):
 		original_scale_x = self._drag_start_aabb['scale_x']
 		original_scale_y = self._drag_start_aabb['scale_y']
 		
+		# Sync cache if widget scale changed (e.g., rotation reset recalculated AABB)
+		if abs(scale_x - original_scale_x) > 0.001 or abs(scale_y - original_scale_y) > 0.001:
+			self._drag_start_aabb = {'center_x': pos_x, 'center_y': pos_y, 'scale_x': scale_x, 'scale_y': scale_y}
+			original_center_x, original_center_y, original_scale_x, original_scale_y = pos_x, pos_y, scale_x, scale_y
+		
 		# Calculate transform deltas
 		position_delta_x = pos_x - original_center_x
 		position_delta_y = pos_y - original_center_y
@@ -390,8 +395,10 @@ class CanvasArea(QFrame):
 			new_pos_y = max(0.0, min(1.0, new_pos_y))
 			
 			# Clamp individual emblem scales to [0.01, 1.0]
-			new_scale_x = max(0.01, min(1.0, new_scale_x))
-			new_scale_y = max(0.01, min(1.0, new_scale_y))
+			# BUT: Don't clamp during rotation - rotation should not affect scale at all
+			if not self.transform_widget.is_rotating:
+				new_scale_x = max(0.01, min(1.0, new_scale_x))
+				new_scale_y = max(0.01, min(1.0, new_scale_y))
 			
 			# Update actual layer (flip_x and flip_y are preserved automatically)
 			layer = self.property_sidebar.layers[idx]

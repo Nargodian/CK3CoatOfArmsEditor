@@ -278,18 +278,18 @@ class TransformWidget(QWidget):
 			self.active_handle = self._get_handle_at_pos(event.pos())
 			if self.active_handle != self.HANDLE_NONE:
 				self.drag_start_pos = event.pos()
-				self.drag_start_transform = (self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
-				# Track Ctrl key state at drag start (explicit check)
-				self.ctrl_pressed_at_drag_start = (event.modifiers() & Qt.ControlModifier) == Qt.ControlModifier
-				self.duplicate_created = False  # Reset spam protection
-				
-				# Task 3.2: Set rotation flag and cache AABB
-				if self.active_handle == self.HANDLE_ROTATE:
-					self.is_rotating = True
-					self.cached_aabb = (self.pos_x, self.pos_y, self.scale_x, self.scale_y)
-				
-				event.accept()
-				return
+			self.drag_start_transform = (self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
+			# Track Ctrl key state at drag start (explicit check)
+			self.ctrl_pressed_at_drag_start = (event.modifiers() & Qt.ControlModifier) == Qt.ControlModifier
+			self.duplicate_created = False  # Reset spam protection
+			
+			# Task 3.2: Set rotation flag and cache AABB
+			if self.active_handle == self.HANDLE_ROTATE:
+				self.is_rotating = True
+				self.cached_aabb = (self.pos_x, self.pos_y, self.scale_x, self.scale_y)
+			
+			event.accept()
+			return
 		super().mousePressEvent(event)
 	
 	def mouseMoveEvent(self, event):
