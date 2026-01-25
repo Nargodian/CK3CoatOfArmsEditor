@@ -266,6 +266,7 @@ class AssetSidebar(QFrame):
 			if not pixmap.isNull():
 				icon = QIcon(pixmap)
 				item.setIcon(icon)
+				# Set icon size to fill the button
 				item.setIconSize(QSize(self.current_icon_size - 10, self.current_icon_size - 10))
 			
 			item.setCheckable(True)
@@ -462,26 +463,15 @@ class AssetSidebar(QFrame):
 			elif self.current_mode == "patterns":
 				atlas_path = get_atlas_path(filename, 'pattern')
 				if atlas_path.exists():
-					# Patterns are 2:1 ratio - render full size then scale to fit button
 					bg_colors = {
 						'background1': colors['background1'],
 						'background2': colors['background2'],
 						'background3': colors['background3']
 					}
-					# Create at 2:1 ratio (wider than tall)
+					# Stretch pattern to fill full square icon (will distort 2:1 to 1:1)
 					pattern_pixmap = composite_pattern_atlas(str(atlas_path), bg_colors, 
-						size=(self.current_icon_size, self.current_icon_size // 2))
-					
-					# Create centered composite on square canvas
-					result = QPixmap(self.current_icon_size, self.current_icon_size)
-					result.fill(Qt.transparent)
-					from PyQt5.QtGui import QPainter
-					painter = QPainter(result)
-					# Center the pattern vertically
-					y_offset = (self.current_icon_size - (self.current_icon_size // 2)) // 2
-					painter.drawPixmap(0, y_offset, pattern_pixmap)
-					painter.end()
-					return result
+						size=(self.current_icon_size, self.current_icon_size))
+					return pattern_pixmap
 		except Exception as e:
 			# Fall back to static preview
 			print(f"Atlas compositor error for {filename}: {e}")
@@ -492,21 +482,12 @@ class AssetSidebar(QFrame):
 		# Fallback: use static preview
 		pixmap = QPixmap(asset["path"])
 		if not pixmap.isNull():
-			# For patterns (2:1 ratio), center them in a square canvas like atlas compositor does
+			# For patterns (2:1 ratio), stretch to fill full square button height
 			if self.current_mode == "patterns" and pixmap.width() > pixmap.height():
-				# Scale pattern to fit width
-				pattern_scaled = pixmap.scaled(self.current_icon_size, self.current_icon_size // 2,
-					Qt.KeepAspectRatio, Qt.SmoothTransformation)
-				# Create square canvas
-				result = QPixmap(self.current_icon_size, self.current_icon_size)
-				result.fill(Qt.transparent)
-				from PyQt5.QtGui import QPainter
-				painter = QPainter(result)
-				# Center vertically
-				y_offset = (self.current_icon_size - pattern_scaled.height()) // 2
-				painter.drawPixmap(0, y_offset, pattern_scaled)
-				painter.end()
-				return result
+				# Stretch to square instead of maintaining aspect ratio
+				pattern_scaled = pixmap.scaled(self.current_icon_size, self.current_icon_size,
+					Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+				return pattern_scaled
 			else:
 				# For emblems or other assets, use normal scaling
 				if pixmap.width() != self.current_icon_size:

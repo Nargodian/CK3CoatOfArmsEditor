@@ -27,6 +27,7 @@ class LayerListWidget(QWidget):
 		self.drag_start_index = None
 		self.drag_start_pos = None
 		self.thumbnail_cache = {}  # layer_index -> QPixmap cache
+		self.property_sidebar = None  # Reference to parent PropertySidebar (for accessing base colors)
 		
 		# Callbacks (set by parent)
 		self.on_selection_changed = None
@@ -550,12 +551,19 @@ class LayerListWidget(QWidget):
 		if not filename:
 			return None
 		
+		# Get background color1 from base layer if available
+		background1 = (0.5, 0.5, 0.5)  # Default gray
+		if self.property_sidebar:
+			base_colors = self.property_sidebar.get_base_colors()
+			if base_colors and len(base_colors) > 0:
+				background1 = tuple(base_colors[0])  # Use first background color
+		
 		# Extract colors from layer (already in 0-1 range)
 		colors = {
 			'color1': tuple(layer.get('color1', [0.75, 0.525, 0.188])),
 			'color2': tuple(layer.get('color2', [0.45, 0.133, 0.090])),
 			'color3': tuple(layer.get('color3', [0.45, 0.133, 0.090])),
-			'background1': (0.5, 0.5, 0.5)  # Gray background for thumbnail
+			'background1': background1
 		}
 		
 		try:

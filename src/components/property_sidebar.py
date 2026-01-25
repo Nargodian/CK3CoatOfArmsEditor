@@ -229,6 +229,7 @@ class PropertySidebar(QFrame):
 		
 		# Use LayerListWidget
 		self.layer_list_widget = LayerListWidget()
+		self.layer_list_widget.property_sidebar = self  # Give layer list access to base colors
 		self.layer_list_widget.set_layers(self.layers)
 		
 		# Setup callbacks
