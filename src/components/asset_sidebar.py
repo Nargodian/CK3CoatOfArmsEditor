@@ -39,6 +39,9 @@ class AssetSidebar(QFrame):
 		self.last_emblem_category = DEFAULT_EMBLEM_CATEGORY  # Remember last viewed emblem category
 		self.right_sidebar = None  # Will be set by parent to access layer colors
 		
+		# Track stacked emblem widgets for fast color updates
+		self.emblem_widgets = []
+		
 		# Load asset data from JSON files
 		self.asset_data = self._load_asset_data()
 		
@@ -241,6 +244,8 @@ class AssetSidebar(QFrame):
 		self.clear_layout(self.assets_grid)
 		# Clear button list
 		self.asset_buttons.clear()
+		# Clear emblem widget references
+		self.emblem_widgets.clear()
 		
 		# Get assets for current category
 		assets = self._get_filtered_assets()
@@ -261,13 +266,51 @@ class AssetSidebar(QFrame):
 			item = QPushButton()
 			item.setFixedSize(self.current_icon_size, self.current_icon_size)
 			
-			# Generate dynamic composite or fall back to static preview
-			pixmap = self._create_asset_preview(asset, colors)
-			if not pixmap.isNull():
-				icon = QIcon(pixmap)
-				item.setIcon(icon)
-				# Set icon size to fill the button
-				item.setIconSize(QSize(self.current_icon_size - 10, self.current_icon_size - 10))
+			# For emblems: use stacked widget for performance, For patterns: use composited pixmap
+			if self.current_mode == "emblems":
+				# Use stacked widget approach for instant color updates
+				from components.asset_widgets.stacked_emblem_widget import StackedEmblemWidget
+				from utils.atlas_compositor import get_atlas_path
+				from utils.color_utils import get_contrasting_background
+				
+				filename = asset.get('filename', '')
+				atlas_path = get_atlas_path(filename, 'emblem')
+				
+				if atlas_path.exists():
+					# Create stacked widget
+					stacked_widget = StackedEmblemWidget(str(atlas_path), size=self.current_icon_size - 10)
+					
+					# Set background with smart contrast
+					emblem_color1 = colors['color1']
+					base_background_color1 = colors['background1']
+					contrast_bg = get_contrasting_background(emblem_color1, base_background_color1)
+					stacked_widget.set_background_color(contrast_bg)
+					
+					# Set colors
+					stacked_widget.set_colors(colors['color1'], colors['color2'], colors['color3'])
+					
+					# Track widget for future color updates
+					self.emblem_widgets.append(stacked_widget)
+					
+					# Add stacked widget to button's layout
+					button_layout = QVBoxLayout(item)
+					button_layout.setContentsMargins(5, 5, 5, 5)
+					button_layout.addWidget(stacked_widget)
+				else:
+					# Fallback to static preview
+					pixmap = QPixmap(asset["path"])
+					if not pixmap.isNull():
+						icon = QIcon(pixmap)
+						item.setIcon(icon)
+						item.setIconSize(QSize(self.current_icon_size - 10, self.current_icon_size - 10))
+			else:
+				# For patterns: use traditional composited pixmap (each has unique colors)
+				pixmap = self._create_asset_preview(asset, colors)
+				if not pixmap.isNull():
+					icon = QIcon(pixmap)
+					item.setIcon(icon)
+					# Set icon size to fill the button
+					item.setIconSize(QSize(self.current_icon_size - 10, self.current_icon_size - 10))
 			
 			item.setCheckable(True)
 			item.setToolTip(asset.get("display_name", asset["filename"]))
@@ -524,5 +567,18 @@ class AssetSidebar(QFrame):
 		return pixmap
 	
 	def update_asset_colors(self):
-		"""Rebuild asset grid when layer colors change"""
-		self.build_asset_grid()
+		"""Update colors when layer colors change"""
+		if self.current_mode == "emblems":
+			# For emblems: update all stacked widgets directly (fast!)
+			colors = self._get_current_layer_colors()
+			
+			from utils.color_utils import get_contrasting_background
+			contrast_bg = get_contrasting_background(colors['color1'], colors['background1'])
+			
+			# Update all emblem widgets
+			for widget in self.emblem_widgets:
+				widget.set_background_color(contrast_bg)
+				widget.set_colors(colors['color1'], colors['color2'], colors['color3'])
+		else:
+			# For patterns: rebuild grid (each pattern has unique colors)
+			self.build_asset_grid()

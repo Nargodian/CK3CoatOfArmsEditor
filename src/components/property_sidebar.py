@@ -863,6 +863,12 @@ class PropertySidebar(QFrame):
 		self.selected_layer_indices = self.layer_list_widget.selected_layer_indices
 		self.last_selected_index = self.layer_list_widget.last_selected_index
 		
+		# Update asset sidebar emblem previews if viewing emblems
+		# (patterns use base colors which don't change with layer selection)
+		if self.main_window and hasattr(self.main_window, 'left_sidebar'):
+			if self.main_window.left_sidebar.current_mode == "emblems":
+				self.main_window.left_sidebar.update_asset_colors()
+		
 		# Update properties tab state
 		selected_indices = self.get_selected_indices()
 		if selected_indices:
