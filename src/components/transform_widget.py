@@ -346,6 +346,72 @@ class TransformWidget(QWidget):
 			return
 		super().mouseReleaseEvent(event)
 	
+	def wheelEvent(self, event):
+		"""Handle mouse wheel for scaling and rotation while dragging"""
+		# Only respond to wheel events when actively dragging
+		if self.active_handle == self.HANDLE_NONE:
+			super().wheelEvent(event)
+			return
+		
+		# Get wheel delta (check both angleDelta and pixelDelta for different input devices)
+		angle_delta = event.angleDelta()
+		pixel_delta = event.pixelDelta()
+		
+		# Try angleDelta first (traditional mouse wheel), then pixelDelta (touchpad/trackpad)
+		delta = 0
+		if angle_delta.y() != 0:
+			delta = angle_delta.y()
+		elif angle_delta.x() != 0:
+			delta = angle_delta.x()
+		elif pixel_delta.y() != 0:
+			delta = pixel_delta.y()
+		elif pixel_delta.x() != 0:
+			delta = pixel_delta.x()
+		
+		if delta == 0:
+			return
+		
+		# Normalize delta to a small increment
+		increment = 0.02 if delta > 0 else -0.02
+		
+		modifiers = event.modifiers()
+		
+		if modifiers & Qt.AltModifier:
+			# Alt + wheel: Rotate
+			rotation_increment = 5.0 if delta > 0 else -5.0
+			self.rotation += rotation_increment
+			# Normalize to 0-360 range
+			self.rotation = self.rotation % 360
+		elif modifiers & Qt.ControlModifier:
+			# Ctrl + wheel: Scale X only
+			sign_x = 1 if self.scale_x >= 0 else -1
+			new_scale_x = abs(self.scale_x) + increment
+			new_scale_x = max(0.01, min(1.0, new_scale_x))  # Clamp
+			self.scale_x = sign_x * new_scale_x
+			self.nonUniformScaleUsed.emit()
+		elif modifiers & Qt.ShiftModifier:
+			# Shift + wheel: Scale Y only
+			sign_y = 1 if self.scale_y >= 0 else -1
+			new_scale_y = abs(self.scale_y) + increment
+			new_scale_y = max(0.01, min(1.0, new_scale_y))  # Clamp
+			self.scale_y = sign_y * new_scale_y
+			self.nonUniformScaleUsed.emit()
+		else:
+			# No modifier: Scale both X and Y uniformly
+			sign_x = 1 if self.scale_x >= 0 else -1
+			sign_y = 1 if self.scale_y >= 0 else -1
+			new_scale_x = abs(self.scale_x) + increment
+			new_scale_y = abs(self.scale_y) + increment
+			new_scale_x = max(0.01, min(1.0, new_scale_x))  # Clamp
+			new_scale_y = max(0.01, min(1.0, new_scale_y))  # Clamp
+			self.scale_x = sign_x * new_scale_x
+			self.scale_y = sign_y * new_scale_y
+		
+		# Emit signal and update
+		self.transformChanged.emit(self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
+		self.update()
+		event.accept()
+	
 	def _handle_drag(self, current_pos):
 		"""Handle dragging based on active handle"""
 		if not self.drag_start_pos or not self.drag_start_transform:
