@@ -574,9 +574,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def _load_material_mask_texture(self):
 		"""Load CK3 material mask texture (coa_mask_texture.png) for dirt/fabric/paint effects"""
 		try:
-		from utils.path_resolver import get_base_dir
-		base_dir = get_base_dir()
-		material_mask_path = os.path.join(base_dir, 'ck3_assets', 'coa_mask_texture.png')
+			from utils.path_resolver import get_base_dir
+			base_dir = get_base_dir()
+			material_mask_path = os.path.join(base_dir, 'ck3_assets', 'coa_mask_texture.png')
 			if os.path.exists(material_mask_path):
 				img = Image.open(material_mask_path).convert('RGBA')
 				# Resize to 128x128 to reduce compression artifacts
@@ -615,9 +615,11 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def _load_noise_texture(self):
 		"""Load noise texture for grain effect"""
 		try:
-		from utils.path_resolver import get_base_dir
-		base_dir = get_base_dir()
-		noise_path = os.path.join(base_dir, 'editor', 'assets', 'noise.png')
+			from utils.path_resolver import get_base_dir
+			base_dir = get_base_dir()
+			noise_path = os.path.join(base_dir, 'editor', 'assets', 'noise.png')
+			
+			if os.path.exists(noise_path):
 				img = Image.open(noise_path).convert('RGBA')
 				img_data = np.array(img)
 				
