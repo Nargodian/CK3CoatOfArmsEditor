@@ -183,7 +183,7 @@ ROTATION_DECIMAL_PLACES = 0
 # ======================================================================
 
 # Maximum undo/redo history
-MAX_HISTORY_ENTRIES = 50
+MAX_HISTORY_ENTRIES = 100
 
 # ======================================================================
 # UI CONSTRAINTS

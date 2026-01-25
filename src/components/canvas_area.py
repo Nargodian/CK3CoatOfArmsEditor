@@ -149,6 +149,10 @@ class CanvasArea(QFrame):
 		For multi-selection: calculates screen-space AABB (Axis-Aligned Bounding Box)
 		  from all selected layer positions ± scales/2
 		"""
+		# Reset drag state when selection changes to prevent applying transforms to wrong layers
+		self._drag_start_layers = None
+		self._drag_start_aabb = None
+		
 		# Reset initial group state when selection changes (Task 3.6)
 		self._initial_group_center = None
 		self._initial_group_rotation = 0

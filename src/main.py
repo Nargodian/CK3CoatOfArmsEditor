@@ -29,7 +29,7 @@ from constants import (
     DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
     DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
     CK3_NAMED_COLORS, DEFAULT_SCALE_X, DEFAULT_SCALE_Y,
-    DEFAULT_FLIP_X, DEFAULT_FLIP_Y, DEFAULT_ROTATION
+    DEFAULT_FLIP_X, DEFAULT_FLIP_Y, DEFAULT_ROTATION, MAX_HISTORY_ENTRIES
 )
 
 
@@ -41,7 +41,7 @@ class CoatOfArmsEditor(QMainWindow):
 		self.setMinimumSize(1280, 720)
 		
 		# Initialize history manager
-		self.history_manager = HistoryManager(max_history=50)
+		self.history_manager = HistoryManager(max_history=MAX_HISTORY_ENTRIES)
 		self.history_manager.add_listener(self._on_history_changed)
 		
 		# Debounce timer for property changes (avoid spamming history on slider drags)

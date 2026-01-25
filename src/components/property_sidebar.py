@@ -486,6 +486,17 @@ class PropertySidebar(QFrame):
 						self.layers[idx][f'color{color_idx+1}_name'] = color_name  # Store name or None
 					# Invalidate thumbnail cache for this layer
 					self.layer_list_widget.invalidate_thumbnail(idx)
+				
+				# Update canvas with new layer colors
+				self.canvas_widget.set_layers(self.layers)
+				
+				# Update asset sidebar previews with new colors
+				if self.main_window and hasattr(self.main_window, 'left_sidebar'):
+					self.main_window.left_sidebar.update_asset_colors()
+				
+				# Save to history
+				if self.main_window and hasattr(self.main_window, '_save_state'):
+					self.main_window._save_state(f"Change emblem color {color_idx+1}")
 			
 			# Rebuild layer list to update thumbnails
 			self._rebuild_layer_list()
