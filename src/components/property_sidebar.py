@@ -1019,7 +1019,10 @@ class PropertySidebar(QFrame):
 			self.pos_y_editor.setValue(pos_y or 0.5)
 		
 		# Scale X and Y with flip detection
-		if scale_x_raw == 'Mixed' or scale_y_raw == 'Mixed':
+		flip_x_raw = self.get_property_value('flip_x')
+		flip_y_raw = self.get_property_value('flip_y')
+		
+		if scale_x_raw == 'Mixed' or scale_y_raw == 'Mixed' or flip_x_raw == 'Mixed' or flip_y_raw == 'Mixed':
 			self.scale_editor.scale_x_slider.value_input.setText('—')
 			self.scale_editor.scale_y_slider.value_input.setText('—')
 			self.scale_editor.set_scale_values(0.5, 0.5, False, False)
@@ -1028,8 +1031,8 @@ class PropertySidebar(QFrame):
 		else:
 			scale_x = scale_x_raw or 0.5
 			scale_y = scale_y_raw or 0.5
-			flip_x = self.get_property_value('flip_x') or False
-			flip_y = self.get_property_value('flip_y') or False
+			flip_x = flip_x_raw if isinstance(flip_x_raw, bool) else False
+			flip_y = flip_y_raw if isinstance(flip_y_raw, bool) else False
 			self.scale_editor.set_scale_values(scale_x, scale_y, flip_x, flip_y)
 			self.scale_editor.flip_x_check.setEnabled(True)
 			self.scale_editor.flip_y_check.setEnabled(True)
