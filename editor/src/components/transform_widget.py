@@ -333,9 +333,9 @@ class TransformWidget(QWidget):
 		"""Handle mouse release"""
 		if event.button() == Qt.LeftButton and self.active_handle != self.HANDLE_NONE:
 			# Clear rotation state when releasing rotation handle
+			# Keep cached_aabb so widget doesn't inflate after rotation
 			if self.active_handle == self.HANDLE_ROTATE:
 				self.is_rotating = False
-				self.cached_aabb = None
 			
 			self.active_handle = self.HANDLE_NONE
 			self.drag_start_pos = None

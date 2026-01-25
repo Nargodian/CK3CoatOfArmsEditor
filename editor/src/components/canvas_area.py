@@ -162,6 +162,9 @@ class CanvasArea(QFrame):
 		self._initial_group_center = None
 		self._initial_group_rotation = 0
 		
+		# Clear cached AABB when selection changes to recalculate from new selection
+		self.transform_widget.cached_aabb = None
+		
 		if not self.property_sidebar:
 			self.transform_widget.set_visible(False)
 			return
@@ -199,9 +202,9 @@ class CanvasArea(QFrame):
 			return
 		
 		# MULTI-SELECTION: Calculate screen-space AABB
-		# During rotation, use cached AABB to prevent widget from traveling
-		if self.transform_widget.is_rotating and self.transform_widget.cached_aabb is not None:
-			# Use cached values during rotation
+		# Use cached AABB if it exists (persists after rotation to prevent inflation)
+		if self.transform_widget.cached_aabb is not None:
+			# Use cached values to maintain baseline scale
 			group_pos_x, group_pos_y, group_scale_x, group_scale_y = self.transform_widget.cached_aabb
 		else:
 			# Calculate AABB from current layer positions
@@ -237,8 +240,9 @@ class CanvasArea(QFrame):
 			group_scale_x = max_x - min_x
 			group_scale_y = max_y - min_y
 		
-		# Cache AABB when rotation starts
-		if not self.transform_widget.is_rotating:
+		# Don't cache AABB if we just rotated - keep the pre-rotation cache
+		# Only cache when starting fresh (no existing cache)
+		if not self.transform_widget.is_rotating and self.transform_widget.cached_aabb is None:
 			self.transform_widget.cached_aabb = (group_pos_x, group_pos_y, group_scale_x, group_scale_y)
 	
 		# Store initial group state for rotation calculations (Task 3.6)
@@ -284,6 +288,7 @@ class CanvasArea(QFrame):
 		# Cache original layer states at drag start to prevent cumulative transforms
 		if self._drag_start_layers is None:
 			self._drag_start_layers = []
+			self._aabb_synced = False  # Track if we've synced AABB this drag
 			for idx in selected_indices:
 				if idx < 0 or idx >= len(self.property_sidebar.layers):
 					continue
@@ -333,10 +338,12 @@ class CanvasArea(QFrame):
 		original_scale_x = self._drag_start_aabb['scale_x']
 		original_scale_y = self._drag_start_aabb['scale_y']
 		
-		# Sync cache if widget scale changed during rotation (rotation reset recalculates AABB)
-		if self.transform_widget.is_rotating and (abs(scale_x - original_scale_x) > 0.001 or abs(scale_y - original_scale_y) > 0.001):
+		# Sync cache if widget scale changed (e.g., rotation reset recalculated AABB)
+		# Only sync once per drag to avoid constantly resetting the baseline
+		if not self._aabb_synced and (abs(scale_x - original_scale_x) > 0.001 or abs(scale_y - original_scale_y) > 0.001):
 			self._drag_start_aabb = {'center_x': pos_x, 'center_y': pos_y, 'scale_x': scale_x, 'scale_y': scale_y}
 			original_center_x, original_center_y, original_scale_x, original_scale_y = pos_x, pos_y, scale_x, scale_y
+			self._aabb_synced = True
 		
 		# Calculate transform deltas
 		position_delta_x = pos_x - original_center_x
