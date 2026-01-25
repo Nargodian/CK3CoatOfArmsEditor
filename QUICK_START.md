@@ -24,7 +24,7 @@ This installs:
 ### Test the Asset Converter
 
 ```batch
-python asset_converter.py
+python asset_converter/asset_converter.py
 ```
 
 1. Click "Browse..." next to CK3 Installation Directory
@@ -40,7 +40,7 @@ python asset_converter.py
 ### Test the Editor
 
 ```batch
-python src/main.py
+python editor/src/main.py
 ```
 
 1. Editor should load without errors
@@ -51,6 +51,7 @@ python src/main.py
 ## Step 3: Build Executables
 
 ```batch
+cd build
 build.bat
 ```
 

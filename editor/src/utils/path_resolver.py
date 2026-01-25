@@ -23,9 +23,9 @@ def get_base_dir() -> Path:
         # sys.executable is the path to the .exe file
         return Path(os.path.dirname(sys.executable))
     else:
-        # Running as script - this file is in src/utils/
-        # Go up two levels to get to project root
-        return Path(__file__).resolve().parent.parent.parent
+        # Running as script - this file is in editor/src/utils/
+        # Go up three levels to get to project root
+        return Path(__file__).resolve().parent.parent.parent.parent
 
 
 def get_assets_dir() -> Path:

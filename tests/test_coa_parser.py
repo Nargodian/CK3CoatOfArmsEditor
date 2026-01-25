@@ -8,7 +8,7 @@ import sys
 import os
 
 # Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'editor', 'src'))
 
 from utils.coa_parser import parse_coa_file, parse_coa_string, serialize_coa_to_string
 

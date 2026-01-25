@@ -30,50 +30,76 @@ git clone <repository-url>
 cd CK3CoatOfArmsEditor
 
 # Install dependencies
-pip install PyQt5 PyOpenGL numpy pillow
+pip install -r requirements.txt
 
-# Run the editor
-python src/main.py
+# Run the editor (development mode)
+python editor/src/main.py
+
+# Or run the asset converter
+python asset_converter/asset_converter.py
 ```
+
+## Building for Distribution
+
+```bash
+# Build both executables
+cd build
+build.bat
+
+# Find built executables in dist/merged/
+```
+
+See [PACKAGING.md](PACKAGING.md) for complete build and distribution instructions.
 
 ## Project Structure
 
-The project follows a modular architecture after comprehensive refactoring:
+The project follows a modular architecture with separate editor and asset converter projects:
 
 ```
 CK3CoatOfArmsEditor/
-├── src/
-│   ├── main.py                      # Main application window
-│   ├── components/                  # UI components
-│   │   ├── asset_sidebar.py        # Left panel - asset browser
-│   │   ├── canvas_area.py          # Center panel - canvas container
-│   │   ├── canvas_widget.py        # OpenGL rendering widget
-│   │   ├── property_sidebar.py     # Right panel - properties
-│   │   ├── toolbar.py              # Top toolbar
-│   │   ├── transform_widget.py     # Transform handles overlay
-│   │   └── canvas_widgets/         # Canvas sub-components
-│   │       └── shader_manager.py   # Shader compilation & management
-│   ├── utils/                       # Utility modules
-│   │   ├── coa_parser.py           # CK3 format parser/serializer
-│   │   └── history_manager.py      # Undo/redo state management
-│   └── shaders/                     # GLSL shader files
-│       ├── basic.vert              # Vertex shader
-│       ├── basic.frag              # Basic texture shader
-│       ├── base.frag               # Base layer shader (patterns)
-│       └── design.frag             # Emblem layer shader
-├── source_coa_files/                # Asset source files
-│   ├── patterns/                   # Pattern PNG files
-│   ├── colored_emblems/            # Emblem PNG files
-│   └── ...
-├── json_output/                     # Asset metadata JSON
-├── coa_frames/                      # Frame assets (gold, silver, etc.)
-├── samples/                         # Example CoA files
-├── tests/                           # Unit tests
-│   ├── test_coa_parser.py          # Parser tests
-│   ├── test_layer_copy_paste.py    # Layer operations tests
-│   └── test_roundtrip.py           # Import/export tests
-└── docs/                            # Documentation
-    └── specifications/              # Format specifications
+├── editor/                          # Main editor project
+│   ├── src/
+│   │   ├── main.py                 # Main application window
+│   │   ├── components/             # UI components
+│   │   │   ├── asset_sidebar.py   # Left panel - asset browser
+│   │   │   ├── canvas_area.py     # Center panel - canvas container
+│   │   │   ├── canvas_widget.py   # OpenGL rendering widget
+│   │   │   ├── property_sidebar.py# Right panel - properties
+│   │   │   ├── toolbar.py         # Top toolbar
+│   │   │   ├── transform_widget.py# Transform handles overlay
+│   │   │   └── canvas_widgets/    # Canvas sub-components
+│   │   │       └── shader_manager.py # Shader compilation
+│   │   ├── services/               # Business logic
+│   │   │   ├── file_operations.py # File I/O
+│   │   │   ├── layer_operations.py# Layer management
+│   │   │   └── coa_serializer.py  # Serialization
+│   │   ├── utils/                  # Utility modules
+│   │   │   ├── path_resolver.py   # Dev/frozen path handling
+│   │   │   ├── coa_parser.py      # CK3 format parser
+│   │   │   ├── atlas_compositor.py# Atlas rendering
+│   │   │   └── history_manager.py # Undo/redo state
+│   │   └── shaders/                # GLSL shader files
+│   │       ├── basic.vert         # Vertex shader
+│   │       ├── basic.frag         # Basic texture shader
+│   │       ├── base.frag          # Base layer shader
+│   │       └── design.frag        # Emblem layer shader
+│   └── editor.spec                 # PyInstaller build config
+├── asset_converter/                # Asset extraction tool
+│   ├── asset_converter.py         # GUI tool for CK3 asset extraction
+│   └── asset_converter.spec       # PyInstaller build config
+├── build/                          # Build tools
+│   └── build.bat                  # Windows build script
+├── docs/                           # Documentation
+│   └── specifications/            # Format specifications
+├── examples/                       # Example CoA files
+├── samples/                        # Sample designs
+├── tests/                          # Unit tests
+│   ├── test_coa_parser.py        # Parser tests
+│   ├── test_layer_copy_paste.py  # Layer operations tests
+│   └── test_roundtrip.py         # Import/export tests
+├── requirements.txt               # Python dependencies
+├── PACKAGING.md                   # Build & distribution guide
+└── README.md                      # This file
 ```
 
 ## Architecture Overview

@@ -30,6 +30,7 @@ Both executables share a common `_internal/` folder containing Python libraries 
 pip install -r requirements.txt
 
 # Run the build script
+cd build
 build.bat
 ```
 
@@ -45,10 +46,10 @@ This will:
 pip install -r requirements.txt
 
 # Build editor
-pyinstaller editor.spec
+pyinstaller editor/editor.spec
 
 # Build asset converter
-pyinstaller asset_converter.spec
+pyinstaller asset_converter/asset_converter.spec
 
 # Manually merge the distributions:
 # 1. Create dist/merged/

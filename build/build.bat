@@ -24,7 +24,7 @@ echo.
 
 REM Build CoatOfArmsEditor
 echo Building CoatOfArmsEditor.exe...
-pyinstaller editor.spec
+pyinstaller ..\editor\editor.spec
 if errorlevel 1 (
     echo ERROR: Failed to build CoatOfArmsEditor
     pause
@@ -34,7 +34,7 @@ echo.
 
 REM Build AssetConverter
 echo Building AssetConverter.exe...
-pyinstaller asset_converter.spec
+pyinstaller ..\asset_converter\asset_converter.spec
 if errorlevel 1 (
     echo ERROR: Failed to build AssetConverter
     pause

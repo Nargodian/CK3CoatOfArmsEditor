@@ -80,16 +80,24 @@ This branch (`feature/portable-exe-packaging`) implements the complete refactori
 ### Development Structure
 ```
 CK3CoatOfArmsEditor/
-├── src/                          # Editor source code
-│   ├── utils/
-│   │   └── path_resolver.py     # ✓ NEW: Path resolution
-│   └── shaders/                  # Bundled in exe
-├── asset_converter.py            # ✓ NEW: Unified conversion tool
-├── editor.spec                   # ✓ NEW: Editor build config
-├── asset_converter.spec          # ✓ NEW: Converter build config
-├── build.bat                     # ✓ NEW: Build script
-├── requirements.txt              # ✓ NEW: Dependencies
-└── PACKAGING.md                  # ✓ NEW: Build docs
+├── editor/                       # Editor project
+│   ├── src/                      # Editor source code
+│   │   ├── utils/
+│   │   │   └── path_resolver.py # ✓ NEW: Path resolution
+│   │   └── shaders/             # Bundled in exe
+│   └── editor.spec              # ✓ NEW: Editor build config
+├── asset_converter/             # Asset converter project
+│   ├── asset_converter.py       # ✓ NEW: Unified conversion tool
+│   └── asset_converter.spec     # ✓ NEW: Converter build config
+├── build/                       # Build tools
+│   └── build.bat                # ✓ NEW: Build script
+├── docs/                        # Documentation
+├── examples/                    # Examples
+├── samples/                     # Samples
+├── tests/                       # Tests
+├── requirements.txt             # ✓ NEW: Dependencies
+├── PACKAGING.md                 # ✓ NEW: Build docs
+└── README.md
 ```
 
 ### Distribution Structure (after build)
