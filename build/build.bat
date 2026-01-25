@@ -99,4 +99,5 @@ echo   - Create README.txt with usage instructions
 echo   - Zip the folder for distribution
 echo.
 
-pause
+REM Exit cleanly
+exit /b 0
