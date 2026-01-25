@@ -649,11 +649,11 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Determine insertion position
 			if len(selected_indices) > 1:
-				# Multiple layers selected - place at the top (index 0)
-				insert_position = 0
+				# Multiple layers selected - place at the end (highest index = in front)
+				insert_position = len(self.right_sidebar.layers)
 			else:
-				# Single layer selected - place directly above it (lower index = in front)
-				insert_position = min(sorted_indices)
+				# Single layer selected - place directly above it (higher index = in front)
+				insert_position = max(sorted_indices) + 1
 			
 			# Insert all duplicated layers at position
 			for i, dup_layer in enumerate(duplicated_layers):
