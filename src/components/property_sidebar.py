@@ -948,18 +948,9 @@ class PropertySidebar(QFrame):
 	def _update_layer_property_and_widget(self, prop_name, value):
 		"""Update a property and sync transform widget"""
 		self._update_layer_property(prop_name, value)
-		if self.canvas_area and hasattr(self.canvas_area, 'transform_widget'):
-			selected_indices = self.get_selected_indices()
-			if selected_indices and 0 <= selected_indices[0] < len(self.layers):
-				layer = self.layers[selected_indices[0]]
-				# Update transform widget with current layer state
-				self.canvas_area.transform_widget.set_transform(
-					layer.get('pos_x', 0.5),
-					layer.get('pos_y', 0.5),
-					abs(layer.get('scale_x', 0.5)),
-					abs(layer.get('scale_y', 0.5)),
-					layer.get('rotation', 0)
-				)
+		if self.canvas_area:
+			# Use update_transform_widget_for_layer to properly handle multi-selection
+			self.canvas_area.update_transform_widget_for_layer()
 	
 	
 	def _update_layer_scale_and_widget(self):
@@ -982,17 +973,9 @@ class PropertySidebar(QFrame):
 		if self.canvas_widget:
 			self.canvas_widget.set_layers(self.layers)
 		
-		# Update transform widget
-		if self.canvas_area and hasattr(self.canvas_area, 'transform_widget'):
-			if selected_indices and 0 <= selected_indices[0] < len(self.layers):
-				layer = self.layers[selected_indices[0]]
-				self.canvas_area.transform_widget.set_transform(
-					layer.get('pos_x', 0.5),
-					layer.get('pos_y', 0.5),
-					abs(layer.get('scale_x', 0.5)),
-					abs(layer.get('scale_y', 0.5)),
-					layer.get('rotation', 0)
-				)
+		# Update transform widget - use update_transform_widget_for_layer for multi-selection
+		if self.canvas_area:
+			self.canvas_area.update_transform_widget_for_layer()
 		
 		# Save to history with debouncing
 		if self.main_window and hasattr(self.main_window, 'save_property_change_debounced'):

@@ -226,11 +226,11 @@ class CanvasArea(QFrame):
 			group_pos_y = (min_y + max_y) / 2
 			group_scale_x = max_x - min_x
 			group_scale_y = max_y - min_y
-			
-			# Cache AABB when rotation starts
-			if not self.transform_widget.is_rotating:
-				self.transform_widget.cached_aabb = (group_pos_x, group_pos_y, group_scale_x, group_scale_y)
 		
+		# Cache AABB when rotation starts
+		if not self.transform_widget.is_rotating:
+			self.transform_widget.cached_aabb = (group_pos_x, group_pos_y, group_scale_x, group_scale_y)
+	
 		# Store initial group state for rotation calculations (Task 3.6)
 		if not hasattr(self, '_initial_group_center'):
 			self._initial_group_center = (group_pos_x, group_pos_y)
@@ -327,10 +327,6 @@ class CanvasArea(QFrame):
 		position_delta_x = pos_x - original_center_x
 		position_delta_y = pos_y - original_center_y
 		
-		# Calculate scale factors (avoid division by zero)
-		scale_factor_x = scale_x / original_scale_x if original_scale_x > 0.001 else 1.0
-		scale_factor_y = scale_y / original_scale_y if original_scale_y > 0.001 else 1.0
-		
 		# Calculate rotation delta (Task 3.6)
 		rotation_delta = rotation - getattr(self, '_initial_group_rotation', 0)
 		
@@ -368,7 +364,11 @@ class CanvasArea(QFrame):
 				new_scale_x = scale_x_orig
 				new_scale_y = scale_y_orig
 			else:
-				# SCALE/POSITION: Apply scale to offset and layer scales
+				# SCALE/POSITION: Calculate scale factors and apply to offset and layer scales
+				# Calculate scale factors (avoid division by zero)
+				scale_factor_x = scale_x / original_scale_x if original_scale_x > 0.001 else 1.0
+				scale_factor_y = scale_y / original_scale_y if original_scale_y > 0.001 else 1.0
+				
 				new_offset_x = offset_x * scale_factor_x
 				new_offset_y = offset_y * scale_factor_y
 				
