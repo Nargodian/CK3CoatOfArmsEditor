@@ -618,7 +618,7 @@ class ConversionWorker(QThread):
     def process_frames(self) -> bool:
         """Process frame DDS files to PNGs."""
         try:
-            frame_source_dir = self.ck3_dir / "game" / "gfx" / "interface" / "coat_of_arms"
+            frame_source_dir = self.ck3_dir / "game" / "gfx" / "interface" / "coat_of_arms" / "frames"
             if not frame_source_dir.exists():
                 self.log_error(f"Frame source directory not found: {frame_source_dir}")
                 return False
@@ -842,7 +842,7 @@ class AssetConverterGUI(QMainWindow):
         required_paths = [
             ck3_dir / "game" / "gfx" / "coat_of_arms" / "colored_emblems",
             ck3_dir / "game" / "gfx" / "coat_of_arms" / "patterns",
-            ck3_dir / "game" / "gfx" / "interface" / "coat_of_arms",
+            ck3_dir / "game" / "gfx" / "interface" / "coat_of_arms" / "frames",
             ck3_dir / "game" / "common" / "coat_of_arms"
         ]
         
