@@ -4,16 +4,25 @@
 
 This branch (`feature/portable-exe-packaging`) implements the complete refactoring plan to transform the CK3 Coat of Arms Editor into a distributable Windows application.
 
+### Latest Update: Project Reorganization
+- ✓ Reorganized into clear sub-project structure
+- ✓ Editor code moved to `editor/` directory
+- ✓ Asset converter isolated in `asset_converter/` directory
+- ✓ Build tools moved to `build/` directory
+- ✓ Removed pointless `coa_interface/` folder
+- ✓ Updated all documentation and test imports
+
 ## What Was Implemented
 
 ### 1. Core Infrastructure ✓
 
-**Path Resolver** (`src/utils/path_resolver.py`)
+**Path Resolver** (`editor/src/utils/path_resolver.py`)
 - Handles differences between development and frozen (PyInstaller) environments
 - Provides functions to locate assets and shaders in both modes
 - Supports checking if required assets exist
+- Updated to work with new folder structure
 
-**Asset Converter** (`asset_converter.py`)
+**Asset Converter** (`asset_converter/asset_converter.py`)
 - Unified GUI tool combining all previous conversion scripts
 - PyQt5 interface with progress tracking and error logging
 - Converts CK3 DDS assets to PNG with atlas baking
