@@ -367,15 +367,16 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def _load_texture_atlases(self):
 		"""Load texture atlases from emblem files and patterns, create UV mappings"""
 		try:
+			from utils.path_resolver import get_pattern_metadata_path, get_emblem_metadata_path, get_pattern_source_dir, get_emblem_source_dir
 			# Collect all valid files (patterns + emblems)
 			emblem_files = []
-			
+
 			# Load patterns first
 			pattern_json_path = get_pattern_metadata_path()
 			if pattern_json_path.exists():
 				with open(pattern_json_path, 'r', encoding='utf-8') as f:
 					pattern_data = json.load(f)
-				
+
 				for filename, props in pattern_data.items():
 					if props is None or filename == "\ufeff" or filename == "":
 						continue
@@ -384,13 +385,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					image_path = get_pattern_source_dir() / png_filename
 					if image_path.exists():
 						emblem_files.append((filename, str(image_path)))  # Store .dds name as key
-			
+
 			# Load emblems
 			emblem_json_path = get_emblem_metadata_path()
 			if emblem_json_path.exists():
 				with open(emblem_json_path, 'r', encoding='utf-8') as f:
 					emblem_data = json.load(f)
-				
+
 				for filename, props in emblem_data.items():
 					if props is None or filename == "\ufeff":
 						continue
@@ -399,68 +400,70 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					image_path = get_emblem_source_dir() / png_filename
 					if image_path.exists():
 						emblem_files.append((filename, str(image_path)))  # Store .dds name as key
-			
+
 			# Build texture atlas (32x32 grid of 256x256 images = 8192x8192)
 			atlas_size = 8192
 			tile_size = 256
 			tiles_per_row = atlas_size // tile_size  # 32
 			tiles_per_atlas = tiles_per_row * tiles_per_row  # 1024
-			
+
 			num_atlases = (len(emblem_files) + tiles_per_atlas - 1) // tiles_per_atlas
-			
+
 			for atlas_idx in range(num_atlases):
 				# Create atlas texture
 				atlas_data = np.zeros((atlas_size, atlas_size, 4), dtype=np.uint8)
-				
+
 				start_idx = atlas_idx * tiles_per_atlas
 				end_idx = min((atlas_idx + 1) * tiles_per_atlas, len(emblem_files))
-				
+
 				# Pack textures into atlas
 				for i in range(start_idx, end_idx):
 					filename, image_path = emblem_files[i]
 					local_idx = i - start_idx
-					
+
 					# Calculate position in atlas
 					row = local_idx // tiles_per_row
 					col = local_idx % tiles_per_row
 					x = col * tile_size
 					y = row * tile_size
-					
+
 					# Load and resize image
 					img = Image.open(image_path).convert('RGBA')
 					img = img.resize((tile_size, tile_size), Image.Resampling.LANCZOS)
 					img_array = np.array(img)
-					
+
 					# Place in atlas
 					atlas_data[y:y+tile_size, x:x+tile_size, :] = img_array
-					
+
 					# Calculate UV coordinates (normalized)
 					u0 = x / atlas_size
 					v0 = y / atlas_size
 					u1 = (x + tile_size) / atlas_size
 					v1 = (y + tile_size) / atlas_size
-					
+
 					# Store UV mapping
 					self.texture_uv_map[filename] = (atlas_idx, u0, v0, u1, v1)
-				
+
 				# Create OpenGL texture
 				texture_id = gl.glGenTextures(1)
 				gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id)
-				
+
 				# Set texture parameters
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
-				
+
 				# Upload texture data
 				gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, atlas_size, atlas_size,
 				               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, atlas_data.tobytes())
-				
+
 				self.texture_atlases.append(texture_id)
-		
+
 		except Exception as e:
 			print(f"Error loading texture atlases: {e}")
+			import traceback
+			traceback.print_exc()
 			self.update()  # Trigger repaint
 	
 	def _load_frame_textures(self):
@@ -574,9 +577,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def _load_material_mask_texture(self):
 		"""Load CK3 material mask texture (coa_mask_texture.png) for dirt/fabric/paint effects"""
 		try:
-			from utils.path_resolver import get_base_dir
-			base_dir = get_base_dir()
-			material_mask_path = os.path.join(base_dir, 'ck3_assets', 'coa_mask_texture.png')
+			from utils.path_resolver import get_assets_dir
+			material_mask_path = get_assets_dir() / 'coa_mask_texture.png'
 			if os.path.exists(material_mask_path):
 				img = Image.open(material_mask_path).convert('RGBA')
 				# Resize to 128x128 to reduce compression artifacts
@@ -615,9 +617,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def _load_noise_texture(self):
 		"""Load noise texture for grain effect"""
 		try:
-			from utils.path_resolver import get_base_dir
-			base_dir = get_base_dir()
-			noise_path = os.path.join(base_dir, 'editor', 'assets', 'noise.png')
+			from utils.path_resolver import get_resource_path
+			# Use get_resource_path to handle both dev and frozen (bundled) modes
+			noise_path = get_resource_path('assets', 'noise.png')
 			
 			if os.path.exists(noise_path):
 				img = Image.open(noise_path).convert('RGBA')
