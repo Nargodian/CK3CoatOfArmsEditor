@@ -1069,11 +1069,14 @@ class PropertySidebar(QFrame):
 			self.rotation_editor.setValue(rotation or 0)
 		
 		# Check if X and Y scales are different or mixed - update unified checkbox
+		# Block unified_check signals to prevent triggering valueChanged during UI load
+		self.scale_editor.unified_check.blockSignals(True)
 		if scale_x_raw == 'Mixed' or scale_y_raw == 'Mixed':
 			self.scale_editor.unified_check.setChecked(False)
 		elif scale_x_raw is not None and scale_y_raw is not None:
 			if abs(abs(scale_x_raw) - abs(scale_y_raw)) > 0.01:
 				self.scale_editor.unified_check.setChecked(False)
+		self.scale_editor.unified_check.blockSignals(False)
 		
 		# Restore signals
 		self.pos_x_editor.blockSignals(False)

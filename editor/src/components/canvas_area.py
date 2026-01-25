@@ -153,6 +153,11 @@ class CanvasArea(QFrame):
 		self._drag_start_layers = None
 		self._drag_start_aabb = None
 		
+		# Abort any active drag operation on the widget (prevents old drags from continuing)
+		self.transform_widget.active_handle = self.transform_widget.HANDLE_NONE
+		self.transform_widget.drag_start_pos = None
+		self.transform_widget.drag_start_transform = None
+		
 		# Reset initial group state when selection changes (Task 3.6)
 		self._initial_group_center = None
 		self._initial_group_rotation = 0
