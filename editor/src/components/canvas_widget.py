@@ -574,11 +574,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def _load_material_mask_texture(self):
 		"""Load CK3 material mask texture (coa_mask_texture.png) for dirt/fabric/paint effects"""
 		try:
-			# Load from ck3_assets directory (legacy path - these might not exist in new structure)
-			# For now, keep this as-is since these are editor-specific assets, not CK3 assets
-			base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-			material_mask_path = os.path.join(base_dir, 'source_coa_files', 'coa_mask_texture.png')
-			
+		from utils.path_resolver import get_base_dir
+		base_dir = get_base_dir()
+		material_mask_path = os.path.join(base_dir, 'ck3_assets', 'coa_mask_texture.png')
 			if os.path.exists(material_mask_path):
 				img = Image.open(material_mask_path).convert('RGBA')
 				# Resize to 128x128 to reduce compression artifacts

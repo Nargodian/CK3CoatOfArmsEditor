@@ -219,7 +219,7 @@ def convert_file(input_path: Path, output_path: Path):
 
 def main():
     """Main conversion process."""
-    source_dir = Path("source_coa_files")
+    source_dir = Path("ck3_assets")
     output_dir = Path("json_output")
     
     # Create output directory

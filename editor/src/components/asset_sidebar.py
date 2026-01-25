@@ -99,7 +99,7 @@ class AssetSidebar(QFrame):
 						continue
 					# Convert .dds to .png (textured emblems use legacy path, may not exist in new structure)
 					png_filename = filename.replace('.dds', '.png')
-					image_path = f"source_coa_files/coat_of_arms/textured_emblems/{png_filename}"
+					image_path = f"ck3_assets/coat_of_arms/textured_emblems/{png_filename}"
 					if os.path.exists(image_path):
 						# Add to preview map
 						TEXTURE_PREVIEW_MAP[filename] = image_path

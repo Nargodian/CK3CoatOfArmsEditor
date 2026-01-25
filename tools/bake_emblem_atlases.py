@@ -277,7 +277,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description='Bake emblem textures into quadrant atlases')
     parser.add_argument('file_list', type=Path, help='Text file with file paths (one per line, can be relative or absolute)')
-    parser.add_argument('output', type=Path, nargs='?', default='source_coa_files/emblem_atlases', help='Output directory for atlas PNGs (default: source_coa_files/emblem_atlases)')
+    parser.add_argument('output', type=Path, nargs='?', default='ck3_assets/coa_emblems/atlases', help='Output directory for atlas PNGs (default: ck3_assets/coa_emblems/atlases)')
     parser.add_argument('--preview', type=Path, help='Preview atlas splitting (path to existing atlas)')
     
     args = parser.parse_args()
