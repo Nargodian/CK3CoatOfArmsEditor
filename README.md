@@ -91,8 +91,9 @@ CK3CoatOfArmsEditor/
 │   └── build.bat                  # Windows build script
 ├── docs/                           # Documentation
 │   └── specifications/            # Format specifications
-├── examples/                       # Example CoA files
-├── samples/                        # Sample designs
+├── examples/                       # Code examples and sample CoAs
+│   ├── parser_example.py          # Parser usage example
+│   └── game_samples/              # Sample CoA designs from game
 ├── tests/                          # Unit tests
 │   ├── test_coa_parser.py        # Parser tests
 │   ├── test_layer_copy_paste.py  # Layer operations tests

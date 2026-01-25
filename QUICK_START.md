@@ -47,6 +47,7 @@ python editor/src/main.py
 2. Check that assets appear in the sidebar
 3. Try creating a coat of arms
 4. Verify rendering works correctly
+5. Try loading example CoAs from `examples/game_samples/`
 
 ## Step 3: Build Executables
 

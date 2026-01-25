@@ -101,8 +101,9 @@ CK3CoatOfArmsEditor/
 ├── build/                       # Build tools
 │   └── build.bat                # ✓ NEW: Build script
 ├── docs/                        # Documentation
-├── examples/                    # Examples
-├── samples/                     # Samples
+├── examples/                    # Code examples & sample CoAs
+│   ├── parser_example.py       # Parser usage
+│   └── game_samples/           # Sample CoA designs
 ├── tests/                       # Tests
 ├── requirements.txt             # ✓ NEW: Dependencies
 ├── PACKAGING.md                 # ✓ NEW: Build docs
