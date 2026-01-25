@@ -37,10 +37,14 @@ class TransformWidget(QWidget):
 	HANDLE_R = 9   # Right edge
 	HANDLE_ROTATE = 10
 	
-	def __init__(self, parent=None):
+	def __init__(self, parent=None, canvas_widget=None):
 		super().__init__(parent)
 		self.setAttribute(Qt.WA_TranslucentBackground)
 		self.setMouseTracking(True)
+		
+		# Reference to canvas widget for coordinate calculations
+		# If not provided, assume parent is the canvas (backward compatibility)
+		self.canvas_widget = canvas_widget if canvas_widget else parent
 		
 		# Transform state
 		self.pos_x = 0.5  # Normalized [0-1]
@@ -84,6 +88,24 @@ class TransformWidget(QWidget):
 		if event.type() == event.Resize and obj == self.parent():
 			self.setGeometry(0, 0, obj.width(), obj.height())
 		return super().eventFilter(obj, event)
+	
+	def _get_canvas_rect(self):
+		"""Get canvas widget's geometry (position and size within parent container).
+		
+		Returns:
+			tuple: (x, y, width, height, size, offset_x, offset_y)
+				- x, y: canvas position in container
+				- width, height: canvas dimensions
+				- size: square viewport size (min of width/height)
+				- offset_x, offset_y: position of square viewport center
+		"""
+		geom = self.canvas_widget.geometry()
+		x, y = geom.x(), geom.y()
+		width, height = geom.width(), geom.height()
+		size = min(width, height)
+		offset_x = x + (width - size) / 2
+		offset_y = y + (height - size) / 2
+		return x, y, width, height, size, offset_x, offset_y
 		
 	def set_transform(self, pos_x, pos_y, scale_x, scale_y, rotation, is_multi_selection=False):
 		"""Set the transform values
@@ -118,10 +140,8 @@ class TransformWidget(QWidget):
 		# - Scale is multiplied by 0.6 for actual size
 		# - Y-axis inverted for CK3 coordinate system
 		
-		# Calculate viewport (canvas uses square viewport centered)
-		size = min(self.width(), self.height())
-		offset_x = (self.width() - size) / 2
-		offset_y = (self.height() - size) / 2
+		# Get canvas position and size within parent container
+		_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 		
 		# Convert normalized coords to screen space matching canvas
 		# Canvas: center_x = (pos_x - 0.5) * 1.1 in normalized space (-0.8 to 0.8)
@@ -207,10 +227,8 @@ class TransformWidget(QWidget):
 		if not self.visible:
 			return self.HANDLE_NONE
 		
-		# Calculate same coordinates as paintEvent
-		size = min(self.width(), self.height())
-		offset_x = (self.width() - size) / 2
-		offset_y = (self.height() - size) / 2
+		# Get canvas position and size
+		_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 		
 		canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
 		canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
@@ -338,8 +356,8 @@ class TransformWidget(QWidget):
 		
 		start_x, start_y, start_sx, start_sy, start_rot = self.drag_start_transform
 		
-		# Calculate viewport size for coordinate conversion
-		size = min(self.width(), self.height())
+		# Get canvas size for coordinate conversion
+		_, _, _, _, size, _, _ = self._get_canvas_rect()
 		# OpenGL normalized space: 1 unit = size/2 pixels
 		# Canvas uses (pos - 0.5) * 1.1, so conversion is:
 		canvas_scale = 1.1 * (size / 2)
@@ -355,8 +373,7 @@ class TransformWidget(QWidget):
 		elif self.active_handle == self.HANDLE_ROTATE:
 			# Rotate - calculate delta angle from start position
 			# Get center in screen coords
-			offset_x = (self.width() - size) / 2
-			offset_y = (self.height() - size) / 2
+			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
 			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
 			center_x = offset_x + size / 2 + canvas_x
@@ -380,9 +397,7 @@ class TransformWidget(QWidget):
 			scale_delta = distance / (size * base_scale)
 			
 			# Determine if moving away or towards center
-			# Check the direction relative to center
-			offset_x = (self.width() - size) / 2
-			offset_y = (self.height() - size) / 2
+			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
 			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
 			center_x = offset_x + size / 2 + canvas_x
@@ -410,8 +425,7 @@ class TransformWidget(QWidget):
 			
 		elif self.active_handle in [self.HANDLE_L, self.HANDLE_R]:
 			# Horizontal scale - simple X-axis scaling
-			offset_x = (self.width() - size) / 2
-			offset_y = (self.height() - size) / 2
+			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
 			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
 			center_x = offset_x + size / 2 + canvas_x
@@ -431,8 +445,7 @@ class TransformWidget(QWidget):
 		
 		elif self.active_handle in [self.HANDLE_T, self.HANDLE_B]:
 			# Vertical scale - simple Y-axis scaling
-			offset_x = (self.width() - size) / 2
-			offset_y = (self.height() - size) / 2
+			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
 			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
 			center_x = offset_x + size / 2 + canvas_x

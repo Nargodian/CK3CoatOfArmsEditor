@@ -53,8 +53,9 @@ class CanvasArea(QFrame):
 		canvas_layout.addWidget(self.canvas_widget)
 		
 		# Transform widget (absolute positioned overlay)
-		# Make it a child of canvas_widget so it overlays on top
-		self.transform_widget = TransformWidget(self.canvas_widget)
+		# Parent to canvas_container (not canvas_widget) to avoid edge clipping
+		# Pass canvas_widget as reference for coordinate calculations
+		self.transform_widget = TransformWidget(canvas_container, self.canvas_widget)
 		self.transform_widget.set_visible(False)
 		self.transform_widget.transformChanged.connect(self._on_transform_changed)
 		self.transform_widget.transformEnded.connect(self._on_transform_ended)
