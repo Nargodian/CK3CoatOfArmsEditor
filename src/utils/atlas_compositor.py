@@ -7,6 +7,7 @@ Composites pre-baked atlases with runtime colors for efficient preview generatio
 from PyQt5.QtGui import QPixmap, QImage, QPainter, QColor
 from PyQt5.QtCore import Qt, QRect
 from pathlib import Path
+from utils.path_resolver import get_emblem_atlas_dir, get_pattern_atlas_dir
 
 
 def composite_emblem_atlas(atlas_path: str, colors: dict, background_color: tuple = None, size: int = 64) -> QPixmap:
@@ -171,15 +172,13 @@ def get_atlas_path(asset_name: str, asset_type: str) -> Path:
     Returns:
         Path to the atlas file
     """
-    base_path = Path("source_coa_files")
-    
     if asset_type == 'emblem':
         # Convert ce_boar_head.dds -> ce_boar_head_atlas.png
         atlas_name = Path(asset_name).stem + '_atlas.png'
-        return base_path / "emblem_atlases" / atlas_name
+        return get_emblem_atlas_dir() / atlas_name
     elif asset_type == 'pattern':
         # Convert pattern_solid.dds -> pattern_solid_atlas.png
         atlas_name = Path(asset_name).stem + '_atlas.png'
-        return base_path / "pattern_atlases" / atlas_name
+        return get_pattern_atlas_dir() / atlas_name
     else:
         raise ValueError(f"Unknown asset type: {asset_type}")

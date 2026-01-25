@@ -16,6 +16,7 @@ from constants import (
     CK3_NAMED_COLORS
 )
 from utils.atlas_compositor import composite_emblem_atlas, composite_pattern_atlas, get_atlas_path
+from utils.path_resolver import get_emblem_metadata_path, get_pattern_metadata_path, get_emblem_source_dir, get_pattern_source_dir
 
 # Global dictionary mapping texture filenames to preview image paths
 # Key: filename (e.g., "ce_kamon_sorrel.dds"), Value: preview path
@@ -58,9 +59,9 @@ class AssetSidebar(QFrame):
 		asset_data = {}
 		
 		# Load emblems and organize by category
-		emblems_json = "json_output/colored_emblems/50_coa_designer_emblems.json"
-		textured_emblems_json = "json_output/coat_of_arms/colored_emblems/50_coa_designer_emblems.json"
-		if os.path.exists(emblems_json):
+		emblems_json = get_emblem_metadata_path()
+		textured_emblems_json = "json_output/coat_of_arms/colored_emblems/50_coa_designer_emblems.json"  # Legacy path, may not exist
+		if emblems_json.exists():
 			with open(emblems_json, 'r', encoding='utf-8') as f:
 				data = json.load(f)
 				for filename, properties in data.items():
@@ -68,8 +69,8 @@ class AssetSidebar(QFrame):
 						continue
 					# Convert .dds to .png
 					png_filename = filename.replace('.dds', '.png')
-					image_path = f"source_coa_files/coat_of_arms/colored_emblems/{png_filename}"
-					if os.path.exists(image_path):
+					image_path = get_emblem_source_dir() / png_filename
+					if image_path.exists():
 						# Add to preview map
 						TEXTURE_PREVIEW_MAP[filename] = image_path
 						
@@ -86,7 +87,7 @@ class AssetSidebar(QFrame):
 						asset_data[category].append({
 							"filename": png_filename,  # PNG for display
 							"dds_filename": filename,  # DDS for texture lookup
-							"path": image_path,
+							"path": str(image_path),
 							"category": category,
 							"colors": colors
 						})
@@ -96,7 +97,7 @@ class AssetSidebar(QFrame):
 				for filename, properties in data.items():
 					if properties is None or filename == "\ufeff":
 						continue
-					# Convert .dds to .png
+					# Convert .dds to .png (textured emblems use legacy path, may not exist in new structure)
 					png_filename = filename.replace('.dds', '.png')
 					image_path = f"source_coa_files/coat_of_arms/textured_emblems/{png_filename}"
 					if os.path.exists(image_path):
@@ -119,8 +120,8 @@ class AssetSidebar(QFrame):
 						})
 		
 		# Load base patterns (background layer - separate from emblems)
-		patterns_json = "json_output/patterns/50_coa_designer_patterns.json"
-		if os.path.exists(patterns_json):
+		patterns_json = get_pattern_metadata_path()
+		if patterns_json.exists():
 			asset_data["__Base_Patterns__"] = []  # Special key for base patterns
 			with open(patterns_json, 'r', encoding='utf-8') as f:
 				data = json.load(f)
@@ -129,15 +130,15 @@ class AssetSidebar(QFrame):
 						continue
 					# Convert .dds to .png for display
 					png_filename = filename.replace('.dds', '.png')
-					image_path = f"source_coa_files/coat_of_arms/patterns/{png_filename}"
-					if os.path.exists(image_path):
+					image_path = get_pattern_source_dir() / png_filename
+					if image_path.exists():
 						# Add to preview map
-						TEXTURE_PREVIEW_MAP[filename] = image_path
+						TEXTURE_PREVIEW_MAP[filename] = str(image_path)
 						
 						asset_data["__Base_Patterns__"].append({
 							"filename": filename,  # Store .dds name for texture lookup
 							"display_name": png_filename,  # PNG name for display
-							"path": image_path,
+							"path": str(image_path),
 							"colors": properties.get("colors", 1),
 							"visible": properties.get("visible", True)
 						})

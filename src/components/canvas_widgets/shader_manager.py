@@ -6,6 +6,7 @@ This module provides shader compilation and management utilities for OpenGL rend
 
 import os
 from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader
+from utils.path_resolver import get_shader_dir
 
 
 class ShaderManager:
@@ -16,15 +17,10 @@ class ShaderManager:
         
         Args:
             shader_dir: Path to directory containing shader files.
-                       If None, uses default 'shaders' directory.
+                       If None, uses path_resolver to find shaders.
         """
         if shader_dir is None:
-            # Default to shaders directory relative to src/
-            # Current file is in src/components/canvas_widgets/
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            # Go up 3 levels: canvas_widgets -> components -> src
-            src_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-            self.shader_dir = os.path.join(src_dir, 'src', 'shaders')
+            self.shader_dir = str(get_shader_dir())
         else:
             self.shader_dir = shader_dir
     

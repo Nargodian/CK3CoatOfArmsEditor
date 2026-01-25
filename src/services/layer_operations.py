@@ -9,6 +9,7 @@ import os
 import json
 from utils.coa_parser import parse_coa_string, serialize_coa_to_string
 from utils.color_utils import color_name_to_rgb, rgb_to_color_name
+from utils.path_resolver import get_emblem_metadata_path
 from constants import (
     DEFAULT_POSITION_X, DEFAULT_POSITION_Y,
     DEFAULT_SCALE_X, DEFAULT_SCALE_Y,
@@ -34,8 +35,8 @@ def _get_texture_color_count(filename):
     # Load cache on first use
     if _TEXTURE_METADATA_CACHE is None:
         _TEXTURE_METADATA_CACHE = {}
-        json_path = "json_output/colored_emblems/50_coa_designer_emblems.json"
-        if os.path.exists(json_path):
+        json_path = get_emblem_metadata_path()
+        if json_path.exists():
             try:
                 with open(json_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)

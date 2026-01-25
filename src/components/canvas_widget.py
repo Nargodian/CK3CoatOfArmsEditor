@@ -14,9 +14,12 @@ from constants import (
 	CK3_NAMED_COLORS
 )
 from PIL import Image
+from pathlib import Path
 
 # Local imports
 from components.canvas_widgets.shader_manager import ShaderManager
+from utils.path_resolver import (get_pattern_metadata_path, get_emblem_metadata_path, 
+                                  get_pattern_source_dir, get_emblem_source_dir, get_frames_dir)
 
 
 class CoatOfArmsCanvas(QOpenGLWidget):
@@ -368,8 +371,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			emblem_files = []
 			
 			# Load patterns first
-			pattern_json_path = "json_output/patterns/50_coa_designer_patterns.json"
-			if os.path.exists(pattern_json_path):
+			pattern_json_path = get_pattern_metadata_path()
+			if pattern_json_path.exists():
 				with open(pattern_json_path, 'r', encoding='utf-8') as f:
 					pattern_data = json.load(f)
 				
@@ -378,13 +381,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 						continue
 					# Load all patterns (even invisible) - asset sidebar will filter display
 					png_filename = filename.replace('.dds', '.png')
-					image_path = f"source_coa_files/patterns/{png_filename}"
-					if os.path.exists(image_path):
-						emblem_files.append((filename, image_path))  # Store .dds name as key
+					image_path = get_pattern_source_dir() / png_filename
+					if image_path.exists():
+						emblem_files.append((filename, str(image_path)))  # Store .dds name as key
 			
 			# Load emblems
-			emblem_json_path = "json_output/colored_emblems/50_coa_designer_emblems.json"
-			if os.path.exists(emblem_json_path):
+			emblem_json_path = get_emblem_metadata_path()
+			if emblem_json_path.exists():
 				with open(emblem_json_path, 'r', encoding='utf-8') as f:
 					emblem_data = json.load(f)
 				
@@ -393,9 +396,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 						continue
 					# Load all emblems (even invisible) - asset sidebar will filter display
 					png_filename = filename.replace('.dds', '.png')
-					image_path = f"source_coa_files/colored_emblems/{png_filename}"
-					if os.path.exists(image_path):
-						emblem_files.append((filename, image_path))  # Store .dds name as key
+					image_path = get_emblem_source_dir() / png_filename
+					if image_path.exists():
+						emblem_files.append((filename, str(image_path)))  # Store .dds name as key
 			
 			# Build texture atlas (32x32 grid of 256x256 images = 8192x8192)
 			atlas_size = 8192
@@ -463,8 +466,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def _load_frame_textures(self):
 		"""Load frame textures from coa_frames directory"""
 		try:
-			frame_dir = "coa_frames"
-			if not os.path.exists(frame_dir):
+			frame_dir = get_frames_dir()
+			if not frame_dir.exists():
 				return
 			
 			frame_files = {
@@ -479,8 +482,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				frame_files[f"house_frame_{i:02d}"] = f"house_frame_{i:02d}.png"
 			
 			for name, filename in frame_files.items():
-				path = os.path.join(frame_dir, filename)
-				if os.path.exists(path):
+				path = frame_dir / filename
+				if path.exists():
 					img = Image.open(path).convert('RGBA')
 					img_data = np.array(img)
 					
@@ -571,7 +574,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def _load_material_mask_texture(self):
 		"""Load CK3 material mask texture (coa_mask_texture.png) for dirt/fabric/paint effects"""
 		try:
-			# Load from source_coa_files directory
+			# Load from ck3_assets directory (legacy path - these might not exist in new structure)
+			# For now, keep this as-is since these are editor-specific assets, not CK3 assets
 			base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 			material_mask_path = os.path.join(base_dir, 'source_coa_files', 'coa_mask_texture.png')
 			
@@ -613,7 +617,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def _load_noise_texture(self):
 		"""Load noise texture for grain effect"""
 		try:
-			# Load from source_coa_files directory
+			# Load from ck3_assets directory (legacy path - these might not exist in new structure)
+			# For now, keep this as-is since these are editor-specific assets, not CK3 assets
 			base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 			noise_path = os.path.join(base_dir, 'source_coa_files', 'noise.png')
 			

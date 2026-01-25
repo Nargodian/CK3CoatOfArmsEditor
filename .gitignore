@@ -23,6 +23,11 @@ wheels/
 .installed.cfg
 *.egg
 
+# PyInstaller build artifacts
+*.spec.backup
+*.manifest
+*.spec~
+
 # IDE
 .vscode/
 .idea/
@@ -33,10 +38,15 @@ wheels/
 # Game assets (not ours to distribute)
 *.png
 *.dds
+ck3_assets/
+source_coa_files/
+json_output/
+coa_frames/
 
 # Logs
 *.log
 error.log
+conversion_errors.txt
 
 # OS
 .DS_Store
