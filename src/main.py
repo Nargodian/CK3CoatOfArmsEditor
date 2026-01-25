@@ -130,8 +130,14 @@ class CoatOfArmsEditor(QMainWindow):
 		# Index 0 = Base tab (show patterns), other tabs (show emblems)
 		if index == 0:
 			self.left_sidebar.switch_mode("patterns")
+			# Hide transform widget when on Base tab
+			if hasattr(self, 'canvas_area') and self.canvas_area.transform_widget:
+				self.canvas_area.transform_widget.set_visible(False)
 		else:
 			self.left_sidebar.switch_mode("emblems")
+			# Update transform widget visibility for current layer selection
+			if hasattr(self, 'canvas_area'):
+				self.canvas_area.update_transform_widget_for_layer()
 	
 	# ========================================
 	# Asset Selection Handlers
@@ -714,6 +720,10 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.selected_layer_indices = set(new_indices)
 			self.right_sidebar.last_selected_index = new_indices[-1] if new_indices else None
 			
+			# Switch to Layers tab if currently on Base tab
+			if self.right_sidebar.tab_widget.currentIndex() == 0:
+				self.right_sidebar.tab_widget.setCurrentIndex(1)
+			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()
 			self.right_sidebar._update_layer_selection()
@@ -794,6 +804,10 @@ class CoatOfArmsEditor(QMainWindow):
 			new_indices = list(range(start_index, len(self.right_sidebar.layers)))
 			self.right_sidebar.selected_layer_indices = set(new_indices)
 			self.right_sidebar.last_selected_index = new_indices[-1] if new_indices else None
+			
+			# Switch to Layers tab if currently on Base tab
+			if self.right_sidebar.tab_widget.currentIndex() == 0:
+				self.right_sidebar.tab_widget.setCurrentIndex(1)
 			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()
