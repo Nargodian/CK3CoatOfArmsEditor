@@ -722,8 +722,10 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Update canvas and transform widget
 			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			
+			# Use timer to ensure transform widget updates after UI settles
 			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer()
+				QTimer.singleShot(0, self.canvas_area.update_transform_widget_for_layer)
 			
 			# Save to history
 			layer_word = "layers" if len(layers_data) > 1 else "layer"
@@ -803,8 +805,10 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Update canvas and transform widget
 			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			
+			# Use timer to ensure transform widget updates after UI settles
 			if self.canvas_area:
-				self.canvas_area.update_transform_widget_for_layer()
+				QTimer.singleShot(0, self.canvas_area.update_transform_widget_for_layer)
 			
 			# Save to history
 			layer_word = "layers" if len(layers_data) > 1 else "layer"
