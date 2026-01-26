@@ -391,9 +391,8 @@ class TransformWidget(QWidget):
 	def mouseReleaseEvent(self, event):
 		"""Handle mouse release"""
 		if event.button() == Qt.LeftButton and self.active_handle != self.HANDLE_NONE:
-			# Clear rotation state when releasing rotation handle
-			# Keep cached_aabb so widget doesn't inflate after rotation
-			if self.active_handle == self.HANDLE_ROTATE:
+			# Clear rotation state when releasing any handle (could have used Alt+wheel on any handle)
+			if self.is_rotating:
 				self.is_rotating = False
 			
 			self.active_handle = self.HANDLE_NONE
@@ -441,6 +440,10 @@ class TransformWidget(QWidget):
 			self.rotation += rotation_increment
 			# Normalize to 0-360 range
 			self.rotation = self.rotation % 360
+			# Set rotation flag for multi-selection group rotation
+			if not self.is_rotating:
+				self.is_rotating = True
+				self.cached_aabb = (self.pos_x, self.pos_y, self.scale_x, self.scale_y)
 		elif modifiers & Qt.ControlModifier:
 			# Ctrl + wheel: Scale X only
 			sign_x = 1 if self.scale_x >= 0 else -1
