@@ -37,12 +37,16 @@ build.bat
 This will:
 1. Build both executables using PyInstaller
 2. Merge them into `dist/merged/` with shared libraries
-3. Create a version-numbered zip file from git tag (e.g., `COAEditor_7.0.0.0.zip`)
+3. Create a version-numbered zip file (e.g., `COAEditor_1.0.23.zip`)
 
-Version is extracted from latest git tag and formatted as 4-part version:
-- `v7.0-utils-cleanup` → `COAEditor_7.0.0.0.zip`
-- `v1.2.3` → `COAEditor_1.2.3.0.zip`
-- No tags → `COAEditor_1.0.0.0.zip`
+Version format: `Major.Minor.Patch`
+- **Major.Minor**: Set manually via git tag (e.g., `v1.0`, `v1.1`, `v2.0`)
+- **Patch**: Automatically counts commits since that tag
+
+Examples:
+- Tag `v1.0` with 23 commits after → `COAEditor_1.0.23.zip`
+- Tag `v1.2` with 0 commits (on tag) → `COAEditor_1.2.0.zip`
+- No tags → Uses total commit count: `COAEditor_0.1.347.zip`
 
 ### Option 2: Manual Build
 
