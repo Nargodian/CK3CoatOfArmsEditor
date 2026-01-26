@@ -279,6 +279,7 @@ class TransformWidget(QWidget):
 			if self.active_handle != self.HANDLE_NONE:
 				self.drag_start_pos = event.pos()
 			self.drag_start_transform = (self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
+			
 			# Track Ctrl key state at drag start (explicit check)
 			self.ctrl_pressed_at_drag_start = (event.modifiers() & Qt.ControlModifier) == Qt.ControlModifier
 			self.duplicate_created = False  # Reset spam protection

@@ -435,6 +435,9 @@ class CanvasArea(QFrame):
 		if self.property_sidebar:
 			self.property_sidebar._load_layer_properties()
 		
+		# Update transform widget to reset rotation to 0 for multi-selection
+		self.update_transform_widget_for_layer()
+		
 		if self.main_window and hasattr(self.main_window, '_save_state'):
 			self.main_window._save_state("Transform layer")
 	
