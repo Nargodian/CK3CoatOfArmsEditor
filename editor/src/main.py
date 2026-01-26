@@ -43,6 +43,11 @@ from constants import (
     DEFAULT_FLIP_X, DEFAULT_FLIP_Y, DEFAULT_ROTATION, MAX_HISTORY_ENTRIES
 )
 
+# Action imports
+from actions.file_actions import FileActions
+from actions.clipboard_actions import ClipboardActions
+from actions.layer_transform_actions import LayerTransformActions
+
 
 class CoatOfArmsEditor(QMainWindow):
 	def __init__(self):
@@ -83,6 +88,11 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# Install event filter on application to catch arrow keys globally
 		QApplication.instance().installEventFilter(self)
+		
+		# Initialize action handlers (composition pattern)
+		self.file_actions = FileActions(self)
+		self.clipboard_actions = ClipboardActions(self)
+		self.transform_actions = LayerTransformActions(self)
 		
 		self.setup_ui()
 		
@@ -428,115 +438,20 @@ class CoatOfArmsEditor(QMainWindow):
 			action.setEnabled(enabled)
 	
 	def _align_layers(self, alignment):
-		"""Align selected layers
-		
-		Args:
-			alignment: One of 'left', 'center', 'right', 'top', 'middle', 'bottom'
-		"""
-		selected_indices = self.right_sidebar.get_selected_indices()
-		if len(selected_indices) < 2:
-			QMessageBox.information(self, "Align Layers", "Please select at least 2 layers to align.")
-			return
-		
-		layers = [self.right_sidebar.layers[i] for i in selected_indices]
-		
-		if alignment in ['left', 'center', 'right']:
-			# Horizontal alignment
-			positions = [layer.get('pos_x', 0.5) for layer in layers]
-			if alignment == 'left':
-				target = min(positions)
-			elif alignment == 'right':
-				target = max(positions)
-			else:  # center
-				target = sum(positions) / len(positions)
-			
-			for idx in selected_indices:
-				self.right_sidebar.layers[idx]['pos_x'] = target
-		
-		else:  # vertical alignment
-			positions = [layer.get('pos_y', 0.5) for layer in layers]
-			if alignment == 'top':
-				target = min(positions)
-			elif alignment == 'bottom':
-				target = max(positions)
-			else:  # middle
-				target = sum(positions) / len(positions)
-			
-			for idx in selected_indices:
-				self.right_sidebar.layers[idx]['pos_y'] = target
-		
-		# Update UI
-		self.right_sidebar._load_layer_properties()
-		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-		self.canvas_area.update_transform_widget_for_layer()
-		
-		# Save to history
-		self._save_state(f"Align layers {alignment}")
+		"""Align selected layers"""
+		self.transform_actions.align_layers(alignment)
 	
 	def _flip_x(self):
 		"""Flip selected layers horizontally"""
-		selected_indices = self.right_sidebar.get_selected_indices()
-		if not selected_indices:
-			return
-		
-		for idx in selected_indices:
-			layer = self.right_sidebar.layers[idx]
-			# Flip scale_x
-			current_scale_x = layer.get('scale_x', 1.0)
-			layer['scale_x'] = -current_scale_x
-		
-		# Update UI
-		self.right_sidebar._load_layer_properties()
-		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-		self.canvas_area.update_transform_widget_for_layer()
-		
-		# Save to history
-		self._save_state("Flip horizontal")
+		self.transform_actions.flip_x()
 	
 	def _flip_y(self):
 		"""Flip selected layers vertically"""
-		selected_indices = self.right_sidebar.get_selected_indices()
-		if not selected_indices:
-			return
-		
-		for idx in selected_indices:
-			layer = self.right_sidebar.layers[idx]
-			# Flip scale_y
-			current_scale_y = layer.get('scale_y', 1.0)
-			layer['scale_y'] = -current_scale_y
-		
-		# Update UI
-		self.right_sidebar._load_layer_properties()
-		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-		self.canvas_area.update_transform_widget_for_layer()
-		
-		# Save to history
-		self._save_state("Flip vertical")
+		self.transform_actions.flip_y()
 	
 	def _rotate_layers(self, degrees):
-		"""Rotate selected layers by specified degrees
-		
-		Args:
-			degrees: Rotation amount in degrees (90, 180, or -90)
-		"""
-		selected_indices = self.right_sidebar.get_selected_indices()
-		if not selected_indices:
-			return
-		
-		for idx in selected_indices:
-			layer = self.right_sidebar.layers[idx]
-			# Add rotation (normalized to 0-360)
-			current_rotation = layer.get('rotation', 0.0)
-			new_rotation = (current_rotation + degrees) % 360
-			layer['rotation'] = new_rotation
-		
-		# Update UI
-		self.right_sidebar._load_layer_properties()
-		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-		self.canvas_area.update_transform_widget_for_layer()
-		
-		# Save to history
-		self._save_state(f"Rotate {degrees}°")
+		"""Rotate selected layers by specified degrees"""
+		self.transform_actions.rotate_layers(degrees)
 	
 	def export_png(self):
 		"""Export current CoA as PNG with transparency"""
@@ -1273,38 +1188,8 @@ class CoatOfArmsEditor(QMainWindow):
 			QMessageBox.critical(self, "Save Error", f"Failed to save coat of arms:\n{str(e)}")
 	
 	def load_coa(self):
-		"""Load CoA from .txt file"""
-		try:
-			# Open file dialog
-			filename, _ = QFileDialog.getOpenFileName(
-				self,
-				"Load Coat of Arms",
-				"",
-				"Text Files (*.txt);;All Files (*)"
-			)
-			
-			if not filename:
-				return
-			
-			# Load and parse file using service
-			coa_data = load_coa_from_file(filename)
-			
-			# Apply to editor
-			self._apply_coa_data(coa_data)
-			
-			# Set current file path and mark as saved
-			self.current_file_path = filename
-			self.is_saved = True
-			self._update_window_title()
-			
-			# Add to recent files
-			self._add_to_recent_files(filename)
-			
-			# Clear history and save initial state after loading
-			self.history_manager.clear()
-			self._save_state("Load CoA")
-		except Exception as e:
-			QMessageBox.critical(self, "Load Error", f"Failed to load coat of arms:\n{str(e)}\n\nThe file may not contain valid coat of arms data.")
+		"""Load a coat of arms from file"""
+		self.file_actions.load_coa()
 	
 	def copy_coa(self):
 		"""Copy current CoA to clipboard as text"""
