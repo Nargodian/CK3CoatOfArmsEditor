@@ -3,6 +3,7 @@
 Package script for CK3 Coat of Arms Editor
 - Creates version-numbered zip file
 """
+import subprocess
 import shutil
 import os
 import sys
@@ -10,7 +11,41 @@ from pathlib import Path
 
 
 def get_version():
-    """Return hardcoded version"""
+    """Get version from git tag and format as 4-part version
+    
+    Returns version in format X.Y.Z.W
+    - v7.0 → 7.0.0.0
+    - v1.2.3 → 1.2.3.0
+    - No tags → 1.0.0.0
+    """
+    try:
+        result = subprocess.run(
+            ['git', 'describe', '--tags', '--abbrev=0'],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        
+        if result.returncode == 0:
+            version = result.stdout.strip()
+            # Remove leading 'v' if present
+            if version.startswith('v'):
+                version = version[1:]
+            
+            # Remove any suffix after dash (e.g., "7.0-utils-cleanup" → "7.0")
+            version = version.split('-')[0]
+            
+            # Split into parts and pad to 4 parts
+            parts = version.split('.')
+            while len(parts) < 4:
+                parts.append('0')
+            
+            return '.'.join(parts[:4])
+        
+    except:
+        pass
+    
+    # Fallback
     return "1.0.0.0"
 
 
