@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 
 # Add editor/src to path so imports work when running directly
 if __name__ == "__main__":
@@ -67,7 +68,23 @@ class CoatOfArmsEditor(QMainWindow):
 		self.current_file_path = None
 		self.is_saved = True
 		
+		# Recent files and autosave
+		self.recent_files = []
+		self.max_recent_files = 10
+		self.config_dir = os.path.join(os.path.expanduser("~"), ".ck3coa")
+		self.config_file = os.path.join(self.config_dir, "config.json")
+		self.autosave_file = os.path.join(self.config_dir, "autosave.txt")
+		self._load_config()
+		
+		# Autosave timer (every 2 minutes)
+		self.autosave_timer = QTimer()
+		self.autosave_timer.timeout.connect(self._autosave)
+		self.autosave_timer.start(120000)  # 2 minutes in milliseconds
+		
 		self.setup_ui()
+		
+		# Check for autosave recovery after UI is set up
+		QTimer.singleShot(500, self._check_autosave_recovery)
 	
 	def setup_ui(self):
 		# Create menu bar
@@ -146,6 +163,12 @@ class CoatOfArmsEditor(QMainWindow):
 		open_action = file_menu.addAction("&Open...")
 		open_action.setShortcut("Ctrl+O")
 		open_action.triggered.connect(self.load_coa)
+		
+		# Recent Files submenu
+		self.recent_menu = file_menu.addMenu("Recent Files")
+		self._update_recent_files_menu()
+		
+		file_menu.addSeparator()
 		
 		save_action = file_menu.addAction("&Save")
 		save_action.setShortcut("Ctrl+S")
@@ -266,9 +289,185 @@ class CoatOfArmsEditor(QMainWindow):
 	def closeEvent(self, event):
 		"""Handle window close event - prompt to save if needed"""
 		if self._prompt_save_if_needed():
+			# Save config before closing
+			self._save_config()
 			event.accept()
 		else:
 			event.ignore()
+	
+	def _load_config(self):
+		"""Load recent files and settings from config file"""
+		try:
+			if os.path.exists(self.config_file):
+				with open(self.config_file, 'r', encoding='utf-8') as f:
+					config = json.load(f)
+					self.recent_files = config.get('recent_files', [])
+					# Filter out files that no longer exist
+					self.recent_files = [f for f in self.recent_files if os.path.exists(f)]
+		except Exception as e:
+			print(f"Error loading config: {e}")
+			self.recent_files = []
+	
+	def _save_config(self):
+		"""Save recent files and settings to config file"""
+		try:
+			# Create config directory if it doesn't exist
+			os.makedirs(self.config_dir, exist_ok=True)
+			
+			config = {
+				'recent_files': self.recent_files[:self.max_recent_files]
+			}
+			
+			with open(self.config_file, 'w', encoding='utf-8') as f:
+				json.dump(config, f, indent=2)
+		except Exception as e:
+			print(f"Error saving config: {e}")
+	
+	def _add_to_recent_files(self, filepath):
+		"""Add a file to the recent files list"""
+		# Remove if already in list
+		if filepath in self.recent_files:
+			self.recent_files.remove(filepath)
+		
+		# Add to front of list
+		self.recent_files.insert(0, filepath)
+		
+		# Trim to max size
+		self.recent_files = self.recent_files[:self.max_recent_files]
+		
+		# Update menu
+		if hasattr(self, 'recent_menu'):
+			self._update_recent_files_menu()
+		
+		# Save config
+		self._save_config()
+	
+	def _update_recent_files_menu(self):
+		"""Update the Recent Files submenu"""
+		self.recent_menu.clear()
+		
+		if not self.recent_files:
+			no_recent = self.recent_menu.addAction("No recent files")
+			no_recent.setEnabled(False)
+		else:
+			for filepath in self.recent_files:
+				if os.path.exists(filepath):
+					filename = os.path.basename(filepath)
+					action = self.recent_menu.addAction(filename)
+					action.setToolTip(filepath)
+					# Use lambda with default argument to capture filepath
+					action.triggered.connect(lambda checked, f=filepath: self._open_recent_file(f))
+			
+			self.recent_menu.addSeparator()
+			clear_action = self.recent_menu.addAction("Clear Recent Files")
+			clear_action.triggered.connect(self._clear_recent_files)
+	
+	def _open_recent_file(self, filepath):
+		"""Open a file from the recent files list"""
+		if not os.path.exists(filepath):
+			QMessageBox.warning(self, "File Not Found", f"The file no longer exists:\n{filepath}")
+			# Remove from recent files
+			self.recent_files.remove(filepath)
+			self._update_recent_files_menu()
+			self._save_config()
+			return
+		
+		# Prompt to save current changes
+		if not self._prompt_save_if_needed():
+			return
+		
+		try:
+			# Load the file
+			coa_data = load_coa_from_file(filepath)
+			self._apply_coa_data(coa_data)
+			
+			# Set current file path and mark as saved
+			self.current_file_path = filepath
+			self.is_saved = True
+			self._update_window_title()
+			
+			# Add to recent files (moves to top)
+			self._add_to_recent_files(filepath)
+			
+			# Clear history and save initial state
+			self.history_manager.clear()
+			self._save_state("Load CoA")
+		except Exception as e:
+			QMessageBox.critical(self, "Load Error", f"Failed to load coat of arms:\n{str(e)}")
+	
+	def _clear_recent_files(self):
+		"""Clear the recent files list"""
+		self.recent_files = []
+		self._update_recent_files_menu()
+		self._save_config()
+	
+	def _autosave(self):
+		"""Perform autosave to temporary file"""
+		try:
+			# Only autosave if there are unsaved changes
+			if not self.is_saved:
+				# Create config directory if it doesn't exist
+				os.makedirs(self.config_dir, exist_ok=True)
+				
+				# Get current state
+				canvas = self.canvas_area.canvas_widget
+				base_colors = self.right_sidebar.get_base_colors()
+				base_color_names = [
+					getattr(canvas, 'base_color1_name', 'black'),
+					getattr(canvas, 'base_color2_name', 'yellow'),
+					getattr(canvas, 'base_color3_name', 'black')
+				]
+				
+				# Build CoA data
+				coa_data = build_coa_for_save(
+					base_colors,
+					canvas.base_texture,
+					self.right_sidebar.layers,
+					base_color_names
+				)
+				
+				# Save to autosave file
+				save_coa_to_file(coa_data, self.autosave_file)
+				print("Autosaved")
+		except Exception as e:
+			print(f"Autosave failed: {e}")
+	
+	def _check_autosave_recovery(self):
+		"""Check if autosave file exists and offer to recover"""
+		try:
+			if os.path.exists(self.autosave_file):
+				reply = QMessageBox.question(
+					self,
+					"Recover Autosave",
+					"An autosave file was found. Would you like to recover it?",
+					QMessageBox.Yes | QMessageBox.No,
+					QMessageBox.Yes
+				)
+				
+				if reply == QMessageBox.Yes:
+					# Load autosave
+					coa_data = load_coa_from_file(self.autosave_file)
+					self._apply_coa_data(coa_data)
+					
+					# Mark as unsaved (since it's recovered from autosave)
+					self.current_file_path = None
+					self.is_saved = False
+					self._update_window_title()
+					
+					# Clear history and save state
+					self.history_manager.clear()
+					self._save_state("Recover autosave")
+				
+				# Remove autosave file after prompt
+				os.remove(self.autosave_file)
+		except Exception as e:
+			print(f"Error checking autosave: {e}")
+			# Try to remove corrupted autosave file
+			try:
+				if os.path.exists(self.autosave_file):
+					os.remove(self.autosave_file)
+			except:
+				pass
 
 
 		self.statusBar().setStyleSheet("QStatusBar { border-top: 1px solid rgba(255, 255, 255, 40); padding: 4px; }")
@@ -711,6 +910,13 @@ class CoatOfArmsEditor(QMainWindow):
 			self.current_file_path = filename
 			self.is_saved = True
 			self._update_window_title()
+			
+			# Add to recent files
+			self._add_to_recent_files(filename)
+			
+			# Clear autosave file since we just saved
+			if os.path.exists(self.autosave_file):
+				os.remove(self.autosave_file)
 		except Exception as e:
 			QMessageBox.critical(self, "Save Error", f"Failed to save coat of arms:\n{str(e)}")
 	
@@ -738,6 +944,9 @@ class CoatOfArmsEditor(QMainWindow):
 			self.current_file_path = filename
 			self.is_saved = True
 			self._update_window_title()
+			
+			# Add to recent files
+			self._add_to_recent_files(filename)
 			
 			# Clear history and save initial state after loading
 			self.history_manager.clear()
