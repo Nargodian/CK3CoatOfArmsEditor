@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Package script for CK3 Coat of Arms Editor
-- Creates date-prefixed zip file
+- Creates version-numbered zip file
 """
+import subprocess
 import shutil
 import os
 import sys
@@ -10,9 +11,35 @@ from pathlib import Path
 from datetime import datetime
 
 
-def get_date_prefix():
-    """Get current date in YYYYMMDD format"""
-    return datetime.now().strftime("%Y%m%d")
+def get_version():
+    """Get semantic version from git tags
+    
+    Returns version in format X.Y.Z
+    - If on a tag: 1.2.3
+    - If commits after tag: 1.2.3 (base tag version)
+    - If no tags: 0.0.0
+    """
+    try:
+        # Try to get the current tag or closest tag
+        result = subprocess.run(
+            ['git', 'describe', '--tags', '--abbrev=0'],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        
+        if result.returncode == 0:
+            version = result.stdout.strip()
+            # Remove leading 'v' if present
+            if version.startswith('v'):
+                version = version[1:]
+            return version
+        
+    except:
+        pass
+    
+    # Fallback: no tags found, use 0.0.0
+    return "0.0.0"
 
 
 def create_zip(source_dir, output_name):
@@ -57,9 +84,9 @@ def main():
     print("=" * 60)
     print()
     
-    # Get date prefix
-    date_prefix = get_date_prefix()
-    print(f"Date: {date_prefix}")
+    # Get version
+    version = get_version()
+    print(f"Version: {version}")
     print()
     
     # Check if merged distribution exists
@@ -69,8 +96,8 @@ def main():
         print("Please run build.bat first to create the distribution.")
         sys.exit(1)
     
-    # Create output name with date prefix
-    output_name = f"{date_prefix}_COAEditor"
+    # Create output name with version
+    output_name = f"COAEditor_{version}"
     
     # Create the zip file
     try:
