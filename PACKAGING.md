@@ -40,13 +40,16 @@ This will:
 3. Create a version-numbered zip file (e.g., `COAEditor_1.0.23.zip`)
 
 Version format: `Major.Minor.Patch`
-- **Major.Minor**: Set manually via git tag (e.g., `v1.0`, `v1.1`, `v2.0`)
-- **Patch**: Automatically counts commits since that tag
+- **Major.Minor**: Set manually in `VERSION` file at project root (e.g., `1.0`, `2.1`)
+- **Patch**: Automatically counts commits since last git tag (or total commits if no tags)
+
+To bump version:
+1. Edit `VERSION` file (change `1.0` to `1.1`, `2.0`, etc.)
+2. Run build - patch number auto-increments with each commit
 
 Examples:
-- Tag `v1.0` with 23 commits after → `COAEditor_1.0.23.zip`
-- Tag `v1.2` with 0 commits (on tag) → `COAEditor_1.2.0.zip`
-- No tags → Uses total commit count: `COAEditor_0.1.347.zip`
+- `VERSION=1.0` with 23 commits since tag → `COAEditor_1.0.23.zip`
+- `VERSION=2.1` with 0 commits (on tag) → `COAEditor_2.1.0.zip`
 
 ### Option 2: Manual Build
 

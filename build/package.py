@@ -11,19 +11,26 @@ from pathlib import Path
 
 
 def get_version():
-    """Get version from git tag and commits since tag
+    """Get version from VERSION file and git commit count
     
     Returns version in format X.Y.Z where:
-    - X.Y from git tag (manual, e.g., v1.0)
-    - Z is commit count since that tag (automatic)
+    - X.Y from VERSION file in project root (manual)
+    - Z is commit count since last tag, or total commits if no tags
     
     Examples:
-    - v1.0 tag with 23 commits after → 1.0.23
-    - v1.2 tag with 0 commits → 1.2.0
-    - No tags → 0.1.{total_commits}
+    - VERSION=1.0, 23 commits since tag → 1.0.23
+    - VERSION=2.1, no tags → 2.1.{total_commits}
     """
+    # Read major.minor from VERSION file
+    version_file = Path(__file__).parent.parent / "VERSION"
     try:
-        # Get tag with commit count: "v1.0-23-gabcdef" or "v1.0-suffix-23-gabcdef"
+        with open(version_file, 'r') as f:
+            major_minor = f.read().strip()
+    except:
+        major_minor = "1.0"  # Default if file missing
+    
+    # Get commit count since last tag
+    try:
         result = subprocess.run(
             ['git', 'describe', '--tags', '--long'],
             capture_output=True,
@@ -34,23 +41,12 @@ def get_version():
         if result.returncode == 0:
             desc = result.stdout.strip()
             # Parse format: v7.0-utils-cleanup-75-gba35617
-            # Last two dash-separated parts are always: commits-hash
-            parts = desc.rsplit('-', 2)  # Split from right, max 2 splits
+            # Last two parts are always: commits-hash
+            parts = desc.rsplit('-', 2)
             
             if len(parts) == 3:
-                tag_with_suffix = parts[0]  # "v7.0-utils-cleanup"
-                commits = parts[1]           # "75"
-                # hash = parts[2]            # "gba35617" (unused)
-                
-                # Remove 'v' prefix and extract just the version number
-                if tag_with_suffix.startswith('v'):
-                    tag_with_suffix = tag_with_suffix[1:]
-                
-                # Extract version (first part before any dash)
-                # "7.0-utils-cleanup" → "7.0"
-                version_part = tag_with_suffix.split('-')[0]
-                
-                return f"{version_part}.{commits}"
+                commits = parts[1]
+                return f"{major_minor}.{commits}"
         
     except:
         pass
@@ -65,11 +61,11 @@ def get_version():
         )
         if result.returncode == 0:
             total_commits = result.stdout.strip()
-            return f"0.1.{total_commits}"
+            return f"{major_minor}.{total_commits}"
     except:
         pass
     
-    return "0.1.0"
+    return f"{major_minor}.0"
 
 
 def create_zip(source_dir, output_name):
