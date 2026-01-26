@@ -11,7 +11,7 @@ from pathlib import Path
 
 def get_version():
     """Return hardcoded version"""
-    return "1.0.0"
+    return "1.0.0.0"
 
 
 def create_zip(source_dir, output_name):
