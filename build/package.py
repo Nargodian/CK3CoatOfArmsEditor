@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """
 Package script for CK3 Coat of Arms Editor
-- Gets version from git (tags or commit hash)
-- Zips the build output with version number
+- Creates date-prefixed zip file
 """
-import subprocess
 import shutil
 import os
 import sys
@@ -12,44 +10,9 @@ from pathlib import Path
 from datetime import datetime
 
 
-def get_git_version():
-    """Get version string from git
-    
-    Returns version in format:
-    - If on a tag: v1.2.3
-    - If commits after tag: v1.2.3-5-gabcdef
-    - If no tags: 0.0.0-abcdef
-    """
-    try:
-        # Try to get the current tag
-        result = subprocess.run(
-            ['git', 'describe', '--tags', '--always', '--dirty'],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        version = result.stdout.strip()
-        
-        # Clean up version string
-        if version.startswith('v'):
-            version = version[1:]  # Remove leading 'v'
-        
-        return version
-    except subprocess.CalledProcessError:
-        # Fallback: use short commit hash
-        try:
-            result = subprocess.run(
-                ['git', 'rev-parse', '--short', 'HEAD'],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            commit = result.stdout.strip()
-            return f"0.0.0-{commit}"
-        except subprocess.CalledProcessError:
-            # Ultimate fallback: use timestamp
-            timestamp = datetime.now().strftime("%Y%m%d")
-            return f"0.0.0-{timestamp}"
+def get_date_prefix():
+    """Get current date in YYYYMMDD format"""
+    return datetime.now().strftime("%Y%m%d")
 
 
 def create_zip(source_dir, output_name):
@@ -94,9 +57,9 @@ def main():
     print("=" * 60)
     print()
     
-    # Get version from git
-    version = get_git_version()
-    print(f"Version: {version}")
+    # Get date prefix
+    date_prefix = get_date_prefix()
+    print(f"Date: {date_prefix}")
     print()
     
     # Check if merged distribution exists
@@ -106,8 +69,8 @@ def main():
         print("Please run build.bat first to create the distribution.")
         sys.exit(1)
     
-    # Create output name with version
-    output_name = f"CK3CoatOfArmsEditor-v{version}"
+    # Create output name with date prefix
+    output_name = f"{date_prefix}_COAEditor"
     
     # Create the zip file
     try:
