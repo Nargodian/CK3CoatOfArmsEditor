@@ -16,7 +16,6 @@ from PyQt5.QtCore import Qt, QTimer, QPoint
 from PyQt5.QtGui import QPalette, QColor
 
 # Component imports
-from components.toolbar import create_toolbar
 from components.asset_sidebar import AssetSidebar
 from components.canvas_area import CanvasArea
 from components.property_sidebar import PropertySidebar
@@ -64,11 +63,15 @@ class CoatOfArmsEditor(QMainWindow):
 		# Flag to prevent saving state during undo/redo
 		self._is_applying_history = False
 		
+		# Track current file and saved state
+		self.current_file_path = None
+		self.is_saved = True
+		
 		self.setup_ui()
 	
 	def setup_ui(self):
-		# Create top toolbar
-		create_toolbar(self)
+		# Create menu bar
+		self._create_menu_bar()
 		
 		# Create central widget with splitter
 		central_widget = QWidget()
@@ -128,6 +131,146 @@ class CoatOfArmsEditor(QMainWindow):
 		self.status_right = QLabel("")
 		self.statusBar().addWidget(self.status_left, 1)  # stretch=1 for left
 		self.statusBar().addPermanentWidget(self.status_right)  # permanent widget for right
+	
+	def _create_menu_bar(self):
+		"""Create the menu bar with File, Edit, Help menus"""
+		menubar = self.menuBar()
+		
+		# File Menu
+		file_menu = menubar.addMenu("&File")
+		
+		new_action = file_menu.addAction("&New")
+		new_action.setShortcut("Ctrl+N")
+		new_action.triggered.connect(self.new_coa)
+		
+		open_action = file_menu.addAction("&Open...")
+		open_action.setShortcut("Ctrl+O")
+		open_action.triggered.connect(self.load_coa)
+		
+		save_action = file_menu.addAction("&Save")
+		save_action.setShortcut("Ctrl+S")
+		save_action.triggered.connect(self.save_coa)
+		
+		save_as_action = file_menu.addAction("Save &As...")
+		save_as_action.setShortcut("Ctrl+Shift+S")
+		save_as_action.triggered.connect(self.save_coa_as)
+		
+		file_menu.addSeparator()
+		
+		exit_action = file_menu.addAction("E&xit")
+		exit_action.setShortcut("Alt+F4")
+		exit_action.triggered.connect(self.close)
+		
+		# Edit Menu
+		edit_menu = menubar.addMenu("&Edit")
+		
+		self.undo_action = edit_menu.addAction("&Undo")
+		self.undo_action.setShortcut("Ctrl+Z")
+		self.undo_action.triggered.connect(self.undo)
+		self.undo_action.setEnabled(False)
+		
+		self.redo_action = edit_menu.addAction("&Redo")
+		self.redo_action.setShortcut("Ctrl+Y")
+		self.redo_action.triggered.connect(self.redo)
+		self.redo_action.setEnabled(False)
+		
+		edit_menu.addSeparator()
+		
+		copy_coa_action = edit_menu.addAction("&Copy CoA to Clipboard")
+		copy_coa_action.setShortcut("Ctrl+Shift+C")
+		copy_coa_action.triggered.connect(self.copy_coa)
+		
+		paste_coa_action = edit_menu.addAction("&Paste CoA from Clipboard")
+		paste_coa_action.setShortcut("Ctrl+Shift+V")
+		paste_coa_action.triggered.connect(self.paste_coa)
+		
+		edit_menu.addSeparator()
+		
+		copy_layer_action = edit_menu.addAction("Copy &Layer")
+		copy_layer_action.setShortcut("Ctrl+C")
+		copy_layer_action.triggered.connect(self.copy_layer)
+		
+		paste_layer_action = edit_menu.addAction("Paste Layer")
+		paste_layer_action.setShortcut("Ctrl+V")
+		paste_layer_action.triggered.connect(self.paste_layer)
+		
+		duplicate_layer_action = edit_menu.addAction("&Duplicate Layer")
+		duplicate_layer_action.setShortcut("Ctrl+D")
+		duplicate_layer_action.triggered.connect(self.duplicate_selected_layer)
+		
+		edit_menu.addSeparator()
+		
+		select_all_action = edit_menu.addAction("Select &All Layers")
+		select_all_action.setShortcut("Ctrl+A")
+		select_all_action.triggered.connect(self._select_all_layers)
+		
+		# Help Menu
+		help_menu = menubar.addMenu("&Help")
+		
+		about_action = help_menu.addAction("&About")
+		about_action.triggered.connect(self._show_about)
+	
+	def _select_all_layers(self):
+		"""Select all layers"""
+		if self.right_sidebar.layers:
+			all_indices = set(range(len(self.right_sidebar.layers)))
+			self.right_sidebar.set_selected_indices(all_indices)
+			if self.canvas_area:
+				self.canvas_area.update_transform_widget_for_layer()
+			self.right_sidebar.tab_widget.setTabEnabled(2, True)
+	
+	def _show_about(self):
+		"""Show about dialog"""
+		from PyQt5.QtWidgets import QMessageBox
+		QMessageBox.about(self, "About Coat of Arms Designer",
+			"<h3>Coat of Arms Designer</h3>"
+			"<p>A tool for creating and editing Crusader Kings 3 coats of arms.</p>"
+			"<p>Version 1.0</p>")
+	
+	def _update_window_title(self):
+		"""Update window title with current file name"""
+		if self.current_file_path:
+			filename = os.path.basename(self.current_file_path)
+			modified = "" if self.is_saved else "*"
+			self.setWindowTitle(f"{filename}{modified} - Coat Of Arms Designer")
+		else:
+			modified = "" if self.is_saved else "*"
+			self.setWindowTitle(f"Untitled{modified} - Coat Of Arms Designer")
+	
+	def _prompt_save_if_needed(self):
+		"""Prompt user to save if there are unsaved changes
+		
+		Returns:
+			True if it's safe to proceed (saved or discarded)
+			False if user cancelled
+		"""
+		if not self.is_saved:
+			reply = QMessageBox.question(
+				self,
+				"Unsaved Changes",
+				"Do you want to save your changes?",
+				QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+				QMessageBox.Save
+			)
+			
+			if reply == QMessageBox.Save:
+				self.save_coa()
+				# Check if save was successful (user might have cancelled save dialog)
+				return self.is_saved
+			elif reply == QMessageBox.Cancel:
+				return False
+			# Discard falls through
+		
+		return True
+	
+	def closeEvent(self, event):
+		"""Handle window close event - prompt to save if needed"""
+		if self._prompt_save_if_needed():
+			event.accept()
+		else:
+			event.ignore()
+
+
 		self.statusBar().setStyleSheet("QStatusBar { border-top: 1px solid rgba(255, 255, 255, 40); padding: 4px; }")
 		
 		# Update status bar with initial stats
@@ -401,6 +544,11 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		state = self._capture_current_state()
 		self.history_manager.save_state(state, description)
+		
+		# Mark as unsaved (except for initial "New CoA" and "Load CoA" states)
+		if description not in ["New CoA", "Load CoA"]:
+			self.is_saved = False
+			self._update_window_title()
 	
 	def _save_property_change(self):
 		"""Called by timer to save property change to history (debounced)"""
@@ -419,10 +567,10 @@ class CoatOfArmsEditor(QMainWindow):
 	
 	def _on_history_changed(self, can_undo, can_redo):
 		"""Called when history state changes to update UI"""
-		if hasattr(self, 'undo_btn'):
-			self.undo_btn.setEnabled(can_undo)
-		if hasattr(self, 'redo_btn'):
-			self.redo_btn.setEnabled(can_redo)
+		if hasattr(self, 'undo_action'):
+			self.undo_action.setEnabled(can_undo)
+		if hasattr(self, 'redo_action'):
+			self.redo_action.setEnabled(can_redo)
 		# Update status bar with current action
 		self._update_status_bar()
 	
@@ -465,16 +613,8 @@ class CoatOfArmsEditor(QMainWindow):
 	def new_coa(self):
 		"""Clear everything and start with default empty CoA"""
 		try:
-			# Confirm with user
-			reply = QMessageBox.question(
-				self,
-				"New Coat of Arms",
-				"Are you sure you want to create a new coat of arms?\n\nAll unsaved changes will be lost.",
-				QMessageBox.Yes | QMessageBox.No,
-				QMessageBox.No
-			)
-			
-			if reply == QMessageBox.No:
+			# Prompt to save if there are unsaved changes
+			if not self._prompt_save_if_needed():
 				return
 			
 			# Clear all layers
@@ -499,8 +639,19 @@ class CoatOfArmsEditor(QMainWindow):
 			# Reset property sidebar base colors with color names
 			self.right_sidebar.set_base_colors(default_colors, default_color_names)
 			
+			# Reset asset sidebar to patterns mode with default category
+			if hasattr(self, 'left_sidebar'):
+				self.left_sidebar.current_mode = "patterns"
+				self.left_sidebar.current_category = DEFAULT_BASE_CATEGORY
+				self.left_sidebar.display_assets()
+			
 			# Switch to Base tab
 			self.right_sidebar.tab_widget.setCurrentIndex(0)
+			
+			# Clear file path and mark as saved
+			self.current_file_path = None
+			self.is_saved = True
+			self._update_window_title()
 			
 			# Clear history and save initial state
 			self.history_manager.clear()
@@ -509,7 +660,32 @@ class CoatOfArmsEditor(QMainWindow):
 			QMessageBox.critical(self, "Error", f"Error creating new CoA: {e}")
 	
 	def save_coa(self):
-		"""Save current CoA to .txt file"""
+		"""Save current CoA - if no file path, prompts for location"""
+		if self.current_file_path:
+			# Save to existing file
+			self._save_to_file(self.current_file_path)
+		else:
+			# No file path yet, use Save As
+			self.save_coa_as()
+	
+	def save_coa_as(self):
+		"""Save current CoA to a new file (always prompts for location)"""
+		try:
+			# Open save file dialog
+			filename, _ = QFileDialog.getSaveFileName(
+				self,
+				"Save Coat of Arms",
+				"",
+				"Text Files (*.txt);;All Files (*)"
+			)
+			
+			if filename:
+				self._save_to_file(filename)
+		except Exception as e:
+			QMessageBox.critical(self, "Save Error", f"Failed to save coat of arms:\n{str(e)}")
+	
+	def _save_to_file(self, filename):
+		"""Internal method to save CoA data to a file"""
 		try:
 			# Get current state
 			canvas = self.canvas_area.canvas_widget
@@ -528,16 +704,13 @@ class CoatOfArmsEditor(QMainWindow):
 				base_color_names
 			)
 			
-			# Open save file dialog
-			filename, _ = QFileDialog.getSaveFileName(
-				self,
-				"Save Coat of Arms",
-				"",
-				"Text Files (*.txt);;All Files (*)"
-			)
+			# Save to file
+			save_coa_to_file(coa_data, filename)
 			
-			if filename:
-				save_coa_to_file(coa_data, filename)
+			# Update current file path and mark as saved
+			self.current_file_path = filename
+			self.is_saved = True
+			self._update_window_title()
 		except Exception as e:
 			QMessageBox.critical(self, "Save Error", f"Failed to save coat of arms:\n{str(e)}")
 	
@@ -560,6 +733,11 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Apply to editor
 			self._apply_coa_data(coa_data)
+			
+			# Set current file path and mark as saved
+			self.current_file_path = filename
+			self.is_saved = True
+			self._update_window_title()
 			
 			# Clear history and save initial state after loading
 			self.history_manager.clear()
