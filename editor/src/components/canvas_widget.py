@@ -50,6 +50,11 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.noise_texture = None  # Noise texture for grain effect
 		self.current_frame_name = DEFAULT_FRAME  # Track current frame name
 		self.prestige_level = 0  # Current prestige level (0-5)
+		
+		# Zoom and grid properties
+		self.zoom_level = 1.0  # Current zoom level (1.0 = 100%)
+		self.show_grid = False  # Whether to show alignment grid
+		self.grid_divisions = 4  # Grid size (2, 4, 8, or 16)
 	
 	# ========================================
 	# Qt OpenGL Widget Overrides
@@ -203,12 +208,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				self.base_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
 				self.base_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
 				
-				# Update UV coordinates for base texture
+				# Update UV coordinates for base texture with zoom applied
+				base_size = 0.8 * self.zoom_level
 				vertices = np.array([
-					-0.8, -0.8, 0.0,  u0, v1,
-					 0.8, -0.8, 0.0,  u1, v1,
-					 0.8,  0.8, 0.0,  u1, v0,
-					-0.8,  0.8, 0.0,  u0, v0,
+					-base_size, -base_size, 0.0,  u0, v1,
+					 base_size, -base_size, 0.0,  u1, v1,
+					 base_size,  base_size, 0.0,  u1, v0,
+					-base_size,  base_size, 0.0,  u0, v0,
 				], dtype=np.float32)
 				
 				self.vbo.bind()
@@ -222,6 +228,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.design_shader.bind()
 			
 			for layer in self.layers:
+				# Skip hidden layers
+				if not layer.get('visible', True):
+					continue
+					
 				filename = layer.get('filename')
 				if not filename or filename not in self.texture_uv_map:
 					continue
@@ -276,8 +286,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					
 					# Convert properties to screen coordinates
 					# pos: 0.0-1.0 → -0.8 to 0.8 screen space
-					center_x = (pos_x - 0.5) * 1.1
-					center_y = -(pos_y - 0.5) * 1.1  # Invert Y-axis (CK3 uses top-down, OpenGL uses bottom-up)
+					center_x = (pos_x - 0.5) * 1.1 * self.zoom_level
+					center_y = -(pos_y - 0.5) * 1.1 * self.zoom_level  # Invert Y-axis (CK3 uses top-down, OpenGL uses bottom-up)
 					
 					# CK3 transformation order: position, then rotation, then scale
 					# Calculate rotated and scaled quad vertices
@@ -289,8 +299,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				# Apply flip separately from scale magnitude
 				scale_sign_x = -1 if flip_x else 1
 				scale_sign_y = -1 if flip_y else 1
-				half_width = scale_x * 0.6
-				half_height = scale_y * 0.6
+				half_width = scale_x * 0.6 * self.zoom_level
+				half_height = scale_y * 0.6 * self.zoom_level
 				
 				# Define unit quad corners
 				unit_corners = [
@@ -344,12 +354,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			u_start = self.prestige_level * tile_width
 			u_end = u_start + tile_width
 			
-			# Full screen quad for frame with prestige tile UVs
+			# Full screen quad for frame with prestige tile UVs, with zoom applied
+			frame_size = 0.8 * self.zoom_level
 			vertices = np.array([
-				-0.8, -0.8, 0.0,  u_start, 1.0,
-				 0.8, -0.8, 0.0,  u_end, 1.0,
-				 0.8,  0.8, 0.0,  u_end, 0.0,
-				-0.8,  0.8, 0.0,  u_start, 0.0,
+				-frame_size, -frame_size, 0.0,  u_start, 1.0,
+				 frame_size, -frame_size, 0.0,  u_end, 1.0,
+				 frame_size,  frame_size, 0.0,  u_end, 0.0,
+				-frame_size,  frame_size, 0.0,  u_start, 0.0,
 			], dtype=np.float32)
 			
 			self.vbo.bind()
@@ -358,7 +369,46 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 			self.basic_shader.release()
 		
+		# Render grid if enabled
+		if self.show_grid:
+			self._render_grid()
+		
 		self.vao.release()
+	
+	def _render_grid(self):
+		"""Render a grid overlay for alignment"""
+		# Enable line rendering
+		gl.glDisable(gl.GL_TEXTURE_2D)
+		gl.glLineWidth(1.0)
+		
+		# Set grid color (light gray)
+		gl.glColor4f(0.5, 0.5, 0.5, 0.5)
+		
+		# Draw vertical and horizontal lines
+		grid_size = 0.8 * self.zoom_level
+		grid_step = (1.6 * self.zoom_level) / self.grid_divisions  # Divide into grid_divisions
+		
+		gl.glBegin(gl.GL_LINES)
+		
+		# Vertical lines
+		x = -grid_size
+		while x <= grid_size:
+			gl.glVertex2f(x, -grid_size)
+			gl.glVertex2f(x, grid_size)
+			x += grid_step
+		
+		# Horizontal lines
+		y = -grid_size
+		while y <= grid_size:
+			gl.glVertex2f(-grid_size, y)
+			gl.glVertex2f(grid_size, y)
+			y += grid_step
+		
+		gl.glEnd()
+		
+		# Reset color and re-enable textures
+		gl.glColor4f(1.0, 1.0, 1.0, 1.0)
+		gl.glEnable(gl.GL_TEXTURE_2D)
 	
 	# ========================================
 	# Texture Loading and Atlas Management
@@ -702,3 +752,70 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		x = (w - size) // 2
 		y = (h - size) // 2
 		gl.glViewport(x, y, size, size)
+	
+	# ========================================
+	# Zoom and View Controls
+	# ========================================
+	
+	def zoom_in(self):
+		"""Zoom in by 25%"""
+		self.zoom_level = min(self.zoom_level * 1.25, 4.0)  # Max 4x zoom
+		self.update()
+	
+	def zoom_out(self):
+		"""Zoom out by 25%"""
+		self.zoom_level = max(self.zoom_level / 1.25, 0.25)  # Min 0.25x zoom
+		self.update()
+	
+	def zoom_reset(self):
+		"""Reset zoom to 100%"""
+		self.zoom_level = 1.0
+		self.update()
+	
+	def set_show_grid(self, show):
+		"""Toggle grid visibility"""
+		self.show_grid = show
+		self.update()
+	
+	def set_grid_divisions(self, divisions):
+		"""Set grid size (2, 4, 8, or 16)"""
+		self.grid_divisions = divisions
+		if self.show_grid:
+			self.update()
+	
+	def export_to_png(self, filename):
+		"""Export the current CoA rendering to PNG with transparency
+		
+		Args:
+			filename: Path to save PNG file
+			
+		Returns:
+			True if successful, False otherwise
+		"""
+		try:
+			from PyQt5.QtGui import QImage, QPainter
+			
+			# Create a high-resolution image (2048x2048 for quality)
+			size = 2048
+			image = QImage(size, size, QImage.Format_ARGB32)
+			image.fill(Qt.transparent)
+			
+			# TODO: Render CoA to image using OpenGL framebuffer or painter
+			# For now, grab the current widget rendering
+			pixmap = self.grab()
+			painter = QPainter(image)
+			painter.setRenderHint(QPainter.Antialiasing)
+			painter.setRenderHint(QPainter.SmoothPixmapTransform)
+			
+			# Scale and center the pixmap
+			scaled_pixmap = pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+			x = (size - scaled_pixmap.width()) // 2
+			y = (size - scaled_pixmap.height()) // 2
+			painter.drawPixmap(x, y, scaled_pixmap)
+			painter.end()
+			
+			# Save as PNG
+			return image.save(filename, "PNG")
+		except Exception as e:
+			print(f"PNG export error: {e}")
+			return False

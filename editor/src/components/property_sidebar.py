@@ -238,6 +238,7 @@ class PropertySidebar(QFrame):
 		self.layer_list_widget.on_duplicate_layer = self._duplicate_layer_at_index
 		self.layer_list_widget.on_delete_layer = self._delete_layer_at_index
 		self.layer_list_widget.on_color_changed = self._on_layer_color_changed
+		self.layer_list_widget.on_visibility_toggled = self._on_layer_visibility_toggle
 		
 		scroll.setWidget(self.layer_list_widget)
 		container_layout.addWidget(scroll)
@@ -876,6 +877,30 @@ class PropertySidebar(QFrame):
 				# Save to history
 				if self.main_window and hasattr(self.main_window, '_save_state'):
 					self.main_window._save_state(f"Change layer color {color_index}")
+	
+	def _on_layer_visibility_toggle(self, layer_index):
+		"""Handle visibility toggle button click from layer list"""
+		if 0 <= layer_index < len(self.layers):
+			layer = self.layers[layer_index]
+			# Toggle visibility (default to True if not set)
+			current_visibility = layer.get('visible', True)
+			layer['visible'] = not current_visibility
+			
+			# Invalidate thumbnail cache for this layer (to show dimmed icon)
+			self.layer_list_widget.invalidate_thumbnail(layer_index)
+			
+			# Rebuild layer list to update visibility button
+			self._rebuild_layer_list()
+			
+			# Update canvas to hide/show layer
+			if self.canvas_widget:
+				self.canvas_widget.set_layers(self.layers)
+			
+			# Save to history
+			if self.main_window and hasattr(self.main_window, '_save_state'):
+				visibility_state = "visible" if layer['visible'] else "hidden"
+				self.main_window._save_state(f"Toggle layer visibility to {visibility_state}")
+
 
 	def _on_layer_selection_changed(self):
 		"""Handle layer selection change from layer list widget"""
@@ -888,6 +913,10 @@ class PropertySidebar(QFrame):
 		if self.main_window and hasattr(self.main_window, 'left_sidebar'):
 			if self.main_window.left_sidebar.current_mode == "emblems":
 				self.main_window.left_sidebar.update_asset_colors()
+		
+		# Update alignment action states in main window
+		if self.main_window and hasattr(self.main_window, '_update_alignment_actions'):
+			self.main_window._update_alignment_actions()
 		
 		# Update properties tab state
 		selected_indices = self.get_selected_indices()

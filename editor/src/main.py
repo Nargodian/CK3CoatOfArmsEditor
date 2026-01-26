@@ -180,6 +180,12 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		file_menu.addSeparator()
 		
+		export_png_action = file_menu.addAction("Export as &PNG...")
+		export_png_action.setShortcut("Ctrl+E")
+		export_png_action.triggered.connect(self.export_png)
+		
+		file_menu.addSeparator()
+		
 		exit_action = file_menu.addAction("E&xit")
 		exit_action.setShortcut("Alt+F4")
 		exit_action.triggered.connect(self.close)
@@ -223,9 +229,86 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		edit_menu.addSeparator()
 		
+		# Align submenu
+		align_menu = edit_menu.addMenu("&Align Layers")
+		
+		self.align_left_action = align_menu.addAction("Align &Left")
+		self.align_left_action.triggered.connect(lambda: self._align_layers('left'))
+		
+		self.align_center_action = align_menu.addAction("Align &Center")
+		self.align_center_action.triggered.connect(lambda: self._align_layers('center'))
+		
+		self.align_right_action = align_menu.addAction("Align &Right")
+		self.align_right_action.triggered.connect(lambda: self._align_layers('right'))
+		
+		align_menu.addSeparator()
+		
+		self.align_top_action = align_menu.addAction("Align &Top")
+		self.align_top_action.triggered.connect(lambda: self._align_layers('top'))
+		
+		self.align_middle_action = align_menu.addAction("Align &Middle")
+		self.align_middle_action.triggered.connect(lambda: self._align_layers('middle'))
+		
+		self.align_bottom_action = align_menu.addAction("Align &Bottom")
+		self.align_bottom_action.triggered.connect(lambda: self._align_layers('bottom'))
+		
+		# Store alignment actions for enabling/disabling
+		self.alignment_actions = [
+			self.align_left_action,
+			self.align_center_action,
+			self.align_right_action,
+			self.align_top_action,
+			self.align_middle_action,
+			self.align_bottom_action
+		]
+		
+		# Initially disable alignment actions
+		self._update_alignment_actions()
+		
+		edit_menu.addSeparator()
+		
 		select_all_action = edit_menu.addAction("Select &All Layers")
 		select_all_action.setShortcut("Ctrl+A")
 		select_all_action.triggered.connect(self._select_all_layers)
+		
+		# View Menu
+		view_menu = menubar.addMenu("&View")
+		
+		# Grid submenu
+		grid_menu = view_menu.addMenu("Show &Grid")
+		
+		self.grid_2x2_action = grid_menu.addAction("&2x2")
+		self.grid_2x2_action.setCheckable(True)
+		self.grid_2x2_action.triggered.connect(lambda: self._set_grid_size(2))
+		
+		self.grid_4x4_action = grid_menu.addAction("&4x4")
+		self.grid_4x4_action.setCheckable(True)
+		self.grid_4x4_action.setChecked(True)
+		self.grid_4x4_action.triggered.connect(lambda: self._set_grid_size(4))
+		
+		self.grid_8x8_action = grid_menu.addAction("&8x8")
+		self.grid_8x8_action.setCheckable(True)
+		self.grid_8x8_action.triggered.connect(lambda: self._set_grid_size(8))
+		
+		self.grid_16x16_action = grid_menu.addAction("1&6x16")
+		self.grid_16x16_action.setCheckable(True)
+		self.grid_16x16_action.triggered.connect(lambda: self._set_grid_size(16))
+		
+		grid_menu.addSeparator()
+		
+		self.grid_off_action = grid_menu.addAction("&Off")
+		self.grid_off_action.setCheckable(True)
+		self.grid_off_action.triggered.connect(lambda: self._set_grid_size(0))
+		
+		# Group grid actions
+		from PyQt5.QtWidgets import QActionGroup
+		self.grid_action_group = QActionGroup(self)
+		self.grid_action_group.addAction(self.grid_2x2_action)
+		self.grid_action_group.addAction(self.grid_4x4_action)
+		self.grid_action_group.addAction(self.grid_8x8_action)
+		self.grid_action_group.addAction(self.grid_16x16_action)
+		self.grid_action_group.addAction(self.grid_off_action)
+		self.grid_off_action.setChecked(True)  # Start with grid off
 		
 		# Help Menu
 		help_menu = menubar.addMenu("&Help")
@@ -248,7 +331,124 @@ class CoatOfArmsEditor(QMainWindow):
 		QMessageBox.about(self, "About Coat of Arms Designer",
 			"<h3>Coat of Arms Designer</h3>"
 			"<p>A tool for creating and editing Crusader Kings 3 coats of arms.</p>"
-			"<p>Version 1.0</p>")
+			"<p>Version 1.0</p>"
+			"<hr>"
+			"<p><b>AI Disclosure:</b> This tool was developed with heavy AI assistance. "
+			"I respect that people have valid concerns about AI, and I do not wish to claim ownership over the output. "
+			"This tool is provided for its own sake as a useful utility, "
+			"free for anyone to use or modify.</p>")
+	
+	def _zoom_in(self):
+		"""Zoom in on canvas"""
+		if hasattr(self.canvas_area, 'canvas_widget'):
+			self.canvas_area.canvas_widget.zoom_in()
+	
+	def _zoom_out(self):
+		"""Zoom out on canvas"""
+		if hasattr(self.canvas_area, 'canvas_widget'):
+			self.canvas_area.canvas_widget.zoom_out()
+	
+	def _zoom_reset(self):
+		"""Reset canvas zoom to 100%"""
+		if hasattr(self.canvas_area, 'canvas_widget'):
+			self.canvas_area.canvas_widget.zoom_reset()
+	
+	def _set_grid_size(self, divisions):
+		"""Set grid size (0 = off, 2/4/8/16 = grid divisions)"""
+		if hasattr(self.canvas_area, 'canvas_widget'):
+			if divisions == 0:
+				self.canvas_area.canvas_widget.set_show_grid(False)
+			else:
+				self.canvas_area.canvas_widget.set_show_grid(True)
+				self.canvas_area.canvas_widget.set_grid_divisions(divisions)
+	
+	def _update_alignment_actions(self):
+		"""Enable or disable alignment actions based on selection count"""
+		if not hasattr(self, 'right_sidebar'):
+			# Right sidebar not yet initialized, disable all alignment actions
+			for action in self.alignment_actions:
+				action.setEnabled(False)
+			return
+		
+		selected_count = len(self.right_sidebar.get_selected_indices())
+		enabled = selected_count >= 2
+		
+		for action in self.alignment_actions:
+			action.setEnabled(enabled)
+	
+	def _align_layers(self, alignment):
+		"""Align selected layers
+		
+		Args:
+			alignment: One of 'left', 'center', 'right', 'top', 'middle', 'bottom'
+		"""
+		selected_indices = self.right_sidebar.get_selected_indices()
+		if len(selected_indices) < 2:
+			QMessageBox.information(self, "Align Layers", "Please select at least 2 layers to align.")
+			return
+		
+		layers = [self.right_sidebar.layers[i] for i in selected_indices]
+		
+		if alignment in ['left', 'center', 'right']:
+			# Horizontal alignment
+			positions = [layer.get('pos_x', 0.5) for layer in layers]
+			if alignment == 'left':
+				target = min(positions)
+			elif alignment == 'right':
+				target = max(positions)
+			else:  # center
+				target = sum(positions) / len(positions)
+			
+			for idx in selected_indices:
+				self.right_sidebar.layers[idx]['pos_x'] = target
+		
+		else:  # vertical alignment
+			positions = [layer.get('pos_y', 0.5) for layer in layers]
+			if alignment == 'top':
+				target = min(positions)
+			elif alignment == 'bottom':
+				target = max(positions)
+			else:  # middle
+				target = sum(positions) / len(positions)
+			
+			for idx in selected_indices:
+				self.right_sidebar.layers[idx]['pos_y'] = target
+		
+		# Update UI
+		self.right_sidebar._load_layer_properties()
+		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+		self.canvas_area.update_transform_widget_for_layer()
+		
+		# Save to history
+		self._save_state(f"Align layers {alignment}")
+	
+	def export_png(self):
+		"""Export current CoA as PNG with transparency"""
+		try:
+			# Open save file dialog
+			filename, _ = QFileDialog.getSaveFileName(
+				self,
+				"Export as PNG",
+				"",
+				"PNG Files (*.png);;All Files (*)"
+			)
+			
+			if not filename:
+				return
+			
+			# Ensure .png extension
+			if not filename.lower().endswith('.png'):
+				filename += '.png'
+			
+			# Get the canvas widget's pixmap/image
+			if hasattr(self.canvas_area, 'canvas_widget'):
+				success = self.canvas_area.canvas_widget.export_to_png(filename)
+				if success:
+					QMessageBox.information(self, "Export Successful", f"CoA exported to:\n{filename}")
+				else:
+					QMessageBox.warning(self, "Export Failed", "Failed to export PNG.")
+		except Exception as e:
+			QMessageBox.critical(self, "Export Error", f"Failed to export PNG:\n{str(e)}")
 	
 	def _update_window_title(self):
 		"""Update window title with current file name"""

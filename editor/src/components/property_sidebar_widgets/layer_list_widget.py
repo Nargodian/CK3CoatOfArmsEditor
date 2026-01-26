@@ -37,6 +37,7 @@ class LayerListWidget(QWidget):
 		self.on_duplicate_layer = None
 		self.on_delete_layer = None
 		self.on_color_changed = None
+		self.on_visibility_toggled = None
 		
 		self._setup_ui()
 	
@@ -207,12 +208,33 @@ class LayerListWidget(QWidget):
 		# Add small gap between color and action buttons
 		inline_layout.addSpacing(3)
 		
-		# Action buttons container (duplicate/delete)
+		# Action buttons container (visibility/duplicate/delete)
 		action_container = QWidget()
 		action_container.setStyleSheet("border: none;")
 		action_layout = QVBoxLayout(action_container)
 		action_layout.setContentsMargins(0, 0, 0, 0)
 		action_layout.setSpacing(2)
+		
+		# Visibility toggle button
+		visible = layer.get('visible', True)
+		visibility_btn = QPushButton("👁" if visible else "🚫")
+		visibility_btn.setFixedSize(20, 20)
+		visibility_btn.setToolTip("Toggle Visibility")
+		visibility_btn.setStyleSheet("""
+			QPushButton {
+				border: 1px solid rgba(255, 255, 255, 60);
+				border-radius: 2px;
+				background-color: rgba(255, 255, 255, 10);
+				font-size: 10px;
+				padding: 0px;
+				text-align: center;
+			}
+			QPushButton:hover {
+				background-color: rgba(141, 191, 90, 100);
+			}
+		""")
+		visibility_btn.clicked.connect(lambda checked: self._handle_visibility_toggle(actual_index))
+		action_layout.addWidget(visibility_btn)
 		
 		# Duplicate button
 		duplicate_btn = QPushButton("⎘")
@@ -523,6 +545,11 @@ class LayerListWidget(QWidget):
 		"""Handle delete button click"""
 		if self.on_delete_layer:
 			self.on_delete_layer(index)
+	
+	def _handle_visibility_toggle(self, index):
+		"""Handle visibility toggle button click"""
+		if self.on_visibility_toggled:
+			self.on_visibility_toggled(index)
 	
 	def _handle_color_pick(self, index, color_index):
 		"""Handle color button click - open color picker"""
