@@ -224,7 +224,7 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		paste_layer_action = edit_menu.addAction("Paste Layer")
 		paste_layer_action.setShortcut("Ctrl+V")
-		paste_layer_action.triggered.connect(self.paste_layer)
+		paste_layer_action.triggered.connect(self.paste_layer_smart)
 		
 		duplicate_layer_action = edit_menu.addAction("&Duplicate Layer")
 		duplicate_layer_action.setShortcut("Ctrl+D")
@@ -1422,6 +1422,23 @@ class CoatOfArmsEditor(QMainWindow):
 			self._save_state(f"Paste {len(layers_data)} {layer_word}")
 		except Exception as e:
 			QMessageBox.warning(self, "Paste Error", f"Failed to paste layer: {str(e)}")
+	
+	def paste_layer_smart(self):
+		"""Smart paste - pastes at mouse position if over canvas, otherwise at offset position"""
+		if hasattr(self, 'canvas_area'):
+			mouse_pos = self.canvas_area.mapFromGlobal(self.cursor().pos())
+			# Get canvas_widget position relative to canvas_area (accounting for container margins)
+			from PyQt5.QtCore import QRect
+			canvas_widget_pos = self.canvas_area.canvas_widget.mapTo(self.canvas_area, QPoint(0, 0))
+			canvas_geometry = QRect(canvas_widget_pos, self.canvas_area.canvas_widget.size())
+			
+			if canvas_geometry.contains(mouse_pos):
+				# Mouse is over canvas, paste at mouse position
+				self.paste_layer_at_position(mouse_pos, canvas_geometry)
+				return
+		
+		# Otherwise, paste at offset position
+		self.paste_layer()
 	
 	def paste_layer_at_position(self, mouse_pos, canvas_geometry):
 		"""Paste layers at mouse position on canvas with clamping to legal positions"""

@@ -1,0 +1,18 @@
+coa_export={
+	custom=yes
+	pattern="pattern_horizontal_split_02.dds"
+	color1=purple
+	color2=yellow
+	color3=black
+	colored_emblem={
+		texture="ce_african_flower.dds"
+		color1=yellow_light
+		instance={
+			position={ 0.493939 0.618182 }
+			scale={ 0.700000 0.700000 }
+			rotation=0
+		}
+
+	}
+
+}

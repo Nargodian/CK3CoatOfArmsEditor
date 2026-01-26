@@ -1,0 +1,28 @@
+Traceback (most recent call last):
+  File "E:\Projects\CK3CoatOfArmsEditor\editor\src\components\canvas_widget.py", line 844, in export_to_png
+    image = QImage(pixels_array.data, export_size, export_size,
+TypeError: arguments did not match any overloaded call:
+  QImage(): too many arguments
+  QImage(size: QSize, format: QImage.Format): argument 1 has unexpected type 'memoryview'
+  QImage(width: int, height: int, format: QImage.Format): argument 1 has unexpected type 'memoryview'
+  QImage(data: Optional[bytes], width: int, height: int, format: QImage.Format): argument 1 has unexpected type 'memoryview'
+  QImage(data: Optional[PyQt5.sip.voidptr], width: int, height: int, format: QImage.Format): argument 1 has unexpected type 'memoryview'
+  QImage(data: Optional[bytes], width: int, height: int, bytesPerLine: int, format: QImage.Format): argument 1 has unexpected type 'memoryview'
+  QImage(data: Optional[PyQt5.sip.voidptr], width: int, height: int, bytesPerLine: int, format: QImage.Format): argument 1 has unexpected type 'memoryview'
+  QImage(xpm: List[str]): argument 1 has unexpected type 'memoryview'
+  QImage(fileName: Optional[str], format: Optional[str] = None): argument 1 has unexpected type 'memoryview'
+  QImage(a0: QImage): argument 1 has unexpected type 'memoryview'
+  QImage(variant: Any): too many arguments
+CoA loaded from E:/Projects/CK3CoatOfArmsEditor/examples/game_samples/coa_sample_2.txt
+PNG export error: arguments did not match any overloaded call:
+  QImage(): too many arguments
+  QImage(size: QSize, format: QImage.Format): argument 1 has unexpected type 'memoryview'
+  QImage(width: int, height: int, format: QImage.Format): argument 1 has unexpected type 'memoryview'
+  QImage(data: Optional[bytes], width: int, height: int, format: QImage.Format): argument 1 has unexpected type 'memoryview'
+  QImage(data: Optional[PyQt5.sip.voidptr], width: int, height: int, format: QImage.Format): argument 1 has unexpected type 'memoryview'
+  QImage(data: Optional[bytes], width: int, height: int, bytesPerLine: int, format: QImage.Format): argument 1 has unexpected type 'memoryview'
+  QImage(data: Optional[PyQt5.sip.voidptr], width: int, height: int, bytesPerLine: int, format: QImage.Format): argument 1 has unexpected type 'memoryview'
+  QImage(xpm: List[str]): argument 1 has unexpected type 'memoryview'
+  QImage(fileName: Optional[str], format: Optional[str] = None): argument 1 has unexpected type 'memoryview'
+  QImage(a0: QImage): argument 1 has unexpected type 'memoryview'
+  QImage(variant: Any): too many arguments

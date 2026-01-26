@@ -36,6 +36,8 @@ class TransformWidget(QWidget):
 	HANDLE_L = 8   # Left edge
 	HANDLE_R = 9   # Right edge
 	HANDLE_ROTATE = 10
+	HANDLE_AXIS_X = 11  # X-axis arrow
+	HANDLE_AXIS_Y = 12  # Y-axis arrow
 	
 	def __init__(self, parent=None, canvas_widget=None):
 		super().__init__(parent)
@@ -196,6 +198,42 @@ class TransformWidget(QWidget):
 		# Draw line to rotation handle
 		painter.setPen(QPen(QColor(90, 141, 191, 150), 1, Qt.DashLine))
 		painter.drawLine(center_pos, rot_pos)
+		
+		# Draw axis arrows for constrained translation
+		arrow_start_offset = 15  # Start arrows a bit away from center
+		arrow_length = 50
+		arrow_head_size = 8
+		
+		# Check if hovering over arrows for highlight
+		hover_handle = self._get_handle_at_pos(self.mapFromGlobal(self.cursor().pos())) if hasattr(self, 'cursor') else self.HANDLE_NONE
+		
+		# X-axis arrow (red, pointing right)
+		x_alpha = 255 if hover_handle == self.HANDLE_AXIS_X else 200
+		painter.setPen(QPen(QColor(255, 80, 80, x_alpha), 4 if hover_handle == self.HANDLE_AXIS_X else 3))
+		painter.setBrush(QBrush(QColor(255, 80, 80, x_alpha)))
+		x_start = QPointF(center_x + arrow_start_offset, center_y)
+		x_end = QPointF(center_x + arrow_start_offset + arrow_length, center_y)
+		painter.drawLine(x_start, x_end)
+		# Arrow head
+		painter.drawPolygon([
+			x_end,
+			QPointF(x_end.x() - arrow_head_size, x_end.y() - arrow_head_size/2),
+			QPointF(x_end.x() - arrow_head_size, x_end.y() + arrow_head_size/2)
+		])
+		
+		# Y-axis arrow (green, pointing up)
+		y_alpha = 255 if hover_handle == self.HANDLE_AXIS_Y else 200
+		painter.setPen(QPen(QColor(80, 255, 80, y_alpha), 4 if hover_handle == self.HANDLE_AXIS_Y else 3))
+		painter.setBrush(QBrush(QColor(80, 255, 80, y_alpha)))
+		y_start = QPointF(center_x, center_y - arrow_start_offset)
+		y_end = QPointF(center_x, center_y - arrow_start_offset - arrow_length)
+		painter.drawLine(y_start, y_end)
+		# Arrow head
+		painter.drawPolygon([
+			y_end,
+			QPointF(y_end.x() - arrow_head_size/2, y_end.y() + arrow_head_size),
+			QPointF(y_end.x() + arrow_head_size/2, y_end.y() + arrow_head_size)
+		])
 	
 	def _get_handle_positions(self, center_x, center_y, half_w, half_h):
 		"""Calculate handle positions in screen space.
@@ -219,6 +257,8 @@ class TransformWidget(QWidget):
 		positions[self.HANDLE_R] = QPointF(right, center_y)
 		positions[self.HANDLE_CENTER] = QPointF(center_x, center_y)
 		positions[self.HANDLE_ROTATE] = QPointF(center_x, top - self.rotation_handle_offset)
+		positions[self.HANDLE_AXIS_X] = QPointF(center_x + 65, center_y)  # End of X arrow (15 + 50)
+		positions[self.HANDLE_AXIS_Y] = QPointF(center_x, center_y - 65)  # End of Y arrow (15 + 50, pointing up)
 		
 		return positions
 	
@@ -241,9 +281,10 @@ class TransformWidget(QWidget):
 		
 		handles = self._get_handle_positions(center_x, center_y, scaled_w, scaled_h)
 		
-		# Check handles in priority order (rotation first, then corners, edges, center)
+		# Check handles in priority order (rotation first, then axis arrows, then corners, edges, center)
 		check_order = [
 			self.HANDLE_ROTATE,
+			self.HANDLE_AXIS_X, self.HANDLE_AXIS_Y,
 			self.HANDLE_TL, self.HANDLE_TR, self.HANDLE_BL, self.HANDLE_BR,
 			self.HANDLE_T, self.HANDLE_B, self.HANDLE_L, self.HANDLE_R,
 			self.HANDLE_CENTER
@@ -251,14 +292,26 @@ class TransformWidget(QWidget):
 		
 		hit_distance = self.handle_size + 4  # Slightly larger hit area
 		
+		# Use wider hit area for axis arrows (check along the arrow shaft)
 		for handle_type in check_order:
 			handle_pos = handles[handle_type]
-			dx = pos.x() - handle_pos.x()
-			dy = pos.y() - handle_pos.y()
-			distance = math.sqrt(dx*dx + dy*dy)
 			
-			if distance <= hit_distance:
-				return handle_type
+			if handle_type == self.HANDLE_AXIS_X:
+				# Check along X arrow line (pointing right, starting at center_x + 15)
+				if abs(pos.y() - center_y) < 10 and center_x + 15 < pos.x() < center_x + 65:
+					return handle_type
+			elif handle_type == self.HANDLE_AXIS_Y:
+				# Check along Y arrow line (pointing up, starting at center_y - 15)
+				if abs(pos.x() - center_x) < 10 and center_y - 65 < pos.y() < center_y - 15:
+					return handle_type
+			else:
+				# Regular circular hit detection
+				dx = pos.x() - handle_pos.x()
+				dy = pos.y() - handle_pos.y()
+				distance = math.sqrt(dx*dx + dy*dy)
+				
+				if distance <= hit_distance:
+					return handle_type
 		
 		# If no handle hit, check if we're inside the AABB (for translation)
 		# This makes the entire bounding box grabbable for moving
@@ -319,12 +372,19 @@ class TransformWidget(QWidget):
 		if handle != self.HANDLE_NONE:
 			if handle == self.HANDLE_CENTER:
 				self.setCursor(Qt.SizeAllCursor)
+			elif handle == self.HANDLE_AXIS_X:
+				self.setCursor(Qt.SizeHorCursor)
+			elif handle == self.HANDLE_AXIS_Y:
+				self.setCursor(Qt.SizeVerCursor)
 			elif handle == self.HANDLE_ROTATE:
 				self.setCursor(Qt.CrossCursor)
 			else:
 				self.setCursor(Qt.SizeFDiagCursor)
 		else:
 			self.setCursor(Qt.ArrowCursor)
+		
+		# Trigger repaint for hover effects
+		self.update()
 		
 		super().mouseMoveEvent(event)
 	
@@ -434,6 +494,20 @@ class TransformWidget(QWidget):
 			
 			self.pos_x = start_x + delta_x
 			self.pos_y = start_y + delta_y
+			
+		elif self.active_handle == self.HANDLE_AXIS_X:
+			# X-axis constrained movement (only horizontal)
+			delta_x = dx / canvas_scale
+			self.pos_x = start_x + delta_x
+			# Y position stays locked
+			self.pos_y = start_y
+			
+		elif self.active_handle == self.HANDLE_AXIS_Y:
+			# Y-axis constrained movement (only vertical)
+			delta_y = dy / canvas_scale
+			self.pos_y = start_y + delta_y
+			# X position stays locked
+			self.pos_x = start_x
 			
 		elif self.active_handle == self.HANDLE_ROTATE:
 			# Rotate - calculate delta angle from start position
