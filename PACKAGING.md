@@ -37,7 +37,13 @@ build.bat
 This will:
 1. Build both executables using PyInstaller
 2. Merge them into `dist/merged/` with shared libraries
-3. Create a ready-to-distribute folder
+3. Get version from git (tags or commit hash)
+4. Create a versioned zip file: `CK3CoatOfArmsEditor-v{version}.zip`
+
+The version is derived from git:
+- If on a tag: `v1.2.3`
+- If commits after tag: `v1.2.3-5-gabcdef`
+- If no tags: `v0.0.0-abcdef` (commit hash)
 
 ### Option 2: Manual Build
 

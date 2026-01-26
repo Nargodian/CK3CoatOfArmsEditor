@@ -102,10 +102,17 @@ echo 1. Test both executables in dist\merged\
 echo 2. Run AssetConverter.exe to extract CK3 assets
 echo 3. Run CoatOfArmsEditor.exe to create coat of arms
 echo.
-echo To create a distribution zip:
-echo   - Zip the dist\merged\ folder for distribution
-echo   - README.txt is already included
-echo.
+echo Creating distribution package with version from git...
+python package.py
+if errorlevel 1 (
+    echo.
+    echo Warning: Packaging failed. You can manually zip dist\merged\ folder.
+    echo.
+) else (
+    echo.
+    echo Distribution package created successfully!
+    echo.
+)
 
 REM Exit cleanly
 exit /b 0
