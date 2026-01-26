@@ -1,6 +1,11 @@
 # CK3 Coat of Arms Editor
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub release](https://img.shields.io/github/v/release/Nargodian/CK3CoatOfArmsEditor)](https://github.com/Nargodian/CK3CoatOfArmsEditor/releases)
+
 A desktop application for creating and editing coat of arms for Crusader Kings 3 (CK3). Built with Python, PyQt5, and OpenGL for real-time rendering of heraldic designs.
+
+> **AI Disclosure:** This tool was developed with heavy AI assistance. I respect that people have valid concerns about AI, and I do not wish to claim ownership over the output. This tool is provided for its own sake as a useful utility, free for anyone to use or modify under the MIT License.
 
 ## Features
 
@@ -250,7 +255,3 @@ python tests/test_roundtrip.py
 This is a fan-made tool for the Crusader Kings 3 community. 
 
 Crusader Kings III and all game assets are property of Paradox Interactive. Users must own CK3 to use this tool. This project is not affiliated with or endorsed by Paradox Interactive.
-
-## AI Disclosure
-
-This tool was developed with heavy AI assistance. I respect that people have valid concerns about AI, and I do not wish to claim ownership over the output. This tool is provided for its own sake as a useful utility, free for anyone to use or modify.
