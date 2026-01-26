@@ -37,7 +37,7 @@ build.bat
 This will:
 1. Build both executables using PyInstaller
 2. Merge them into `dist/merged/` with shared libraries
-3. Create a version-numbered zip file (e.g., `COAEditor_1.0.23.zip`)
+3. Create a version-numbered zip file in `build/dist/` (e.g., `COAEditor_1.0.77.zip`)
 
 Version format: `Major.Minor.Patch`
 - **Major.Minor**: Set manually in `VERSION` file at project root (e.g., `1.0`, `2.1`)
@@ -48,7 +48,7 @@ To bump version:
 2. Run build - patch number auto-increments with each commit
 
 Examples:
-- `VERSION=1.0` with 23 commits since tag → `COAEditor_1.0.23.zip`
+- `VERSION=1.0` with 77 commits since tag → `COAEditor_1.0.77.zip`
 - `VERSION=2.1` with 0 commits (on tag) → `COAEditor_2.1.0.zip`
 
 ### Option 2: Manual Build
@@ -171,16 +171,56 @@ From CK3 installation (`game/` folder):
 └─────────┴─────────┘
 ```
 
-## Creating a Distribution Package
+## Distribution via GitHub Releases
 
-1. Build the executables using `build.bat`
-2. Copy `dist/merged/` to a clean folder
-3. Create a `README.txt` with:
-   - Installation instructions
-   - System requirements
-   - Link to CK3 (users must own the game)
-   - License information
-4. Create ZIP file for distribution
+### Publishing a Release
+
+1. **Build the package**:
+   ```bash
+   cd build
+   build.bat
+   # Creates COAEditor_X.Y.Z.zip in build/dist/
+   ```
+
+2. **Create and push git tag**:
+   ```bash
+   git tag -a vX.Y.Z -m "Release version X.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
+3. **Create GitHub Release**:
+   - Go to https://github.com/Nargodian/CK3CoatOfArmsEditor/releases
+   - Click "Create a new release"
+   - Select tag `vX.Y.Z`
+   - Upload `COAEditor_X.Y.Z.zip`
+   - Add release notes (features, fixes, known issues)
+   - Publish
+
+### Release Notes Template
+
+```markdown
+## CK3 Coat of Arms Editor vX.Y.Z
+
+### Installation
+1. Download and extract COAEditor_X.Y.Z.zip
+2. Run AssetConverter.exe (point to CK3 installation)
+3. Run CoatOfArmsEditor.exe
+
+### New Features
+- Feature 1
+- Feature 2
+
+### Bug Fixes
+- Fix 1
+- Fix 2
+
+### Known Issues
+- Issue 1
+
+### Requirements
+- Windows 10/11 (64-bit)
+- Crusader Kings III (must own game)
+```
 
 ### Example README.txt
 

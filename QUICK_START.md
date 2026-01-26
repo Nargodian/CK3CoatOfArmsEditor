@@ -1,10 +1,19 @@
-# Quick Start Guide - Testing the Refactored Editor
+# Quick Start Guide
 
-## Prerequisites
+## For End Users
 
-Ensure you have:
+1. **[Download the latest release](https://github.com/Nargodian/CK3CoatOfArmsEditor/releases)**
+2. Extract the ZIP file
+3. Run `AssetConverter.exe` and point it to your CK3 installation
+4. Wait for asset extraction (15-20 minutes first time)
+5. Run `CoatOfArmsEditor.exe` and start creating!
+
+## For Developers
+
+### Prerequisites
+
 - Python 3.8 or later
-- CK3 installed (for testing asset extraction)
+- CK3 installed (for asset extraction)
 
 ## Step 1: Install Dependencies
 
@@ -62,7 +71,7 @@ This will:
 3. Build AssetConverter.exe
 4. Merge into `dist/merged/`
 
-Build time: ~2-5 minutes
+Build time: ~5-10 minutes (depends on system)
 
 ## Step 4: Test Built Executables
 
@@ -130,9 +139,7 @@ pip uninstall -r requirements.txt -y
 pip install -r requirements.txt
 ```
 
-## Testing Checklist
-
-Before considering the refactoring complete, verify:
+## Development Testing Checklist
 
 ### Asset Converter
 - [ ] Launches in dev mode (`python asset_converter.py`)
@@ -192,14 +199,14 @@ Expected performance:
 - No lag when adding/removing layers
 - Smooth layer transformations
 
-## Next Steps After Testing
+## Publishing a Release
 
-If all tests pass:
-1. Merge branch to main
-2. Tag release version
-3. Create distribution ZIP
-4. Write user documentation
-5. Publish release
+1. Update `VERSION` file if needed (e.g., `1.0` → `1.1`)
+2. Run `build.bat` to create versioned ZIP
+3. Create git tag: `git tag -a v1.0.X -m "Release v1.0.X"`
+4. Push tag: `git push origin v1.0.X`
+5. Create GitHub Release and upload ZIP
+6. Add release notes with features/fixes
 
 ## Troubleshooting
 
@@ -244,15 +251,9 @@ For future development:
 4. Update spec files if adding new dependencies
 5. Update documentation
 
-## Questions?
+## Documentation
 
-Check these files:
-- `REFACTORING_SUMMARY.md` - Complete implementation details
-- `PACKAGING.md` - Build and distribution guide
-- `REFACTOR_PLAN.txt` - Original detailed plan
-
----
-
-**Status**: All tasks from REFACTOR_PLAN.txt completed ✓
-**Branch**: feature/portable-exe-packaging
-**Ready for**: Testing and validation
+- [README.md](README.md) - Project overview and features
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Technical architecture details
+- [PACKAGING.md](PACKAGING.md) - Build and distribution guide
+- [docs/specifications/](docs/specifications/) - CK3 format specifications

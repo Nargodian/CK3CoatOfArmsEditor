@@ -14,19 +14,26 @@ A desktop application for creating and editing coat of arms for Crusader Kings 3
 - **Copy/Paste**: Share designs via clipboard
 - **Undo/Redo**: Full history management for all operations
 
-## Requirements
+## Download
 
-- Python 3.10+
+**[Download the latest release](https://github.com/Nargodian/CK3CoatOfArmsEditor/releases)** - Windows 10/11 executable, no Python required.
+
+## For Developers
+
+### Requirements
+
+- Python 3.8+
 - PyQt5
 - PyOpenGL
 - NumPy
 - Pillow (PIL)
+- imageio, imageio-dds
 
-## Installation
+### Development Setup
 
 ```bash
 # Clone repository
-git clone <repository-url>
+git clone https://github.com/Nargodian/CK3CoatOfArmsEditor.git
 cd CK3CoatOfArmsEditor
 
 # Install dependencies
@@ -39,17 +46,15 @@ python editor/src/main.py
 python asset_converter/asset_converter.py
 ```
 
-## Building for Distribution
+### Building for Distribution
 
 ```bash
-# Build both executables
 cd build
 build.bat
-
-# Find built executables in dist/merged/
+# Creates versioned ZIP in build/dist/
 ```
 
-See [PACKAGING.md](PACKAGING.md) for complete build and distribution instructions.
+See [PACKAGING.md](PACKAGING.md) and [ARCHITECTURE.md](docs/ARCHITECTURE.md) for complete details.
 
 ## Project Structure
 
@@ -59,7 +64,8 @@ The project follows a modular architecture with separate editor and asset conver
 CK3CoatOfArmsEditor/
 ├── editor/                          # Main editor project
 │   ├── src/
-│   │   ├── main.py                 # Main application window
+│   │   ├── main.py                 # Main application (composition pattern)
+│   │   ├── actions/                # Action handlers (file, clipboard, transform)
 │   │   ├── components/             # UI components
 │   │   │   ├── asset_sidebar.py   # Left panel - asset browser
 │   │   │   ├── canvas_area.py     # Center panel - canvas container
@@ -90,7 +96,9 @@ CK3CoatOfArmsEditor/
 ├── build/                          # Build tools
 │   └── build.bat                  # Windows build script
 ├── docs/                           # Documentation
-│   └── specifications/            # Format specifications
+│   ├── ARCHITECTURE.md            # Technical architecture
+│   ├── CoA_Parser_Documentation.md# Parser API reference
+│   └── specifications/            # CK3 format specifications
 ├── examples/                       # Code examples and sample CoAs
 │   ├── parser_example.py          # Parser usage example
 │   └── game_samples/              # Sample CoA designs from game
@@ -105,11 +113,14 @@ CK3CoatOfArmsEditor/
 
 ## Architecture Overview
 
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for complete technical details.
+
 ### Main Window (`main.py`)
-- Application orchestration and menu handling
-- File operations (open, save, import, export)
-- Undo/redo management
-- Connects UI components and manages state
+- Application orchestration using composition pattern
+- Delegates to action handler classes (FileActions, ClipboardActions, LayerTransformActions)
+- Menu handling and keyboard shortcuts
+- Undo/redo management with history snapshots
+- Autosave and recent files tracking
 
 ### Components
 
@@ -227,38 +238,19 @@ python tests/test_roundtrip.py
 - History manager logs state changes
 - Parser errors include line/column information
 
-## Refactoring History
-
-This project underwent comprehensive refactoring in 2026:
-
-- **Phase 1-2**: Extract utilities and services
-- **Phase 3-4**: Modularize components and widgets
-- **Phase 5**: Optimize rendering and texture systems
-- **Phase 6**: Cleanup and documentation
-- **Phase 7**: Utils cleanup and test organization
-
-The refactoring reduced code duplication, improved maintainability, and established clear separation of concerns between UI, rendering, and business logic.
-
-## Known Issues
+## Known Limitations
 
 - Large numbers of layers (100+) may impact performance
-- Some CK3 coat of arms features not yet supported (charges, divisions)
-- Undo history limited to last 100 operations
+- Some CK3 features not yet supported (charges, pattern divisions)
+- Undo history limited to last 50 operations
+- Windows only (Linux/Mac would require platform-specific builds)
 
-## Future Enhancements
+## Disclaimer
 
-- [ ] Support for CK3 charge system
-- [ ] Pattern divisions (quartered, halved, etc.)
-- [ ] Batch export for multiple designs
-- [ ] Preset library for common designs
-- [ ] Real-time collaboration features
+This is a fan-made tool for the Crusader Kings 3 community. 
 
-## License
+Crusader Kings III and all game assets are property of Paradox Interactive. Users must own CK3 to use this tool. This project is not affiliated with or endorsed by Paradox Interactive.
 
-[Add your license here]
+## AI Disclosure
 
-## Credits
-
-Created for the Crusader Kings 3 modding community.
-
-CK3 is a trademark of Paradox Interactive. This tool is not affiliated with or endorsed by Paradox Interactive.
+This tool was developed with heavy AI assistance. I respect that people have valid concerns about AI, and I do not wish to claim ownership over the output. This tool is provided for its own sake as a useful utility, free for anyone to use or modify.

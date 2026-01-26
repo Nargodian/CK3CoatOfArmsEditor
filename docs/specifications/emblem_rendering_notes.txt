@@ -50,6 +50,3 @@ vec3 GetOverlay(vec3 base, vec3 blend, float strength) {
     return mix(base, result, strength);
 }
 ```
-
-## TODO
-Update design.frag to use overlay blend for blue channel shading instead of direct multiply.

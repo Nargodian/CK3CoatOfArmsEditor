@@ -21,7 +21,7 @@ wheels/
 .installed.cfg
 *.egg
 
-# PyInstaller build artifacts (in build/ folder only)
+# PyInstaller build artifacts
 build/build/
 build/dist/
 *.spec.backup
