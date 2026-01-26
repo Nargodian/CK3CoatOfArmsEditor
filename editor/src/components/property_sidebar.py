@@ -636,6 +636,10 @@ class PropertySidebar(QFrame):
 		for idx in sorted(valid_indices, reverse=True):
 			self.layers.pop(idx)
 		
+		# Clear thumbnail cache since layer indices have shifted
+		if hasattr(self, 'layer_list_widget'):
+			self.layer_list_widget.clear_thumbnail_cache()
+		
 		# Select layer at top-most deleted position if exists, otherwise clear
 		if len(self.layers) > 0:
 			# If top-most deleted was beyond the end, select last layer
@@ -781,6 +785,11 @@ class PropertySidebar(QFrame):
 		"""Delete a specific layer by index"""
 		if 0 <= index < len(self.layers):
 			self.layers.pop(index)
+			
+			# Clear thumbnail cache since layer indices have shifted
+			if hasattr(self, 'layer_list_widget'):
+				self.layer_list_widget.clear_thumbnail_cache()
+			
 			# Adjust selected index if needed
 			selected_indices = self.get_selected_indices()
 			if selected_indices:
