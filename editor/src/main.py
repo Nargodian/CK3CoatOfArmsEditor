@@ -189,6 +189,30 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		file_menu.addSeparator()
 		
+		copy_coa_action = file_menu.addAction("&Copy CoA to Clipboard")
+		copy_coa_action.setShortcut("Ctrl+Shift+C")
+		copy_coa_action.triggered.connect(self.copy_coa)
+		
+		paste_coa_action = file_menu.addAction("&Paste CoA from Clipboard")
+		paste_coa_action.setShortcut("Ctrl+Shift+V")
+		paste_coa_action.triggered.connect(self.paste_coa)
+		
+		file_menu.addSeparator()
+		
+		copy_layer_action = file_menu.addAction("Copy &Layer")
+		copy_layer_action.setShortcut("Ctrl+C")
+		copy_layer_action.triggered.connect(self.copy_layer)
+		
+		paste_layer_action = file_menu.addAction("Paste Layer")
+		paste_layer_action.setShortcut("Ctrl+V")
+		paste_layer_action.triggered.connect(self.paste_layer_smart)
+		
+		duplicate_layer_action = file_menu.addAction("&Duplicate Layer")
+		duplicate_layer_action.setShortcut("Ctrl+D")
+		duplicate_layer_action.triggered.connect(self.duplicate_selected_layer)
+		
+		file_menu.addSeparator()
+		
 		exit_action = file_menu.addAction("E&xit")
 		exit_action.setShortcut("Alt+F4")
 		exit_action.triggered.connect(self.close)
@@ -208,27 +232,37 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		edit_menu.addSeparator()
 		
-		copy_coa_action = edit_menu.addAction("&Copy CoA to Clipboard")
-		copy_coa_action.setShortcut("Ctrl+Shift+C")
-		copy_coa_action.triggered.connect(self.copy_coa)
+		# Transform submenu
+		transform_menu = edit_menu.addMenu("&Transform")
 		
-		paste_coa_action = edit_menu.addAction("&Paste CoA from Clipboard")
-		paste_coa_action.setShortcut("Ctrl+Shift+V")
-		paste_coa_action.triggered.connect(self.paste_coa)
+		self.flip_x_action = transform_menu.addAction("Flip &Horizontal")
+		self.flip_x_action.triggered.connect(self._flip_x)
 		
-		edit_menu.addSeparator()
+		self.flip_y_action = transform_menu.addAction("Flip &Vertical")
+		self.flip_y_action.triggered.connect(self._flip_y)
 		
-		copy_layer_action = edit_menu.addAction("Copy &Layer")
-		copy_layer_action.setShortcut("Ctrl+C")
-		copy_layer_action.triggered.connect(self.copy_layer)
+		transform_menu.addSeparator()
 		
-		paste_layer_action = edit_menu.addAction("Paste Layer")
-		paste_layer_action.setShortcut("Ctrl+V")
-		paste_layer_action.triggered.connect(self.paste_layer_smart)
+		self.rotate_90_action = transform_menu.addAction("Rotate &90°")
+		self.rotate_90_action.triggered.connect(lambda: self._rotate_layers(90))
 		
-		duplicate_layer_action = edit_menu.addAction("&Duplicate Layer")
-		duplicate_layer_action.setShortcut("Ctrl+D")
-		duplicate_layer_action.triggered.connect(self.duplicate_selected_layer)
+		self.rotate_180_action = transform_menu.addAction("Rotate &180°")
+		self.rotate_180_action.triggered.connect(lambda: self._rotate_layers(180))
+		
+		self.rotate_minus_90_action = transform_menu.addAction("Rotate &-90°")
+		self.rotate_minus_90_action.triggered.connect(lambda: self._rotate_layers(-90))
+		
+		# Store transform actions for enabling/disabling
+		self.transform_actions = [
+			self.flip_x_action,
+			self.flip_y_action,
+			self.rotate_90_action,
+			self.rotate_180_action,
+			self.rotate_minus_90_action
+		]
+		
+		# Initially disable transform actions
+		self._update_transform_actions()
 		
 		edit_menu.addSeparator()
 		
@@ -379,6 +413,20 @@ class CoatOfArmsEditor(QMainWindow):
 		for action in self.alignment_actions:
 			action.setEnabled(enabled)
 	
+	def _update_transform_actions(self):
+		"""Enable or disable transform actions based on selection count"""
+		if not hasattr(self, 'right_sidebar'):
+			# Right sidebar not yet initialized, disable all transform actions
+			for action in self.transform_actions:
+				action.setEnabled(False)
+			return
+		
+		selected_count = len(self.right_sidebar.get_selected_indices())
+		enabled = selected_count >= 1
+		
+		for action in self.transform_actions:
+			action.setEnabled(enabled)
+	
 	def _align_layers(self, alignment):
 		"""Align selected layers
 		
@@ -424,6 +472,71 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# Save to history
 		self._save_state(f"Align layers {alignment}")
+	
+	def _flip_x(self):
+		"""Flip selected layers horizontally"""
+		selected_indices = self.right_sidebar.get_selected_indices()
+		if not selected_indices:
+			return
+		
+		for idx in selected_indices:
+			layer = self.right_sidebar.layers[idx]
+			# Flip scale_x
+			current_scale_x = layer.get('scale_x', 1.0)
+			layer['scale_x'] = -current_scale_x
+		
+		# Update UI
+		self.right_sidebar._load_layer_properties()
+		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+		self.canvas_area.update_transform_widget_for_layer()
+		
+		# Save to history
+		self._save_state("Flip horizontal")
+	
+	def _flip_y(self):
+		"""Flip selected layers vertically"""
+		selected_indices = self.right_sidebar.get_selected_indices()
+		if not selected_indices:
+			return
+		
+		for idx in selected_indices:
+			layer = self.right_sidebar.layers[idx]
+			# Flip scale_y
+			current_scale_y = layer.get('scale_y', 1.0)
+			layer['scale_y'] = -current_scale_y
+		
+		# Update UI
+		self.right_sidebar._load_layer_properties()
+		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+		self.canvas_area.update_transform_widget_for_layer()
+		
+		# Save to history
+		self._save_state("Flip vertical")
+	
+	def _rotate_layers(self, degrees):
+		"""Rotate selected layers by specified degrees
+		
+		Args:
+			degrees: Rotation amount in degrees (90, 180, or -90)
+		"""
+		selected_indices = self.right_sidebar.get_selected_indices()
+		if not selected_indices:
+			return
+		
+		for idx in selected_indices:
+			layer = self.right_sidebar.layers[idx]
+			# Add rotation (normalized to 0-360)
+			current_rotation = layer.get('rotation', 0.0)
+			new_rotation = (current_rotation + degrees) % 360
+			layer['rotation'] = new_rotation
+		
+		# Update UI
+		self.right_sidebar._load_layer_properties()
+		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+		self.canvas_area.update_transform_widget_for_layer()
+		
+		# Save to history
+		self._save_state(f"Rotate {degrees}°")
 	
 	def export_png(self):
 		"""Export current CoA as PNG with transparency"""
