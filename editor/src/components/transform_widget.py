@@ -448,14 +448,22 @@ class TransformWidget(QWidget):
 			# Ctrl + wheel: Scale X only
 			sign_x = 1 if self.scale_x >= 0 else -1
 			new_scale_x = abs(self.scale_x) + increment
-			new_scale_x = max(0.01, min(1.0, new_scale_x))  # Clamp
+			# Only clamp max for single selection (groups can exceed 1.0)
+			if self.is_multi_selection:
+				new_scale_x = max(0.01, new_scale_x)
+			else:
+				new_scale_x = max(0.01, min(1.0, new_scale_x))
 			self.scale_x = sign_x * new_scale_x
 			self.nonUniformScaleUsed.emit()
 		elif modifiers & Qt.ShiftModifier:
 			# Shift + wheel: Scale Y only
 			sign_y = 1 if self.scale_y >= 0 else -1
 			new_scale_y = abs(self.scale_y) + increment
-			new_scale_y = max(0.01, min(1.0, new_scale_y))  # Clamp
+			# Only clamp max for single selection (groups can exceed 1.0)
+			if self.is_multi_selection:
+				new_scale_y = max(0.01, new_scale_y)
+			else:
+				new_scale_y = max(0.01, min(1.0, new_scale_y))
 			self.scale_y = sign_y * new_scale_y
 			self.nonUniformScaleUsed.emit()
 		else:
@@ -464,8 +472,13 @@ class TransformWidget(QWidget):
 			sign_y = 1 if self.scale_y >= 0 else -1
 			new_scale_x = abs(self.scale_x) + increment
 			new_scale_y = abs(self.scale_y) + increment
-			new_scale_x = max(0.01, min(1.0, new_scale_x))  # Clamp
-			new_scale_y = max(0.01, min(1.0, new_scale_y))  # Clamp
+			# Only clamp max for single selection (groups can exceed 1.0)
+			if self.is_multi_selection:
+				new_scale_x = max(0.01, new_scale_x)
+				new_scale_y = max(0.01, new_scale_y)
+			else:
+				new_scale_x = max(0.01, min(1.0, new_scale_x))
+				new_scale_y = max(0.01, min(1.0, new_scale_y))
 			self.scale_x = sign_x * new_scale_x
 			self.scale_y = sign_y * new_scale_y
 		
