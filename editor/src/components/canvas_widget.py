@@ -793,29 +793,271 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			True if successful, False otherwise
 		"""
 		try:
-			from PyQt5.QtGui import QImage, QPainter
+			from PyQt5.QtGui import QImage, QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat
+			from PyQt5.QtCore import QSize
+			import numpy as np
 			
-			# Create a high-resolution image (2048x2048 for quality)
-			size = 2048
-			image = QImage(size, size, QImage.Format_ARGB32)
-			image.fill(Qt.transparent)
+			# Use high resolution for quality export
+			export_size = 2048
 			
-			# TODO: Render CoA to image using OpenGL framebuffer or painter
-			# For now, grab the current widget rendering
-			pixmap = self.grab()
-			painter = QPainter(image)
-			painter.setRenderHint(QPainter.Antialiasing)
-			painter.setRenderHint(QPainter.SmoothPixmapTransform)
+			# Make this widget's context current
+			self.makeCurrent()
 			
-			# Scale and center the pixmap
-			scaled_pixmap = pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-			x = (size - scaled_pixmap.width()) // 2
-			y = (size - scaled_pixmap.height()) // 2
-			painter.drawPixmap(x, y, scaled_pixmap)
-			painter.end()
+			# Create framebuffer format with alpha channel
+			fbo_format = QOpenGLFramebufferObjectFormat()
+			fbo_format.setAttachment(QOpenGLFramebufferObject.CombinedDepthStencil)
+			fbo_format.setInternalTextureFormat(0x8058)  # GL_RGBA8
 			
-			# Save as PNG
+			# Create Qt's OpenGL framebuffer object
+			fbo = QOpenGLFramebufferObject(QSize(export_size, export_size), fbo_format)
+			if not fbo.isValid():
+				raise Exception("Failed to create framebuffer")
+			
+			# Bind the framebuffer
+			fbo.bind()
+			
+			# Set viewport to export size
+			gl.glViewport(0, 0, export_size, export_size)
+			
+			# Clear with transparent background
+			gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+			gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+			
+			# Render the CoA
+			self._render_coa_for_export()
+			
+			# Get the image from the framebuffer
+			image = fbo.toImage()
+			
+			# Release framebuffer
+			fbo.release()
+			
+			# Restore normal viewport and clear color
+			gl.glViewport(0, 0, self.width(), self.height())
+			gl.glClearColor(0.05, 0.05, 0.05, 1.0)
+			
+			self.doneCurrent()
+			
+			# Save the image
 			return image.save(filename, "PNG")
+			
 		except Exception as e:
 			print(f"PNG export error: {e}")
+			import traceback
+			traceback.print_exc()
+			
+			# Try to restore context state
+			try:
+				gl.glViewport(0, 0, self.width(), self.height())
+				gl.glClearColor(0.05, 0.05, 0.05, 1.0)
+				self.doneCurrent()
+			except:
+				pass
+			
 			return False
+	
+	def _render_coa_for_export(self):
+		"""Render the CoA for export (similar to paintGL but without grid)"""
+		if not self.vao:
+			return
+		
+		self.vao.bind()
+		
+		# Render base layer with base.frag
+		if self.base_texture and self.base_texture in self.texture_uv_map and self.base_shader:
+			self.base_shader.bind()
+			atlas_idx, u0, v0, u1, v1 = self.texture_uv_map[self.base_texture]
+			
+			if atlas_idx < len(self.texture_atlases):
+				gl.glActiveTexture(gl.GL_TEXTURE0)
+				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
+				self.base_shader.setUniformValue("textureSampler", 0)
+				
+				# Bind mask texture if available
+				if self.mask_texture:
+					gl.glActiveTexture(gl.GL_TEXTURE1)
+					gl.glBindTexture(gl.GL_TEXTURE_2D, self.mask_texture)
+					if self.base_shader.uniformLocation("coaMaskSampler") != -1:
+						self.base_shader.setUniformValue("coaMaskSampler", 1)
+				
+				# Bind material mask texture
+				if self.material_mask_texture:
+					gl.glActiveTexture(gl.GL_TEXTURE2)
+					gl.glBindTexture(gl.GL_TEXTURE_2D, self.material_mask_texture)
+					if self.base_shader.uniformLocation("materialMaskSampler") != -1:
+						self.base_shader.setUniformValue("materialMaskSampler", 2)
+				
+				# Bind noise texture
+				if self.noise_texture:
+					gl.glActiveTexture(gl.GL_TEXTURE3)
+					gl.glBindTexture(gl.GL_TEXTURE_2D, self.noise_texture)
+					if self.base_shader.uniformLocation("noiseSampler") != -1:
+						self.base_shader.setUniformValue("noiseSampler", 3)
+				
+				# Set viewport size for mask coordinate calculation
+				# Use export size (2048) instead of widget size
+				self.base_shader.setUniformValue("viewportSize", 2048.0, 2048.0)
+				
+				# Set base colors from property sidebar
+				color1 = self.base_colors[0] if len(self.base_colors) > 0 else [0.439, 0.129, 0.086]
+				color2 = self.base_colors[1] if len(self.base_colors) > 1 else [0.588, 0.224, 0.0]
+				color3 = self.base_colors[2] if len(self.base_colors) > 2 else [0.733, 0.510, 0.180]
+				self.base_shader.setUniformValue("primaryColor", color1[0], color1[1], color1[2])
+				self.base_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
+				self.base_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
+				
+				# Update UV coordinates for base texture (no zoom for export)
+				base_size = 0.8
+				vertices = np.array([
+					-base_size, -base_size, 0.0,  u0, v1,
+					 base_size, -base_size, 0.0,  u1, v1,
+					 base_size,  base_size, 0.0,  u1, v0,
+					-base_size,  base_size, 0.0,  u0, v0,
+				], dtype=np.float32)
+				
+				self.vbo.bind()
+				self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+				
+				gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+				self.base_shader.release()
+		
+		# Render emblem layers with design.frag
+		if self.layers and self.design_shader:
+			self.design_shader.bind()
+			
+			for layer in self.layers:
+				# Skip hidden layers
+				if not layer.get('visible', True):
+					continue
+					
+				filename = layer.get('filename')
+				if not filename or filename not in self.texture_uv_map:
+					continue
+				
+				atlas_idx, u0, v0, u1, v1 = self.texture_uv_map[filename]
+				
+				if atlas_idx < len(self.texture_atlases):
+					gl.glActiveTexture(gl.GL_TEXTURE0)
+					gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
+					self.design_shader.setUniformValue("textureSampler", 0)
+					
+					# Bind mask texture if available
+					if self.mask_texture:
+						gl.glActiveTexture(gl.GL_TEXTURE1)
+						gl.glBindTexture(gl.GL_TEXTURE_2D, self.mask_texture)
+						if self.design_shader.uniformLocation("coaMaskSampler") != -1:
+							self.design_shader.setUniformValue("coaMaskSampler", 1)
+					
+					# Bind material mask texture
+					if self.material_mask_texture:
+						gl.glActiveTexture(gl.GL_TEXTURE2)
+						gl.glBindTexture(gl.GL_TEXTURE_2D, self.material_mask_texture)
+						if self.design_shader.uniformLocation("materialMaskSampler") != -1:
+							self.design_shader.setUniformValue("materialMaskSampler", 2)
+					
+					# Bind noise texture
+					if self.noise_texture:
+						gl.glActiveTexture(gl.GL_TEXTURE3)
+						gl.glBindTexture(gl.GL_TEXTURE_2D, self.noise_texture)
+						if self.design_shader.uniformLocation("noiseSampler") != -1:
+							self.design_shader.setUniformValue("noiseSampler", 3)
+					
+					# Set viewport size for mask coordinate calculation
+					self.design_shader.setUniformValue("viewportSize", 2048.0, 2048.0)
+					
+					# Set emblem colors from layer properties
+					color1 = layer.get('color1', [0.439, 0.129, 0.086])
+					color2 = layer.get('color2', [0.588, 0.224, 0.0])
+					color3 = layer.get('color3', [0.733, 0.510, 0.180])
+					self.design_shader.setUniformValue("primaryColor", color1[0], color1[1], color1[2])
+					self.design_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
+					self.design_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
+					
+					# Apply transform properties (no zoom for export)
+					pos_x = layer.get('pos_x', 0.5)
+					pos_y = layer.get('pos_y', 0.5)
+					scale_x = layer.get('scale_x', 0.5)
+					scale_y = layer.get('scale_y', 0.5)
+					flip_x = layer.get('flip_x', False)
+					flip_y = layer.get('flip_y', False)
+					rotation = layer.get('rotation', 0)
+					
+					# Convert properties to screen coordinates (no zoom)
+					center_x = (pos_x - 0.5) * 1.1
+					center_y = -(pos_y - 0.5) * 1.1
+					
+					# Calculate rotated and scaled quad vertices
+					import math
+					angle_rad = math.radians(-rotation)
+					cos_a = math.cos(angle_rad)
+					sin_a = math.sin(angle_rad)
+					
+					# Apply flip separately from scale magnitude
+					scale_sign_x = -1 if flip_x else 1
+					scale_sign_y = -1 if flip_y else 1
+					half_width = scale_x * 0.6
+					half_height = scale_y * 0.6
+					
+					# Define unit quad corners
+					unit_corners = [
+						(-1.0, -1.0),  # Bottom-left
+						( 1.0, -1.0),  # Bottom-right
+						( 1.0,  1.0),  # Top-right
+						(-1.0,  1.0),  # Top-left
+					]
+					
+					# Apply transformations
+					transformed = []
+					for ux, uy in unit_corners:
+						fx = ux * scale_sign_x
+						fy = uy * scale_sign_y
+						rx = fx * cos_a - fy * sin_a
+						ry = fx * sin_a + fy * cos_a
+						sx = rx * half_width
+						sy = ry * half_height
+						transformed.append((sx + center_x, sy + center_y))
+					
+					# Update UV coordinates for this layer
+					vertices = np.array([
+						transformed[0][0], transformed[0][1], 0.0,  u0, v1,
+						transformed[1][0], transformed[1][1], 0.0,  u1, v1,
+						transformed[2][0], transformed[2][1], 0.0,  u1, v0,
+						transformed[3][0], transformed[3][1], 0.0,  u0, v0,
+					], dtype=np.float32)
+					
+					self.vbo.bind()
+					self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+					
+					gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			
+			self.design_shader.release()
+		
+		# Render frame on top if selected
+		if self.frame_texture and self.basic_shader:
+			self.basic_shader.bind()
+			
+			gl.glActiveTexture(gl.GL_TEXTURE0)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.frame_texture)
+			self.basic_shader.setUniformValue("textureSampler", 0)
+			
+			# Frame textures are 6x1 tiles for prestige levels
+			tile_width = 1.0 / 6.0
+			u_start = self.prestige_level * tile_width
+			u_end = u_start + tile_width
+			
+			# Full screen quad for frame (no zoom)
+			frame_size = 0.8
+			vertices = np.array([
+				-frame_size, -frame_size, 0.0,  u_start, 1.0,
+				 frame_size, -frame_size, 0.0,  u_end, 1.0,
+				 frame_size,  frame_size, 0.0,  u_end, 0.0,
+				-frame_size,  frame_size, 0.0,  u_start, 0.0,
+			], dtype=np.float32)
+			
+			self.vbo.bind()
+			self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+			
+			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			self.basic_shader.release()
+		
+		self.vao.release()
