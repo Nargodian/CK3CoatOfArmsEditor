@@ -81,6 +81,9 @@ class CoatOfArmsEditor(QMainWindow):
 		self.autosave_timer.timeout.connect(self._autosave)
 		self.autosave_timer.start(120000)  # 2 minutes in milliseconds
 		
+		# Install event filter on application to catch arrow keys globally
+		QApplication.instance().installEventFilter(self)
+		
 		self.setup_ui()
 		
 		# Check for autosave recovery after UI is set up
@@ -809,6 +812,42 @@ class CoatOfArmsEditor(QMainWindow):
 			# Use a timer to ensure everything is fully initialized
 			QTimer.singleShot(100, lambda: self._save_state("Initial state"))
 	
+	def eventFilter(self, obj, event):
+		"""Filter events to capture arrow keys before child widgets consume them"""
+		if event.type() == event.KeyPress:
+			# Intercept arrow keys when layers are selected
+			if event.key() in [Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down]:
+				selected_indices = self.right_sidebar.get_selected_indices()
+				if selected_indices:
+					# Handle arrow key movement
+					from constants import ARROW_KEY_MOVE_NORMAL, ARROW_KEY_MOVE_FINE
+					move_amount = ARROW_KEY_MOVE_FINE if event.modifiers() & Qt.ShiftModifier else ARROW_KEY_MOVE_NORMAL
+					
+					for idx in selected_indices:
+						layer = self.right_sidebar.layers[idx]
+						if event.key() == Qt.Key_Left:
+							layer['pos_x'] = max(0.0, layer.get('pos_x', 0.5) - move_amount)
+						elif event.key() == Qt.Key_Right:
+							layer['pos_x'] = min(1.0, layer.get('pos_x', 0.5) + move_amount)
+						elif event.key() == Qt.Key_Up:
+							layer['pos_y'] = max(0.0, layer.get('pos_y', 0.5) - move_amount)
+						elif event.key() == Qt.Key_Down:
+							layer['pos_y'] = min(1.0, layer.get('pos_y', 0.5) + move_amount)
+					
+					# Update UI
+					self.right_sidebar._load_layer_properties()
+					self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+					self.canvas_area.update_transform_widget_for_layer()
+					
+					# Save to history
+					self.save_property_change_debounced("Move layer with arrow keys")
+					
+					# Consume the event so child widgets don't process it
+					return True
+		
+		# Let all other events pass through
+		return False
+	
 	def keyPressEvent(self, event):
 		"""Handle keyboard shortcuts"""
 		# Ctrl+S for save
@@ -1411,9 +1450,22 @@ class CoatOfArmsEditor(QMainWindow):
 			canvas_x = local_x - canvas_offset_x - canvas_size / 2
 			canvas_y = local_y - canvas_offset_y - canvas_size / 2
 			
-			# Convert to normalized coords [0-1] (canvas uses 1.1 scale factor)
-			norm_x = (canvas_x / (canvas_size / 2) / 1.1) + 0.5
-			norm_y = (canvas_y / (canvas_size / 2) / 1.1) + 0.5
+			# Get zoom level from canvas widget
+			zoom_level = self.canvas_area.canvas_widget.zoom_level
+			
+			print(f"DEBUG PASTE: mouse_pos=({mouse_pos.x()}, {mouse_pos.y()}), local=({local_x}, {local_y})")
+			print(f"DEBUG PASTE: canvas_geometry=({canvas_geometry.x()}, {canvas_geometry.y()}, {canvas_geometry.width()}x{canvas_geometry.height()})")
+			print(f"DEBUG PASTE: canvas_size={canvas_size}, offset=({canvas_offset_x}, {canvas_offset_y})")
+			print(f"DEBUG PASTE: canvas_x={canvas_x}, canvas_y={canvas_y}")
+			print(f"DEBUG PASTE: zoom_level={zoom_level}")
+			
+			# Convert to normalized coords [0-1]
+			# Canvas rendering uses: center = (pos - 0.5) * 1.1 * zoom_level
+			# So reverse: pos = (center / (1.1 * zoom_level)) + 0.5
+			norm_x = (canvas_x / (canvas_size / 2) / 1.1 / zoom_level) + 0.5
+			norm_y = (canvas_y / (canvas_size / 2) / 1.1 / zoom_level) + 0.5
+			
+			print(f"DEBUG PASTE: norm_x={norm_x}, norm_y={norm_y}")
 			
 			# Clamp to legal positions [0-1]
 			norm_x = max(0.0, min(1.0, norm_x))

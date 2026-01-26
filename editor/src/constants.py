@@ -45,6 +45,13 @@ CK3_COLOR_NAMES_ORDERED = [
 ]
 
 # ======================================================================
+# LAYER MOVEMENT CONSTANTS
+# ======================================================================
+# Amount to move layers when using arrow keys
+ARROW_KEY_MOVE_NORMAL = 0.01  # Normal arrow key movement
+ARROW_KEY_MOVE_FINE = 0.002   # Fine movement with Shift modifier
+
+# ======================================================================
 # DEFAULT COLORS
 # ======================================================================
 
