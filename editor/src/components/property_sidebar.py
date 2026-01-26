@@ -903,33 +903,25 @@ class PropertySidebar(QFrame):
 			if self.canvas_area:
 				self.canvas_area.update_transform_widget_for_layer(None)
 	
-	def _on_layer_reorder(self, new_order):
-		"""Handle layer reordering from drag-drop"""
-		# Reorder layers list
-		reordered = [self.layers[i] for i in new_order]
-		self.layers = reordered
+	def _on_layer_reorder(self, count):
+		"""Handle layer reordering from drag-drop
 		
-		# Update selection indices to match new positions
-		new_selected = []
-		for old_idx in self.selected_layer_indices:
-			if old_idx < len(new_order):
-				new_idx = new_order.index(old_idx)
-				new_selected.append(new_idx)
+		Note: The layer_list_widget already reordered self.layers directly.
+		This callback just updates the canvas and saves state.
 		
-		self.selected_layer_indices = sorted(new_selected)
-		if self.last_selected_index in self.selected_layer_indices:
-			self.last_selected_index = self.selected_layer_indices[-1]
-		elif self.selected_layer_indices:
-			self.last_selected_index = self.selected_layer_indices[-1]
+		Args:
+			count: Number of layers that were reordered
+		"""
+		# Layers were already reordered by layer_list_widget
+		# Selection was also already updated by layer_list_widget
+		# Just sync canvas and save state
 		
-		# Update UI
-		self._rebuild_layer_list()
+		# Update canvas
 		if self.canvas_widget:
 			self.canvas_widget.set_layers(self.layers)
 		
 		# Save state
 		if self.main_window and hasattr(self.main_window, '_save_state'):
-			count = len(new_order)
 			layer_word = "layers" if count > 1 else "layer"
 			self.main_window._save_state(f"Reorder {count} {layer_word}")
 	

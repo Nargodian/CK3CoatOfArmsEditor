@@ -448,9 +448,9 @@ class CanvasArea(QFrame):
 				self.property_sidebar.unified_scale_check.setChecked(False)
 	
 	def _on_layer_duplicated(self):
-		"""Handle Ctrl+drag layer duplication"""
-		if self.main_window and hasattr(self.main_window, 'duplicate_selected_layer'):
-			self.main_window.duplicate_selected_layer()
+		"""Handle Ctrl+drag layer duplication - duplicate goes BELOW original"""
+		if self.main_window and hasattr(self.main_window, 'duplicate_selected_layer_below'):
+			self.main_window.duplicate_selected_layer_below()
 	
 	def _on_frame_changed(self, frame_text):
 		"""Handle frame selection change"""

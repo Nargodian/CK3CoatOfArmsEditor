@@ -9,7 +9,7 @@ if __name__ == "__main__":
 	if current_dir not in sys.path:
 		sys.path.insert(0, current_dir)
 
-# PyQt5 imports
+# PyQt5 import/s
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QSplitter, QApplication, QFileDialog, QMessageBox, QStatusBar, QLabel
 from PyQt5.QtCore import Qt, QTimer, QPoint
@@ -700,6 +700,49 @@ class CoatOfArmsEditor(QMainWindow):
 			# Save to history
 			layer_word = "layers" if len(duplicated_layers) > 1 else "layer"
 			self._save_state(f"Duplicate {len(duplicated_layers)} {layer_word}")
+		except Exception as e:
+			QMessageBox.warning(self, "Duplicate Error", f"Failed to duplicate layer: {str(e)}")
+	
+	def duplicate_selected_layer_below(self):
+		"""Duplicate the currently selected layer BELOW the original (for Ctrl+drag)"""
+		try:
+			# Check if a single layer is selected (multi-layer ctrl+drag not supported)
+			selected_indices = self.right_sidebar.get_selected_indices()
+			if not selected_indices or len(selected_indices) != 1:
+				return
+			
+			layer_idx = selected_indices[0]
+			if layer_idx >= len(self.right_sidebar.layers):
+				return
+			
+			# Duplicate the layer
+			layer = self.right_sidebar.layers[layer_idx]
+			duplicated_layer = duplicate_layer(layer)
+			
+			# Insert BEFORE (below) the original layer - lower index = further back
+			insert_position = layer_idx
+			self.right_sidebar.layers.insert(insert_position, duplicated_layer)
+			
+			# Keep the ORIGINAL layer selected (which is now at layer_idx + 1)
+			self.right_sidebar.selected_layer_indices = {layer_idx + 1}
+			self.right_sidebar.last_selected_index = layer_idx + 1
+			
+			# Clear layer thumbnail cache since indices have shifted
+			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
+				self.right_sidebar.layer_list_widget.clear_thumbnail_cache()
+			
+			# Rebuild the layer list UI
+			self.right_sidebar._rebuild_layer_list()
+			
+			# Update canvas layers (but don't update transform widget - that would kill the drag)
+			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			
+			# Force immediate canvas redraw
+			self.canvas_area.canvas_widget.repaint()
+			self.repaint()
+			
+			# Save to history
+			self._save_state("Duplicate layer (Ctrl+drag)")
 		except Exception as e:
 			QMessageBox.warning(self, "Duplicate Error", f"Failed to duplicate layer: {str(e)}")
 	

@@ -296,21 +296,19 @@ class TransformWidget(QWidget):
 	def mouseMoveEvent(self, event):
 		"""Handle mouse move"""
 		if self.active_handle != self.HANDLE_NONE and self.drag_start_pos:
-			# Check for Ctrl+drag duplication (only once per drag, only for translation/center handle)
+			# Check for Ctrl+drag duplication with 5-pixel threshold
 			if (self.ctrl_pressed_at_drag_start and 
 			    not self.duplicate_created and 
 			    self.active_handle == self.HANDLE_CENTER):
-				# Check if mouse has moved enough to trigger duplication (avoid accidental triggers)
+				# Check if mouse has moved at least 5 pixels from drag start
 				dx = event.pos().x() - self.drag_start_pos.x()
 				dy = event.pos().y() - self.drag_start_pos.y()
 				distance = math.sqrt(dx*dx + dy*dy)
 				
-				if distance > 10:  # Minimum 10 pixels movement to trigger
+				if distance >= 5:  # 5-pixel threshold
 					self.duplicate_created = True
 					self.layerDuplicated.emit()
-					# Reset drag start to current position for smoother continuation
-					self.drag_start_pos = event.pos()
-					self.drag_start_transform = (self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
+					# Note: Don't reset drag_start_pos - keep dragging from original position
 			
 			self._handle_drag(event.pos())
 			event.accept()
