@@ -3,43 +3,15 @@
 Package script for CK3 Coat of Arms Editor
 - Creates version-numbered zip file
 """
-import subprocess
 import shutil
 import os
 import sys
 from pathlib import Path
-from datetime import datetime
 
 
 def get_version():
-    """Get semantic version from git tags
-    
-    Returns version in format X.Y.Z
-    - If on a tag: 1.2.3
-    - If commits after tag: 1.2.3 (base tag version)
-    - If no tags: 0.0.0
-    """
-    try:
-        # Try to get the current tag or closest tag
-        result = subprocess.run(
-            ['git', 'describe', '--tags', '--abbrev=0'],
-            capture_output=True,
-            text=True,
-            check=False
-        )
-        
-        if result.returncode == 0:
-            version = result.stdout.strip()
-            # Remove leading 'v' if present
-            if version.startswith('v'):
-                version = version[1:]
-            return version
-        
-    except:
-        pass
-    
-    # Fallback: no tags found, use 0.0.0
-    return "0.0.0"
+    """Return hardcoded version"""
+    return "1.0.0"
 
 
 def create_zip(source_dir, output_name):
