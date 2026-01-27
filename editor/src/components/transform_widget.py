@@ -14,6 +14,12 @@ from PyQt5.QtCore import Qt, QPointF, QRectF, pyqtSignal, QEvent
 from PyQt5.QtGui import QPainter, QPen, QBrush, QColor, QTransform
 import math
 
+# Import coordinate conversion functions from canvas_widget
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from canvas_widget import layer_pos_to_qt_pixels, qt_pixels_to_layer_pos
+
 
 class TransformWidget(QWidget):
 	"""Interactive transform widget for manipulating layer transforms"""
@@ -140,21 +146,12 @@ class TransformWidget(QWidget):
 		# - Canvas uses -0.8 to 0.8 screen space for the CoA
 		# - Position 0.5 = center (0.0 in screen space)
 		# - Scale is multiplied by 0.6 for actual size
-		# - Y-axis inverted for CK3 coordinate system
 		
 		# Get canvas position and size within parent container
 		_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 		
-		# Convert normalized coords to screen space matching canvas
-		# Canvas: center_x = (pos_x - 0.5) * 1.1 in normalized space (-0.8 to 0.8)
-		# Canvas: center_y = -(pos_y - 0.5) * 1.1 (Y inverted in OpenGL)
-		# But widget uses Qt coords where Y increases downward, so we don't invert
-		# Then multiply by (size / 2) to get pixels (OpenGL normalized space conversion)
-		canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
-		canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)  # No inversion for Qt coords
-		
-		center_x = offset_x + size / 2 + canvas_x
-		center_y = offset_y + size / 2 + canvas_y
+		# Convert layer position to Qt pixel coordinates using shared function
+		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 		
 		# Widget box shows fixed size based on scale values only
 		# Rotation doesn't affect the widget box size
@@ -270,11 +267,7 @@ class TransformWidget(QWidget):
 		# Get canvas position and size
 		_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 		
-		canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
-		canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
-		
-		center_x = offset_x + size / 2 + canvas_x
-		center_y = offset_y + size / 2 + canvas_y
+		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 		
 		scaled_w = abs(self.scale_x) * 0.6 * (size / 2)
 		scaled_h = abs(self.scale_y) * 0.6 * (size / 2)
@@ -498,30 +491,31 @@ class TransformWidget(QWidget):
 		start_x, start_y, start_sx, start_sy, start_rot = self.drag_start_transform
 		
 		# Get canvas size for coordinate conversion
-		_, _, _, _, size, _, _ = self._get_canvas_rect()
-		# OpenGL normalized space: 1 unit = size/2 pixels
-		# Canvas uses (pos - 0.5) * 1.1, so conversion is:
-		canvas_scale = 1.1 * (size / 2)
+		_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 		
 		if self.active_handle == self.HANDLE_CENTER:
-			# Move - convert pixel delta to normalized coords
-			delta_x = dx / canvas_scale
-			delta_y = dy / canvas_scale
-			
-			self.pos_x = start_x + delta_x
-			self.pos_y = start_y + delta_y
+			# Move - convert current pixel position to layer coords
+			new_pos_x, new_pos_y = qt_pixels_to_layer_pos(
+				current_pos.x(), current_pos.y(), size, offset_x, offset_y
+			)
+			self.pos_x = new_pos_x
+			self.pos_y = new_pos_y
 			
 		elif self.active_handle == self.HANDLE_AXIS_X:
 			# X-axis constrained movement (only horizontal)
-			delta_x = dx / canvas_scale
-			self.pos_x = start_x + delta_x
+			new_pos_x, _ = qt_pixels_to_layer_pos(
+				current_pos.x(), current_pos.y(), size, offset_x, offset_y
+			)
+			self.pos_x = new_pos_x
 			# Y position stays locked
 			self.pos_y = start_y
 			
 		elif self.active_handle == self.HANDLE_AXIS_Y:
 			# Y-axis constrained movement (only vertical)
-			delta_y = dy / canvas_scale
-			self.pos_y = start_y + delta_y
+			_, new_pos_y = qt_pixels_to_layer_pos(
+				current_pos.x(), current_pos.y(), size, offset_x, offset_y
+			)
+			self.pos_y = new_pos_y
 			# X position stays locked
 			self.pos_x = start_x
 			
@@ -529,10 +523,7 @@ class TransformWidget(QWidget):
 			# Rotate - calculate delta angle from start position
 			# Get center in screen coords
 			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
-			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
-			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
-			center_x = offset_x + size / 2 + canvas_x
-			center_y = offset_y + size / 2 + canvas_y
+			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 			
 			# Calculate angle from center to start position
 			start_angle = math.degrees(math.atan2(self.drag_start_pos.y() - center_y, self.drag_start_pos.x() - center_x))
@@ -553,10 +544,7 @@ class TransformWidget(QWidget):
 			
 			# Determine if moving away or towards center
 			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
-			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
-			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
-			center_x = offset_x + size / 2 + canvas_x
-			center_y = offset_y + size / 2 + canvas_y
+			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 			
 			# Vector from center to drag start
 			start_vec_x = self.drag_start_pos.x() - center_x
@@ -581,10 +569,7 @@ class TransformWidget(QWidget):
 		elif self.active_handle in [self.HANDLE_L, self.HANDLE_R]:
 			# Horizontal scale - simple X-axis scaling
 			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
-			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
-			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
-			center_x = offset_x + size / 2 + canvas_x
-			center_y = offset_y + size / 2 + canvas_y
+			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 			
 			# Calculate horizontal distance change
 			start_dist = abs(self.drag_start_pos.x() - center_x)
@@ -601,10 +586,7 @@ class TransformWidget(QWidget):
 		elif self.active_handle in [self.HANDLE_T, self.HANDLE_B]:
 			# Vertical scale - simple Y-axis scaling
 			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
-			canvas_x = (self.pos_x - 0.5) * 1.1 * (size / 2)
-			canvas_y = (self.pos_y - 0.5) * 1.1 * (size / 2)
-			center_x = offset_x + size / 2 + canvas_x
-			center_y = offset_y + size / 2 + canvas_y
+			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 			
 			# Calculate vertical distance change
 			start_dist = abs(self.drag_start_pos.y() - center_y)

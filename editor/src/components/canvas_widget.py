@@ -23,6 +23,83 @@ from utils.path_resolver import (get_pattern_metadata_path, get_emblem_metadata_
                                   get_pattern_source_dir, get_emblem_source_dir, get_frames_dir)
 
 
+# ========================================
+# Coordinate Conversion Functions
+# ========================================
+
+def layer_pos_to_opengl_coords(pos_x, pos_y):
+	"""Convert layer position (0-1 range) to OpenGL normalized coordinates.
+	
+	Args:
+		pos_x: Layer X position (0-1, where 0.5 is center)
+		pos_y: Layer Y position (0-1, where 0.5 is center)
+		
+	Returns:
+		(gl_x, gl_y): OpenGL coordinates in normalized space (-0.55 to 0.55)
+	"""
+	gl_x = (pos_x - 0.5) * 1.1
+	gl_y = (pos_y - 0.5) * 1.1  # No inversion - OpenGL Y-up matches layer Y-up
+	return gl_x, gl_y
+
+
+def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0):
+	"""Convert layer position (0-1 range) to Qt widget pixel coordinates.
+	
+	Args:
+		pos_x: Layer X position (0-1, where 0.5 is center)
+		pos_y: Layer Y position (0-1, where 0.5 is center)
+		canvas_size: Size of the canvas square in pixels
+		offset_x: X offset of canvas within parent widget
+		offset_y: Y offset of canvas within parent widget
+		
+	Returns:
+		(qt_x, qt_y): Qt pixel coordinates (Y-down)
+	"""
+	# First convert to OpenGL coords
+	gl_x, gl_y = layer_pos_to_opengl_coords(pos_x, pos_y)
+	
+	# Convert OpenGL normalized (-0.55 to 0.55) to pixels
+	# OpenGL space: 1.0 unit = canvas_size/2 pixels
+	pixel_x = gl_x * (canvas_size / 2)
+	pixel_y = gl_y * (canvas_size / 2)
+	
+	# Qt Y-axis is inverted (down is positive)
+	# Canvas center is at (offset + size/2, offset + size/2)
+	qt_x = offset_x + canvas_size / 2 + pixel_x
+	qt_y = offset_y + canvas_size / 2 - pixel_y  # Negate Y for Qt coords
+	
+	return qt_x, qt_y
+
+
+def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0):
+	"""Convert Qt widget pixel coordinates to layer position (0-1 range).
+	
+	Args:
+		qt_x: Qt X pixel coordinate
+		qt_y: Qt Y pixel coordinate
+		canvas_size: Size of the canvas square in pixels
+		offset_x: X offset of canvas within parent widget
+		offset_y: Y offset of canvas within parent widget
+		
+	Returns:
+		(pos_x, pos_y): Layer position (0-1 range)
+	"""
+	# Convert Qt pixels to canvas-relative pixels
+	pixel_x = qt_x - offset_x - canvas_size / 2
+	pixel_y = qt_y - offset_y - canvas_size / 2
+	
+	# Convert pixels to OpenGL normalized space
+	# Invert Y because Qt Y-down, OpenGL Y-up
+	gl_x = pixel_x / (canvas_size / 2)
+	gl_y = -pixel_y / (canvas_size / 2)
+	
+	# Convert OpenGL coords to layer position
+	pos_x = gl_x / 1.1 + 0.5
+	pos_y = gl_y / 1.1 + 0.5
+	
+	return pos_x, pos_y
+
+
 class CoatOfArmsCanvas(QOpenGLWidget):
 	"""OpenGL canvas for rendering coat of arms with shaders"""
 	
@@ -309,8 +386,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				flip_y = layer.get('flip_y', False)
 				rotation = layer.get('rotation', 0)
 				
-				center_x = (pos_x - 0.5) * 1.1
-				center_y = -(pos_y - 0.5) * 1.1
+				# Convert layer position to OpenGL coordinates
+				center_x, center_y = layer_pos_to_opengl_coords(pos_x, pos_y)
 				
 				angle_rad = math.radians(-rotation)
 				cos_a = math.cos(angle_rad)
@@ -980,9 +1057,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					flip_y = layer.get('flip_y', False)
 					rotation = layer.get('rotation', 0)
 					
-					# Convert properties to screen coordinates (no zoom)
-					center_x = (pos_x - 0.5) * 1.1
-					center_y = -(pos_y - 0.5) * 1.1
+					# Convert layer position to OpenGL coordinates
+					center_x, center_y = layer_pos_to_opengl_coords(pos_x, pos_y)
 					
 					# Calculate rotated and scaled quad vertices
 					import math
