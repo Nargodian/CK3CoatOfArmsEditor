@@ -802,7 +802,8 @@ class CoatOfArmsEditor(QMainWindow):
 			'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
 			'color1_name': DEFAULT_EMBLEM_COLOR1,
 			'color2_name': DEFAULT_EMBLEM_COLOR2,
-			'color3_name': DEFAULT_EMBLEM_COLOR3
+			'color3_name': DEFAULT_EMBLEM_COLOR3,
+			'mask': None  # No mask = render everywhere (default)
 		}
 		
 		# Insert at beginning and select

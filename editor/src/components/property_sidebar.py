@@ -168,6 +168,10 @@ class PropertySidebar(QFrame):
 		self.tab_widget.setCurrentIndex(0)
 		
 		layout.addWidget(self.tab_widget)
+		
+		# Initialize mask colors after UI is built (delayed to ensure everything is ready)
+		from PyQt5.QtCore import QTimer
+		QTimer.singleShot(100, self.update_mask_colors_from_base)
 	
 	def _create_base_tab(self):
 		"""Create the Base properties tab"""
@@ -374,7 +378,7 @@ class PropertySidebar(QFrame):
 		
 		# Instance Properties
 		self._add_property_section(content_layout, "Instance")
-		
+
 		# Position sliders using PropertySlider
 		self.pos_x_editor = PropertySlider("Position X", 0.5, 0.0, 1.0)
 		self.pos_x_editor.valueChanged.connect(lambda v: self._update_layer_property_and_widget('pos_x', v))
@@ -393,6 +397,52 @@ class PropertySidebar(QFrame):
 		self.rotation_editor = PropertySlider("Rotation", 0, 0, 360, is_int=True)
 		self.rotation_editor.valueChanged.connect(lambda v: self._update_layer_property_and_widget('rotation', v))
 		content_layout.addWidget(self.rotation_editor)
+		
+		# Pattern Mask
+		self._add_property_section(content_layout, "Pattern Mask")
+		
+		# Mask channel selection checkboxes
+		mask_layout = QHBoxLayout()
+		mask_layout.setSpacing(8)
+		mask_layout.setContentsMargins(10, 5, 10, 5)
+		
+		# Create checkboxes for 3 mask channels
+		self.mask_checkboxes = []
+		
+		for i in range(3):
+			channel_widget = QWidget()
+			channel_layout = QVBoxLayout(channel_widget)
+			channel_layout.setContentsMargins(0, 0, 0, 0)
+			channel_layout.setSpacing(2)
+			
+			# Color indicator (will be updated with pattern colors)
+			color_indicator = QLabel()
+			color_indicator.setFixedSize(24, 24)
+			color_indicator.setStyleSheet("""
+				QLabel {
+					background-color: #888888;
+					border: 2px solid rgba(255, 255, 255, 100);
+					border-radius: 4px;
+				}
+			""")
+			color_indicator.setAlignment(Qt.AlignCenter)
+			channel_layout.addWidget(color_indicator, alignment=Qt.AlignCenter)
+			
+			# Checkbox
+			checkbox = QCheckBox(f"Ch {i+1}")
+			checkbox.setChecked(False)
+			checkbox.stateChanged.connect(lambda state, ch=i: self._update_mask_from_ui())
+			channel_layout.addWidget(checkbox, alignment=Qt.AlignCenter)
+			
+			self.mask_checkboxes.append({
+				'checkbox': checkbox,
+				'color_indicator': color_indicator,
+				'widget': channel_widget
+			})
+			mask_layout.addWidget(channel_widget)
+		
+		mask_layout.addStretch()
+		content_layout.addLayout(mask_layout)
 		
 		scroll.setWidget(content)
 		return scroll
@@ -459,6 +509,9 @@ class PropertySidebar(QFrame):
 				for i, btn in enumerate(self.color_buttons):
 					color_name_prop = btn.property("colorName")
 					setattr(self.canvas_widget, f'base_color{i+1}_name', color_name_prop)
+				
+				# Update mask channel color indicators
+				self.update_mask_colors_from_base()
 				
 				# Clear layer thumbnail cache since background colors changed
 				if hasattr(self, 'layer_list_widget') and self.layer_list_widget:
@@ -561,6 +614,9 @@ class PropertySidebar(QFrame):
 						border-radius: 4px;
 					}}
 				""")
+		
+		# Update mask channel color indicators
+		self.update_mask_colors_from_base()
 	
 	def set_emblem_color_count(self, count):
 		"""Show/hide emblem color swatches based on asset color count (1, 2, or 3)"""
@@ -1118,6 +1174,9 @@ class PropertySidebar(QFrame):
 		self.scale_editor.blockSignals(False)
 		self.rotation_editor.blockSignals(False)
 		
+		# Update mask UI
+		self._update_mask_ui()
+		
 		# DON'T update transform widget here - it uses abs() which destroys flip state
 		# Transform widget is updated when layer selection changes, not when UI loads
 		
@@ -1232,4 +1291,98 @@ class PropertySidebar(QFrame):
 			else:
 				# No selection
 				self.multi_select_label.setVisible(False)
-				self.single_layer_label.setVisible(False)
+				self.single_layer_label.setVisible(False)	
+	# ========================================
+	# Pattern Mask Management
+	# ========================================
+	
+	def _update_mask_from_ui(self):
+		"""Update mask field in selected layers based on checkbox states"""
+		selected_indices = self.get_selected_indices()
+		if not selected_indices:
+			return
+		
+		# Build mask list from checkbox states [ch1, ch2, ch3]
+		mask = []
+		for i, mask_item in enumerate(self.mask_checkboxes):
+			if mask_item['checkbox'].isChecked():
+				mask.append(i + 1)  # Channels are 1-indexed
+			else:
+				mask.append(0)
+		
+		# If all unchecked, set to None (render everywhere)
+		if all(v == 0 for v in mask):
+			mask = None
+		
+		# Apply to all selected layers
+		for idx in selected_indices:
+			if 0 <= idx < len(self.layers):
+				self.layers[idx]['mask'] = mask
+		
+		# Update canvas
+		if self.canvas_widget:
+			self.canvas_widget.set_layers(self.layers)
+		
+		# Save to history
+		if self.main_window and hasattr(self.main_window, '_save_state'):
+			self.main_window._save_state("Change pattern mask")
+	
+	def _update_mask_ui(self):
+		"""Update mask checkboxes based on selected layer's mask value"""
+		selected_indices = self.get_selected_indices()
+		if not selected_indices:
+			# No selection - uncheck all
+			for mask_item in self.mask_checkboxes:
+				mask_item['checkbox'].blockSignals(True)
+				mask_item['checkbox'].setChecked(False)
+				mask_item['checkbox'].blockSignals(False)
+			return
+		
+		# Get mask value from first selected layer
+		idx = selected_indices[0]
+		if idx >= len(self.layers):
+			return
+		
+		mask = self.layers[idx].get('mask')
+		
+		# Update checkboxes based on mask value
+		if mask is None:
+			# No mask - uncheck all
+			for mask_item in self.mask_checkboxes:
+				mask_item['checkbox'].blockSignals(True)
+				mask_item['checkbox'].setChecked(False)
+				mask_item['checkbox'].blockSignals(False)
+		else:
+			# Check boxes for non-zero values in mask list
+			for i, mask_item in enumerate(self.mask_checkboxes):
+				mask_item['checkbox'].blockSignals(True)
+				if i < len(mask) and mask[i] != 0:
+					mask_item['checkbox'].setChecked(True)
+				else:
+					mask_item['checkbox'].setChecked(False)
+				mask_item['checkbox'].blockSignals(False)
+	
+	def update_mask_colors_from_base(self):
+		"""Update mask channel color indicators to match base pattern colors"""
+		if not hasattr(self, 'mask_checkboxes'):
+			return
+		
+		# Get base colors from canvas
+		base_colors = self.get_base_colors()
+		
+		# Update each mask channel indicator with corresponding base color
+		for i, mask_item in enumerate(self.mask_checkboxes):
+			if i < len(base_colors):
+				color_rgb = base_colors[i]
+				color_hex = '#{:02x}{:02x}{:02x}'.format(
+					int(color_rgb[0] * 255),
+					int(color_rgb[1] * 255),
+					int(color_rgb[2] * 255)
+				)
+				mask_item['color_indicator'].setStyleSheet(f"""
+					QLabel {{
+						background-color: {color_hex};
+						border: 2px solid rgba(255, 255, 255, 100);
+						border-radius: 4px;
+					}}
+				""")

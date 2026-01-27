@@ -1,0 +1,27 @@
+coa_title_1185={
+	pattern="temp_pattern_bendy_special.dds"
+	color1=white
+	color2=red
+	colored_emblem={
+		color1=blue
+		color2=blue
+		texture="ce_block_02.dds"
+	}
+
+	colored_emblem={
+		color1=red
+		color2=yellow
+		color3=white
+		texture="ce_lion_rampant.dds"
+		mask={ 1 0 0 }
+	}
+
+	colored_emblem={
+		color1=green
+		color2=yellow
+		color3=black
+		texture="ce_lion_rampant.dds"
+		mask={ 0 2 0 }
+	}
+
+}

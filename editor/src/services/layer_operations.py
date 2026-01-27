@@ -77,7 +77,8 @@ def create_default_layer(filename, colors=3, **overrides):
         'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
         'color1_name': DEFAULT_EMBLEM_COLOR1,
         'color2_name': DEFAULT_EMBLEM_COLOR2,
-        'color3_name': DEFAULT_EMBLEM_COLOR3
+        'color3_name': DEFAULT_EMBLEM_COLOR3,
+        'mask': None  # None = render everywhere (default), or [int, int, int] for mask channels
     }
     
     # Apply any overrides
@@ -97,8 +98,12 @@ def duplicate_layer(layer, offset_x=0.0, offset_y=0.0):
     Returns:
         New layer dictionary (deep copy)
     """
-    # Create a deep copy
+    # Create a deep copy to avoid reference issues with lists
     duplicated = dict(layer)
+    
+    # Deep copy the mask list if present
+    if 'mask' in duplicated and duplicated['mask'] is not None:
+        duplicated['mask'] = list(duplicated['mask'])
     
     # Apply offset if provided
     if offset_x != 0.0:
@@ -128,6 +133,11 @@ def serialize_layer_to_text(layer):
         "texture": layer.get('filename', ''),
         "instance": [instance_data]
     }
+    
+    # Add mask if present (None means render everywhere, so omit it)
+    mask = layer.get('mask')
+    if mask is not None:
+        emblem_data['mask'] = mask
     
     # Add colors only if they differ from defaults
     color1_str = rgb_to_color_name(layer.get('color1', [1.0, 1.0, 1.0]), layer.get('color1_name'))
@@ -176,6 +186,16 @@ def _emblem_to_layer_data(emblem):
     # Look up actual color count from texture metadata
     color_count = _get_texture_color_count(filename)
     
+    # Get mask field (if present)
+    mask = emblem.get('mask')
+    if mask is not None:
+        # Convert to list of 3 integers, padding with 0 if needed
+        if not isinstance(mask, list):
+            mask = [mask]
+        # Ensure exactly 3 values, pad with 0
+        mask = list(mask) + [0, 0, 0]
+        mask = mask[:3]
+    
     # Build layer data
     layer_data = {
         'filename': filename,
@@ -193,7 +213,8 @@ def _emblem_to_layer_data(emblem):
         'color3': color_name_to_rgb(color3_name),
         'color1_name': color1_name,
         'color2_name': color2_name,
-        'color3_name': color3_name
+        'color3_name': color3_name,
+        'mask': mask  # None or [int, int, int] for mask channels
     }
     
     return layer_data

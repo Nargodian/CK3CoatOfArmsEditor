@@ -108,6 +108,12 @@ def build_coa_for_save(base_colors, base_texture, layers, base_color_names):
                 "color1": rgb_to_color_name(layer.get('color1'), layer.get('color1_name')),
                 "instance": [instance]
             }
+            
+            # Add mask if present (None means render everywhere, so omit it)
+            mask = layer.get('mask')
+            if mask is not None:
+                emblem['mask'] = mask
+            
             coa_data["coa_export"]["colored_emblem"].append(emblem)
     
     return coa_data
@@ -172,6 +178,11 @@ def build_coa_for_clipboard(base_colors, base_texture, layers, base_color_names)
             "color1": rgb_to_color_name(layer.get('color1'), layer.get('color1_name')),
             "instance": [instance]
         }
+        
+        # Add mask if present (None means render everywhere, so omit it)
+        mask = layer.get('mask')
+        if mask is not None:
+            emblem['mask'] = mask
         
         coa_data["coa_clipboard"]["colored_emblem"].append(emblem)
     

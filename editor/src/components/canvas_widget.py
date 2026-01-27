@@ -227,6 +227,18 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		if self.layers and self.design_shader:
 			self.design_shader.bind()
 			
+			# Bind pattern texture for mask channels (once, before layer loop)
+			if self.base_texture and self.base_texture in self.texture_uv_map:
+				pattern_atlas_idx, p_u0, p_v0, p_u1, p_v1 = self.texture_uv_map[self.base_texture]
+				if pattern_atlas_idx < len(self.texture_atlases):
+					gl.glActiveTexture(gl.GL_TEXTURE4)
+					gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[pattern_atlas_idx])
+					if self.design_shader.uniformLocation("patternSampler") != -1:
+						self.design_shader.setUniformValue("patternSampler", 4)
+					# Pass pattern UV coordinates to shader
+					if self.design_shader.uniformLocation("patternUV") != -1:
+						self.design_shader.setUniformValue("patternUV", p_u0, p_v0, p_u1, p_v1)
+			
 			for layer in self.layers:
 				# Skip hidden layers
 				if not layer.get('visible', True):
@@ -275,6 +287,25 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					self.design_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
 					self.design_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
 					
+					# Set pattern mask flag (convert from [1,0,0] format to bit flags)
+					mask = layer.get('mask')
+					if mask is None:
+						# No mask = render everywhere (flag 0 or 7)
+						pattern_flag = 0
+					else:
+						# Convert mask list to bit flags
+						# mask[0] non-zero = bit 0 (value 1)
+						# mask[1] non-zero = bit 1 (value 2)
+						# mask[2] non-zero = bit 2 (value 4)
+						pattern_flag = 0
+						if len(mask) > 0 and mask[0] != 0:
+							pattern_flag |= 1
+						if len(mask) > 1 and mask[1] != 0:
+							pattern_flag |= 2
+						if len(mask) > 2 and mask[2] != 0:
+							pattern_flag |= 4
+					self.design_shader.setUniformValue("patternFlag", pattern_flag)
+					
 					# Apply transform properties
 					pos_x = layer.get('pos_x', 0.5)
 					pos_y = layer.get('pos_y', 0.5)
@@ -292,51 +323,51 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					# CK3 transformation order: position, then rotation, then scale
 					# Calculate rotated and scaled quad vertices
 					import math
-				angle_rad = math.radians(-rotation)  # Negate for correct rotation direction
-				cos_a = math.cos(angle_rad)
-				sin_a = math.sin(angle_rad)
-				
-				# Apply flip separately from scale magnitude
-				scale_sign_x = -1 if flip_x else 1
-				scale_sign_y = -1 if flip_y else 1
-				half_width = scale_x * 0.6 * self.zoom_level
-				half_height = scale_y * 0.6 * self.zoom_level
-				
-				# Define unit quad corners
-				unit_corners = [
-					(-1.0, -1.0),  # Bottom-left
-					( 1.0, -1.0),  # Bottom-right
-					( 1.0,  1.0),  # Top-right
-					(-1.0,  1.0),  # Top-left
-				]
-				
-				# Apply transformations: flip first, then rotate, then scale magnitude, then translate
-				transformed = []
-				for ux, uy in unit_corners:
-					# First apply flip (sign)
-					fx = ux * scale_sign_x
-					fy = uy * scale_sign_y
-					# Then rotate the flipped corner
-					rx = fx * cos_a - fy * sin_a
-					ry = fx * sin_a + fy * cos_a
-					# Then scale by magnitude in screen space
-					sx = rx * half_width
-					sy = ry * half_height
-					# Finally translate to position
-					transformed.append((sx + center_x, sy + center_y))
-				
-				# Update UV coordinates for this layer
-				vertices = np.array([
-					transformed[0][0], transformed[0][1], 0.0,  u0, v1,
-					transformed[1][0], transformed[1][1], 0.0,  u1, v1,
-					transformed[2][0], transformed[2][1], 0.0,  u1, v0,
-					transformed[3][0], transformed[3][1], 0.0,  u0, v0,
-				], dtype=np.float32)
-				
-				self.vbo.bind()
-				self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
-				
-				gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+					angle_rad = math.radians(-rotation)  # Negate for correct rotation direction
+					cos_a = math.cos(angle_rad)
+					sin_a = math.sin(angle_rad)
+					
+					# Apply flip separately from scale magnitude
+					scale_sign_x = -1 if flip_x else 1
+					scale_sign_y = -1 if flip_y else 1
+					half_width = scale_x * 0.6 * self.zoom_level
+					half_height = scale_y * 0.6 * self.zoom_level
+					
+					# Define unit quad corners
+					unit_corners = [
+						(-1.0, -1.0),  # Bottom-left
+						( 1.0, -1.0),  # Bottom-right
+						( 1.0,  1.0),  # Top-right
+						(-1.0,  1.0),  # Top-left
+					]
+					
+					# Apply transformations: flip first, then rotate, then scale magnitude, then translate
+					transformed = []
+					for ux, uy in unit_corners:
+						# First apply flip (sign)
+						fx = ux * scale_sign_x
+						fy = uy * scale_sign_y
+						# Then rotate the flipped corner
+						rx = fx * cos_a - fy * sin_a
+						ry = fx * sin_a + fy * cos_a
+						# Then scale by magnitude in screen space
+						sx = rx * half_width
+						sy = ry * half_height
+						# Finally translate to position
+						transformed.append((sx + center_x, sy + center_y))
+					
+					# Update UV coordinates for this layer
+					vertices = np.array([
+						transformed[0][0], transformed[0][1], 0.0,  u0, v1,
+						transformed[1][0], transformed[1][1], 0.0,  u1, v1,
+						transformed[2][0], transformed[2][1], 0.0,  u1, v0,
+						transformed[3][0], transformed[3][1], 0.0,  u0, v0,
+					], dtype=np.float32)
+					
+					self.vbo.bind()
+					self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+					
+					gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 			
 			self.design_shader.release()
 		

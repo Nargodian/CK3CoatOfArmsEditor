@@ -7,6 +7,10 @@ uniform sampler2D textureSampler;
 uniform sampler2D coaMaskSampler;
 uniform sampler2D materialMaskSampler;
 uniform sampler2D noiseSampler;
+uniform sampler2D patternSampler;  // Pattern texture for mask channels
+
+uniform int patternFlag; // Flag to enable pattern overlay
+uniform vec4 patternUV; // Pattern atlas UV coordinates (u0, v0, u1, v1)
 
 uniform vec3 primaryColor;
 uniform vec3 secondaryColor;
@@ -40,12 +44,46 @@ void main()
 	// Use screen-space coordinates for mask (0-1 range, centered)
 	vec2 maskCoord = 1.0-(gl_FragCoord.xy / viewportSize);
 	maskCoord-=.5;// Center the coordinates
-	maskCoord*=1.6;// Scale to cover more area
+	maskCoord*=1.62;// Scale to cover more area
 	maskCoord+=.5;// Re-center the coordinates
 	vec4 maskSample = texture(coaMaskSampler,maskCoord);
 	// Use max of RGB channels or alpha, whichever has data
 	float coaMaskValue = max(max(maskSample.r, maskSample.g), max(maskSample.b, maskSample.a));
 	
+	// Map screen-space coordinates to pattern UV atlas space
+	vec2 patternCoord = mix(patternUV.xy, patternUV.zw, maskCoord);
+	vec4 patternTexture = texture(patternSampler, patternCoord);
+	// flags
+	// 0 mask off
+	// 1 maskR on
+	// 2 maskG on
+	// 3 maskR and maskG on
+	// 4 maskB on
+	// 5 maskR and maskB on
+	// 6 maskG and maskB on
+	// 7 maskR and maskG and maskB on
+	float patternMask = 0.0;
+	bool allOrNoneSet = (patternFlag & 7) == 7 || (patternFlag & 7) == 0;
+
+	if((patternFlag & 1) == 1 && !allOrNoneSet)
+	{
+		patternMask = max(0.0, patternTexture.r-patternTexture.g);
+	}
+	if((patternFlag & 2) == 2 && !allOrNoneSet)
+	{
+		patternMask += max(0.0, patternTexture.g-patternTexture.b);
+	}
+	if((patternFlag & 4) == 4 && !allOrNoneSet)
+	{
+		patternMask += patternTexture.b;
+	}
+	// If no valid pattern channels selected, default to full pattern
+	if(allOrNoneSet)
+	{
+		patternMask = 1.0;
+	}
+	// Clamp pattern mask to valid range
+	patternMask = clamp(patternMask, 0.0, 1.0);
 	// Apply material mask using screen-space coordinates (red channel = dirt map)
 	vec4 materialMask = texture(materialMaskSampler, maskCoord);
 	outputColour = mix(outputColour, outputColour * materialMask.b, 0.5);
@@ -54,5 +92,5 @@ void main()
 	float noise = texture(noiseSampler, maskCoord).r;
 	outputColour = mix(outputColour, outputColour * noise, 0.2);
 	
-	FragColor=vec4(outputColour,textureMask.a*coaMaskValue);
+	FragColor=vec4(outputColour,textureMask.a*coaMaskValue*patternMask);
 }
