@@ -214,7 +214,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				-base_size,  base_size, 0.0,  u0, v0,
 			], dtype=np.float32)
 			
-			# CRITICAL: Bind VAO FIRST, then update VBO
 			self.vao.bind()
 			self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
 			
@@ -372,7 +371,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# Bind RTT texture
 		gl.glActiveTexture(gl.GL_TEXTURE0)
 		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
-		self.basic_shader.setUniformValue("textureSampler", 0)  # FIXED: basic.frag expects "textureSampler"
+		self.basic_shader.setUniformValue("textureSampler", 0)
 		
 		# Apply zoom to quad size
 		base_size = 0.8 * self.zoom_level
@@ -383,7 +382,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			-base_size,  base_size, 0.0,  0.0, 0.0,
 		], dtype=np.float32)
 		
-		self.vbo.bind()
 		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
 		
 		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
@@ -925,11 +923,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					-base_size,  base_size, 0.0,  u0, v0,
 				], dtype=np.float32)
 				
-				self.vbo.bind()
-				self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
-				
-				gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-				self.base_shader.release()
+
 		
 		# Render emblem layers with design.frag
 		if self.layers and self.design_shader:
@@ -1029,11 +1023,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 						transformed[3][0], transformed[3][1], 0.0,  u0, v0,
 					], dtype=np.float32)
 					
-					self.vbo.bind()
-					self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
-					
-					gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-			
+
 			self.design_shader.release()
 		
 		# Render frame on top if selected
@@ -1058,10 +1048,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				-frame_size,  frame_size, 0.0,  u_start, 0.0,
 			], dtype=np.float32)
 			
-			self.vbo.bind()
-			self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
-			
-			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-			self.basic_shader.release()
+
 		
 		self.vao.release()
