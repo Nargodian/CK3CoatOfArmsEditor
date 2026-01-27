@@ -30,15 +30,18 @@ from utils.path_resolver import (get_pattern_metadata_path, get_emblem_metadata_
 def layer_pos_to_opengl_coords(pos_x, pos_y):
 	"""Convert layer position (0-1 range) to OpenGL normalized coordinates.
 	
+	CK3 uses Y-down (0=top, 1=bottom), OpenGL uses Y-up (positive=up).
+	We invert Y when converting to OpenGL coordinates.
+	
 	Args:
 		pos_x: Layer X position (0-1, where 0.5 is center)
-		pos_y: Layer Y position (0-1, where 0.5 is center)
+		pos_y: Layer Y position (0-1, where 0.5 is center, 0=top in CK3)
 		
 	Returns:
 		(gl_x, gl_y): OpenGL coordinates in normalized space (-0.55 to 0.55)
 	"""
 	gl_x = (pos_x - 0.5) * 1.1
-	gl_y = (pos_y - 0.5) * 1.1  # No inversion - OpenGL Y-up matches layer Y-up
+	gl_y = -(pos_y - 0.5) * 1.1  # Invert: CK3 Y-down to OpenGL Y-up
 	return gl_x, gl_y
 
 
@@ -82,20 +85,23 @@ def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0):
 		offset_y: Y offset of canvas within parent widget
 		
 	Returns:
-		(pos_x, pos_y): Layer position (0-1 range)
+		(pos_x, pos_y): Layer position (0-1 range, 0=top in CK3)
 	"""
 	# Convert Qt pixels to canvas-relative pixels
 	pixel_x = qt_x - offset_x - canvas_size / 2
 	pixel_y = qt_y - offset_y - canvas_size / 2
 	
 	# Convert pixels to OpenGL normalized space
-	# Invert Y because Qt Y-down, OpenGL Y-up
+	# Qt Y-down to OpenGL Y-up: negate pixel_y
 	gl_x = pixel_x / (canvas_size / 2)
 	gl_y = -pixel_y / (canvas_size / 2)
 	
-	# Convert OpenGL coords to layer position
+	# Convert OpenGL coords back to layer position
+	# layer_pos_to_opengl_coords: gl_y = -(pos_y - 0.5) * 1.1
+	# Reversing: pos_y - 0.5 = -gl_y / 1.1
+	#            pos_y = -gl_y / 1.1 + 0.5
 	pos_x = gl_x / 1.1 + 0.5
-	pos_y = gl_y / 1.1 + 0.5
+	pos_y = -gl_y / 1.1 + 0.5
 	
 	return pos_x, pos_y
 
@@ -452,11 +458,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		
 		# Apply zoom to quad size
 		base_size = 0.8 * self.zoom_level
+		# Texture coords: RTT renders Y-up (OpenGL standard), texture V=0 at bottom, V=1 at top
+		# Position Y=-1 (bottom) → V=0, Position Y=+1 (top) → V=1
 		vertices = np.array([
-			-base_size, -base_size, 0.0,  0.0, 1.0,
-			 base_size, -base_size, 0.0,  1.0, 1.0,
-			 base_size,  base_size, 0.0,  1.0, 0.0,
-			-base_size,  base_size, 0.0,  0.0, 0.0,
+			-base_size, -base_size, 0.0,  0.0, 0.0,  # bottom-left
+			 base_size, -base_size, 0.0,  1.0, 0.0,  # bottom-right
+			 base_size,  base_size, 0.0,  1.0, 1.0,  # top-right
+			-base_size,  base_size, 0.0,  0.0, 1.0,  # top-left
 		], dtype=np.float32)
 		
 		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
