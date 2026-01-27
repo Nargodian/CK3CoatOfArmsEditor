@@ -99,13 +99,16 @@ class FramebufferRTT:
 		glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
 		glViewport(0, 0, self.COA_RTT_WIDTH, self.COA_RTT_HEIGHT)
 	
-	def unbind(self):
+	def unbind(self, default_fbo=0):
 		"""
 		Unbind framebuffer (return to default framebuffer).
 		
+		Args:
+			default_fbo: The default framebuffer ID (use widget.defaultFramebufferObject() for QOpenGLWidget)
+		
 		Caller must restore viewport to window dimensions.
 		"""
-		glBindFramebuffer(GL_FRAMEBUFFER, 0)
+		glBindFramebuffer(GL_FRAMEBUFFER, default_fbo)
 	
 	def get_texture(self):
 		"""
