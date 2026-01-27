@@ -44,13 +44,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb']
 		]  # Default base colors from constants
 		self.layers = []  # List of layer data from property sidebar
-		self.frame_texture = None  # Current frame texture
-		self.frame_textures = {}  # Frame name -> texture ID
-		self.frame_masks = {}  # Frame name -> mask texture ID
-		self.mask_texture = None  # Current mask texture (changes with frame)
+		self.frameTexture = None  # Current frame texture
+		self.frameTextures = {}  # Frame name -> texture ID
+		self.frame_masks = {}  # Frame name -> frameMask texture ID
+		self.patternMask = None  # Current pattern mask (shield shape, changes with frame)
 		self.default_mask_texture = None  # Default white mask (fallback)
-		self.material_mask_texture = None  # CK3 material texture (dirt/fabric/paint)
-		self.noise_texture = None  # Noise texture for grain effect
+		self.texturedMask = None  # CK3 material texture (dirt/fabric/paint) - coa_mask_texture.png
+		self.noiseMask = None  # Noise texture for grain effect - noise.png
 		self.current_frame_name = DEFAULT_FRAME  # Track current frame name
 		self.prestige_level = 0  # Current prestige level (0-5)
 		
@@ -211,11 +211,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			# Bind textures
 			gl.glActiveTexture(gl.GL_TEXTURE0)
 			gl.glBindTexture(gl.GL_TEXTURE_2D, pattern_texture_id)
-			self.base_shader.setUniformValue("patternTexture", 0)
-			
-			gl.glActiveTexture(gl.GL_TEXTURE1)
-			gl.glBindTexture(gl.GL_TEXTURE_2D, self.mask_texture if self.mask_texture else self.default_mask_texture)
-			self.base_shader.setUniformValue("maskTexture", 1)
+			self.base_shader.setUniformValue("patternMaskSampler", 0)
 			
 			# Colors from base_colors attribute
 			self.base_shader.setUniformValue("color1", QVector3D(*self.base_colors[0]))
@@ -287,7 +283,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			# Bind RTT texture
 			gl.glActiveTexture(gl.GL_TEXTURE0)
 			gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
-			self.basic_shader.setUniformValue("textureSampler", 0)
+			self.basic_shader.setUniformValue("emblemMaskSampler", 0)
 			
 			# Simple quad at 0.8 size
 			vertices = np.array([
@@ -485,7 +481,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, img.width, img.height,
 					               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data.tobytes())
 					
-					self.frame_textures[name] = texture_id
+					self.frameTextures[name] = texture_id
 					
 					# Load corresponding mask file
 					mask_filename = filename.replace('.png', '_mask.png')
@@ -568,8 +564,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				img = img.resize((128, 128), Image.Resampling.LANCZOS)
 				img_data = np.array(img)
 				
-				self.material_mask_texture = gl.glGenTextures(1)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.material_mask_texture)
+				self.texturedMask = gl.glGenTextures(1)
+				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
 				
 				# Use REPEAT to tile the texture
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_REPEAT)
@@ -586,8 +582,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				size = 256
 				mask_data = np.full((size, size, 4), 255, dtype=np.uint8)
 				
-				self.material_mask_texture = gl.glGenTextures(1)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.material_mask_texture)
+				self.texturedMask = gl.glGenTextures(1)
+				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_REPEAT)
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_REPEAT)
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
@@ -608,8 +604,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				img = Image.open(noise_path).convert('RGBA')
 				img_data = np.array(img)
 				
-				self.noise_texture = gl.glGenTextures(1)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.noise_texture)
+				self.noiseMask = gl.glGenTextures(1)
+				gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
 				
 				# Use REPEAT to tile the texture
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_REPEAT)
@@ -625,8 +621,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				size = 64
 				noise_data = np.full((size, size, 4), 255, dtype=np.uint8)
 				
-				self.noise_texture = gl.glGenTextures(1)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.noise_texture)
+				self.noiseMask = gl.glGenTextures(1)
+				gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_REPEAT)
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_REPEAT)
 				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
@@ -642,18 +638,18 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	
 	def set_frame(self, frame_name):
 		"""Set the frame by name and update mask accordingly"""
-		if frame_name in self.frame_textures:
-			self.frame_texture = self.frame_textures[frame_name]
+		if frame_name in self.frameTextures:
+			self.frameTexture = self.frameTextures[frame_name]
 			self.current_frame_name = frame_name
 			# Update mask texture to match frame, or use default white mask
 			if frame_name in self.frame_masks:
-				self.mask_texture = self.frame_masks[frame_name]
+				self.patternMask = self.frame_masks[frame_name]
 			else:
-				self.mask_texture = self.default_mask_texture
+				self.patternMask = self.default_mask_texture
 			self.update()
 		elif frame_name == "None":
-			self.frame_texture = None
-			self.mask_texture = self.default_mask_texture
+			self.frameTexture = None
+			self.patternMask = self.default_mask_texture
 			self.update()
 	
 	def set_prestige(self, level):
@@ -804,28 +800,22 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			if atlas_idx < len(self.texture_atlases):
 				gl.glActiveTexture(gl.GL_TEXTURE0)
 				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
-				self.base_shader.setUniformValue("textureSampler", 0)
+				self.base_shader.setUniformValue("emblemMaskSampler", 0)
 				
-				# Bind mask texture if available
-				if self.mask_texture:
-					gl.glActiveTexture(gl.GL_TEXTURE1)
-					gl.glBindTexture(gl.GL_TEXTURE_2D, self.mask_texture)
-					if self.base_shader.uniformLocation("coaMaskSampler") != -1:
-						self.base_shader.setUniformValue("coaMaskSampler", 1)
 				
 				# Bind material mask texture
-				if self.material_mask_texture:
-					gl.glActiveTexture(gl.GL_TEXTURE2)
-					gl.glBindTexture(gl.GL_TEXTURE_2D, self.material_mask_texture)
+				if self.texturedMask:
+					gl.glActiveTexture(gl.GL_TEXTURE1)
+					gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
 					if self.base_shader.uniformLocation("materialMaskSampler") != -1:
-						self.base_shader.setUniformValue("materialMaskSampler", 2)
+						self.base_shader.setUniformValue("texturedMaskSampler", 1)
 				
 				# Bind noise texture
-				if self.noise_texture:
-					gl.glActiveTexture(gl.GL_TEXTURE3)
-					gl.glBindTexture(gl.GL_TEXTURE_2D, self.noise_texture)
+				if self.noiseMask:
+					gl.glActiveTexture(gl.GL_TEXTURE2)
+					gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
 					if self.base_shader.uniformLocation("noiseSampler") != -1:
-						self.base_shader.setUniformValue("noiseSampler", 3)
+						self.base_shader.setUniformValue("noiseMaskSampler", 2)
 				
 				# Set viewport size for mask coordinate calculation
 				# Use export size (2048) instead of widget size
@@ -872,28 +862,22 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				if atlas_idx < len(self.texture_atlases):
 					gl.glActiveTexture(gl.GL_TEXTURE0)
 					gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
-					self.design_shader.setUniformValue("textureSampler", 0)
+					self.design_shader.setUniformValue("emblemMaskSampler", 0)
 					
-					# Bind mask texture if available
-					if self.mask_texture:
-						gl.glActiveTexture(gl.GL_TEXTURE1)
-						gl.glBindTexture(gl.GL_TEXTURE_2D, self.mask_texture)
-						if self.design_shader.uniformLocation("coaMaskSampler") != -1:
-							self.design_shader.setUniformValue("coaMaskSampler", 1)
 					
 					# Bind material mask texture
-					if self.material_mask_texture:
-						gl.glActiveTexture(gl.GL_TEXTURE2)
-						gl.glBindTexture(gl.GL_TEXTURE_2D, self.material_mask_texture)
+					if self.texturedMask:
+						gl.glActiveTexture(gl.GL_TEXTURE1)
+						gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
 						if self.design_shader.uniformLocation("materialMaskSampler") != -1:
-							self.design_shader.setUniformValue("materialMaskSampler", 2)
+							self.design_shader.setUniformValue("texturedMaskSampler", 1)
 					
 					# Bind noise texture
-					if self.noise_texture:
-						gl.glActiveTexture(gl.GL_TEXTURE3)
-						gl.glBindTexture(gl.GL_TEXTURE_2D, self.noise_texture)
+					if self.noiseMask:
+						gl.glActiveTexture(gl.GL_TEXTURE2)
+						gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
 						if self.design_shader.uniformLocation("noiseSampler") != -1:
-							self.design_shader.setUniformValue("noiseSampler", 3)
+							self.design_shader.setUniformValue("noiseMaskSampler", 2)
 					
 					# Set viewport size for mask coordinate calculation
 					self.design_shader.setUniformValue("viewportSize", 2048.0, 2048.0)
@@ -966,12 +950,12 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.design_shader.release()
 		
 		# Render frame on top if selected
-		if self.frame_texture and self.basic_shader:
+		if self.frameTexture and self.basic_shader:
 			self.basic_shader.bind()
 			
 			gl.glActiveTexture(gl.GL_TEXTURE0)
-			gl.glBindTexture(gl.GL_TEXTURE_2D, self.frame_texture)
-			self.basic_shader.setUniformValue("textureSampler", 0)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.frameTexture)
+			self.basic_shader.setUniformValue("emblemMaskSampler", 0)
 			
 			# Frame textures are 6x1 tiles for prestige levels
 			tile_width = 1.0 / 6.0

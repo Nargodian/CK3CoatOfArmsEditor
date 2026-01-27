@@ -11,12 +11,12 @@
 in vec2 vTexCoord;
 out vec4 FragColor;
 
-uniform sampler2D coaTexture;        // RTT texture containing rendered CoA
+uniform sampler2D coaTextureSampler;    // RTT texture containing rendered CoA
 uniform sampler2D frameMaskSampler;  // Frame mask (white = show CoA, black = transparent)
 
 void main() {
 	// Sample the rendered CoA texture
-	vec4 coaColor = texture(coaTexture, vTexCoord);
+	vec4 coaColor = texture(coaTextureSampler, vTexCoord);
 	
 	// Sample frame mask (determines where CoA is visible)
 	float frameMask = texture(frameMaskSampler, vTexCoord).r;
