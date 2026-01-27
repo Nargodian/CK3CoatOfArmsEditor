@@ -389,7 +389,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.vao.release()
 	
 	def _composite_to_viewport(self):
-		"""Composite RTT texture to viewport with frame and zoom"""
+		"""Composite RTT texture to viewport with frame mask, then render frame on top"""
 		# Clear viewport and restore viewport size
 		gl.glViewport(0, 0, self.width(), self.height())
 		gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
@@ -405,6 +405,18 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
 		self.composite_shader.setUniformValue("coaTexture", 0)
 		
+		# Bind frame mask if available
+		frame_mask = self.frame_masks.get(self.current_frame_name) if self.current_frame_name else None
+		if frame_mask:
+			gl.glActiveTexture(gl.GL_TEXTURE1)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, frame_mask)
+			self.composite_shader.setUniformValue("frameMaskSampler", 1)
+		elif self.default_mask_texture:
+			# Fallback to default white mask if no frame mask available
+			gl.glActiveTexture(gl.GL_TEXTURE1)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.default_mask_texture)
+			self.composite_shader.setUniformValue("frameMaskSampler", 1)
+		
 		# Render full-screen quad with zoom applied
 		composite_size = 0.8 * self.zoom_level
 		vertices = np.array([
@@ -413,6 +425,41 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			 composite_size,  composite_size, 0.0,  1.0, 0.0,
 			-composite_size,  composite_size, 0.0,  0.0, 0.0,
 		], dtype=np.float32)
+		
+		self.vbo.bind()
+		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+		
+		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+		self.composite_shader.release()
+		
+		# Render frame on top if selected
+		if self.frame_texture and self.basic_shader:
+			self.basic_shader.bind()
+			
+			gl.glActiveTexture(gl.GL_TEXTURE0)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.frame_texture)
+			self.basic_shader.setUniformValue("textureSampler", 0)
+			
+			# Frame textures are 6x1 tiles for prestige levels
+			# Calculate UV coordinates for the selected prestige level
+			tile_width = 1.0 / 6.0
+			u_start = self.prestige_level * tile_width
+			u_end = u_start + tile_width
+			
+			# Full screen quad for frame with prestige tile UVs, with zoom applied
+			frame_size = 0.8 * self.zoom_level
+			vertices = np.array([
+				-frame_size, -frame_size, 0.0,  u_start, 1.0,
+				 frame_size, -frame_size, 0.0,  u_end, 1.0,
+				 frame_size,  frame_size, 0.0,  u_end, 0.0,
+				-frame_size,  frame_size, 0.0,  u_start, 0.0,
+			], dtype=np.float32)
+			
+			self.vbo.bind()
+			self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+			
+			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			self.basic_shader.release()
 		
 		self.vbo.bind()
 		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
