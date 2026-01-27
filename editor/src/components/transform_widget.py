@@ -18,7 +18,7 @@ import math
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from canvas_widget import layer_pos_to_qt_pixels, qt_pixels_to_layer_pos
+from canvas_widget import layer_pos_to_qt_pixels, qt_pixels_to_layer_pos, EMBLEM_SCALE_FACTOR
 
 
 class TransformWidget(QWidget):
@@ -155,8 +155,8 @@ class TransformWidget(QWidget):
 		
 		# Widget box shows fixed size based on scale values only
 		# Rotation doesn't affect the widget box size
-		scale_w = abs(self.scale_x) * 0.6 * (size / 2)
-		scale_h = abs(self.scale_y) * 0.6 * (size / 2)
+		scale_w = abs(self.scale_x) * EMBLEM_SCALE_FACTOR * (size / 2)
+		scale_h = abs(self.scale_y) * EMBLEM_SCALE_FACTOR * (size / 2)
 		
 		# Draw axis-aligned bounding box (fixed size)
 		painter.setPen(QPen(QColor(90, 141, 191, 200), 2))
@@ -269,8 +269,8 @@ class TransformWidget(QWidget):
 		
 		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 		
-		scaled_w = abs(self.scale_x) * 0.6 * (size / 2)
-		scaled_h = abs(self.scale_y) * 0.6 * (size / 2)
+		scaled_w = abs(self.scale_x) * EMBLEM_SCALE_FACTOR * (size / 2)
+		scaled_h = abs(self.scale_y) * EMBLEM_SCALE_FACTOR * (size / 2)
 		
 		handles = self._get_handle_positions(center_x, center_y, scaled_w, scaled_h)
 		

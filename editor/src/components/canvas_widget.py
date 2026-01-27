@@ -24,6 +24,20 @@ from utils.path_resolver import (get_pattern_metadata_path, get_emblem_metadata_
 
 
 # ========================================
+# Constants
+# ========================================
+
+# Composite quad base size as fraction of viewport (NDC coordinates)
+# This determines how much of the viewport the design occupies at zoom=1.0
+# e.g., 0.8 means the design occupies 80% of the viewport width/height
+VIEWPORT_BASE_SIZE = 0.8
+
+# Emblem scale factor - scales the actual emblem size within the design space
+# A scale_x/scale_y of 1.0 renders as 0.6 in OpenGL normalized coords
+# This matches CK3's emblem sizing relative to the shield
+EMBLEM_SCALE_FACTOR = 0.6
+
+# ========================================
 # Coordinate Conversion Functions
 # ========================================
 
@@ -62,9 +76,9 @@ def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0):
 	gl_x, gl_y = layer_pos_to_opengl_coords(pos_x, pos_y)
 	
 	# Convert OpenGL normalized (-0.55 to 0.55) to pixels
-	# Must account for composite quad base_size=0.8 factor (quad only occupies 80% of viewport)
-	pixel_x = gl_x * (canvas_size / 2) * 0.8
-	pixel_y = gl_y * (canvas_size / 2) * 0.8
+	# Must account for composite quad base_size factor (quad only occupies VIEWPORT_BASE_SIZE of viewport)
+	pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE
+	pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE
 	
 	# Qt Y-axis is inverted (down is positive)
 	# Canvas center is at (offset + size/2, offset + size/2)
@@ -93,9 +107,9 @@ def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0):
 	
 	# Convert pixels to OpenGL normalized space
 	# Qt Y-down to OpenGL Y-up: negate pixel_y
-	# Must account for composite quad base_size=0.8 factor
-	gl_x = pixel_x / (canvas_size / 2) / 0.8
-	gl_y = -pixel_y / (canvas_size / 2) / 0.8
+	# Must account for composite quad base_size factor
+	gl_x = pixel_x / (canvas_size / 2) / VIEWPORT_BASE_SIZE
+	gl_y = -pixel_y / (canvas_size / 2) / VIEWPORT_BASE_SIZE
 	
 	# Convert OpenGL coords back to layer position
 	# layer_pos_to_opengl_coords: gl_y = -(pos_y - 0.5) * 1.1
@@ -402,8 +416,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				
 				scale_sign_x = -1 if flip_x else 1
 				scale_sign_y = -1 if flip_y else 1
-				half_width = scale_x * 0.6
-				half_height = scale_y * 0.6
+				half_width = scale_x * EMBLEM_SCALE_FACTOR
+				half_height = scale_y * EMBLEM_SCALE_FACTOR
 				
 				unit_corners = [
 					(-1.0, -1.0),
@@ -458,7 +472,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.basic_shader.setUniformValue("textureSampler", 0)
 		
 		# Apply zoom to quad size
-		base_size = 0.8 * self.zoom_level
+		base_size = VIEWPORT_BASE_SIZE * self.zoom_level
 		# Texture coords: RTT renders Y-up (OpenGL standard), texture V=0 at bottom, V=1 at top
 		# Position Y=-1 (bottom) → V=0, Position Y=+1 (top) → V=1
 		vertices = np.array([
@@ -485,8 +499,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		gl.glColor4f(0.5, 0.5, 0.5, 0.5)
 		
 		# Draw vertical and horizontal lines
-		grid_size = 0.8 * self.zoom_level
-		grid_step = (1.6 * self.zoom_level) / self.grid_divisions  # Divide into grid_divisions
+		grid_size = VIEWPORT_BASE_SIZE * self.zoom_level
+		grid_step = (VIEWPORT_BASE_SIZE * 2.0 * self.zoom_level) / self.grid_divisions  # Divide into grid_divisions
 		
 		gl.glBegin(gl.GL_LINES)
 		
@@ -1078,8 +1092,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					# Apply flip separately from scale magnitude
 					scale_sign_x = -1 if flip_x else 1
 					scale_sign_y = -1 if flip_y else 1
-					half_width = scale_x * 0.6
-					half_height = scale_y * 0.6
+					half_width = scale_x * EMBLEM_SCALE_FACTOR
+					half_height = scale_y * EMBLEM_SCALE_FACTOR
 					
 					# Define unit quad corners
 					unit_corners = [
