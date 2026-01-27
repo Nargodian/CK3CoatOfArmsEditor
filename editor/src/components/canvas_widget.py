@@ -18,6 +18,7 @@ from pathlib import Path
 
 # Local imports
 from components.canvas_widgets.shader_manager import ShaderManager
+from services.framebuffer_rtt import FramebufferRTT
 from utils.path_resolver import (get_pattern_metadata_path, get_emblem_metadata_path, 
                                   get_pattern_source_dir, get_emblem_source_dir, get_frames_dir)
 
@@ -30,6 +31,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.base_shader = None  # Shader for base layer
 		self.design_shader = None  # Shader for emblem layers
 		self.basic_shader = None  # Shader for frame rendering
+		self.composite_shader = None  # Shader for RTT compositing
+		self.framebuffer_rtt = None  # Offscreen framebuffer for RTT
 		self.vao = None
 		self.vbo = None
 		self.texture_atlases = []  # List of OpenGL texture IDs
@@ -87,6 +90,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.base_shader = shader_manager.create_base_shader(self)
 		self.design_shader = shader_manager.create_design_shader(self)
 		self.basic_shader = shader_manager.create_basic_shader(self)
+		self.composite_shader = shader_manager.create_composite_shader(self)
+		
+		# Create RTT framebuffer
+		self.framebuffer_rtt = FramebufferRTT()
 		
 		self.base_shader.bind()
 		

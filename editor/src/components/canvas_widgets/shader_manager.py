@@ -90,3 +90,14 @@ class ShaderManager:
             QOpenGLShaderProgram for frame rendering
         """
         return self.create_program(parent, 'basic.vert', 'basic.frag', 'Basic')
+    
+    def create_composite_shader(self, parent):
+        """Create composite shader program for RTT texture display
+        
+        Args:
+            parent: Parent QObject
+            
+        Returns:
+            QOpenGLShaderProgram for compositing RTT texture to viewport
+        """
+        return self.create_program(parent, 'composite.vert', 'composite.frag', 'Composite')
