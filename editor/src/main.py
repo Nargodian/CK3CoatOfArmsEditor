@@ -806,9 +806,11 @@ class CoatOfArmsEditor(QMainWindow):
 			'mask': None  # No mask = render everywhere (default)
 		}
 		
-		# Insert at beginning and select
-		self.right_sidebar.layers.insert(0, new_layer)
-		self.right_sidebar.selected_layer_indices = {0}
+		# Append to end of array (which displays at top due to reversed UI)
+		self.right_sidebar.layers.append(new_layer)
+		new_index = len(self.right_sidebar.layers) - 1
+		self.right_sidebar.selected_layer_indices = {new_index}
+		self.right_sidebar.last_selected_index = new_index
 		
 		# Update UI
 		self.right_sidebar._rebuild_layer_list()
