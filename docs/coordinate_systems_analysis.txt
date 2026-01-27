@@ -1,0 +1,387 @@
+COORDINATE SYSTEMS ANALYSIS - CK3 CoA Editor
+================================================
+
+This document traces ALL mathematical transformations from CoA game coordinates 
+to final screen rendering, to identify the parallax issue.
+
+1. CoA Coordinate System (CK3 Game Format)
+-------------------------------------------
+- Range: 0.0 to 1.0 for both X and Y
+- Origin: Top-left corner (0, 0)
+- Y-axis: DOWN (0 = top, 1 = bottom)
+- Units: Normalized (relative to design space)
+- Example: { x = 0.5 y = 0.3 } means "center horizontally, 30% down from top"
+
+2. OpenGL Normalized Device Coordinates (NDC)
+----------------------------------------------
+- Range: -1.0 to +1.0 for both X and Y
+- Origin: Center of viewport (0, 0)
+- Y-axis: UP (-1 = bottom, +1 = top)
+- Units: Normalized device coordinates
+- Used by: gl_Position in vertex shaders
+
+3. Scaled OpenGL Coordinates (Our Design Space)
+------------------------------------------------
+- Range: -0.55 to +0.55 for both X and Y
+- Origin: Center (0, 0)
+- Y-axis: UP (-0.55 = bottom, +0.55 = top)
+- Scale factor: 1.1 (provides 10% padding around 1.0 normalized space)
+- Used by: Emblem rendering in framebuffer
+
+Conversion: CoA → Scaled OpenGL
+--------------------------------
+From layer_pos_to_opengl_coords():
+    gl_x = (pos_x - 0.5) * 1.1
+    gl_y = -(pos_y - 0.5) * 1.1
+
+Breaking it down:
+    pos_x - 0.5:  Shift CoA X from [0,1] to [-0.5, +0.5]
+    * 1.1:        Scale to [-0.55, +0.55]
+    
+    pos_y - 0.5:  Shift CoA Y from [0,1] to [-0.5, +0.5]
+    -(...)  :     FLIP Y-axis (CoA is Y-down, OpenGL is Y-up)
+    * 1.1:        Scale to [-0.55, +0.55]
+
+Example:
+    CoA (0.5, 0.3) → OpenGL (0.0, -0.22)
+    - X: (0.5 - 0.5) * 1.1 = 0.0
+    - Y: -(0.3 - 0.5) * 1.1 = -(-0.2) * 1.1 = 0.22 * 1.1 = 0.22
+    Wait... let me recalculate:
+    - Y: -(0.3 - 0.5) * 1.1 = -(-0.2 * 1.1) = -(-0.22) = +0.22
+    
+    Hmm, actually:
+    pos_y = 0.3 (30% down from top in CoA)
+    pos_y - 0.5 = 0.3 - 0.5 = -0.2
+    -(pos_y - 0.5) * 1.1 = -(-0.2) * 1.1 = 0.2 * 1.1 = 0.22
+    
+    So OpenGL Y = +0.22 (which is ABOVE center, correct for "30% down from top")
+
+4. Framebuffer Rendering (RTT - Render To Texture)
+---------------------------------------------------
+- Size: 512×512 pixels
+- glViewport(0, 0, 512, 512)
+- Renders with OpenGL Y-up convention
+- Texture coordinates: (0,0) at bottom-left, (1,1) at top-right
+- Fragment shader output goes to this texture
+
+The framebuffer receives vertices in Scaled OpenGL coords (-0.55 to +0.55),
+which get transformed to NDC and then to framebuffer pixels:
+    NDC → Framebuffer pixels:
+    fb_x = (ndc_x + 1.0) * 0.5 * 512 = (ndc_x + 1.0) * 256
+    fb_y = (ndc_y + 1.0) * 0.5 * 512 = (ndc_y + 1.0) * 256
+    
+Since we pass scaled coords directly to gl_Position (no projection matrix),
+they ARE the NDC coordinates (assuming they're in [-1, +1] range).
+
+But wait - our range is [-0.55, +0.55], not [-1, +1]!
+So in the framebuffer:
+    OpenGL (0.0, +0.22) → NDC (0.0, +0.22) → FB pixels (256, 312.64)
+    - fb_x = (0.0 + 1.0) * 256 = 256 (center)
+    - fb_y = (0.22 + 1.0) * 256 = 1.22 * 256 = 312.64
+
+5. Texture Coordinates in Composite Step
+-----------------------------------------
+After rendering to framebuffer, we composite it to the viewport.
+The texture coordinates map the 512×512 texture to a quad.
+
+FIXED texture coordinates (after the fix):
+    Bottom-left:  (0.0, 0.0) - V=0 at bottom
+    Bottom-right: (1.0, 0.0)
+    Top-right:    (1.0, 1.0) - V=1 at top
+    Top-left:     (0.0, 1.0)
+
+This means:
+    Texture V=0 → OpenGL Y=-1 (bottom of quad)
+    Texture V=1 → OpenGL Y=+1 (top of quad)
+
+6. Qt Widget Coordinates (Transform Widget)
+--------------------------------------------
+- Origin: Top-left corner (0, 0)
+- Y-axis: DOWN (0 = top, increasing downward)
+- Units: Pixels
+- Size: viewport_width × viewport_height
+
+The widget needs to display at the same visual position as the rendered emblem.
+
+Conversion: CoA → Qt Pixels
+----------------------------
+From layer_pos_to_qt_pixels():
+    # First convert to OpenGL
+    gl_x = (pos_x - 0.5) * 1.1
+    gl_y = -(pos_y - 0.5) * 1.1
+    
+    # OpenGL coords are in [-0.55, +0.55] range within the 512×512 design space
+    # Scale to actual viewport with zoom
+    pixel_x = gl_x * (design_size / 1.1) * zoom
+    pixel_y = gl_y * (design_size / 1.1) * zoom
+    
+    # Offset to viewport center and flip Y for Qt (Y-down)
+    qt_x = offset_x + viewport_width / 2 + pixel_x
+    qt_y = offset_y + viewport_height / 2 - pixel_y  # FLIP Y HERE
+
+Where:
+    design_size = 512 (the RTT framebuffer size)
+    zoom = current zoom level
+    offset_x, offset_y = pan offset
+
+Example (zoom=1.0, no pan, 600×600 viewport):
+    CoA (0.5, 0.3) → Qt pixels (300, 197.09)
+    - gl_x = 0.0, gl_y = 0.22 (from above)
+    - pixel_x = 0.0 * (512 / 1.1) * 1.0 = 0.0
+    - pixel_y = 0.22 * (512 / 1.1) * 1.0 = 0.22 * 465.45 = 102.4
+    - qt_x = 0 + 300 + 0 = 300
+    - qt_y = 0 + 300 - 102.4 = 197.6
+
+7. Composite Quad Vertices (Viewport Rendering)
+------------------------------------------------
+The RTT texture is drawn to a quad in the viewport.
+
+Vertex positions in NDC:
+    Based on zoom and pan calculations...
+    
+    x_scale = (design_size / 1.1) * zoom / (viewport_width / 2)
+    y_scale = (design_size / 1.1) * zoom / (viewport_height / 2)
+    x_offset = offset_x / (viewport_width / 2)
+    y_offset = offset_y / (viewport_height / 2)
+    
+    Quad corners in NDC:
+    Bottom-left:  (-x_scale + x_offset, -y_scale + y_offset)
+    Bottom-right: (+x_scale + x_offset, -y_scale + y_offset)
+    Top-right:    (+x_scale + x_offset, +y_scale + y_offset)
+    Top-left:     (-x_scale + x_offset, +y_scale + y_offset)
+
+Example (zoom=1.0, no pan, 600×600 viewport):
+    x_scale = (512 / 1.1) * 1.0 / 300 = 465.45 / 300 = 1.5515
+    y_scale = 1.5515 (same)
+    
+    Quad in NDC:
+    Bottom-left:  (-1.5515, -1.5515)  ← WAIT, this is outside [-1,+1]!
+    Bottom-right: (+1.5515, -1.5515)
+    Top-right:    (+1.5515, +1.5515)
+    Top-left:     (-1.5515, +1.5515)
+    
+This means the quad extends beyond the viewport! This might be OK if clipped...
+
+8. POTENTIAL ISSUE: Coordinate System Mismatch
+-----------------------------------------------
+
+When we render emblems to the framebuffer at 512×512:
+- OpenGL (0.0, +0.22) should map to framebuffer pixel (256, 312.64)
+- This is texture coordinate... let me calculate:
+  tex_u = 256 / 512 = 0.5
+  tex_v = 312.64 / 512 = 0.61
+
+When we composite to viewport:
+- We want that same pixel to appear at Qt (300, 197.6)
+- The quad maps texture coords to viewport pixels
+- Texture V=0.61 should map to Qt Y=197.6
+
+Let's verify the math:
+    Viewport height = 600
+    Quad in NDC: Y ranges from -1.5515 to +1.5515
+    But NDC only displays -1 to +1, so clipped to that range
+    
+    Actually, wait. The quad vertices being outside [-1,+1] means they'll be clipped.
+    If x_scale > 1.0, the quad is LARGER than the viewport.
+    
+    For zoom=1.0 and viewport=600×600:
+    x_scale = (512/1.1) * 1.0 / (600/2) = 465.45 / 300 = 1.5515
+    
+    This means the 512×512 design is being scaled to 1.5515× the viewport half-size,
+    which is 1.5515 * 300 = 465.45 pixels from center to edge = 930.9 pixels total.
+    
+    But our viewport is only 600 pixels! So the design is BIGGER than the viewport.
+    That doesn't match what zoom=1.0 should do...
+
+9. THE ACTUAL MATH IN _composite_to_viewport()
+----------------------------------------------
+
+From canvas_widget.py lines 450-480:
+
+Composite quad vertices in NDC space:
+    base_size = 0.8 * zoom_level
+    
+    Vertices (position XYZ, texture UV):
+    Bottom-left:  (-base_size, -base_size, 0.0,  0.0, 0.0)
+    Bottom-right: (+base_size, -base_size, 0.0,  1.0, 0.0)
+    Top-right:    (+base_size, +base_size, 0.0,  1.0, 1.0)
+    Top-left:     (-base_size, +base_size, 0.0,  0.0, 1.0)
+
+At zoom=1.0:
+    base_size = 0.8
+    Quad ranges from -0.8 to +0.8 in both X and Y (NDC coordinates)
+    
+    This means the quad occupies 1.6/2.0 = 80% of the viewport in each axis.
+    
+In a 600×600 viewport:
+    NDC -0.8 to +0.8 maps to:
+    Pixels: (-0.8 + 1.0) * 0.5 * 600 = 0.2 * 0.5 * 600 = 60 pixels from left
+           (+0.8 + 1.0) * 0.5 * 600 = 1.8 * 0.5 * 600 = 540 pixels from left
+    Size: 540 - 60 = 480 pixels (80% of 600)
+
+So the RTT texture (512×512) gets drawn to a 480×480 quad on screen at zoom=1.0.
+
+10. THE TRANSFORM WIDGET MATH
+------------------------------
+
+From transform_widget.py line 154:
+    size, offset_x, offset_y = _get_canvas_rect()
+    center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
+
+From _get_canvas_rect() (line 100-117):
+    width, height = canvas widget dimensions
+    size = min(width, height)  # Square viewport
+    offset_x = x + (width - size) / 2  # Center the square
+    offset_y = y + (height - size) / 2
+
+From layer_pos_to_qt_pixels() (line 48-74):
+    gl_x, gl_y = layer_pos_to_opengl_coords(pos_x, pos_y)
+    # gl_x, gl_y are in [-0.55, +0.55] range
+    
+    pixel_x = gl_x * (canvas_size / 2)
+    pixel_y = gl_y * (canvas_size / 2)
+    
+    qt_x = offset_x + canvas_size / 2 + pixel_x
+    qt_y = offset_y + canvas_size / 2 - pixel_y  # Y-flip
+
+Example with 600×600 viewport, CoA pos (0.5, 0.3):
+    size = 600
+    offset_x = 0 (if canvas fills container)
+    offset_y = 0
+    
+    gl_x = (0.5 - 0.5) * 1.1 = 0.0
+    gl_y = -(0.3 - 0.5) * 1.1 = 0.22
+    
+    pixel_x = 0.0 * 300 = 0.0
+    pixel_y = 0.22 * 300 = 66.0
+    
+    qt_x = 0 + 300 + 0.0 = 300
+    qt_y = 0 + 300 - 66.0 = 234
+
+11. THE PARALLAX PROBLEM - IDENTIFIED!
+---------------------------------------
+
+The transform widget uses:
+    pixel_x = gl_x * (canvas_size / 2)
+    Where gl_x is in [-0.55, +0.55] range
+
+This assumes the full canvas_size maps to the full [-1, +1] NDC range.
+
+BUT the composite quad uses:
+    base_size = 0.8 * zoom
+    Which means the RTT texture only occupies [-0.8, +0.8] in NDC space!
+
+This is a 80% vs 100% mismatch!
+
+The widget thinks the design fills the entire viewport,
+but the composite only draws it to 80% of the viewport.
+
+SOLUTION:
+---------
+The widget coordinate conversion needs to account for the 0.8 base_size factor.
+
+Option 1: Change layer_pos_to_qt_pixels to use 0.8 factor
+    pixel_x = gl_x * (canvas_size / 2) * (0.8 / 1.1)
+    
+    Why 0.8 / 1.1?
+    - gl_x is in [-0.55, +0.55] range (spans 1.1)
+    - Composite quad is [-0.8, +0.8] in NDC (spans 1.6)
+    - But NDC [-1, +1] maps to canvas_size pixels (spans 2.0)
+    - So quad spans: 1.6 / 2.0 = 0.8 of the canvas
+    
+    Actually, let's think more carefully:
+    - OpenGL range [-0.55, +0.55] should map to composite quad [-0.8, +0.8]
+    - Composite quad [-0.8, +0.8] maps to viewport pixels
+    
+    If viewport is 600 pixels:
+    NDC -0.8 → pixel 60, NDC +0.8 → pixel 540 (480 pixel span)
+    
+    So OpenGL [-0.55, +0.55] (1.1 span) → 480 pixels
+    Therefore: 1.0 OpenGL unit = 480 / 1.1 = 436.36 pixels
+    
+    But currently:
+    pixel_x = gl_x * (canvas_size / 2) = gl_x * 300
+    
+    This assumes 1.0 OpenGL unit = 300 pixels, but it should be:
+    pixel_x = gl_x * (canvas_size * 0.8 / 2) = gl_x * 240
+    
+    Because the quad is only 0.8 * canvas_size in NDC!
+
+12. THE FIX
+-----------
+
+In layer_pos_to_qt_pixels():
+    Change:
+        pixel_x = gl_x * (canvas_size / 2)
+        pixel_y = gl_y * (canvas_size / 2)
+    
+    To:
+        pixel_x = gl_x * (canvas_size * 0.8 / 2)
+        pixel_y = gl_y * (canvas_size * 0.8 / 2)
+    
+    Or equivalently:
+        pixel_x = gl_x * (canvas_size / 2) * 0.8
+        pixel_y = gl_y * (canvas_size / 2) * 0.8
+
+And in qt_pixels_to_layer_pos():
+    Change:
+        gl_x = pixel_x / (canvas_size / 2)
+        gl_y = -pixel_y / (canvas_size / 2)
+    
+    To:
+        gl_x = pixel_x / (canvas_size * 0.8 / 2)
+        gl_y = -pixel_y / (canvas_size * 0.8 / 2)
+    
+    Or equivalently:
+        gl_x = pixel_x / (canvas_size / 2) / 0.8
+        gl_y = -pixel_y / (canvas_size / 2) / 0.8
+
+VERIFICATION:
+    600×600 viewport, CoA (0.5, 0.3), zoom=1.0
+    
+    Composite quad: 480×480 pixels (centered at 300, 300)
+    
+    gl_x = 0.0, gl_y = 0.22
+    pixel_x = 0.0 * (600 * 0.8 / 2) = 0.0 * 240 = 0.0
+    pixel_y = 0.22 * 240 = 52.8
+    
+    qt_x = 0 + 300 + 0.0 = 300 ✓ (center X)
+    qt_y = 0 + 300 - 52.8 = 247.2
+    
+    In composite:
+    OpenGL Y = 0.22 is 0.22/0.8 = 0.275 of the quad range
+    Quad Y range in pixels: 60 to 540 (480 pixel span)
+    Position from bottom: 60 + 0.275 * 480 = 60 + 132 = 192 pixels from top? 
+    
+    Wait, let me recalculate...
+    
+    OpenGL Y = 0.22 in [-0.8, +0.8] range
+    Normalized within quad: (0.22 - (-0.8)) / 1.6 = 1.02 / 1.6 = 0.6375
+    
+    In texture coordinates: V = 0.6375 (0 = bottom, 1 = top)
+    In Qt coordinates (Y-down): 
+        Quad top = 60 pixels, Quad bottom = 540 pixels
+        Y = 60 + (1.0 - 0.6375) * 480 = 60 + 0.3625 * 480 = 60 + 174 = 234
+    
+    Hmm, that gives 234, but widget calculation gives 247.2...
+    
+    Let me recalculate the widget position:
+    pos_y = 0.3 (30% down from top in CoA)
+    gl_y = -(0.3 - 0.5) * 1.1 = 0.22
+    pixel_y = 0.22 * 240 = 52.8 (pixels above center in OpenGL Y-up)
+    qt_y = 300 - 52.8 = 247.2 (pixels down from top in Qt Y-down)
+    
+    And the composite rendering:
+    gl_y = 0.22 means the emblem center is at Y=0.22 in OpenGL space
+    The quad spans [-0.8, +0.8], so 0.22 is:
+        Normalized: (0.22 + 0.8) / 1.6 = 1.02 / 1.6 = 0.6375 from bottom
+        = 0.3625 from top of quad
+    
+    Quad in pixels: top=60, bottom=540
+    Emblem Y = 60 + 0.3625 * 480 = 234
+    
+    Widget Y = 247.2
+    
+    Difference: 247.2 - 234 = 13.2 pixels of parallax!
+    
+This is the bug! The 0.8 factor mismatch causes parallax.

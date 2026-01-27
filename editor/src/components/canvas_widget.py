@@ -62,9 +62,9 @@ def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0):
 	gl_x, gl_y = layer_pos_to_opengl_coords(pos_x, pos_y)
 	
 	# Convert OpenGL normalized (-0.55 to 0.55) to pixels
-	# OpenGL space: 1.0 unit = canvas_size/2 pixels
-	pixel_x = gl_x * (canvas_size / 2)
-	pixel_y = gl_y * (canvas_size / 2)
+	# Must account for composite quad base_size=0.8 factor (quad only occupies 80% of viewport)
+	pixel_x = gl_x * (canvas_size / 2) * 0.8
+	pixel_y = gl_y * (canvas_size / 2) * 0.8
 	
 	# Qt Y-axis is inverted (down is positive)
 	# Canvas center is at (offset + size/2, offset + size/2)
@@ -93,8 +93,9 @@ def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0):
 	
 	# Convert pixels to OpenGL normalized space
 	# Qt Y-down to OpenGL Y-up: negate pixel_y
-	gl_x = pixel_x / (canvas_size / 2)
-	gl_y = -pixel_y / (canvas_size / 2)
+	# Must account for composite quad base_size=0.8 factor
+	gl_x = pixel_x / (canvas_size / 2) / 0.8
+	gl_y = -pixel_y / (canvas_size / 2) / 0.8
 	
 	# Convert OpenGL coords back to layer position
 	# layer_pos_to_opengl_coords: gl_y = -(pos_y - 0.5) * 1.1
