@@ -1005,6 +1005,9 @@ class PropertySidebar(QFrame):
 		# Selection was also already updated by layer_list_widget
 		# Just sync canvas and save state
 		
+		# Clear thumbnail cache since indices have changed
+		self.layer_list_widget.clear_thumbnail_cache()
+		
 		# Update canvas
 		if self.canvas_widget:
 			self.canvas_widget.set_layers(self.layers)
