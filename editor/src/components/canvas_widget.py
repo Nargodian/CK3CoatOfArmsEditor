@@ -1,7 +1,7 @@
 # PyQt5 imports
 from PyQt5.QtWidgets import QOpenGLWidget
 from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader, QOpenGLVertexArrayObject, QOpenGLBuffer
+from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader, QOpenGLVertexArrayObject, QOpenGLBuffer, QVector2D, QVector3D
 
 # External library imports
 import OpenGL.GL as gl
@@ -167,312 +167,146 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		if "pattern__solid_designer.dds" in self.texture_uv_map:
 			self.set_base_texture("pattern__solid_designer.dds")
 		
+		# Force initial render after event loop starts
+		from PyQt5.QtCore import QTimer
+		QTimer.singleShot(0, self.update)
+	
 	def paintGL(self):
-		"""Two-pass rendering: 1) CoA to RTT framebuffer, 2) Composite to viewport"""
+		"""Render the scene - base layer, emblems, frame directly to screen"""
+		gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+		
 		if not self.vao:
 			return
 		
-		# Pass 1: Render CoA to offscreen framebuffer at canonical 512×512 resolution
-		self._render_coa_to_framebuffer()
-		
-		# Pass 2: Composite RTT texture to viewport with frame and zoom
-		self._composite_to_viewport()
-	
-	def _render_coa_to_framebuffer(self):
-		"""Render pattern and emblems to RTT framebuffer in canonical space"""
-		# Bind RTT framebuffer and clear to transparent
-		self.framebuffer_rtt.bind()
-		self.framebuffer_rtt.clear(0.0, 0.0, 0.0, 0.0)  # Transparent black
-		
 		self.vao.bind()
+		gl.glEnable(gl.GL_BLEND)
+		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 		
-		# Render base layer with base.frag at full canonical size (no zoom)
-		if self.base_texture and self.base_texture in self.texture_uv_map and self.base_shader:
-			self.base_shader.bind()
-			atlas_idx, u0, v0, u1, v1 = self.texture_uv_map[self.base_texture]
-			
-			if atlas_idx < len(self.texture_atlases):
-				gl.glActiveTexture(gl.GL_TEXTURE0)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
-				self.base_shader.setUniformValue("textureSampler", 0)
-				
-				# Bind mask texture if available
-				if self.mask_texture:
-					gl.glActiveTexture(gl.GL_TEXTURE1)
-					gl.glBindTexture(gl.GL_TEXTURE_2D, self.mask_texture)
-					if self.base_shader.uniformLocation("coaMaskSampler") != -1:
-						self.base_shader.setUniformValue("coaMaskSampler", 1)
-				
-				# Bind material mask texture
-				if self.material_mask_texture:
-					gl.glActiveTexture(gl.GL_TEXTURE2)
-					gl.glBindTexture(gl.GL_TEXTURE_2D, self.material_mask_texture)
-					if self.base_shader.uniformLocation("materialMaskSampler") != -1:
-						self.base_shader.setUniformValue("materialMaskSampler", 2)
-				
-				# Bind noise texture
-				if self.noise_texture:
-					gl.glActiveTexture(gl.GL_TEXTURE3)
-					gl.glBindTexture(gl.GL_TEXTURE_2D, self.noise_texture)
-					if self.base_shader.uniformLocation("noiseSampler") != -1:
-						self.base_shader.setUniformValue("noiseSampler", 3)
-				
-				# Set base colors from property sidebar
-				color1 = self.base_colors[0] if len(self.base_colors) > 0 else [0.439, 0.129, 0.086]
-				color2 = self.base_colors[1] if len(self.base_colors) > 1 else [0.588, 0.224, 0.0]
-				color3 = self.base_colors[2] if len(self.base_colors) > 2 else [0.733, 0.510, 0.180]
-				self.base_shader.setUniformValue("primaryColor", color1[0], color1[1], color1[2])
-				self.base_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
-				self.base_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
-				
-				# Full canonical quad: -1 to +1 fills the 512×512 framebuffer (no zoom)
-				vertices = np.array([
-					-1.0, -1.0, 0.0,  u0, v1,
-					 1.0, -1.0, 0.0,  u1, v1,
-					 1.0,  1.0, 0.0,  u1, v0,
-					-1.0,  1.0, 0.0,  u0, v0,
-				], dtype=np.float32)
-				
-				self.vbo.bind()
-				self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
-				
-				gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-				self.base_shader.release()
-		
-		# Render emblem layers with design.frag at canonical size (no zoom)
-		if self.layers and self.design_shader:
-			self.design_shader.bind()
-			
-			# Bind pattern texture for mask channels (once, before layer loop)
-			if self.base_texture and self.base_texture in self.texture_uv_map:
-				pattern_atlas_idx, p_u0, p_v0, p_u1, p_v1 = self.texture_uv_map[self.base_texture]
-				if pattern_atlas_idx < len(self.texture_atlases):
-					gl.glActiveTexture(gl.GL_TEXTURE4)
-					gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[pattern_atlas_idx])
-					if self.design_shader.uniformLocation("patternSampler") != -1:
-						self.design_shader.setUniformValue("patternSampler", 4)
-					# Pass pattern UV coordinates to shader
-					if self.design_shader.uniformLocation("patternUV") != -1:
-						self.design_shader.setUniformValue("patternUV", p_u0, p_v0, p_u1, p_v1)
-			
-			for layer in self.layers:
-				# Skip hidden layers
-				if not layer.get('visible', True):
-					continue
-					
-				filename = layer.get('filename')
-				if not filename or filename not in self.texture_uv_map:
-					continue
-				
-				atlas_idx, u0, v0, u1, v1 = self.texture_uv_map[filename]
-				
-				if atlas_idx < len(self.texture_atlases):
-					gl.glActiveTexture(gl.GL_TEXTURE0)
-					gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
-					self.design_shader.setUniformValue("textureSampler", 0)
-					
-					# Bind mask texture if available
-					if self.mask_texture:
-						gl.glActiveTexture(gl.GL_TEXTURE1)
-						gl.glBindTexture(gl.GL_TEXTURE_2D, self.mask_texture)
-						if self.design_shader.uniformLocation("coaMaskSampler") != -1:
-							self.design_shader.setUniformValue("coaMaskSampler", 1)
-					
-					# Bind material mask texture
-					if self.material_mask_texture:
-						gl.glActiveTexture(gl.GL_TEXTURE2)
-						gl.glBindTexture(gl.GL_TEXTURE_2D, self.material_mask_texture)
-						if self.design_shader.uniformLocation("materialMaskSampler") != -1:
-							self.design_shader.setUniformValue("materialMaskSampler", 2)
-					
-					# Bind noise texture
-					if self.noise_texture:
-						gl.glActiveTexture(gl.GL_TEXTURE3)
-						gl.glBindTexture(gl.GL_TEXTURE_2D, self.noise_texture)
-						if self.design_shader.uniformLocation("noiseSampler") != -1:
-							self.design_shader.setUniformValue("noiseSampler", 3)
-					
-					# Set emblem colors from layer properties
-					color1 = layer.get('color1', [0.439, 0.129, 0.086])
-					color2 = layer.get('color2', [0.588, 0.224, 0.0])
-					color3 = layer.get('color3', [0.733, 0.510, 0.180])
-					self.design_shader.setUniformValue("primaryColor", color1[0], color1[1], color1[2])
-					self.design_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
-					self.design_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
-					
-					# Set pattern mask flag (convert from [1,0,0] format to bit flags)
-					mask = layer.get('mask')
-					if mask is None:
-						# No mask = render everywhere (flag 0 or 7)
-						pattern_flag = 0
-					else:
-						# Convert mask list to bit flags
-						# mask[0] non-zero = bit 0 (value 1)
-						# mask[1] non-zero = bit 1 (value 2)
-						# mask[2] non-zero = bit 2 (value 4)
-						pattern_flag = 0
-						if len(mask) > 0 and mask[0] != 0:
-							pattern_flag |= 1
-						if len(mask) > 1 and mask[1] != 0:
-							pattern_flag |= 2
-						if len(mask) > 2 and mask[2] != 0:
-							pattern_flag |= 4
-					self.design_shader.setUniformValue("patternFlag", pattern_flag)
-					
-					# Apply transform properties in canonical space (no zoom)
-					pos_x = layer.get('pos_x', 0.5)
-					pos_y = layer.get('pos_y', 0.5)
-					scale_x = layer.get('scale_x', 0.5)
-					scale_y = layer.get('scale_y', 0.5)
-					flip_x = layer.get('flip_x', False)
-					flip_y = layer.get('flip_y', False)
-					rotation = layer.get('rotation', 0)
-					
-					# Convert properties to canonical clip coordinates (-1 to +1)
-					# pos: 0.0-1.0 → -1.0 to +1.0 (centered at 0.5 = 0.0)
-					center_x = (pos_x - 0.5) * 2.0
-					center_y = -(pos_y - 0.5) * 2.0  # Invert Y-axis (CK3 uses top-down, OpenGL uses bottom-up)
-					
-					# CK3 transformation order: position, then rotation, then scale
-					# Calculate rotated and scaled quad vertices
-					import math
-					angle_rad = math.radians(-rotation)  # Negate for correct rotation direction
-					cos_a = math.cos(angle_rad)
-					sin_a = math.sin(angle_rad)
-					
-					# Apply flip separately from scale magnitude
-					scale_sign_x = -1 if flip_x else 1
-					scale_sign_y = -1 if flip_y else 1
-					half_width = scale_x
-					half_height = scale_y
-					
-					# Define unit quad corners
-					unit_corners = [
-						(-1.0, -1.0),  # Bottom-left
-						( 1.0, -1.0),  # Bottom-right
-						( 1.0,  1.0),  # Top-right
-						(-1.0,  1.0),  # Top-left
-					]
-					
-					# Apply transformations: flip first, then rotate, then scale magnitude, then translate
-					transformed = []
-					for ux, uy in unit_corners:
-						# First apply flip (sign)
-						fx = ux * scale_sign_x
-						fy = uy * scale_sign_y
-						# Then rotate the flipped corner
-						rx = fx * cos_a - fy * sin_a
-						ry = fx * sin_a + fy * cos_a
-						# Then scale by magnitude in canonical space
-						sx = rx * half_width
-						sy = ry * half_height
-						# Finally translate to position
-						transformed.append((sx + center_x, sy + center_y))
-					
-					# Update UV coordinates for this layer
-					vertices = np.array([
-						transformed[0][0], transformed[0][1], 0.0,  u0, v1,
-						transformed[1][0], transformed[1][1], 0.0,  u1, v1,
-						transformed[2][0], transformed[2][1], 0.0,  u1, v0,
-						transformed[3][0], transformed[3][1], 0.0,  u0, v0,
-					], dtype=np.float32)
-					
-					self.vbo.bind()
-					self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
-					
-					gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-			
-			self.design_shader.release()
-		
-		# Unbind RTT framebuffer
-		self.framebuffer_rtt.unbind()
-		self.vao.release()
-	
-	def _composite_to_viewport(self):
-		"""Composite RTT texture to viewport with frame mask, then render frame on top"""
-		# Clear viewport and restore viewport size
-		gl.glViewport(0, 0, self.width(), self.height())
-		gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
-		
-		if not self.composite_shader or not self.vao:
-			return
-		
-		self.vao.bind()
-		self.composite_shader.bind()
-		
-		# Bind RTT texture (CoA render)
-		gl.glActiveTexture(gl.GL_TEXTURE0)
-		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
-		self.composite_shader.setUniformValue("coaTexture", 0)
-		
-		# Bind frame mask if available
-		frame_mask = self.frame_masks.get(self.current_frame_name) if self.current_frame_name else None
-		if frame_mask:
-			gl.glActiveTexture(gl.GL_TEXTURE1)
-			gl.glBindTexture(gl.GL_TEXTURE_2D, frame_mask)
-			self.composite_shader.setUniformValue("frameMaskSampler", 1)
-		elif self.default_mask_texture:
-			# Fallback to default white mask if no frame mask available
-			gl.glActiveTexture(gl.GL_TEXTURE1)
-			gl.glBindTexture(gl.GL_TEXTURE_2D, self.default_mask_texture)
-			self.composite_shader.setUniformValue("frameMaskSampler", 1)
-		
-		# Render full-screen quad with zoom applied
-		composite_size = 0.8 * self.zoom_level
-		vertices = np.array([
-			-composite_size, -composite_size, 0.0,  0.0, 1.0,
-			 composite_size, -composite_size, 0.0,  1.0, 1.0,
-			 composite_size,  composite_size, 0.0,  1.0, 0.0,
-			-composite_size,  composite_size, 0.0,  0.0, 0.0,
-		], dtype=np.float32)
-		
-		self.vbo.bind()
-		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
-		
-		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-		self.composite_shader.release()
-		
-		# Render frame on top if selected
-		if self.frame_texture and self.basic_shader:
-			self.basic_shader.bind()
-			
-			gl.glActiveTexture(gl.GL_TEXTURE0)
-			gl.glBindTexture(gl.GL_TEXTURE_2D, self.frame_texture)
-			self.basic_shader.setUniformValue("textureSampler", 0)
-			
-			# Frame textures are 6x1 tiles for prestige levels
-			# Calculate UV coordinates for the selected prestige level
-			tile_width = 1.0 / 6.0
-			u_start = self.prestige_level * tile_width
-			u_end = u_start + tile_width
-			
-			# Full screen quad for frame with prestige tile UVs, with zoom applied
-			frame_size = 0.8 * self.zoom_level
+		# Render base pattern
+		if self.base_shader and self.default_mask_texture:
+			base_size = 0.8 * self.zoom_level
 			vertices = np.array([
-				-frame_size, -frame_size, 0.0,  u_start, 1.0,
-				 frame_size, -frame_size, 0.0,  u_end, 1.0,
-				 frame_size,  frame_size, 0.0,  u_end, 0.0,
-				-frame_size,  frame_size, 0.0,  u_start, 0.0,
+				-base_size, -base_size, 0.0,  0.0, 1.0,
+				 base_size, -base_size, 0.0,  1.0, 1.0,
+				 base_size,  base_size, 0.0,  1.0, 0.0,
+				-base_size,  base_size, 0.0,  0.0, 0.0,
 			], dtype=np.float32)
 			
 			self.vbo.bind()
 			self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
 			
+			self.base_shader.bind()
+			
+			# Set uniforms
+			viewport_size = QVector2D(float(self.width()), float(self.height()))
+			self.base_shader.setUniformValue("viewportSize", viewport_size)
+			
+			# Get pattern texture from atlas
+			pattern_texture_id = self.default_mask_texture  # Fallback
+			if self.base_texture and self.base_texture in self.texture_uv_map:
+				atlas_index, _, _, _, _ = self.texture_uv_map[self.base_texture]
+				if 0 <= atlas_index < len(self.texture_atlases):
+					pattern_texture_id = self.texture_atlases[atlas_index]
+			
+			# Bind textures
+			gl.glActiveTexture(gl.GL_TEXTURE0)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, pattern_texture_id)
+			self.base_shader.setUniformValue("patternTexture", 0)
+			
+			gl.glActiveTexture(gl.GL_TEXTURE1)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.mask_texture if self.mask_texture else self.default_mask_texture)
+			self.base_shader.setUniformValue("maskTexture", 1)
+			
+			# Colors from base_colors attribute
+			self.base_shader.setUniformValue("color1", QVector3D(*self.base_colors[0]))
+			self.base_shader.setUniformValue("color2", QVector3D(*self.base_colors[1]))
+			
 			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			self.base_shader.release()
+		
+		self.vao.release()
+	
+	def _render_coa_to_framebuffer(self):
+		"""Render pattern and emblems to RTT framebuffer in canonical space"""
+		# Bind RTT framebuffer and clear to red for debugging
+		self.framebuffer_rtt.bind()
+		self.framebuffer_rtt.clear(1.0, 0.0, 0.0, 1.0)  # Bright red background
+		
+		# Disable blending for FBO rendering
+		gl.glDisable(gl.GL_BLEND)
+		
+		# SIMPLIFIED TEST: Just draw a green quad using base_shader
+		if self.base_shader and self.vao:
+			self.vao.bind()
+			self.ebo.bind()
+			self.base_shader.bind()
+			
+			# Simple fullscreen quad in canonical space
+			vertices = np.array([
+				-1.0, -1.0, 0.0,  0.0, 1.0,
+				 1.0, -1.0, 0.0,  1.0, 1.0,
+				 1.0,  1.0, 0.0,  1.0, 0.0,
+				-1.0,  1.0, 0.0,  0.0, 0.0,
+			], dtype=np.float32)
+			
+			self.vbo.bind()
+			self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+			
+			print(f"DEBUG FBO: Drawing test quad")
+			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			
+			gl_error = gl.glGetError()
+			if gl_error != gl.GL_NO_ERROR:
+				print(f"DEBUG FBO: GL ERROR: {gl_error}")
+			
+			self.base_shader.release()
+			self.vao.release()
+		
+		# Unbind RTT framebuffer
+		gl.glFlush()
+		self.framebuffer_rtt.unbind()
+		
+		# Re-enable blending for viewport rendering
+		gl.glEnable(gl.GL_BLEND)
+	
+	def _composite_to_viewport(self):
+		"""Composite RTT texture to viewport with frame mask, then render frame on top"""
+		print("DEBUG: _composite_to_viewport() called")
+		# Clear viewport and restore viewport size
+		gl.glViewport(0, 0, self.width(), self.height())
+		gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+		
+		print(f"DEBUG: Viewport size: {self.width()}x{self.height()}")
+		
+		# SIMPLIFIED TEST: Just draw a blue quad to viewport
+		if self.basic_shader and self.vao:
+			self.vao.bind()
+			self.ebo.bind()
+			self.basic_shader.bind()
+			
+			# Bind RTT texture
+			gl.glActiveTexture(gl.GL_TEXTURE0)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
+			self.basic_shader.setUniformValue("textureSampler", 0)
+			
+			# Simple quad at 0.8 size
+			vertices = np.array([
+				-0.8, -0.8, 0.0,  0.0, 1.0,
+				 0.8, -0.8, 0.0,  1.0, 1.0,
+				 0.8,  0.8, 0.0,  1.0, 0.0,
+				-0.8,  0.8, 0.0,  0.0, 0.0,
+			], dtype=np.float32)
+			
+			self.vbo.bind()
+			self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+			
+			print("DEBUG: Drawing viewport quad")
+			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			
 			self.basic_shader.release()
-		
-		self.vbo.bind()
-		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
-		
-		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-		self.composite_shader.release()
-		
-		# Render grid if enabled
-		if self.show_grid:
-			self._render_grid()
-		
-		self.vao.release()
-		self.vao.release()
+			self.vao.release()
+		else:
+			print("DEBUG: No basic_shader or vao for viewport")
 	
 	def _render_grid(self):
 		"""Render a grid overlay for alignment"""
