@@ -157,6 +157,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# Load noise texture for grain effect
 		self._load_noise_texture()
 		
+		# Initialize RTT framebuffer
+		self.framebuffer_rtt.initialize()
+		
 		# Set defaults after initialization
 		self.set_frame(DEFAULT_FRAME)
 		self.set_prestige(3)
@@ -401,19 +404,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		gl.glActiveTexture(gl.GL_TEXTURE0)
 		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
 		self.composite_shader.setUniformValue("coaTexture", 0)
-		
-		# Bind frame texture if available
-		if self.frame_texture:
-			gl.glActiveTexture(gl.GL_TEXTURE1)
-			gl.glBindTexture(gl.GL_TEXTURE_2D, self.frame_texture)
-			self.composite_shader.setUniformValue("frameSampler", 1)
-			
-			# Bind frame mask
-			frame_mask = self.frame_masks.get(self.current_frame_name)
-			if frame_mask:
-				gl.glActiveTexture(gl.GL_TEXTURE2)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, frame_mask)
-				self.composite_shader.setUniformValue("frameMaskSampler", 2)
 		
 		# Render full-screen quad with zoom applied
 		composite_size = 0.8 * self.zoom_level
