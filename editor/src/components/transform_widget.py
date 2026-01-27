@@ -18,7 +18,7 @@ import math
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from canvas_widget import layer_pos_to_qt_pixels, qt_pixels_to_layer_pos, EMBLEM_SCALE_FACTOR
+from canvas_widget import layer_pos_to_qt_pixels, qt_pixels_to_layer_pos, VIEWPORT_BASE_SIZE
 
 
 class TransformWidget(QWidget):
@@ -155,8 +155,8 @@ class TransformWidget(QWidget):
 		
 		# Widget box shows fixed size based on scale values only
 		# Rotation doesn't affect the widget box size
-		scale_w = abs(self.scale_x) * EMBLEM_SCALE_FACTOR * (size / 2)
-		scale_h = abs(self.scale_y) * EMBLEM_SCALE_FACTOR * (size / 2)
+		scale_w = abs(self.scale_x) * (size / 2)
+		scale_h = abs(self.scale_y) * (size / 2)
 		
 		# Draw axis-aligned bounding box (fixed size)
 		painter.setPen(QPen(QColor(90, 141, 191, 200), 2))
@@ -269,8 +269,8 @@ class TransformWidget(QWidget):
 		
 		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 		
-		scaled_w = abs(self.scale_x) * EMBLEM_SCALE_FACTOR * (size / 2)
-		scaled_h = abs(self.scale_y) * EMBLEM_SCALE_FACTOR * (size / 2)
+		scaled_w = abs(self.scale_x) * (size / 2)
+		scaled_h = abs(self.scale_y) * (size / 2)
 		
 		handles = self._get_handle_positions(center_x, center_y, scaled_w, scaled_h)
 		
@@ -494,28 +494,30 @@ class TransformWidget(QWidget):
 		_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 		
 		if self.active_handle == self.HANDLE_CENTER:
-			# Move - convert current pixel position to layer coords
-			new_pos_x, new_pos_y = qt_pixels_to_layer_pos(
-				current_pos.x(), current_pos.y(), size, offset_x, offset_y
-			)
+			# Move - apply pixel delta to starting position
+			# Convert start position to pixels
+			start_x_px, start_y_px = layer_pos_to_qt_pixels(start_x, start_y, size, offset_x, offset_y)
+			# Apply pixel delta
+			new_x_px = start_x_px + dx
+			new_y_px = start_y_px + dy
+			# Convert back to layer coords
+			new_pos_x, new_pos_y = qt_pixels_to_layer_pos(new_x_px, new_y_px, size, offset_x, offset_y)
 			self.pos_x = new_pos_x
 			self.pos_y = new_pos_y
 			
 		elif self.active_handle == self.HANDLE_AXIS_X:
 			# X-axis constrained movement (only horizontal)
-			new_pos_x, _ = qt_pixels_to_layer_pos(
-				current_pos.x(), current_pos.y(), size, offset_x, offset_y
-			)
-			self.pos_x = new_pos_x
+			canvas_scale = size * VIEWPORT_BASE_SIZE
+			delta_x = dx / canvas_scale
+			self.pos_x = start_x + delta_x
 			# Y position stays locked
 			self.pos_y = start_y
 			
 		elif self.active_handle == self.HANDLE_AXIS_Y:
 			# Y-axis constrained movement (only vertical)
-			_, new_pos_y = qt_pixels_to_layer_pos(
-				current_pos.x(), current_pos.y(), size, offset_x, offset_y
-			)
-			self.pos_y = new_pos_y
+			canvas_scale = size * VIEWPORT_BASE_SIZE
+			delta_y = dy / canvas_scale
+			self.pos_y = start_y + delta_y
 			# X position stays locked
 			self.pos_x = start_x
 			
