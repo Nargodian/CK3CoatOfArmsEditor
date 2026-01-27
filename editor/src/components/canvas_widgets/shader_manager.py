@@ -100,4 +100,4 @@ class ShaderManager:
         Returns:
             QOpenGLShaderProgram for compositing RTT texture to viewport
         """
-        return self.create_program(parent, 'composite.vert', 'composite.frag', 'Composite')
+        return self.create_program(parent, 'basic.vert', 'composite.frag', 'Composite')
