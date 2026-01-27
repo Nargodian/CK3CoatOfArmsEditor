@@ -15,7 +15,6 @@ uniform vec4 patternUV; // Pattern atlas UV coordinates (u0, v0, u1, v1)
 uniform vec3 primaryColor;
 uniform vec3 secondaryColor;
 uniform vec3 tertiaryColor;
-uniform vec2 viewportSize;
 
 // Overlay blend function (per-channel)
 float overlayBlend(float base, float blend) {
@@ -41,16 +40,15 @@ void main()
 	// Apply blue channel as overlay shading (CK3 uses ~0.7 strength for aggressive shading)
 	outputColour = applyOverlay(outputColour, vec3(textureMask.b), 0.7);
 	
-	// Use screen-space coordinates for mask (0-1 range, centered)
-	vec2 maskCoord = 1.0-(gl_FragCoord.xy / viewportSize);
-	maskCoord-=.5;// Center the coordinates
-	maskCoord*=1.62;// Scale to cover more area
-	maskCoord+=.5;// Re-center the coordinates
-	vec4 maskSample = texture(coaMaskSampler,maskCoord);
+	// When rendering to RTT framebuffer at 512×512, fragment coords map directly to normalized space
+	vec2 maskCoord = gl_FragCoord.xy / vec2(512.0, 512.0);
+	maskCoord.y = 1.0 - maskCoord.y;  // Flip Y (OpenGL bottom-up to texture top-down)
+	
+	vec4 maskSample = texture(coaMaskSampler, maskCoord);
 	// Use max of RGB channels or alpha, whichever has data
 	float coaMaskValue = max(max(maskSample.r, maskSample.g), max(maskSample.b, maskSample.a));
 	
-	// Map screen-space coordinates to pattern UV atlas space
+	// Map normalized coordinates to pattern UV atlas space
 	vec2 patternCoord = mix(patternUV.xy, patternUV.zw, maskCoord);
 	vec4 patternTexture = texture(patternSampler, patternCoord);
 	// flags

@@ -11,7 +11,6 @@ uniform sampler2D noiseSampler;
 uniform vec3 primaryColor;
 uniform vec3 secondaryColor;
 uniform vec3 tertiaryColor;
-uniform vec2 viewportSize;
 
 void main()
 {
@@ -23,17 +22,15 @@ void main()
 	outputColour=mix(primaryColor,secondaryColor,textureMask.g);
 	outputColour=mix(outputColour,tertiaryColor,textureMask.b);
 	
-	// Use screen-space coordinates for mask (0-1 range, centered)
-	vec2 maskCoord=1.-(gl_FragCoord.xy/viewportSize);
-	maskCoord -= 0.5; // Center the coordinates
-	maskCoord *= 1.6; // Scale to cover more area
-	maskCoord += 0.5; // Re-center the coordinates
+	// When rendering to RTT framebuffer at 512×512, fragment coords map directly to normalized space
+	vec2 maskCoord = gl_FragCoord.xy / vec2(512.0, 512.0);
+	maskCoord.y = 1.0 - maskCoord.y;  // Flip Y (OpenGL bottom-up to texture top-down)
 
-	vec4 maskSample = texture(coaMaskSampler,maskCoord);
+	vec4 maskSample = texture(coaMaskSampler, maskCoord);
 	// Use max of RGB channels or alpha, whichever has data
 	float coaMaskValue = max(max(maskSample.r, maskSample.g), max(maskSample.b, maskSample.a));
 	
-	// Apply material mask using screen-space coordinates (red channel = dirt map)
+	// Apply material mask using same normalized coordinates (red channel = dirt map)
 	vec4 materialMask = texture(materialMaskSampler, maskCoord);
 	outputColour = mix(outputColour, outputColour * materialMask.b, 0.5);
 	
