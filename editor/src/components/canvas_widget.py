@@ -185,11 +185,20 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# Render base pattern
 		if self.base_shader and self.default_mask_texture:
 			base_size = 0.8 * self.zoom_level
+			
+			# Get pattern texture UV coordinates from atlas
+			u0, v0, u1, v1 = 0.0, 0.0, 1.0, 1.0  # Default to full texture
+			pattern_texture_id = self.default_mask_texture  # Fallback
+			if self.base_texture and self.base_texture in self.texture_uv_map:
+				atlas_index, u0, v0, u1, v1 = self.texture_uv_map[self.base_texture]
+				if 0 <= atlas_index < len(self.texture_atlases):
+					pattern_texture_id = self.texture_atlases[atlas_index]
+			
 			vertices = np.array([
-				-base_size, -base_size, 0.0,  0.0, 1.0,
-				 base_size, -base_size, 0.0,  1.0, 1.0,
-				 base_size,  base_size, 0.0,  1.0, 0.0,
-				-base_size,  base_size, 0.0,  0.0, 0.0,
+				-base_size, -base_size, 0.0,  u0, v1,
+				 base_size, -base_size, 0.0,  u1, v1,
+				 base_size,  base_size, 0.0,  u1, v0,
+				-base_size,  base_size, 0.0,  u0, v0,
 			], dtype=np.float32)
 			
 			self.vbo.bind()
@@ -201,13 +210,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			viewport_size = QVector2D(float(self.width()), float(self.height()))
 			self.base_shader.setUniformValue("viewportSize", viewport_size)
 			
-			# Get pattern texture from atlas
-			pattern_texture_id = self.default_mask_texture  # Fallback
-			if self.base_texture and self.base_texture in self.texture_uv_map:
-				atlas_index, _, _, _, _ = self.texture_uv_map[self.base_texture]
-				if 0 <= atlas_index < len(self.texture_atlases):
-					pattern_texture_id = self.texture_atlases[atlas_index]
-			
 			# Bind textures
 			gl.glActiveTexture(gl.GL_TEXTURE0)
 			gl.glBindTexture(gl.GL_TEXTURE_2D, pattern_texture_id)
@@ -216,6 +218,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			# Colors from base_colors attribute
 			self.base_shader.setUniformValue("color1", QVector3D(*self.base_colors[0]))
 			self.base_shader.setUniformValue("color2", QVector3D(*self.base_colors[1]))
+			self.base_shader.setUniformValue("color3", QVector3D(*self.base_colors[2]))
 			
 			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 			self.base_shader.release()

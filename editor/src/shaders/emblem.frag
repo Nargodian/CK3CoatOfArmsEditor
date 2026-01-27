@@ -3,8 +3,8 @@
 in vec2 vTexCoord;
 out vec4 FragColor;
 
-uniform sampler2D emblemMaskSampler;        // The emblem mask atlas (RGB channels for coloring)
-uniform sampler2D patternMaskSampler;       // Pattern atlas texture for mask channels
+uniform sampler2D emblemMaskSampler;        // 8192×8192 emblem atlas with 256 tiles (16×16 grid, 512×512 per tile)
+uniform sampler2D patternMaskSampler;       // 8192×8192 pattern atlas with 256 tiles (16×16 grid, 512×512 per tile)
 uniform sampler2D texturedMaskSampler;      // Material/dirt texture (coa_mask_texture.png)
 uniform sampler2D noiseMaskSampler;         // Noise texture (noise.png)
 

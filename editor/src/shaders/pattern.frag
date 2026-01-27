@@ -3,19 +3,20 @@
 in vec2 vTexCoord;
 out vec4 FragColor;
 
-uniform sampler2D patternMaskSampler;
+uniform sampler2D patternMaskSampler;  // 8192×8192 atlas with 256 tiles (16×16 grid, 512×512 per tile)
 uniform vec3 color1;
 uniform vec3 color2;
+uniform vec3 color3;
 uniform vec2 viewportSize;
 
 void main()
 {
-	vec2 tileIndex = floor(vTexCoord * 32.0);
-	vec2 tileCenter = (tileIndex + 0.5) / 32.0;
-	vec2 scaleCoords = tileCenter + (vTexCoord - tileCenter) * 1.3;
-	vec4 textureMask = texture(patternMaskSampler, scaleCoords);
+	// vTexCoord already contains the correct UV coordinates for the selected tile
+	vec4 textureMask = texture(patternMaskSampler, vTexCoord);
 	
-	vec3 outputColor = mix(color1, color2, textureMask.g);
+	vec3 outputColor = vec3(0.0);
+	outputColor = mix(color1, color2, textureMask.g);
+	outputColor = mix(outputColor, color3, textureMask.b);
 	
 	FragColor = vec4(outputColor, textureMask.a);
 }
