@@ -391,7 +391,7 @@ class TransformWidget(QWidget):
 					self.layerDuplicated.emit()
 					# Note: Don't reset drag_start_pos - keep dragging from original position
 			
-			self._handle_drag(event.pos())
+			self._handle_drag(event.pos(), event.modifiers())
 			event.accept()
 			return
 		
@@ -520,10 +520,13 @@ class TransformWidget(QWidget):
 		self.update()
 		event.accept()
 	
-	def _handle_drag(self, current_pos):
+	def _handle_drag(self, current_pos, modifiers=None):
 		"""Handle dragging based on active handle"""
 		if not self.drag_start_pos or not self.drag_start_transform:
 			return
+		
+		# Check if Alt modifier is pressed for anchor-based scaling
+		alt_pressed = modifiers and (modifiers & Qt.AltModifier)
 		
 		dx = current_pos.x() - self.drag_start_pos.x()
 		dy = current_pos.y() - self.drag_start_pos.y()
@@ -578,66 +581,159 @@ class TransformWidget(QWidget):
 			
 		elif self.active_handle in [self.HANDLE_TL, self.HANDLE_TR, self.HANDLE_BL, self.HANDLE_BR]:
 			# Corner scale (uniform scaling)
-			# Calculate distance in viewport space
-			distance = math.sqrt(dx*dx + dy*dy)
-			# Base scale factor on distance relative to viewport
-			base_scale = abs(start_sx) if abs(start_sx) > 0.01 else 0.5
-			scale_delta = distance / (size * base_scale)
-			
-			# Determine if moving away or towards center
-			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
-			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
-			
-			# Vector from center to drag start
-			start_vec_x = self.drag_start_pos.x() - center_x
-			start_vec_y = self.drag_start_pos.y() - center_y
-			# Vector from center to current position
-			curr_vec_x = current_pos.x() - center_x
-			curr_vec_y = current_pos.y() - center_y
-			
-			# Dot product to determine direction
-			dot = start_vec_x * curr_vec_x + start_vec_y * curr_vec_y
-			start_len = math.sqrt(start_vec_x**2 + start_vec_y**2)
-			curr_len = math.sqrt(curr_vec_x**2 + curr_vec_y**2)
-			
-			if start_len > 0:
-				scale_factor = curr_len / start_len
+			if alt_pressed:
+				# Alt+drag: Anchor opposite corner, scale from that fixed point
+				# Get opposite corner position in layer coords
+				if self.active_handle == self.HANDLE_TL:
+					anchor_x, anchor_y = start_x + start_sx * 0.5, start_y + start_sy * 0.5  # BR
+				elif self.active_handle == self.HANDLE_TR:
+					anchor_x, anchor_y = start_x - start_sx * 0.5, start_y + start_sy * 0.5  # BL
+				elif self.active_handle == self.HANDLE_BL:
+					anchor_x, anchor_y = start_x + start_sx * 0.5, start_y - start_sy * 0.5  # TR
+				else:  # HANDLE_BR
+					anchor_x, anchor_y = start_x - start_sx * 0.5, start_y - start_sy * 0.5  # TL
+				
+				# Convert anchor to screen coords
+				_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
+				anchor_x_px, anchor_y_px = layer_pos_to_qt_pixels(anchor_x, anchor_y, size, offset_x, offset_y)
+				
+				# Calculate distance from anchor to current mouse position
+				curr_vec_x = current_pos.x() - anchor_x_px
+				curr_vec_y = current_pos.y() - anchor_y_px
+				curr_dist = math.sqrt(curr_vec_x**2 + curr_vec_y**2)
+				
+				# Calculate distance from anchor to original handle position
+				start_vec_x = self.drag_start_pos.x() - anchor_x_px
+				start_vec_y = self.drag_start_pos.y() - anchor_y_px
+				start_dist = math.sqrt(start_vec_x**2 + start_vec_y**2)
+				
+				if start_dist > 0:
+					scale_factor = curr_dist / start_dist
+					self.scale_x = start_sx * scale_factor
+					self.scale_y = start_sy * scale_factor
+					
+					# Reposition center to keep anchor fixed
+					# New center is anchor + (original offset from anchor) * scale_factor
+					new_center_x = anchor_x + (start_x - anchor_x) * scale_factor
+					new_center_y = anchor_y + (start_y - anchor_y) * scale_factor
+					self.pos_x = new_center_x
+					self.pos_y = new_center_y
 			else:
-				scale_factor = 1.0
-			
-			self.scale_x = start_sx * scale_factor
-			self.scale_y = start_sy * scale_factor
+				# Normal center-based scaling
+				# Calculate distance in viewport space
+				distance = math.sqrt(dx*dx + dy*dy)
+				# Base scale factor on distance relative to viewport
+				base_scale = abs(start_sx) if abs(start_sx) > 0.01 else 0.5
+				scale_delta = distance / (size * base_scale)
+				
+				# Determine if moving away or towards center
+				_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
+				center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
+				
+				# Vector from center to drag start
+				start_vec_x = self.drag_start_pos.x() - center_x
+				start_vec_y = self.drag_start_pos.y() - center_y
+				# Vector from center to current position
+				curr_vec_x = current_pos.x() - center_x
+				curr_vec_y = current_pos.y() - center_y
+				
+				# Dot product to determine direction
+				dot = start_vec_x * curr_vec_x + start_vec_y * curr_vec_y
+				start_len = math.sqrt(start_vec_x**2 + start_vec_y**2)
+				curr_len = math.sqrt(curr_vec_x**2 + curr_vec_y**2)
+				
+				if start_len > 0:
+					scale_factor = curr_len / start_len
+				else:
+					scale_factor = 1.0
+				
+				self.scale_x = start_sx * scale_factor
+				self.scale_y = start_sy * scale_factor
 			
 		elif self.active_handle in [self.HANDLE_L, self.HANDLE_R]:
-			# Horizontal scale - simple X-axis scaling
+			# Horizontal scale
 			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 			
-			# Calculate horizontal distance change
-			start_dist = abs(self.drag_start_pos.x() - center_x)
-			curr_dist = abs(current_pos.x() - center_x)
+			if alt_pressed:
+				# Alt+drag: Anchor opposite edge
+				if self.active_handle == self.HANDLE_L:
+					# Anchor right edge
+					anchor_x = start_x + start_sx * 0.5
+				else:  # HANDLE_R
+					# Anchor left edge
+					anchor_x = start_x - start_sx * 0.5
+				
+				# Convert anchor to screen coords
+				anchor_x_px, _ = layer_pos_to_qt_pixels(anchor_x, start_y, size, offset_x, offset_y)
+				
+				# Calculate new scale based on distance from anchor to mouse
+				new_width_px = abs(current_pos.x() - anchor_x_px) * 2
+				canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+				new_scale_x = new_width_px / canvas_scale
+				
+				# Preserve sign
+				sign_x = 1 if start_sx >= 0 else -1
+				self.scale_x = sign_x * new_scale_x
+				
+				# Reposition center to keep anchor fixed
+				new_center_x = anchor_x + (start_x - anchor_x) * (new_scale_x / abs(start_sx))
+				self.pos_x = new_center_x
+			else:
+				# Normal center-based scaling
+				# Calculate horizontal distance change
+				start_dist = abs(self.drag_start_pos.x() - center_x)
+				curr_dist = abs(current_pos.x() - center_x)
+				
+				# Calculate scale factor
+				if start_dist > 0:
+					scale_factor = curr_dist / start_dist
+					self.scale_x = start_sx * scale_factor
 			
-			# Calculate scale factor
-			if start_dist > 0:
-				scale_factor = curr_dist / start_dist
-				self.scale_x = start_sx * scale_factor
 			self.scale_y = start_sy  # Preserve Y scale
 			# Emit signal to disable unified scale
 			self.nonUniformScaleUsed.emit()
 		
 		elif self.active_handle in [self.HANDLE_T, self.HANDLE_B]:
-			# Vertical scale - simple Y-axis scaling
+			# Vertical scale
 			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 			
-			# Calculate vertical distance change
-			start_dist = abs(self.drag_start_pos.y() - center_y)
-			curr_dist = abs(current_pos.y() - center_y)
+			if alt_pressed:
+				# Alt+drag: Anchor opposite edge
+				if self.active_handle == self.HANDLE_T:
+					# Anchor bottom edge
+					anchor_y = start_y + start_sy * 0.5
+				else:  # HANDLE_B
+					# Anchor top edge
+					anchor_y = start_y - start_sy * 0.5
+				
+				# Convert anchor to screen coords
+				_, anchor_y_px = layer_pos_to_qt_pixels(start_x, anchor_y, size, offset_x, offset_y)
+				
+				# Calculate new scale based on distance from anchor to mouse
+				new_height_px = abs(current_pos.y() - anchor_y_px) * 2
+				canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+				new_scale_y = new_height_px / canvas_scale
+				
+				# Preserve sign
+				sign_y = 1 if start_sy >= 0 else -1
+				self.scale_y = sign_y * new_scale_y
+				
+				# Reposition center to keep anchor fixed
+				new_center_y = anchor_y + (start_y - anchor_y) * (new_scale_y / abs(start_sy))
+				self.pos_y = new_center_y
+			else:
+				# Normal center-based scaling
+				# Calculate vertical distance change
+				start_dist = abs(self.drag_start_pos.y() - center_y)
+				curr_dist = abs(current_pos.y() - center_y)
+				
+				# Calculate scale factor
+				if start_dist > 0:
+					scale_factor = curr_dist / start_dist
+					self.scale_y = start_sy * scale_factor
 			
-			# Calculate scale factor
-			if start_dist > 0:
-				scale_factor = curr_dist / start_dist
-				self.scale_y = start_sy * scale_factor
 			self.scale_x = start_sx  # Preserve X scale
 			# Emit signal to disable unified scale
 			self.nonUniformScaleUsed.emit()
