@@ -110,6 +110,18 @@ class CanvasArea(QFrame):
 		self.splendor_combo.currentIndexChanged.connect(self._on_splendor_changed)
 		bottom_layout.addWidget(self.splendor_combo)
 		
+		bottom_layout.addSpacing(20)
+		
+		# Add minimal transform widget toggle button
+		from PyQt5.QtWidgets import QPushButton
+		self.minimal_transform_btn = QPushButton("▭")
+		self.minimal_transform_btn.setCheckable(True)
+		self.minimal_transform_btn.setToolTip("Toggle minimal transform widget (M)\nShows faint box only, drag and wheel functions work")
+		self.minimal_transform_btn.setFixedSize(24, 20)
+		self.minimal_transform_btn.setStyleSheet("QPushButton { font-size: 14px; padding: 0px; }")
+		self.minimal_transform_btn.toggled.connect(self.transform_widget.set_minimal_mode)
+		bottom_layout.addWidget(self.minimal_transform_btn)
+		
 		bottom_layout.addStretch()
 		
 		return bottom_bar
