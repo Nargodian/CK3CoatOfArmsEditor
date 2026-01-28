@@ -34,7 +34,7 @@ VIEWPORT_BASE_SIZE = 0.8
 
 # Scale factor for CoA composite to fit under frame
 # CK3 default: 0.9 (90% of shield area) from data_binding/tgp_data_bindings.txt
-COMPOSITE_SCALE = 0.8
+COMPOSITE_SCALE = 0.77
 
 # Vertical offset for CoA within frame (CK3 default: 0.04 = 4% upward)
 COMPOSITE_OFFSET_Y = 0.00
@@ -498,13 +498,16 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# Set per-frame scale and offset uniforms
 		safeMargin = 1.0
 		if self.current_frame_name == "None":
-			# No frame: render at full scale with no offset
+			# No frame: render at full scale with no offset, no bleed margin
 			self.composite_shader.setUniformValue("coaScale", QVector2D(1.0, 1.0))
 			self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.0))
+			self.composite_shader.setUniformValue("bleedMargin", 1.0)
 		elif self.current_frame_name in self.frame_scales:
+			# Listed frame: apply bleed margin (larger viewport, smaller CoA = edge bleed)
+			safeMargin = 1.05
 			scale = self.frame_scales[self.current_frame_name]
-			safeMargin = 1.05 # Adjust for default scale of 0.9
-			self.composite_shader.setUniformValue("coaScale", QVector2D(scale[0]*safeMargin, scale[1]*safeMargin))
+			self.composite_shader.setUniformValue("coaScale", QVector2D(scale[0], scale[1]))
+			self.composite_shader.setUniformValue("bleedMargin", safeMargin)
 			if self.current_frame_name in self.frame_offsets:
 				offset = self.frame_offsets[self.current_frame_name]
 				self.composite_shader.setUniformValue("coaOffset", QVector2D(offset[0], offset[1]))
@@ -512,13 +515,14 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				# Default CK3 offset for this frame
 				self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
 		else:
-			# Unlisted frame: default CK3 scale and offset
-			safeMargin = 1.05 # Adjust for default scale of 0.9
-			self.composite_shader.setUniformValue("coaScale", QVector2D(0.9/safeMargin, 0.9/safeMargin))
+			# Unlisted frame: apply bleed margin with default CK3 scale and offset
+			safeMargin = 1.05
+			self.composite_shader.setUniformValue("coaScale", QVector2D(0.9, 0.9))
+			self.composite_shader.setUniformValue("bleedMargin", safeMargin)
 			self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
 		
 		# Composite quad always at fixed size (scaling/offset done in shader)
-		base_size = VIEWPORT_BASE_SIZE * self.zoom_level * 0.75 * safeMargin
+		base_size = VIEWPORT_BASE_SIZE * self.zoom_level * COMPOSITE_SCALE * safeMargin
 		# Texture coords: RTT renders Y-up (OpenGL standard), texture V=0 at bottom, V=1 at top
 		# Position Y=-1 (bottom) → V=0, Position Y=+1 (top) → V=1
 		vertices = np.array([
