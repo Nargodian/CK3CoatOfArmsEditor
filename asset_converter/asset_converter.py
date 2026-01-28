@@ -434,7 +434,7 @@ class ConversionWorker(QThread):
     def run(self):
         """Main conversion process."""
         try:
-            total_steps = 4
+            total_steps = 5  # Added frame transforms step
             current_step = 0
             
             # Step 1: Process emblems
@@ -458,7 +458,14 @@ class ConversionWorker(QThread):
                 self.finished.emit(False, "Frame processing failed")
                 return
             
-            # Step 4: Convert metadata
+            # Step 4: Extract frame transforms
+            current_step += 1
+            self.progress.emit("Extracting frame transforms...", current_step, total_steps)
+            if not self.extract_frame_transforms():
+                self.finished.emit(False, "Frame transform extraction failed")
+                return
+            
+            # Step 5: Convert metadata
             current_step += 1
             self.progress.emit("Converting metadata...", current_step, total_steps)
             if not self.convert_metadata():
@@ -662,6 +669,118 @@ class ConversionWorker(QThread):
             
         except Exception as e:
             self.log_error(f"Frame processing error: {str(e)}")
+            return False
+    
+    def extract_frame_transforms(self) -> bool:
+        """Extract frame scales and offsets from culture files."""
+        try:
+            culture_dir = self.ck3_dir / "game" / "common" / "culture" / "cultures"
+            if not culture_dir.exists():
+                self.log_error(f"Culture directory not found: {culture_dir}")
+                return False
+            
+            self.progress.emit("Parsing culture files for frame data...", 0, 0)
+            
+            # Parse frame scales and offsets from culture files
+            from collections import defaultdict, Counter
+            
+            frame_scales = defaultdict(list)
+            frame_offsets = defaultdict(list)
+            culture_to_frame = {}
+            
+            culture_files = list(culture_dir.glob("*.txt"))
+            
+            for i, filepath in enumerate(culture_files):
+                self.progress.emit(f"Parsing {filepath.name}...", i, len(culture_files))
+                
+                try:
+                    with open(filepath, 'r', encoding='utf-8-sig') as f:
+                        lines = f.read().split('\n')
+                except Exception as e:
+                    self.log_error(f"Error reading {filepath.name}: {e}")
+                    continue
+                
+                current_culture = None
+                current_frame = None
+                
+                for line in lines:
+                    # Detect culture definition start
+                    culture_match = re.match(r'^(\w+)\s*=\s*\{', line)
+                    if culture_match:
+                        current_culture = culture_match.group(1)
+                        current_frame = None
+                        continue
+                    
+                    # Find house_coa_frame
+                    frame_match = re.search(r'house_coa_frame\s*=\s*(house_frame_\d+)', line)
+                    if frame_match and current_culture:
+                        current_frame = frame_match.group(1)
+                    
+                    # Find house_coa_mask_scale
+                    scale_match = re.search(r'house_coa_mask_scale\s*=\s*\{\s*([\d.]+)\s+([\d.]+)\s*\}', line)
+                    if scale_match and current_culture and current_frame:
+                        scale_x = float(scale_match.group(1))
+                        scale_y = float(scale_match.group(2))
+                        
+                        frame_scales[current_frame].append((scale_x, scale_y))
+                        culture_to_frame[current_culture] = {
+                            'frame': current_frame,
+                            'scale': [scale_x, scale_y]
+                        }
+                    
+                    # Find house_coa_mask_offset
+                    offset_match = re.search(r'house_coa_mask_offset\s*=\s*\{\s*([\d.-]+)\s+([\d.-]+)\s*\}', line)
+                    if offset_match and current_culture and current_frame:
+                        offset_x = float(offset_match.group(1))
+                        offset_y = float(offset_match.group(2))
+                        
+                        frame_offsets[current_frame].append((offset_x, offset_y))
+                        if current_culture in culture_to_frame:
+                            culture_to_frame[current_culture]['offset'] = [offset_x, offset_y]
+            
+            # Build final dict with recommended scale/offset per frame
+            frame_scale_dict = {}
+            frame_offset_dict = {}
+            
+            for frame_name, scales in frame_scales.items():
+                unique_scales = sorted(set(scales))
+                
+                if len(unique_scales) == 1:
+                    frame_scale_dict[frame_name] = list(unique_scales[0])
+                else:
+                    scale_counts = Counter(scales)
+                    most_common_scale = scale_counts.most_common(1)[0][0]
+                    frame_scale_dict[frame_name] = list(most_common_scale)
+                    self.log_error(f"Frame {frame_name} has multiple scales, using most common: {most_common_scale}")
+            
+            for frame_name, offsets in frame_offsets.items():
+                unique_offsets = sorted(set(offsets))
+                
+                if len(unique_offsets) == 1:
+                    frame_offset_dict[frame_name] = list(unique_offsets[0])
+                else:
+                    offset_counts = Counter(offsets)
+                    most_common_offset = offset_counts.most_common(1)[0][0]
+                    frame_offset_dict[frame_name] = list(most_common_offset)
+                    self.log_error(f"Frame {frame_name} has multiple offsets, using most common: {most_common_offset}")
+            
+            # Save to output
+            output_data = {
+                'frame_scales': frame_scale_dict,
+                'frame_offsets': frame_offset_dict,
+                'description': 'Auto-generated from CK3 culture files',
+                'scale_values_used': sorted(list(set(tuple(v) for v in frame_scale_dict.values())))
+            }
+            
+            output_path = self.output_dir / "frame_transforms.json"
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(output_data, f, indent=2)
+            
+            self.progress.emit(f"Frame transforms: {len(frame_scale_dict)} frames extracted", len(culture_files), len(culture_files))
+            return True
+            
+        except Exception as e:
+            self.log_error(f"Frame transform extraction error: {str(e)}")
             return False
     
     def convert_metadata(self) -> bool:
