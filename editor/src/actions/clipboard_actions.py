@@ -56,7 +56,7 @@ class ClipboardActions:
 			
 			# Parse clipboard text
 			coa_data = parse_coa_string(text)
-			layers = parse_coa_for_editor(coa_data, self.main_window._find_asset_path)
+			layers = parse_coa_for_editor(coa_data)
 			
 			# Apply the CoA data
 			self.main_window._apply_coa_data(coa_data)

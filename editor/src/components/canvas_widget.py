@@ -288,6 +288,12 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# Render CoA to framebuffer (512x512 canonical space)
 		self._render_coa_to_framebuffer()
 		
+		# Restore viewport to widget size (RTT sets it to 512x512)
+		size = min(self.width(), self.height())
+		x = (self.width() - size) // 2
+		y = (self.height() - size) // 2
+		gl.glViewport(x, y, size, size)
+		
 		# Composite framebuffer to viewport with frame mask
 		self._composite_to_viewport()
 		

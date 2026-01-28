@@ -116,7 +116,7 @@ class FileActions:
 			try:
 				# Load and parse the file
 				coa_data = load_coa_from_file(filename)
-				layers = parse_coa_for_editor(coa_data, self.main_window._find_asset_path)
+				layers = parse_coa_for_editor(coa_data)
 				
 				# Clear history before loading
 				self.main_window.history_manager.clear()
