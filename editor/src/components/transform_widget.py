@@ -88,6 +88,7 @@ class TransformWidget(QWidget):
 		
 		# Minimal mode for simplified widget
 		self.minimal_mode = False
+		self.bounding_rect = QRectF()  # Initialize bounding rect
 		
 		# Position absolutely on top of parent
 		if parent:
@@ -287,8 +288,9 @@ class TransformWidget(QWidget):
 		
 		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 		
-		scaled_w = abs(self.scale_x) * (size / 2)
-		scaled_h = abs(self.scale_y) * (size / 2)
+		# Must match paintEvent scaling: multiply by VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+		scaled_w = abs(self.scale_x) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+		scaled_h = abs(self.scale_y) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 		
 		handles = self._get_handle_positions(center_x, center_y, scaled_w, scaled_h)
 		
