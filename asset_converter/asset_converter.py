@@ -465,6 +465,10 @@ class ConversionWorker(QThread):
                 self.finished.emit(False, "Frame transform extraction failed")
                 return
             
+            # Step 4.5: Extract mask texture
+            if not self.extract_mask_texture():
+                self.log_error("Mask texture extraction failed (non-critical)")
+            
             # Step 5: Convert metadata
             current_step += 1
             self.progress.emit("Converting metadata...", current_step, total_steps)
@@ -781,6 +785,37 @@ class ConversionWorker(QThread):
             
         except Exception as e:
             self.log_error(f"Frame transform extraction error: {str(e)}")
+            return False
+    
+    def extract_mask_texture(self) -> bool:
+        """Extract the CoA mask texture from game files."""
+        try:
+            mask_source = self.ck3_dir / "game" / "gfx" / "coat_of_arms" / "coa_mask_texture.dds"
+            if not mask_source.exists():
+                self.log_error(f"Mask texture not found: {mask_source}")
+                return False
+            
+            mask_dest = self.output_dir / "coa_mask_texture.png"
+            
+            # Check if processing needed
+            if not self.should_process(mask_source, mask_dest):
+                self.progress.emit("Mask texture already up to date", 0, 0)
+                return True
+            
+            # Load and convert DDS to PNG
+            img_array = load_dds_image(mask_source)
+            if img_array is None:
+                self.log_error("Failed to load mask texture DDS")
+                return False
+            
+            img = Image.fromarray(img_array, mode='RGBA')
+            img.save(mask_dest, 'PNG')
+            
+            self.progress.emit("Mask texture extracted", 0, 0)
+            return True
+            
+        except Exception as e:
+            self.log_error(f"Mask texture extraction error: {str(e)}")
             return False
     
     def convert_metadata(self) -> bool:
