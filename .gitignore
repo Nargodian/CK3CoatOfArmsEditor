@@ -24,6 +24,8 @@ wheels/
 # PyInstaller build artifacts
 build/build/
 build/dist/
+asset_converter/build/
+asset_converter/dist/
 *.spec.backup
 *.manifest
 *.spec~
