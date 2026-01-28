@@ -34,7 +34,7 @@ VIEWPORT_BASE_SIZE = 0.8
 
 # Scale factor for CoA composite to fit under frame
 # CK3 default: 0.9 (90% of shield area) from data_binding/tgp_data_bindings.txt
-COMPOSITE_SCALE = 0.77
+COMPOSITE_SCALE = 0.75
 
 # Vertical offset for CoA within frame (CK3 default: 0.04 = 4% upward)
 COMPOSITE_OFFSET_Y = 0.00
