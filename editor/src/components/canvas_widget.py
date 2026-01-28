@@ -32,6 +32,13 @@ from utils.path_resolver import (get_pattern_metadata_path, get_emblem_metadata_
 # e.g., 0.8 means the design occupies 80% of the viewport width/height
 VIEWPORT_BASE_SIZE = 0.8
 
+# Scale factor for CoA composite to fit under frame
+# CK3 default: 0.9 (90% of shield area) from data_binding/tgp_data_bindings.txt
+COMPOSITE_SCALE = 0.8
+
+# Vertical offset for CoA within frame (CK3 default: 0.04 = 4% upward)
+COMPOSITE_OFFSET_Y = 0.00
+
 # ========================================
 # Coordinate Conversion Functions
 # ========================================
@@ -72,8 +79,9 @@ def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0):
 	
 	# Convert OpenGL normalized (-1.0 to +1.0) to pixels
 	# Must account for composite quad base_size factor (quad only occupies VIEWPORT_BASE_SIZE of viewport)
-	pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE
-	pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE
+	# and COMPOSITE_SCALE (shrinks CoA to fit under frame)
+	pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+	pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 	
 	# Qt Y-axis is inverted (down is positive)
 	# Canvas center is at (offset + size/2, offset + size/2)
@@ -102,9 +110,9 @@ def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0):
 	
 	# Convert pixels to OpenGL normalized space
 	# Qt Y-down to OpenGL Y-up: negate pixel_y
-	# Must account for composite quad base_size factor
-	gl_x = pixel_x / (canvas_size / 2) / VIEWPORT_BASE_SIZE
-	gl_y = -pixel_y / (canvas_size / 2) / VIEWPORT_BASE_SIZE
+	# Must account for composite quad base_size factor and COMPOSITE_SCALE
+	gl_x = pixel_x / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE
+	gl_y = -pixel_y / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE
 	
 	# Convert OpenGL coords back to layer position
 	# layer_pos_to_opengl_coords: gl_x = pos_x * 2.0 - 1.0
@@ -141,6 +149,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.frameTexture = None  # Current frame texture
 		self.frameTextures = {}  # Frame name -> texture ID
 		self.frame_masks = {}  # Frame name -> frameMask texture ID
+		self.frame_scales = {}  # Frame name -> (scale_x, scale_y) tuple
+		self.frame_offsets = {}  # Frame name -> (offset_x, offset_y) tuple
+		self.frame_scales = {}  # Frame name -> (scale_x, scale_y) tuple
+		self.frame_offsets = {}  # Frame name -> (offset_x, offset_y) tuple
 		self.patternMask = None  # Current pattern mask (shield shape, changes with frame)
 		self.default_mask_texture = None  # Default white mask (fallback)
 		self.texturedMask = None  # CK3 material texture (dirt/fabric/paint) - coa_mask_texture.png
@@ -497,8 +509,23 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			gl.glBindTexture(gl.GL_TEXTURE_2D, self.frame_masks[self.current_frame_name])
 			self.composite_shader.setUniformValue("frameMaskSampler", 1)
 		
-		# Apply zoom to quad size
-		base_size = VIEWPORT_BASE_SIZE * self.zoom_level
+		# Set per-frame scale and offset uniforms
+		if self.current_frame_name in self.frame_scales:
+			scale = self.frame_scales[self.current_frame_name]
+			self.composite_shader.setUniformValue("coaScale", QVector2D(scale[0], scale[1]))
+		else:
+			# Default CK3 scale
+			self.composite_shader.setUniformValue("coaScale", QVector2D(0.9, 0.9))
+		
+		if self.current_frame_name in self.frame_offsets:
+			offset = self.frame_offsets[self.current_frame_name]
+			self.composite_shader.setUniformValue("coaOffset", QVector2D(offset[0], offset[1]))
+		else:
+			# Default CK3 offset
+			self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
+		
+		# Composite quad always at fixed size (scaling/offset done in shader)
+		base_size = VIEWPORT_BASE_SIZE * self.zoom_level * 0.8
 		# Texture coords: RTT renders Y-up (OpenGL standard), texture V=0 at bottom, V=1 at top
 		# Position Y=-1 (bottom) → V=0, Position Y=+1 (top) → V=1
 		vertices = np.array([
@@ -540,10 +567,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# Render frame at same size as composite
 		base_size = VIEWPORT_BASE_SIZE * self.zoom_level
 		vertices = np.array([
-			-base_size, -base_size, 0.0,  u0, 0.0,
-			 base_size, -base_size, 0.0,  u1, 0.0,
-			 base_size,  base_size, 0.0,  u1, 1.0,
-			-base_size,  base_size, 0.0,  u0, 1.0,
+			-base_size, -base_size, 0.0,  u0, 1.0,
+			 base_size, -base_size, 0.0,  u1, 1.0,
+			 base_size,  base_size, 0.0,  u1, 0.0,
+			-base_size,  base_size, 0.0,  u0, 0.0,
 		], dtype=np.float32)
 		
 		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
@@ -738,12 +765,17 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					if os.path.exists(mask_path):
 						mask_img = Image.open(mask_path).convert('RGBA')
 						
-						# Check if mask is valid (not all black/zero)
+						# Analyze mask properties
 						mask_data = np.array(mask_img)
 						max_rgb = max(mask_data[:,:,0].max(), mask_data[:,:,1].max(), mask_data[:,:,2].max())
+						min_alpha = mask_data[:,:,3].min()
+						max_alpha = mask_data[:,:,3].max()
 						
-						# Skip invalid masks (all black RGB, which would block everything)
-						if max_rgb == 0:
+						print(f"Mask analysis for {name}: RGB max={max_rgb}, Alpha range={min_alpha}-{max_alpha}")
+						
+						# Skip only if completely invalid (no alpha data at all)
+						if max_alpha == 0:
+							print(f"  → Skipping: no alpha data")
 							continue
 						
 						# Resize mask to match expected canvas size (800x800)
@@ -768,6 +800,23 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 						               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, mask_data.tobytes())
 						
 						self.frame_masks[name] = mask_id
+						
+						# Detect scale/offset based on mask alpha characteristics
+						# Full/near-full alpha = no soft edges = larger CoA scale
+						# Variable alpha with low minimum = soft edges = standard CK3 clipped scale
+						# Use >= 250 threshold to account for compression artifacts
+						if min_alpha >= 250:
+							# Full alpha mask: larger CoA scale (fills entire area)
+							self.frame_scales[name] = (1.0, 1.0)
+							self.frame_offsets[name] = (0.0, 0.0)
+							print(f"  → Full alpha detected: scale=1.0, offset=0.0")
+						else:
+							# Variable alpha mask: standard CK3 scale/offset
+							self.frame_scales[name] = (0.9, 0.9)
+							self.frame_offsets[name] = (0.0, 0.04)
+							print(f"  → Variable alpha detected: scale=0.9, offset=0.04")
+					else:
+						print(f"Mask not found for {name}: {mask_path}")
 		except Exception as e:
 			print(f"Error loading frame textures: {e}")
 	

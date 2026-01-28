@@ -18,7 +18,7 @@ import math
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from canvas_widget import layer_pos_to_qt_pixels, qt_pixels_to_layer_pos, VIEWPORT_BASE_SIZE
+from canvas_widget import layer_pos_to_qt_pixels, qt_pixels_to_layer_pos, VIEWPORT_BASE_SIZE, COMPOSITE_SCALE
 
 
 class TransformWidget(QWidget):
@@ -507,17 +507,15 @@ class TransformWidget(QWidget):
 			
 		elif self.active_handle == self.HANDLE_AXIS_X:
 			# X-axis constrained movement (only horizontal)
-			canvas_scale = size * VIEWPORT_BASE_SIZE
+			canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 			delta_x = dx / canvas_scale
 			self.pos_x = start_x + delta_x
 			# Y position stays locked
 			self.pos_y = start_y
-			
+		
 		elif self.active_handle == self.HANDLE_AXIS_Y:
 			# Y-axis constrained movement (only vertical)
-			canvas_scale = size * VIEWPORT_BASE_SIZE
-			delta_y = dy / canvas_scale
-			self.pos_y = start_y + delta_y
+			canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 			# X position stays locked
 			self.pos_x = start_x
 			
