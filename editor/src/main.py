@@ -959,8 +959,46 @@ class CoatOfArmsEditor(QMainWindow):
 		elif event.key() == Qt.Key_M and not event.modifiers():
 			self.minimal_transform_btn.toggle()
 			event.accept()
+		# R key for rotate +45 degrees
+		elif event.key() == Qt.Key_R and not event.modifiers():
+			if self.right_sidebar.get_selected_indices():
+				self._rotate_selected_layers(45)
+				event.accept()
+			else:
+				super().keyPressEvent(event)
+		# Shift+R for rotate -45 degrees
+		elif event.key() == Qt.Key_R and event.modifiers() == Qt.ShiftModifier:
+			if self.right_sidebar.get_selected_indices():
+				self._rotate_selected_layers(-45)
+				event.accept()
+			else:
+				super().keyPressEvent(event)
 		else:
 			super().keyPressEvent(event)
+	
+	def _rotate_selected_layers(self, angle_delta):
+		"""Rotate selected layers by the specified angle."""
+		selected_indices = self.right_sidebar.get_selected_indices()
+		if not selected_indices:
+			return
+		
+		# Rotate each selected layer
+		for idx in selected_indices:
+			if 0 <= idx < len(self.right_sidebar.layers):
+				layer = self.right_sidebar.layers[idx]
+				layer['rotation'] = (layer['rotation'] + angle_delta) % 360
+		
+		# Update canvas
+		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+		
+		# Update transform widget
+		self.canvas_area.update_transform_widget_for_layer()
+		
+		# Update properties sidebar
+		self.right_sidebar.update_properties_panel()
+		
+		# Save to history
+		self._save_state(f"Rotate {'+' if angle_delta > 0 else ''}{angle_delta}°")
 	
 	def _capture_current_state(self):
 		"""Capture the current state for history"""
