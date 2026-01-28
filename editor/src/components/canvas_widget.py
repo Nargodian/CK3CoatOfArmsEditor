@@ -165,6 +165,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.zoom_level = 1.0  # Current zoom level (1.0 = 100%)
 		self.show_grid = False  # Whether to show alignment grid
 		self.grid_divisions = 4  # Grid size (2, 4, 8, or 16)
+		
+		# Store clear color for restoration after export
+		self.clear_color = (0.95, 0.95, 0.95, 0.0)  # Default, updated in initializeGL
 	
 	# ========================================
 	# Qt OpenGL Widget Overrides
@@ -188,7 +191,16 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		
 	def initializeGL(self):
 		"""Initialize OpenGL context and shaders"""
-		gl.glClearColor(0.05, 0.05, 0.05, 0.0)  # Transparent background
+		# Use grandparent's background color (parent is dark canvas_container)
+		from PyQt5.QtGui import QPalette
+		widget = self.parent().parent() if self.parent() and self.parent().parent() else self.parent()
+		if widget:
+			bg_color = widget.palette().color(QPalette.Window)
+			self.clear_color = (0.05, 0.05, 0.05, 1.0)
+		else:
+			self.clear_color = (0.95, 0.95, 0.95, 0.0)  # Light gray fallback
+		
+		gl.glClearColor(*self.clear_color)
 		gl.glEnable(gl.GL_BLEND)
 		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 		
@@ -280,6 +292,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	
 	def paintGL(self):
 		"""Render the scene using RTT pipeline"""
+		gl.glClearColor(*self.clear_color)
 		gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 		
 		if not self.vao:
@@ -1157,9 +1170,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			# Release framebuffer
 			fbo.release()
 			
-			# Restore normal viewport and clear color (keep transparent)
+			# Restore normal viewport and clear color
 			gl.glViewport(0, 0, self.width(), self.height())
-			gl.glClearColor(0.05, 0.05, 0.05, 0.0)
+			gl.glClearColor(*self.clear_color)
 			
 			self.doneCurrent()
 			
@@ -1174,7 +1187,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			# Try to restore context state
 			try:
 				gl.glViewport(0, 0, self.width(), self.height())
-				gl.glClearColor(0.05, 0.05, 0.05, 0.0)
+				gl.glClearColor(*self.clear_color)
 				self.doneCurrent()
 			except:
 				pass
