@@ -86,6 +86,9 @@ class TransformWidget(QWidget):
 		self.handle_size = 8
 		self.rotation_handle_offset = 30
 		
+		# Minimal mode for simplified widget
+		self.minimal_mode = False
+		
 		# Position absolutely on top of parent
 		if parent:
 			self.setGeometry(0, 0, parent.width(), parent.height())
@@ -134,6 +137,11 @@ class TransformWidget(QWidget):
 		self.visible = visible
 		self.update()
 	
+	def set_minimal_mode(self, enabled):
+		"""Toggle minimal transform widget mode"""
+		self.minimal_mode = enabled
+		self.update()
+	
 	def paintEvent(self, event):
 		"""Draw the transform widget"""
 		if not self.visible:
@@ -142,11 +150,6 @@ class TransformWidget(QWidget):
 		painter = QPainter(self)
 		painter.setRenderHint(QPainter.Antialiasing)
 		
-		# Match canvas coordinate system:
-		# - Canvas uses -0.8 to 0.8 screen space for the CoA
-		# - Position 0.5 = center (0.0 in screen space)
-		# - Scale is multiplied by 0.6 for actual size
-		
 		# Get canvas position and size within parent container
 		_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
 		
@@ -154,9 +157,23 @@ class TransformWidget(QWidget):
 		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 		
 		# Widget box shows fixed size based on scale values only
-		# Rotation doesn't affect the widget box size
 		scale_w = abs(self.scale_x) * (size / 2)
 		scale_h = abs(self.scale_y) * (size / 2)
+		
+		# Minimal mode: only draw faint bounding box
+		if self.minimal_mode:
+			self.bounding_rect = QRectF(
+				center_x - scale_w, center_y - scale_h,
+				scale_w * 2, scale_h * 2
+			)
+			painter.setPen(QPen(QColor(255, 255, 255, 30), 1))
+			painter.drawRect(self.bounding_rect)
+			return  # Skip all handle drawing
+		
+		# Match canvas coordinate system:
+		# - Canvas uses -0.8 to 0.8 screen space for the CoA
+		# - Position 0.5 = center (0.0 in screen space)
+		# - Scale is multiplied by 0.6 for actual size
 		
 		# Draw axis-aligned bounding box (fixed size)
 		painter.setPen(QPen(QColor(90, 141, 191, 200), 2))
@@ -321,6 +338,21 @@ class TransformWidget(QWidget):
 	def mousePressEvent(self, event):
 		"""Handle mouse press"""
 		if event.button() == Qt.LeftButton:
+			# Minimal mode: only allow center drag (no handle picking)
+			if self.minimal_mode:
+				# Check if click is inside bounding rect
+				if self.bounding_rect.contains(event.pos()):
+					self.active_handle = self.HANDLE_CENTER
+					self.drag_start_pos = event.pos()
+					self.drag_start_transform = (self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
+					self.is_rotating = False
+					self.ctrl_pressed_at_drag_start = (event.modifiers() & Qt.ControlModifier) == Qt.ControlModifier
+					self.duplicate_created = False
+					event.accept()
+					return
+				super().mousePressEvent(event)
+				return
+			
 			self.active_handle = self._get_handle_at_pos(event.pos())
 			if self.active_handle != self.HANDLE_NONE:
 				self.drag_start_pos = event.pos()
@@ -516,6 +548,8 @@ class TransformWidget(QWidget):
 		elif self.active_handle == self.HANDLE_AXIS_Y:
 			# Y-axis constrained movement (only vertical)
 			canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+			delta_y = dy / canvas_scale
+			self.pos_y = start_y + delta_y
 			# X position stays locked
 			self.pos_x = start_x
 			

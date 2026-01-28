@@ -160,6 +160,17 @@ class CoatOfArmsEditor(QMainWindow):
 		self.status_left = QLabel("Ready")
 		self.status_right = QLabel("")
 		self.statusBar().addWidget(self.status_left, 1)  # stretch=1 for left
+		
+		# Add minimal transform widget toggle button to status bar
+		from PyQt5.QtWidgets import QPushButton
+		self.minimal_transform_btn = QPushButton("▭")
+		self.minimal_transform_btn.setCheckable(True)
+		self.minimal_transform_btn.setToolTip("Toggle minimal transform widget (M)\nShows faint box only, drag and wheel functions work")
+		self.minimal_transform_btn.setFixedSize(24, 20)
+		self.minimal_transform_btn.setStyleSheet("QPushButton { font-size: 14px; padding: 0px; }")
+		self.minimal_transform_btn.toggled.connect(self.canvas_area.transform_widget.set_minimal_mode)
+		self.statusBar().addPermanentWidget(self.minimal_transform_btn)
+		
 		self.statusBar().addPermanentWidget(self.status_right)  # permanent widget for right
 	
 	def _create_menu_bar(self):
@@ -246,9 +257,11 @@ class CoatOfArmsEditor(QMainWindow):
 		transform_menu = edit_menu.addMenu("&Transform")
 		
 		self.flip_x_action = transform_menu.addAction("Flip &Horizontal")
+		self.flip_x_action.setShortcut("F")
 		self.flip_x_action.triggered.connect(self._flip_x)
 		
 		self.flip_y_action = transform_menu.addAction("Flip &Vertical")
+		self.flip_y_action.setShortcut("Ctrl+F")
 		self.flip_y_action.triggered.connect(self._flip_y)
 		
 		transform_menu.addSeparator()
@@ -942,6 +955,10 @@ class CoatOfArmsEditor(QMainWindow):
 				event.accept()
 			else:
 				super().keyPressEvent(event)
+		# M key for toggle minimal transform widget
+		elif event.key() == Qt.Key_M and not event.modifiers():
+			self.minimal_transform_btn.toggle()
+			event.accept()
 		else:
 			super().keyPressEvent(event)
 	
