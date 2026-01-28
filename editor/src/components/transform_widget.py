@@ -157,8 +157,9 @@ class TransformWidget(QWidget):
 		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
 		
 		# Widget box shows fixed size based on scale values only
-		scale_w = abs(self.scale_x) * (size / 2)
-		scale_h = abs(self.scale_y) * (size / 2)
+		# Must match emblem rendering: multiply by VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+		scale_w = abs(self.scale_x) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+		scale_h = abs(self.scale_y) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 		
 		# Minimal mode: only draw faint bounding box
 		if self.minimal_mode:
@@ -390,6 +391,11 @@ class TransformWidget(QWidget):
 			
 			self._handle_drag(event.pos())
 			event.accept()
+			return
+		
+		# Skip cursor changes in minimal mode
+		if self.minimal_mode:
+			self.setCursor(Qt.ArrowCursor)
 			return
 		
 		# Update cursor based on handle
