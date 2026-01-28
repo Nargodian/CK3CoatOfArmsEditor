@@ -129,14 +129,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	"""OpenGL canvas for rendering coat of arms with shaders"""
 	
 	def __init__(self, parent=None):
-		# Set OpenGL format with alpha channel for transparency
-		from PyQt5.QtGui import QSurfaceFormat
-		fmt = QSurfaceFormat()
-		fmt.setAlphaBufferSize(8)  # Enable alpha channel
-		fmt.setVersion(3, 3)
-		fmt.setProfile(QSurfaceFormat.CoreProfile)
-		self.setFormat(fmt)
-		
 		super().__init__(parent)
 		self.base_shader = None  # Shader for base layer
 		self.design_shader = None  # Shader for emblem layers

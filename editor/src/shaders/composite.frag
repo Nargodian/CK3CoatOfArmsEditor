@@ -54,6 +54,6 @@ void main() {
 	spreadUV += 0.5;
 	float frameMask = texture(frameMaskSampler, spreadUV).a;
 	
-	// Apply mask to CoA alpha (multiply to preserve CoA alpha)
-	FragColor = vec4(coaColor.rgb, coaColor.a * frameMask);
+	// Apply mask to CoA alpha
+	FragColor = vec4(coaColor.rgb, frameMask);
 }
