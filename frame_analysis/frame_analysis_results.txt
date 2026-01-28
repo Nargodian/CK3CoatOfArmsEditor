@@ -1,0 +1,4673 @@
+================================================================================
+CK3 FRAME GRAPHICS ANALYSIS
+================================================================================
+
+SUMMARY
+--------------------------------------------------------------------------------
+Total frames analyzed: 33
+Full alpha masks (doggy masks): 5
+Gradient alpha masks: 28
+
+Full alpha mask frames:
+  - house_china
+  - house_frame_04
+  - house_frame_09
+  - house_frame_13
+  - house_japan
+
+
+================================================================================
+DETAILED FRAME ANALYSIS
+================================================================================
+
+
+================================================================================
+FRAME: dynasty
+================================================================================
+File: dynasty.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 207.3
+  Alpha std dev: 98.6
+  Unique alpha levels: 185
+  RGB max: 255
+  Bounding box: 152x160 at (4, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x159 at (0, 0)
+    Crawl from center (80,80):
+      Right: 49px, Left: 50px
+      Down: 56px, Up: 54px
+    Inscribed square (cross crawl):
+      Radius: 49px
+      Size: 98x98px
+      Ratio: 0.613 (61.3%)
+    Interior flood fill bbox:
+      Interior size: 109x114px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 78.5)
+    Symmetry: Yes (score: 3.07)
+    Content density: 0.491 (49.1%)
+    Average alpha: 188.5
+    Center of mass: (79.8, 72.0)
+    Offset from center: (-0.2, -8.0)
+
+  Slice 1:
+    Bounding box: 160x154 at (0, 0)
+    Crawl from center (80,80):
+      Right: 49px, Left: 50px
+      Down: 56px, Up: 54px
+    Inscribed square (cross crawl):
+      Radius: 49px
+      Size: 98x98px
+      Ratio: 0.613 (61.3%)
+    Interior flood fill bbox:
+      Interior size: 109x114px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 78.5)
+    Symmetry: Yes (score: 2.33)
+    Content density: 0.400 (40.0%)
+    Average alpha: 210.6
+    Center of mass: (79.2, 70.1)
+    Offset from center: (-0.8, -9.9)
+
+  Slice 2:
+    Bounding box: 160x154 at (0, 0)
+    Crawl from center (80,80):
+      Right: 49px, Left: 50px
+      Down: 56px, Up: 54px
+    Inscribed square (cross crawl):
+      Radius: 49px
+      Size: 98x98px
+      Ratio: 0.613 (61.3%)
+    Interior flood fill bbox:
+      Interior size: 109x114px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 78.5)
+    Symmetry: Yes (score: 2.33)
+    Content density: 0.400 (40.0%)
+    Average alpha: 210.6
+    Center of mass: (79.2, 70.1)
+    Offset from center: (-0.8, -9.9)
+
+  Slice 3:
+    Bounding box: 160x154 at (0, 0)
+    Crawl from center (80,80):
+      Right: 49px, Left: 50px
+      Down: 56px, Up: 54px
+    Inscribed square (cross crawl):
+      Radius: 49px
+      Size: 98x98px
+      Ratio: 0.613 (61.3%)
+    Interior flood fill bbox:
+      Interior size: 109x114px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 78.5)
+    Symmetry: Yes (score: 2.33)
+    Content density: 0.400 (40.0%)
+    Average alpha: 210.6
+    Center of mass: (79.2, 70.1)
+    Offset from center: (-0.8, -9.9)
+
+  Slice 4:
+    Bounding box: 160x154 at (0, 0)
+    Crawl from center (80,80):
+      Right: 49px, Left: 50px
+      Down: 56px, Up: 54px
+    Inscribed square (cross crawl):
+      Radius: 49px
+      Size: 98x98px
+      Ratio: 0.613 (61.3%)
+    Interior flood fill bbox:
+      Interior size: 109x114px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 78.5)
+    Symmetry: Yes (score: 2.33)
+    Content density: 0.400 (40.0%)
+    Average alpha: 210.6
+    Center of mass: (79.2, 70.1)
+    Offset from center: (-0.8, -9.9)
+
+  Slice 5:
+    Bounding box: 160x154 at (0, 0)
+    Crawl from center (80,80):
+      Right: 49px, Left: 50px
+      Down: 56px, Up: 54px
+    Inscribed square (cross crawl):
+      Radius: 49px
+      Size: 98x98px
+      Ratio: 0.613 (61.3%)
+    Interior flood fill bbox:
+      Interior size: 108x114px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 78.5)
+    Symmetry: Yes (score: 2.56)
+    Content density: 0.418 (41.8%)
+    Average alpha: 211.1
+    Center of mass: (79.2, 72.5)
+    Offset from center: (-0.8, -7.5)
+
+
+================================================================================
+FRAME: house
+================================================================================
+File: house.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 207.3
+  Alpha std dev: 98.6
+  Unique alpha levels: 185
+  RGB max: 255
+  Bounding box: 152x160 at (4, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 53px, Left: 54px
+      Down: 56px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 53px
+      Size: 106x106px
+      Ratio: 0.662 (66.2%)
+    Interior flood fill bbox:
+      Interior size: 109x114px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 78.5)
+    Symmetry: Yes (score: 2.73)
+    Content density: 0.462 (46.2%)
+    Average alpha: 163.8
+    Center of mass: (79.2, 73.3)
+    Offset from center: (-0.8, -6.7)
+
+  Slice 1:
+    Bounding box: 150x150 at (4, 4)
+    Crawl from center (80,80):
+      Right: 53px, Left: 54px
+      Down: 56px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 53px
+      Size: 106x106px
+      Ratio: 0.662 (66.2%)
+    Interior flood fill bbox:
+      Interior size: 109x114px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 78.5)
+    Symmetry: Yes (score: 2.68)
+    Content density: 0.323 (32.3%)
+    Average alpha: 195.3
+    Center of mass: (78.7, 70.9)
+    Offset from center: (-1.3, -9.1)
+
+  Slice 2:
+    Bounding box: 150x150 at (4, 4)
+    Crawl from center (80,80):
+      Right: 53px, Left: 54px
+      Down: 56px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 53px
+      Size: 106x106px
+      Ratio: 0.662 (66.2%)
+    Interior flood fill bbox:
+      Interior size: 109x114px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 78.5)
+    Symmetry: Yes (score: 2.68)
+    Content density: 0.323 (32.3%)
+    Average alpha: 195.3
+    Center of mass: (78.7, 70.9)
+    Offset from center: (-1.3, -9.1)
+
+  Slice 3:
+    Bounding box: 150x150 at (4, 4)
+    Crawl from center (80,80):
+      Right: 53px, Left: 54px
+      Down: 56px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 53px
+      Size: 106x106px
+      Ratio: 0.662 (66.2%)
+    Interior flood fill bbox:
+      Interior size: 109x114px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 78.5)
+    Symmetry: Yes (score: 2.68)
+    Content density: 0.323 (32.3%)
+    Average alpha: 195.3
+    Center of mass: (78.7, 70.9)
+    Offset from center: (-1.3, -9.1)
+
+  Slice 4:
+    Bounding box: 150x150 at (4, 4)
+    Crawl from center (80,80):
+      Right: 53px, Left: 54px
+      Down: 56px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 53px
+      Size: 106x106px
+      Ratio: 0.662 (66.2%)
+    Interior flood fill bbox:
+      Interior size: 109x114px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 78.5)
+    Symmetry: Yes (score: 2.68)
+    Content density: 0.323 (32.3%)
+    Average alpha: 195.3
+    Center of mass: (78.7, 70.9)
+    Offset from center: (-1.3, -9.1)
+
+  Slice 5:
+    Bounding box: 152x150 at (4, 4)
+    Crawl from center (80,80):
+      Right: 53px, Left: 54px
+      Down: 56px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 53px
+      Size: 106x106px
+      Ratio: 0.662 (66.2%)
+    Interior flood fill bbox:
+      Interior size: 109x114px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 78.5)
+    Symmetry: Yes (score: 2.15)
+    Content density: 0.349 (34.9%)
+    Average alpha: 197.5
+    Center of mass: (78.7, 74.3)
+    Offset from center: (-1.3, -5.7)
+
+
+================================================================================
+FRAME: house_china
+================================================================================
+File: house_china.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: full_alpha
+  Alpha range: 255 - 255
+  Alpha mean: 255.0
+  Alpha std dev: 0.0
+  Unique alpha levels: 1
+  RGB max: 0
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 60px, Up: 61px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x120px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 2.60)
+    Content density: 0.501 (50.1%)
+    Average alpha: 182.8
+    Center of mass: (80.5, 79.5)
+    Offset from center: (0.5, -0.5)
+
+  Slice 1:
+    Bounding box: 146x146 at (7, 7)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 60px, Up: 61px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x120px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 2.71)
+    Content density: 0.334 (33.4%)
+    Average alpha: 224.7
+    Center of mass: (81.1, 79.5)
+    Offset from center: (1.1, -0.5)
+
+  Slice 2:
+    Bounding box: 146x146 at (7, 7)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 60px, Up: 61px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x120px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 2.71)
+    Content density: 0.334 (33.4%)
+    Average alpha: 224.7
+    Center of mass: (81.1, 79.5)
+    Offset from center: (1.1, -0.5)
+
+  Slice 3:
+    Bounding box: 146x146 at (7, 7)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 60px, Up: 61px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x120px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 2.71)
+    Content density: 0.334 (33.4%)
+    Average alpha: 224.7
+    Center of mass: (81.1, 79.5)
+    Offset from center: (1.1, -0.5)
+
+  Slice 4:
+    Bounding box: 146x146 at (7, 7)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 60px, Up: 61px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x120px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 2.71)
+    Content density: 0.334 (33.4%)
+    Average alpha: 224.7
+    Center of mass: (81.1, 79.5)
+    Offset from center: (1.1, -0.5)
+
+  Slice 5:
+    Bounding box: 152x153 at (4, 7)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 60px, Up: 61px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x120px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 3.79)
+    Content density: 0.354 (35.4%)
+    Average alpha: 224.3
+    Center of mass: (80.2, 81.3)
+    Offset from center: (0.2, 1.3)
+
+
+================================================================================
+FRAME: house_frame_02
+================================================================================
+File: house_frame_02.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 211.5
+  Alpha std dev: 95.5
+  Unique alpha levels: 69
+  RGB max: 255
+  Bounding box: 146x158 at (7, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 158x160 at (1, 0)
+    Crawl from center (80,80):
+      Right: 51px, Left: 53px
+      Down: 54px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 51px
+      Size: 102x102px
+      Ratio: 0.637 (63.7%)
+    Interior flood fill bbox:
+      Interior size: 104x113px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 1.92)
+    Content density: 0.463 (46.3%)
+    Average alpha: 173.6
+    Center of mass: (79.3, 72.9)
+    Offset from center: (-0.7, -7.1)
+
+  Slice 1:
+    Bounding box: 146x150 at (7, 4)
+    Crawl from center (80,80):
+      Right: 51px, Left: 53px
+      Down: 54px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 51px
+      Size: 102x102px
+      Ratio: 0.637 (63.7%)
+    Interior flood fill bbox:
+      Interior size: 104x113px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 2.17)
+    Content density: 0.317 (31.7%)
+    Average alpha: 211.5
+    Center of mass: (79.8, 69.3)
+    Offset from center: (-0.2, -10.7)
+
+  Slice 2:
+    Bounding box: 146x150 at (7, 4)
+    Crawl from center (80,80):
+      Right: 51px, Left: 53px
+      Down: 54px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 51px
+      Size: 102x102px
+      Ratio: 0.637 (63.7%)
+    Interior flood fill bbox:
+      Interior size: 104x113px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 2.17)
+    Content density: 0.317 (31.7%)
+    Average alpha: 211.5
+    Center of mass: (79.8, 69.3)
+    Offset from center: (-0.2, -10.7)
+
+  Slice 3:
+    Bounding box: 146x150 at (7, 4)
+    Crawl from center (80,80):
+      Right: 51px, Left: 53px
+      Down: 54px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 51px
+      Size: 102x102px
+      Ratio: 0.637 (63.7%)
+    Interior flood fill bbox:
+      Interior size: 104x113px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 2.17)
+    Content density: 0.317 (31.7%)
+    Average alpha: 211.5
+    Center of mass: (79.8, 69.3)
+    Offset from center: (-0.2, -10.7)
+
+  Slice 4:
+    Bounding box: 146x150 at (7, 4)
+    Crawl from center (80,80):
+      Right: 51px, Left: 53px
+      Down: 54px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 51px
+      Size: 102x102px
+      Ratio: 0.637 (63.7%)
+    Interior flood fill bbox:
+      Interior size: 104x113px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 2.17)
+    Content density: 0.317 (31.7%)
+    Average alpha: 211.5
+    Center of mass: (79.8, 69.3)
+    Offset from center: (-0.2, -10.7)
+
+  Slice 5:
+    Bounding box: 146x152 at (7, 4)
+    Crawl from center (80,80):
+      Right: 51px, Left: 53px
+      Down: 54px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 51px
+      Size: 102x102px
+      Ratio: 0.637 (63.7%)
+    Interior flood fill bbox:
+      Interior size: 104x113px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 1.44)
+    Content density: 0.346 (34.6%)
+    Average alpha: 209.3
+    Center of mass: (79.6, 72.9)
+    Offset from center: (-0.4, -7.1)
+
+
+================================================================================
+FRAME: house_frame_03
+================================================================================
+File: house_frame_03.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 194.4
+  Alpha std dev: 108.0
+  Unique alpha levels: 81
+  RGB max: 255
+  Bounding box: 144x159 at (8, 1)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 151x160 at (5, 0)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 56px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 106x115px
+      Max square: 105x105px
+      Ratio: 0.656 (65.6%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 1.92)
+    Content density: 0.430 (43.0%)
+    Average alpha: 169.1
+    Center of mass: (79.6, 70.2)
+    Offset from center: (-0.4, -9.8)
+
+  Slice 1:
+    Bounding box: 136x149 at (12, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 56px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 106x115px
+      Max square: 105x105px
+      Ratio: 0.656 (65.6%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 1.88)
+    Content density: 0.291 (29.1%)
+    Average alpha: 206.2
+    Center of mass: (79.8, 66.9)
+    Offset from center: (-0.2, -13.1)
+
+  Slice 2:
+    Bounding box: 136x149 at (12, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 56px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 106x115px
+      Max square: 105x105px
+      Ratio: 0.656 (65.6%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 1.88)
+    Content density: 0.291 (29.1%)
+    Average alpha: 206.2
+    Center of mass: (79.8, 66.9)
+    Offset from center: (-0.2, -13.1)
+
+  Slice 3:
+    Bounding box: 136x149 at (12, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 56px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 106x115px
+      Max square: 105x105px
+      Ratio: 0.656 (65.6%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 1.88)
+    Content density: 0.291 (29.1%)
+    Average alpha: 206.2
+    Center of mass: (79.8, 66.9)
+    Offset from center: (-0.2, -13.1)
+
+  Slice 4:
+    Bounding box: 136x149 at (12, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 56px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 106x115px
+      Max square: 105x105px
+      Ratio: 0.656 (65.6%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 1.88)
+    Content density: 0.291 (29.1%)
+    Average alpha: 206.2
+    Center of mass: (79.8, 66.9)
+    Offset from center: (-0.2, -13.1)
+
+  Slice 5:
+    Bounding box: 144x150 at (8, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 56px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 106x115px
+      Max square: 105x105px
+      Ratio: 0.656 (65.6%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 2.56)
+    Content density: 0.329 (32.9%)
+    Average alpha: 208.1
+    Center of mass: (79.7, 72.3)
+    Offset from center: (-0.3, -7.7)
+
+
+================================================================================
+FRAME: house_frame_04
+================================================================================
+File: house_frame_04.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: full_alpha
+  Alpha range: 255 - 255
+  Alpha mean: 255.0
+  Alpha std dev: 0.0
+  Unique alpha levels: 1
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 58px, Left: 58px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 115x116px
+      Max square: 114x114px
+      Ratio: 0.713 (71.2%)
+      Interior center: (80.0, 79.5)
+    Symmetry: Yes (score: 0.96)
+    Content density: 0.479 (47.9%)
+    Average alpha: 188.8
+    Center of mass: (79.0, 79.5)
+    Offset from center: (-1.0, -0.5)
+
+  Slice 1:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 58px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 115x116px
+      Max square: 114x114px
+      Ratio: 0.713 (71.2%)
+      Interior center: (80.0, 79.5)
+    Symmetry: Yes (score: 0.96)
+    Content density: 0.382 (38.2%)
+    Average alpha: 196.9
+    Center of mass: (78.8, 79.5)
+    Offset from center: (-1.2, -0.5)
+
+  Slice 2:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 58px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 115x116px
+      Max square: 114x114px
+      Ratio: 0.713 (71.2%)
+      Interior center: (80.0, 79.5)
+    Symmetry: Yes (score: 0.96)
+    Content density: 0.382 (38.2%)
+    Average alpha: 196.9
+    Center of mass: (78.8, 79.5)
+    Offset from center: (-1.2, -0.5)
+
+  Slice 3:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 58px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 115x116px
+      Max square: 114x114px
+      Ratio: 0.713 (71.2%)
+      Interior center: (80.0, 79.5)
+    Symmetry: Yes (score: 0.96)
+    Content density: 0.382 (38.2%)
+    Average alpha: 196.9
+    Center of mass: (78.8, 79.5)
+    Offset from center: (-1.2, -0.5)
+
+  Slice 4:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 58px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 115x116px
+      Max square: 114x114px
+      Ratio: 0.713 (71.2%)
+      Interior center: (80.0, 79.5)
+    Symmetry: Yes (score: 0.96)
+    Content density: 0.382 (38.2%)
+    Average alpha: 196.9
+    Center of mass: (78.8, 79.5)
+    Offset from center: (-1.2, -0.5)
+
+  Slice 5:
+    Bounding box: 154x156 at (3, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 58px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 115x116px
+      Max square: 114x114px
+      Ratio: 0.713 (71.2%)
+      Interior center: (80.0, 79.5)
+    Symmetry: Yes (score: 1.59)
+    Content density: 0.392 (39.2%)
+    Average alpha: 202.7
+    Center of mass: (79.3, 80.5)
+    Offset from center: (-0.7, 0.5)
+
+
+================================================================================
+FRAME: house_frame_05
+================================================================================
+File: house_frame_05.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 200.2
+  Alpha std dev: 103.7
+  Unique alpha levels: 96
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.06)
+    Content density: 0.422 (42.2%)
+    Average alpha: 172.2
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 1:
+    Bounding box: 148x148 at (6, 6)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.01)
+    Content density: 0.279 (27.9%)
+    Average alpha: 219.2
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 2:
+    Bounding box: 148x148 at (6, 6)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.01)
+    Content density: 0.279 (27.9%)
+    Average alpha: 219.2
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 3:
+    Bounding box: 148x148 at (6, 6)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.01)
+    Content density: 0.279 (27.9%)
+    Average alpha: 219.2
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 4:
+    Bounding box: 148x148 at (6, 6)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.01)
+    Content density: 0.279 (27.9%)
+    Average alpha: 219.2
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 5:
+    Bounding box: 148x154 at (6, 6)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.19)
+    Content density: 0.312 (31.2%)
+    Average alpha: 219.3
+    Center of mass: (79.9, 85.2)
+    Offset from center: (-0.1, 5.2)
+
+
+================================================================================
+FRAME: house_frame_06
+================================================================================
+File: house_frame_06.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 151.7
+  Alpha std dev: 124.0
+  Unique alpha levels: 12
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 60px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x119px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.36)
+    Content density: 0.414 (41.4%)
+    Average alpha: 163.5
+    Center of mass: (79.5, 79.9)
+    Offset from center: (-0.5, -0.1)
+
+  Slice 1:
+    Bounding box: 156x156 at (2, 2)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 60px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x119px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.08)
+    Content density: 0.259 (25.9%)
+    Average alpha: 216.4
+    Center of mass: (79.5, 79.8)
+    Offset from center: (-0.5, -0.2)
+
+  Slice 2:
+    Bounding box: 156x156 at (2, 2)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 60px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x119px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.08)
+    Content density: 0.259 (25.9%)
+    Average alpha: 216.4
+    Center of mass: (79.5, 79.8)
+    Offset from center: (-0.5, -0.2)
+
+  Slice 3:
+    Bounding box: 156x156 at (2, 2)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 60px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x119px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.08)
+    Content density: 0.259 (25.9%)
+    Average alpha: 216.4
+    Center of mass: (79.5, 79.8)
+    Offset from center: (-0.5, -0.2)
+
+  Slice 4:
+    Bounding box: 156x156 at (2, 2)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 60px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x119px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.08)
+    Content density: 0.259 (25.9%)
+    Average alpha: 216.4
+    Center of mass: (79.5, 79.8)
+    Offset from center: (-0.5, -0.2)
+
+  Slice 5:
+    Bounding box: 156x156 at (2, 2)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 60px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x119px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.08)
+    Content density: 0.296 (29.6%)
+    Average alpha: 213.8
+    Center of mass: (79.5, 85.9)
+    Offset from center: (-0.5, 5.9)
+
+
+================================================================================
+FRAME: house_frame_07
+================================================================================
+File: house_frame_07.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 173.5
+  Alpha std dev: 117.7
+  Unique alpha levels: 124
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 63px, Left: 63px
+      Down: 62px, Up: 64px
+    Inscribed square (cross crawl):
+      Radius: 62px
+      Size: 124x124px
+      Ratio: 0.775 (77.5%)
+    Interior flood fill bbox:
+      Interior size: 125x125px
+      Max square: 124x124px
+      Ratio: 0.775 (77.5%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 4.07)
+    Content density: 0.444 (44.4%)
+    Average alpha: 174.6
+    Center of mass: (79.6, 79.8)
+    Offset from center: (-0.4, -0.2)
+
+  Slice 1:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 63px, Left: 63px
+      Down: 62px, Up: 64px
+    Inscribed square (cross crawl):
+      Radius: 62px
+      Size: 124x124px
+      Ratio: 0.775 (77.5%)
+    Interior flood fill bbox:
+      Interior size: 125x125px
+      Max square: 124x124px
+      Ratio: 0.775 (77.5%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 4.10)
+    Content density: 0.304 (30.4%)
+    Average alpha: 213.1
+    Center of mass: (78.9, 80.6)
+    Offset from center: (-1.1, 0.6)
+
+  Slice 2:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 63px, Left: 63px
+      Down: 62px, Up: 64px
+    Inscribed square (cross crawl):
+      Radius: 62px
+      Size: 124x124px
+      Ratio: 0.775 (77.5%)
+    Interior flood fill bbox:
+      Interior size: 125x125px
+      Max square: 124x124px
+      Ratio: 0.775 (77.5%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 4.10)
+    Content density: 0.304 (30.4%)
+    Average alpha: 213.1
+    Center of mass: (78.9, 80.6)
+    Offset from center: (-1.1, 0.6)
+
+  Slice 3:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 63px, Left: 63px
+      Down: 62px, Up: 64px
+    Inscribed square (cross crawl):
+      Radius: 62px
+      Size: 124x124px
+      Ratio: 0.775 (77.5%)
+    Interior flood fill bbox:
+      Interior size: 125x125px
+      Max square: 124x124px
+      Ratio: 0.775 (77.5%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 4.10)
+    Content density: 0.304 (30.4%)
+    Average alpha: 213.1
+    Center of mass: (78.9, 80.6)
+    Offset from center: (-1.1, 0.6)
+
+  Slice 4:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 63px, Left: 63px
+      Down: 62px, Up: 64px
+    Inscribed square (cross crawl):
+      Radius: 62px
+      Size: 124x124px
+      Ratio: 0.775 (77.5%)
+    Interior flood fill bbox:
+      Interior size: 125x125px
+      Max square: 124x124px
+      Ratio: 0.775 (77.5%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 4.10)
+    Content density: 0.304 (30.4%)
+    Average alpha: 213.1
+    Center of mass: (78.9, 80.6)
+    Offset from center: (-1.1, 0.6)
+
+  Slice 5:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 63px, Left: 63px
+      Down: 62px, Up: 64px
+    Inscribed square (cross crawl):
+      Radius: 62px
+      Size: 124x124px
+      Ratio: 0.775 (77.5%)
+    Interior flood fill bbox:
+      Interior size: 125x125px
+      Max square: 124x124px
+      Ratio: 0.775 (77.5%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 4.10)
+    Content density: 0.342 (34.2%)
+    Average alpha: 214.2
+    Center of mass: (79.3, 85.6)
+    Offset from center: (-0.7, 5.6)
+
+
+================================================================================
+FRAME: house_frame_08
+================================================================================
+File: house_frame_08.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 158.4
+  Alpha std dev: 122.8
+  Unique alpha levels: 199
+  RGB max: 255
+  Bounding box: 140x160 at (10, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 148x160 at (6, 0)
+    Crawl from center (80,80):
+      Right: 40px, Left: 41px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 40px
+      Size: 80x80px
+      Ratio: 0.500 (50.0%)
+    Interior flood fill bbox:
+      Interior size: 104x118px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.20)
+    Content density: 0.413 (41.3%)
+    Average alpha: 164.0
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 1:
+    Bounding box: 134x154 at (13, 3)
+    Crawl from center (80,80):
+      Right: 40px, Left: 41px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 40px
+      Size: 80x80px
+      Ratio: 0.500 (50.0%)
+    Interior flood fill bbox:
+      Interior size: 104x118px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.21)
+    Content density: 0.262 (26.2%)
+    Average alpha: 216.5
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 2:
+    Bounding box: 134x154 at (13, 3)
+    Crawl from center (80,80):
+      Right: 40px, Left: 41px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 40px
+      Size: 80x80px
+      Ratio: 0.500 (50.0%)
+    Interior flood fill bbox:
+      Interior size: 104x118px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.21)
+    Content density: 0.262 (26.2%)
+    Average alpha: 216.5
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 3:
+    Bounding box: 134x154 at (13, 3)
+    Crawl from center (80,80):
+      Right: 40px, Left: 41px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 40px
+      Size: 80x80px
+      Ratio: 0.500 (50.0%)
+    Interior flood fill bbox:
+      Interior size: 104x118px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.21)
+    Content density: 0.262 (26.2%)
+    Average alpha: 216.5
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 4:
+    Bounding box: 134x154 at (13, 3)
+    Crawl from center (80,80):
+      Right: 40px, Left: 41px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 40px
+      Size: 80x80px
+      Ratio: 0.500 (50.0%)
+    Interior flood fill bbox:
+      Interior size: 104x118px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.21)
+    Content density: 0.262 (26.2%)
+    Average alpha: 216.5
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 5:
+    Bounding box: 138x154 at (11, 3)
+    Crawl from center (80,80):
+      Right: 40px, Left: 41px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 40px
+      Size: 80x80px
+      Ratio: 0.500 (50.0%)
+    Interior flood fill bbox:
+      Interior size: 104x118px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.14)
+    Content density: 0.296 (29.6%)
+    Average alpha: 219.6
+    Center of mass: (79.5, 85.1)
+    Offset from center: (-0.5, 5.1)
+
+
+================================================================================
+FRAME: house_frame_09
+================================================================================
+File: house_frame_09.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: full_alpha
+  Alpha range: 255 - 255
+  Alpha mean: 255.0
+  Alpha std dev: 0.0
+  Unique alpha levels: 1
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.04)
+    Content density: 0.534 (53.4%)
+    Average alpha: 179.5
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 1:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.04)
+    Content density: 0.437 (43.7%)
+    Average alpha: 184.5
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 2:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.04)
+    Content density: 0.437 (43.7%)
+    Average alpha: 184.5
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 3:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.04)
+    Content density: 0.437 (43.7%)
+    Average alpha: 184.5
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 4:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.04)
+    Content density: 0.437 (43.7%)
+    Average alpha: 184.5
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 5:
+    Bounding box: 154x156 at (3, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.10)
+    Content density: 0.440 (44.0%)
+    Average alpha: 194.3
+    Center of mass: (79.6, 80.3)
+    Offset from center: (-0.4, 0.3)
+
+
+================================================================================
+FRAME: house_frame_10
+================================================================================
+File: house_frame_10.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 227.9
+  Alpha std dev: 78.6
+  Unique alpha levels: 2
+  RGB max: 255
+  Bounding box: 143x160 at (9, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 148x160 at (6, 0)
+    Crawl from center (80,80):
+      Right: 52px, Left: 52px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 103x117px
+      Max square: 102x102px
+      Ratio: 0.637 (63.7%)
+      Interior center: (80.0, 80.0)
+    Symmetry: Yes (score: 3.07)
+    Content density: 0.531 (53.1%)
+    Average alpha: 188.7
+    Center of mass: (79.2, 74.0)
+    Offset from center: (-0.8, -6.0)
+
+  Slice 1:
+    Bounding box: 136x152 at (12, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 52px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 103x117px
+      Max square: 102x102px
+      Ratio: 0.637 (63.7%)
+      Interior center: (80.0, 80.0)
+    Symmetry: Yes (score: 2.94)
+    Content density: 0.392 (39.2%)
+    Average alpha: 217.8
+    Center of mass: (81.0, 70.3)
+    Offset from center: (1.0, -9.7)
+
+  Slice 2:
+    Bounding box: 136x152 at (12, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 52px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 103x117px
+      Max square: 102x102px
+      Ratio: 0.637 (63.7%)
+      Interior center: (80.0, 80.0)
+    Symmetry: Yes (score: 2.94)
+    Content density: 0.392 (39.2%)
+    Average alpha: 217.8
+    Center of mass: (81.0, 70.3)
+    Offset from center: (1.0, -9.7)
+
+  Slice 3:
+    Bounding box: 136x152 at (12, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 52px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 103x117px
+      Max square: 102x102px
+      Ratio: 0.637 (63.7%)
+      Interior center: (80.0, 80.0)
+    Symmetry: Yes (score: 2.94)
+    Content density: 0.392 (39.2%)
+    Average alpha: 217.8
+    Center of mass: (81.0, 70.3)
+    Offset from center: (1.0, -9.7)
+
+  Slice 4:
+    Bounding box: 136x152 at (12, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 52px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 103x117px
+      Max square: 102x102px
+      Ratio: 0.637 (63.7%)
+      Interior center: (80.0, 80.0)
+    Symmetry: Yes (score: 2.94)
+    Content density: 0.392 (39.2%)
+    Average alpha: 217.8
+    Center of mass: (81.0, 70.3)
+    Offset from center: (1.0, -9.7)
+
+  Slice 5:
+    Bounding box: 140x156 at (10, 4)
+    Crawl from center (80,80):
+      Right: 50px, Left: 51px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 50px
+      Size: 100x100px
+      Ratio: 0.625 (62.5%)
+    Interior flood fill bbox:
+      Interior size: 103x117px
+      Max square: 102x102px
+      Ratio: 0.637 (63.7%)
+      Interior center: (80.0, 80.0)
+    Symmetry: Yes (score: 3.06)
+    Content density: 0.409 (40.9%)
+    Average alpha: 217.4
+    Center of mass: (80.4, 72.5)
+    Offset from center: (0.4, -7.5)
+
+
+================================================================================
+FRAME: house_frame_11
+================================================================================
+File: house_frame_11.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 182.6
+  Alpha std dev: 114.1
+  Unique alpha levels: 106
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 58px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x115px
+      Max square: 114x114px
+      Ratio: 0.713 (71.2%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 1.25)
+    Content density: 0.408 (40.8%)
+    Average alpha: 166.4
+    Center of mass: (79.1, 79.1)
+    Offset from center: (-0.9, -0.9)
+
+  Slice 1:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 58px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x115px
+      Max square: 114x114px
+      Ratio: 0.713 (71.2%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 1.20)
+    Content density: 0.269 (26.9%)
+    Average alpha: 211.2
+    Center of mass: (78.9, 79.0)
+    Offset from center: (-1.1, -1.0)
+
+  Slice 2:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 58px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x115px
+      Max square: 114x114px
+      Ratio: 0.713 (71.2%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 1.20)
+    Content density: 0.269 (26.9%)
+    Average alpha: 211.2
+    Center of mass: (78.9, 79.0)
+    Offset from center: (-1.1, -1.0)
+
+  Slice 3:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 58px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x115px
+      Max square: 114x114px
+      Ratio: 0.713 (71.2%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 1.20)
+    Content density: 0.269 (26.9%)
+    Average alpha: 211.2
+    Center of mass: (78.9, 79.0)
+    Offset from center: (-1.1, -1.0)
+
+  Slice 4:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 58px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x115px
+      Max square: 114x114px
+      Ratio: 0.713 (71.2%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 1.20)
+    Content density: 0.269 (26.9%)
+    Average alpha: 211.2
+    Center of mass: (78.9, 79.0)
+    Offset from center: (-1.1, -1.0)
+
+  Slice 5:
+    Bounding box: 152x154 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 58px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x115px
+      Max square: 114x114px
+      Ratio: 0.713 (71.2%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.99)
+    Content density: 0.307 (30.7%)
+    Average alpha: 211.9
+    Center of mass: (79.1, 85.2)
+    Offset from center: (-0.9, 5.2)
+
+
+================================================================================
+FRAME: house_frame_12
+================================================================================
+File: house_frame_12.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 212.0
+  Alpha std dev: 94.8
+  Unique alpha levels: 171
+  RGB max: 255
+  Bounding box: 148x160 at (6, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 155x160 at (2, 0)
+    Crawl from center (80,80):
+      Right: 55px, Left: 56px
+      Down: 60px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 110x119px
+      Max square: 109x109px
+      Ratio: 0.681 (68.1%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 3.56)
+    Content density: 0.516 (51.6%)
+    Average alpha: 182.1
+    Center of mass: (78.5, 73.7)
+    Offset from center: (-1.5, -6.3)
+
+  Slice 1:
+    Bounding box: 139x150 at (10, 5)
+    Crawl from center (80,80):
+      Right: 55px, Left: 56px
+      Down: 60px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 110x119px
+      Max square: 109x109px
+      Ratio: 0.681 (68.1%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 3.46)
+    Content density: 0.355 (35.5%)
+    Average alpha: 227.3
+    Center of mass: (78.4, 72.1)
+    Offset from center: (-1.6, -7.9)
+
+  Slice 2:
+    Bounding box: 139x150 at (10, 5)
+    Crawl from center (80,80):
+      Right: 55px, Left: 56px
+      Down: 60px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 110x119px
+      Max square: 109x109px
+      Ratio: 0.681 (68.1%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 3.46)
+    Content density: 0.355 (35.5%)
+    Average alpha: 227.3
+    Center of mass: (78.4, 72.1)
+    Offset from center: (-1.6, -7.9)
+
+  Slice 3:
+    Bounding box: 139x150 at (10, 5)
+    Crawl from center (80,80):
+      Right: 55px, Left: 56px
+      Down: 60px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 110x119px
+      Max square: 109x109px
+      Ratio: 0.681 (68.1%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 3.46)
+    Content density: 0.355 (35.5%)
+    Average alpha: 227.3
+    Center of mass: (78.4, 72.1)
+    Offset from center: (-1.6, -7.9)
+
+  Slice 4:
+    Bounding box: 139x150 at (10, 5)
+    Crawl from center (80,80):
+      Right: 55px, Left: 56px
+      Down: 60px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 110x119px
+      Max square: 109x109px
+      Ratio: 0.681 (68.1%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 3.46)
+    Content density: 0.355 (35.5%)
+    Average alpha: 227.3
+    Center of mass: (78.4, 72.1)
+    Offset from center: (-1.6, -7.9)
+
+  Slice 5:
+    Bounding box: 145x155 at (7, 5)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 60px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 110x119px
+      Max square: 109x109px
+      Ratio: 0.681 (68.1%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 3.49)
+    Content density: 0.370 (37.0%)
+    Average alpha: 226.8
+    Center of mass: (78.7, 74.1)
+    Offset from center: (-1.3, -5.9)
+
+
+================================================================================
+FRAME: house_frame_13
+================================================================================
+File: house_frame_13.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: full_alpha
+  Alpha range: 255 - 255
+  Alpha mean: 255.0
+  Alpha std dev: 0.0
+  Unique alpha levels: 1
+  RGB max: 0
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 154x160 at (3, 0)
+    Crawl from center (80,80):
+      Right: 54px, Left: 56px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 109x117px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 80.0)
+    Symmetry: Yes (score: 1.24)
+    Content density: 0.523 (52.3%)
+    Average alpha: 187.6
+    Center of mass: (79.9, 73.7)
+    Offset from center: (-0.1, -6.3)
+
+  Slice 1:
+    Bounding box: 138x148 at (11, 6)
+    Crawl from center (80,80):
+      Right: 54px, Left: 56px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 109x117px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 80.0)
+    Symmetry: Yes (score: 1.23)
+    Content density: 0.359 (35.9%)
+    Average alpha: 231.4
+    Center of mass: (80.1, 71.0)
+    Offset from center: (0.1, -9.0)
+
+  Slice 2:
+    Bounding box: 138x148 at (11, 6)
+    Crawl from center (80,80):
+      Right: 54px, Left: 56px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 109x117px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 80.0)
+    Symmetry: Yes (score: 1.23)
+    Content density: 0.359 (35.9%)
+    Average alpha: 231.4
+    Center of mass: (80.1, 71.0)
+    Offset from center: (0.1, -9.0)
+
+  Slice 3:
+    Bounding box: 138x148 at (11, 6)
+    Crawl from center (80,80):
+      Right: 54px, Left: 56px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 109x117px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 80.0)
+    Symmetry: Yes (score: 1.23)
+    Content density: 0.359 (35.9%)
+    Average alpha: 231.4
+    Center of mass: (80.1, 71.0)
+    Offset from center: (0.1, -9.0)
+
+  Slice 4:
+    Bounding box: 138x148 at (11, 6)
+    Crawl from center (80,80):
+      Right: 54px, Left: 56px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 109x117px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 80.0)
+    Symmetry: Yes (score: 1.23)
+    Content density: 0.359 (35.9%)
+    Average alpha: 231.4
+    Center of mass: (80.1, 71.0)
+    Offset from center: (0.1, -9.0)
+
+  Slice 5:
+    Bounding box: 142x154 at (9, 6)
+    Crawl from center (80,80):
+      Right: 54px, Left: 56px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 109x117px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (79.0, 80.0)
+    Symmetry: Yes (score: 0.86)
+    Content density: 0.374 (37.4%)
+    Average alpha: 231.4
+    Center of mass: (79.9, 73.0)
+    Offset from center: (-0.1, -7.0)
+
+
+================================================================================
+FRAME: house_frame_14
+================================================================================
+File: house_frame_14.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 181.7
+  Alpha std dev: 114.4
+  Unique alpha levels: 149
+  RGB max: 255
+  Bounding box: 152x160 at (4, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 158x160 at (1, 0)
+    Crawl from center (80,80):
+      Right: 35px, Left: 36px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 35px
+      Size: 70x70px
+      Ratio: 0.438 (43.8%)
+    Interior flood fill bbox:
+      Interior size: 104x118px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.49)
+    Content density: 0.453 (45.3%)
+    Average alpha: 163.4
+    Center of mass: (79.4, 79.6)
+    Offset from center: (-0.6, -0.4)
+
+  Slice 1:
+    Bounding box: 146x152 at (7, 4)
+    Crawl from center (80,80):
+      Right: 35px, Left: 36px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 35px
+      Size: 70x70px
+      Ratio: 0.438 (43.8%)
+    Interior flood fill bbox:
+      Interior size: 104x118px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.42)
+    Content density: 0.291 (29.1%)
+    Average alpha: 211.0
+    Center of mass: (79.4, 79.6)
+    Offset from center: (-0.6, -0.4)
+
+  Slice 2:
+    Bounding box: 146x152 at (7, 4)
+    Crawl from center (80,80):
+      Right: 35px, Left: 36px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 35px
+      Size: 70x70px
+      Ratio: 0.438 (43.8%)
+    Interior flood fill bbox:
+      Interior size: 104x118px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.42)
+    Content density: 0.291 (29.1%)
+    Average alpha: 211.0
+    Center of mass: (79.4, 79.6)
+    Offset from center: (-0.6, -0.4)
+
+  Slice 3:
+    Bounding box: 146x152 at (7, 4)
+    Crawl from center (80,80):
+      Right: 35px, Left: 36px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 35px
+      Size: 70x70px
+      Ratio: 0.438 (43.8%)
+    Interior flood fill bbox:
+      Interior size: 104x118px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.42)
+    Content density: 0.291 (29.1%)
+    Average alpha: 211.0
+    Center of mass: (79.4, 79.6)
+    Offset from center: (-0.6, -0.4)
+
+  Slice 4:
+    Bounding box: 146x152 at (7, 4)
+    Crawl from center (80,80):
+      Right: 35px, Left: 36px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 35px
+      Size: 70x70px
+      Ratio: 0.438 (43.8%)
+    Interior flood fill bbox:
+      Interior size: 104x118px
+      Max square: 103x103px
+      Ratio: 0.644 (64.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.42)
+    Content density: 0.291 (29.1%)
+    Average alpha: 211.0
+    Center of mass: (79.4, 79.6)
+    Offset from center: (-0.6, -0.4)
+
+  Slice 5:
+    Bounding box: 146x152 at (7, 4)
+    Crawl from center (80,80):
+      Right: 35px, Left: 36px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 35px
+      Size: 70x70px
+      Ratio: 0.438 (43.8%)
+    Interior flood fill bbox:
+      Interior size: 103x118px
+      Max square: 102x102px
+      Ratio: 0.637 (63.7%)
+      Interior center: (79.0, 79.5)
+    Symmetry: Yes (score: 2.25)
+    Content density: 0.317 (31.7%)
+    Average alpha: 213.6
+    Center of mass: (79.2, 83.6)
+    Offset from center: (-0.8, 3.6)
+
+
+================================================================================
+FRAME: house_frame_15
+================================================================================
+File: house_frame_15.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 215.2
+  Alpha std dev: 92.0
+  Unique alpha levels: 96
+  RGB max: 255
+  Bounding box: 152x160 at (4, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 153x160 at (4, 0)
+    Crawl from center (80,80):
+      Right: 54px, Left: 55px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 108x117px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 2.84)
+    Content density: 0.436 (43.6%)
+    Average alpha: 171.1
+    Center of mass: (80.8, 86.0)
+    Offset from center: (0.8, 6.0)
+
+  Slice 1:
+    Bounding box: 138x152 at (11, 4)
+    Crawl from center (80,80):
+      Right: 54px, Left: 55px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 108x117px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 2.75)
+    Content density: 0.297 (29.7%)
+    Average alpha: 207.1
+    Center of mass: (80.3, 88.8)
+    Offset from center: (0.3, 8.8)
+
+  Slice 2:
+    Bounding box: 138x152 at (11, 4)
+    Crawl from center (80,80):
+      Right: 54px, Left: 55px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 108x117px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 2.75)
+    Content density: 0.297 (29.7%)
+    Average alpha: 207.1
+    Center of mass: (80.3, 88.8)
+    Offset from center: (0.3, 8.8)
+
+  Slice 3:
+    Bounding box: 138x152 at (11, 4)
+    Crawl from center (80,80):
+      Right: 54px, Left: 55px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 108x117px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 2.75)
+    Content density: 0.297 (29.7%)
+    Average alpha: 207.1
+    Center of mass: (80.3, 88.8)
+    Offset from center: (0.3, 8.8)
+
+  Slice 4:
+    Bounding box: 138x152 at (11, 4)
+    Crawl from center (80,80):
+      Right: 54px, Left: 55px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 108x117px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 2.75)
+    Content density: 0.297 (29.7%)
+    Average alpha: 207.1
+    Center of mass: (80.3, 88.8)
+    Offset from center: (0.3, 8.8)
+
+  Slice 5:
+    Bounding box: 144x156 at (8, 4)
+    Crawl from center (80,80):
+      Right: 54px, Left: 55px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 108x117px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 2.91)
+    Content density: 0.308 (30.8%)
+    Average alpha: 208.7
+    Center of mass: (80.6, 89.7)
+    Offset from center: (0.6, 9.7)
+
+
+================================================================================
+FRAME: house_frame_16
+================================================================================
+File: house_frame_16.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 240.8
+  Alpha std dev: 57.9
+  Unique alpha levels: 11
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x118px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.01)
+    Content density: 0.440 (44.0%)
+    Average alpha: 178.5
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 1:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x118px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.00)
+    Content density: 0.326 (32.6%)
+    Average alpha: 199.8
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 2:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x118px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.00)
+    Content density: 0.326 (32.6%)
+    Average alpha: 199.8
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 3:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x118px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.00)
+    Content density: 0.326 (32.6%)
+    Average alpha: 199.8
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 4:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x118px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.00)
+    Content density: 0.326 (32.6%)
+    Average alpha: 199.8
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 5:
+    Bounding box: 154x152 at (3, 4)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 59px
+      Size: 118x118px
+      Ratio: 0.738 (73.8%)
+    Interior flood fill bbox:
+      Interior size: 118x118px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.08)
+    Content density: 0.346 (34.6%)
+    Average alpha: 205.4
+    Center of mass: (79.7, 82.1)
+    Offset from center: (-0.3, 2.1)
+
+
+================================================================================
+FRAME: house_frame_17
+================================================================================
+File: house_frame_17.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 221.5
+  Alpha std dev: 86.2
+  Unique alpha levels: 2
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x117px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.59)
+    Content density: 0.487 (48.7%)
+    Average alpha: 180.7
+    Center of mass: (79.8, 79.4)
+    Offset from center: (-0.2, -0.6)
+
+  Slice 1:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x117px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.53)
+    Content density: 0.382 (38.2%)
+    Average alpha: 191.4
+    Center of mass: (79.8, 79.4)
+    Offset from center: (-0.2, -0.6)
+
+  Slice 2:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x117px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.53)
+    Content density: 0.382 (38.2%)
+    Average alpha: 191.4
+    Center of mass: (79.8, 79.4)
+    Offset from center: (-0.2, -0.6)
+
+  Slice 3:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x117px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.53)
+    Content density: 0.382 (38.2%)
+    Average alpha: 191.4
+    Center of mass: (79.8, 79.4)
+    Offset from center: (-0.2, -0.6)
+
+  Slice 4:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x117px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.53)
+    Content density: 0.382 (38.2%)
+    Average alpha: 191.4
+    Center of mass: (79.8, 79.4)
+    Offset from center: (-0.2, -0.6)
+
+  Slice 5:
+    Bounding box: 152x156 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 59px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x117px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 80.0)
+    Symmetry: Yes (score: 0.53)
+    Content density: 0.386 (38.6%)
+    Average alpha: 196.5
+    Center of mass: (79.8, 79.8)
+    Offset from center: (-0.2, -0.2)
+
+
+================================================================================
+FRAME: house_frame_18
+================================================================================
+File: house_frame_18.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 228.4
+  Alpha std dev: 77.4
+  Unique alpha levels: 77
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.01)
+    Content density: 0.356 (35.6%)
+    Average alpha: 192.2
+    Center of mass: (80.3, 79.6)
+    Offset from center: (0.3, -0.4)
+
+  Slice 1:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.01)
+    Content density: 0.356 (35.6%)
+    Average alpha: 192.2
+    Center of mass: (80.3, 79.6)
+    Offset from center: (0.3, -0.4)
+
+  Slice 2:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.01)
+    Content density: 0.356 (35.6%)
+    Average alpha: 192.2
+    Center of mass: (80.3, 79.6)
+    Offset from center: (0.3, -0.4)
+
+  Slice 3:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.01)
+    Content density: 0.356 (35.6%)
+    Average alpha: 192.2
+    Center of mass: (80.3, 79.6)
+    Offset from center: (0.3, -0.4)
+
+  Slice 4:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.01)
+    Content density: 0.356 (35.6%)
+    Average alpha: 192.2
+    Center of mass: (80.3, 79.6)
+    Offset from center: (0.3, -0.4)
+
+  Slice 5:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.77)
+    Content density: 0.379 (37.9%)
+    Average alpha: 197.6
+    Center of mass: (79.9, 83.8)
+    Offset from center: (-0.1, 3.8)
+
+
+================================================================================
+FRAME: house_frame_19
+================================================================================
+File: house_frame_19.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 215.2
+  Alpha std dev: 92.0
+  Unique alpha levels: 95
+  RGB max: 255
+  Bounding box: 152x160 at (4, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 153x160 at (4, 0)
+    Crawl from center (80,80):
+      Right: 54px, Left: 55px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 108x117px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 79.0)
+    Symmetry: Yes (score: 2.84)
+    Content density: 0.436 (43.6%)
+    Average alpha: 171.2
+    Center of mass: (80.8, 72.9)
+    Offset from center: (0.8, -7.1)
+
+  Slice 1:
+    Bounding box: 138x152 at (11, 4)
+    Crawl from center (80,80):
+      Right: 54px, Left: 55px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 108x117px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 79.0)
+    Symmetry: Yes (score: 2.75)
+    Content density: 0.297 (29.7%)
+    Average alpha: 207.3
+    Center of mass: (80.3, 70.2)
+    Offset from center: (0.3, -9.8)
+
+  Slice 2:
+    Bounding box: 138x152 at (11, 4)
+    Crawl from center (80,80):
+      Right: 54px, Left: 55px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 108x117px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 79.0)
+    Symmetry: Yes (score: 2.75)
+    Content density: 0.297 (29.7%)
+    Average alpha: 207.3
+    Center of mass: (80.3, 70.2)
+    Offset from center: (0.3, -9.8)
+
+  Slice 3:
+    Bounding box: 138x152 at (11, 4)
+    Crawl from center (80,80):
+      Right: 54px, Left: 55px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 108x117px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 79.0)
+    Symmetry: Yes (score: 2.75)
+    Content density: 0.297 (29.7%)
+    Average alpha: 207.3
+    Center of mass: (80.3, 70.2)
+    Offset from center: (0.3, -9.8)
+
+  Slice 4:
+    Bounding box: 138x152 at (11, 4)
+    Crawl from center (80,80):
+      Right: 54px, Left: 55px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 108x117px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 79.0)
+    Symmetry: Yes (score: 2.75)
+    Content density: 0.297 (29.7%)
+    Average alpha: 207.3
+    Center of mass: (80.3, 70.2)
+    Offset from center: (0.3, -9.8)
+
+  Slice 5:
+    Bounding box: 144x152 at (8, 4)
+    Crawl from center (80,80):
+      Right: 54px, Left: 55px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 54px
+      Size: 108x108px
+      Ratio: 0.675 (67.5%)
+    Interior flood fill bbox:
+      Interior size: 108x117px
+      Max square: 107x107px
+      Ratio: 0.669 (66.9%)
+      Interior center: (79.5, 79.0)
+    Symmetry: Yes (score: 1.93)
+    Content density: 0.328 (32.8%)
+    Average alpha: 207.9
+    Center of mass: (79.9, 76.0)
+    Offset from center: (-0.1, -4.0)
+
+
+================================================================================
+FRAME: house_frame_20
+================================================================================
+File: house_frame_20.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 199.6
+  Alpha std dev: 104.4
+  Unique alpha levels: 151
+  RGB max: 255
+  Bounding box: 153x160 at (4, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 158x160 at (1, 0)
+    Crawl from center (80,80):
+      Right: 55px, Left: 56px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 112x118px
+      Max square: 111x111px
+      Ratio: 0.694 (69.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.34)
+    Content density: 0.427 (42.7%)
+    Average alpha: 171.0
+    Center of mass: (79.5, 74.5)
+    Offset from center: (-0.5, -5.5)
+
+  Slice 1:
+    Bounding box: 144x152 at (8, 4)
+    Crawl from center (80,80):
+      Right: 55px, Left: 56px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 112x118px
+      Max square: 111x111px
+      Ratio: 0.694 (69.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.28)
+    Content density: 0.291 (29.1%)
+    Average alpha: 208.8
+    Center of mass: (79.4, 71.3)
+    Offset from center: (-0.6, -8.7)
+
+  Slice 2:
+    Bounding box: 144x152 at (8, 4)
+    Crawl from center (80,80):
+      Right: 55px, Left: 56px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 112x118px
+      Max square: 111x111px
+      Ratio: 0.694 (69.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.28)
+    Content density: 0.291 (29.1%)
+    Average alpha: 208.8
+    Center of mass: (79.4, 71.3)
+    Offset from center: (-0.6, -8.7)
+
+  Slice 3:
+    Bounding box: 144x152 at (8, 4)
+    Crawl from center (80,80):
+      Right: 55px, Left: 56px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 112x118px
+      Max square: 111x111px
+      Ratio: 0.694 (69.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.28)
+    Content density: 0.291 (29.1%)
+    Average alpha: 208.8
+    Center of mass: (79.4, 71.3)
+    Offset from center: (-0.6, -8.7)
+
+  Slice 4:
+    Bounding box: 144x152 at (8, 4)
+    Crawl from center (80,80):
+      Right: 55px, Left: 56px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 112x118px
+      Max square: 111x111px
+      Ratio: 0.694 (69.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.28)
+    Content density: 0.291 (29.1%)
+    Average alpha: 208.8
+    Center of mass: (79.4, 71.3)
+    Offset from center: (-0.6, -8.7)
+
+  Slice 5:
+    Bounding box: 144x152 at (8, 4)
+    Crawl from center (80,80):
+      Right: 55px, Left: 56px
+      Down: 59px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 112x118px
+      Max square: 111x111px
+      Ratio: 0.694 (69.4%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.19)
+    Content density: 0.317 (31.7%)
+    Average alpha: 210.0
+    Center of mass: (79.4, 76.3)
+    Offset from center: (-0.6, -3.7)
+
+
+================================================================================
+FRAME: house_frame_21
+================================================================================
+File: house_frame_21.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 202.2
+  Alpha std dev: 102.5
+  Unique alpha levels: 107
+  RGB max: 255
+  Bounding box: 152x160 at (4, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 156x160 at (2, 0)
+    Crawl from center (80,80):
+      Right: 55px, Left: 57px
+      Down: 59px, Up: 61px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 112x119px
+      Max square: 111x111px
+      Ratio: 0.694 (69.4%)
+      Interior center: (79.5, 79.0)
+    Symmetry: Yes (score: 1.31)
+    Content density: 0.421 (42.1%)
+    Average alpha: 169.4
+    Center of mass: (79.5, 72.8)
+    Offset from center: (-0.5, -7.2)
+
+  Slice 1:
+    Bounding box: 144x152 at (8, 4)
+    Crawl from center (80,80):
+      Right: 55px, Left: 57px
+      Down: 59px, Up: 61px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 112x119px
+      Max square: 111x111px
+      Ratio: 0.694 (69.4%)
+      Interior center: (79.5, 79.0)
+    Symmetry: Yes (score: 1.29)
+    Content density: 0.279 (27.9%)
+    Average alpha: 211.2
+    Center of mass: (79.5, 71.5)
+    Offset from center: (-0.5, -8.5)
+
+  Slice 2:
+    Bounding box: 144x152 at (8, 4)
+    Crawl from center (80,80):
+      Right: 55px, Left: 57px
+      Down: 59px, Up: 61px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 112x119px
+      Max square: 111x111px
+      Ratio: 0.694 (69.4%)
+      Interior center: (79.5, 79.0)
+    Symmetry: Yes (score: 1.29)
+    Content density: 0.279 (27.9%)
+    Average alpha: 211.2
+    Center of mass: (79.5, 71.5)
+    Offset from center: (-0.5, -8.5)
+
+  Slice 3:
+    Bounding box: 144x152 at (8, 4)
+    Crawl from center (80,80):
+      Right: 55px, Left: 57px
+      Down: 59px, Up: 61px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 112x119px
+      Max square: 111x111px
+      Ratio: 0.694 (69.4%)
+      Interior center: (79.5, 79.0)
+    Symmetry: Yes (score: 1.29)
+    Content density: 0.279 (27.9%)
+    Average alpha: 211.2
+    Center of mass: (79.5, 71.5)
+    Offset from center: (-0.5, -8.5)
+
+  Slice 4:
+    Bounding box: 144x152 at (8, 4)
+    Crawl from center (80,80):
+      Right: 55px, Left: 57px
+      Down: 59px, Up: 61px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 112x119px
+      Max square: 111x111px
+      Ratio: 0.694 (69.4%)
+      Interior center: (79.5, 79.0)
+    Symmetry: Yes (score: 1.29)
+    Content density: 0.279 (27.9%)
+    Average alpha: 211.2
+    Center of mass: (79.5, 71.5)
+    Offset from center: (-0.5, -8.5)
+
+  Slice 5:
+    Bounding box: 144x152 at (8, 4)
+    Crawl from center (80,80):
+      Right: 55px, Left: 57px
+      Down: 59px, Up: 61px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 112x119px
+      Max square: 111x111px
+      Ratio: 0.694 (69.4%)
+      Interior center: (79.5, 79.0)
+    Symmetry: Yes (score: 1.98)
+    Content density: 0.306 (30.6%)
+    Average alpha: 212.7
+    Center of mass: (79.5, 76.8)
+    Offset from center: (-0.5, -3.2)
+
+
+================================================================================
+FRAME: house_frame_22
+================================================================================
+File: house_frame_22.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 183.7
+  Alpha std dev: 113.8
+  Unique alpha levels: 125
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 44px, Left: 45px
+      Down: 54px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 44px
+      Size: 88x88px
+      Ratio: 0.550 (55.0%)
+    Interior flood fill bbox:
+      Interior size: 116x113px
+      Max square: 112x112px
+      Ratio: 0.700 (70.0%)
+      Interior center: (79.5, 77.0)
+    Symmetry: Yes (score: 0.33)
+    Content density: 0.422 (42.2%)
+    Average alpha: 171.6
+    Center of mass: (79.5, 66.2)
+    Offset from center: (-0.5, -13.8)
+
+  Slice 1:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 44px, Left: 45px
+      Down: 54px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 44px
+      Size: 88x88px
+      Ratio: 0.550 (55.0%)
+    Interior flood fill bbox:
+      Interior size: 116x113px
+      Max square: 112x112px
+      Ratio: 0.700 (70.0%)
+      Interior center: (79.5, 77.0)
+    Symmetry: Yes (score: 0.27)
+    Content density: 0.294 (29.4%)
+    Average alpha: 204.7
+    Center of mass: (79.5, 61.5)
+    Offset from center: (-0.5, -18.5)
+
+  Slice 2:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 44px, Left: 45px
+      Down: 54px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 44px
+      Size: 88x88px
+      Ratio: 0.550 (55.0%)
+    Interior flood fill bbox:
+      Interior size: 116x113px
+      Max square: 112x112px
+      Ratio: 0.700 (70.0%)
+      Interior center: (79.5, 77.0)
+    Symmetry: Yes (score: 0.27)
+    Content density: 0.294 (29.4%)
+    Average alpha: 204.7
+    Center of mass: (79.5, 61.5)
+    Offset from center: (-0.5, -18.5)
+
+  Slice 3:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 44px, Left: 45px
+      Down: 54px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 44px
+      Size: 88x88px
+      Ratio: 0.550 (55.0%)
+    Interior flood fill bbox:
+      Interior size: 116x113px
+      Max square: 112x112px
+      Ratio: 0.700 (70.0%)
+      Interior center: (79.5, 77.0)
+    Symmetry: Yes (score: 0.27)
+    Content density: 0.294 (29.4%)
+    Average alpha: 204.7
+    Center of mass: (79.5, 61.5)
+    Offset from center: (-0.5, -18.5)
+
+  Slice 4:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 44px, Left: 45px
+      Down: 54px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 44px
+      Size: 88x88px
+      Ratio: 0.550 (55.0%)
+    Interior flood fill bbox:
+      Interior size: 116x113px
+      Max square: 112x112px
+      Ratio: 0.700 (70.0%)
+      Interior center: (79.5, 77.0)
+    Symmetry: Yes (score: 0.27)
+    Content density: 0.294 (29.4%)
+    Average alpha: 204.7
+    Center of mass: (79.5, 61.5)
+    Offset from center: (-0.5, -18.5)
+
+  Slice 5:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 44px, Left: 45px
+      Down: 54px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 44px
+      Size: 88x88px
+      Ratio: 0.550 (55.0%)
+    Interior flood fill bbox:
+      Interior size: 116x113px
+      Max square: 112x112px
+      Ratio: 0.700 (70.0%)
+      Interior center: (79.5, 77.0)
+    Symmetry: Yes (score: 0.22)
+    Content density: 0.324 (32.4%)
+    Average alpha: 205.7
+    Center of mass: (79.4, 67.2)
+    Offset from center: (-0.6, -12.8)
+
+
+================================================================================
+FRAME: house_frame_23
+================================================================================
+File: house_frame_23.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 200.0
+  Alpha std dev: 103.7
+  Unique alpha levels: 124
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 44px, Left: 44px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 44px
+      Size: 88x88px
+      Ratio: 0.550 (55.0%)
+    Interior flood fill bbox:
+      Interior size: 111x117px
+      Max square: 110x110px
+      Ratio: 0.688 (68.8%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 1.18)
+    Content density: 0.453 (45.3%)
+    Average alpha: 165.6
+    Center of mass: (79.5, 74.2)
+    Offset from center: (-0.5, -5.8)
+
+  Slice 1:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 44px, Left: 44px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 44px
+      Size: 88x88px
+      Ratio: 0.550 (55.0%)
+    Interior flood fill bbox:
+      Interior size: 111x117px
+      Max square: 110x110px
+      Ratio: 0.688 (68.8%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 1.15)
+    Content density: 0.299 (29.9%)
+    Average alpha: 207.5
+    Center of mass: (79.5, 73.1)
+    Offset from center: (-0.5, -6.9)
+
+  Slice 2:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 44px, Left: 44px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 44px
+      Size: 88x88px
+      Ratio: 0.550 (55.0%)
+    Interior flood fill bbox:
+      Interior size: 111x117px
+      Max square: 110x110px
+      Ratio: 0.688 (68.8%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 1.15)
+    Content density: 0.299 (29.9%)
+    Average alpha: 207.5
+    Center of mass: (79.5, 73.1)
+    Offset from center: (-0.5, -6.9)
+
+  Slice 3:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 44px, Left: 44px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 44px
+      Size: 88x88px
+      Ratio: 0.550 (55.0%)
+    Interior flood fill bbox:
+      Interior size: 111x117px
+      Max square: 110x110px
+      Ratio: 0.688 (68.8%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 1.15)
+    Content density: 0.299 (29.9%)
+    Average alpha: 207.5
+    Center of mass: (79.5, 73.1)
+    Offset from center: (-0.5, -6.9)
+
+  Slice 4:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 44px, Left: 44px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 44px
+      Size: 88x88px
+      Ratio: 0.550 (55.0%)
+    Interior flood fill bbox:
+      Interior size: 111x117px
+      Max square: 110x110px
+      Ratio: 0.688 (68.8%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 1.15)
+    Content density: 0.299 (29.9%)
+    Average alpha: 207.5
+    Center of mass: (79.5, 73.1)
+    Offset from center: (-0.5, -6.9)
+
+  Slice 5:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 44px, Left: 44px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 44px
+      Size: 88x88px
+      Ratio: 0.550 (55.0%)
+    Interior flood fill bbox:
+      Interior size: 111x117px
+      Max square: 110x110px
+      Ratio: 0.688 (68.8%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 1.91)
+    Content density: 0.327 (32.7%)
+    Average alpha: 209.3
+    Center of mass: (79.9, 77.5)
+    Offset from center: (-0.1, -2.5)
+
+
+================================================================================
+FRAME: house_frame_24
+================================================================================
+File: house_frame_24.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 193.4
+  Alpha std dev: 108.5
+  Unique alpha levels: 120
+  RGB max: 255
+  Bounding box: 147x160 at (7, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 151x160 at (5, 0)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 57px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 105x115px
+      Max square: 104x104px
+      Ratio: 0.650 (65.0%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 2.72)
+    Content density: 0.418 (41.8%)
+    Average alpha: 167.2
+    Center of mass: (79.7, 72.5)
+    Offset from center: (-0.3, -7.5)
+
+  Slice 1:
+    Bounding box: 136x149 at (12, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 57px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 105x115px
+      Max square: 104x104px
+      Ratio: 0.650 (65.0%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 2.70)
+    Content density: 0.279 (27.9%)
+    Average alpha: 207.4
+    Center of mass: (79.7, 69.8)
+    Offset from center: (-0.3, -10.2)
+
+  Slice 2:
+    Bounding box: 136x149 at (12, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 57px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 105x115px
+      Max square: 104x104px
+      Ratio: 0.650 (65.0%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 2.70)
+    Content density: 0.279 (27.9%)
+    Average alpha: 207.4
+    Center of mass: (79.7, 69.8)
+    Offset from center: (-0.3, -10.2)
+
+  Slice 3:
+    Bounding box: 136x149 at (12, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 57px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 105x115px
+      Max square: 104x104px
+      Ratio: 0.650 (65.0%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 2.70)
+    Content density: 0.279 (27.9%)
+    Average alpha: 207.4
+    Center of mass: (79.7, 69.8)
+    Offset from center: (-0.3, -10.2)
+
+  Slice 4:
+    Bounding box: 136x149 at (12, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 57px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 105x115px
+      Max square: 104x104px
+      Ratio: 0.650 (65.0%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 2.70)
+    Content density: 0.279 (27.9%)
+    Average alpha: 207.4
+    Center of mass: (79.7, 69.8)
+    Offset from center: (-0.3, -10.2)
+
+  Slice 5:
+    Bounding box: 144x150 at (8, 4)
+    Crawl from center (80,80):
+      Right: 52px, Left: 53px
+      Down: 57px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 52px
+      Size: 104x104px
+      Ratio: 0.650 (65.0%)
+    Interior flood fill bbox:
+      Interior size: 105x115px
+      Max square: 104x104px
+      Ratio: 0.650 (65.0%)
+      Interior center: (80.0, 79.0)
+    Symmetry: Yes (score: 3.01)
+    Content density: 0.317 (31.7%)
+    Average alpha: 209.1
+    Center of mass: (79.8, 75.0)
+    Offset from center: (-0.2, -5.0)
+
+
+================================================================================
+FRAME: house_frame_25
+================================================================================
+File: house_frame_25.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 204.4
+  Alpha std dev: 100.9
+  Unique alpha levels: 185
+  RGB max: 255
+  Bounding box: 152x160 at (4, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 155x160 at (3, 0)
+    Crawl from center (80,80):
+      Right: 55px, Left: 55px
+      Down: 57px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 109x116px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (80.0, 78.5)
+    Symmetry: Yes (score: 1.44)
+    Content density: 0.435 (43.5%)
+    Average alpha: 168.8
+    Center of mass: (79.0, 70.5)
+    Offset from center: (-1.0, -9.5)
+
+  Slice 1:
+    Bounding box: 140x148 at (10, 6)
+    Crawl from center (80,80):
+      Right: 55px, Left: 55px
+      Down: 57px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 109x116px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (80.0, 78.5)
+    Symmetry: Yes (score: 1.44)
+    Content density: 0.275 (27.5%)
+    Average alpha: 220.1
+    Center of mass: (78.9, 69.9)
+    Offset from center: (-1.1, -10.1)
+
+  Slice 2:
+    Bounding box: 140x148 at (10, 6)
+    Crawl from center (80,80):
+      Right: 55px, Left: 55px
+      Down: 57px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 109x116px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (80.0, 78.5)
+    Symmetry: Yes (score: 1.44)
+    Content density: 0.275 (27.5%)
+    Average alpha: 220.1
+    Center of mass: (78.9, 69.9)
+    Offset from center: (-1.1, -10.1)
+
+  Slice 3:
+    Bounding box: 140x148 at (10, 6)
+    Crawl from center (80,80):
+      Right: 55px, Left: 55px
+      Down: 57px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 109x116px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (80.0, 78.5)
+    Symmetry: Yes (score: 1.44)
+    Content density: 0.275 (27.5%)
+    Average alpha: 220.1
+    Center of mass: (78.9, 69.9)
+    Offset from center: (-1.1, -10.1)
+
+  Slice 4:
+    Bounding box: 140x148 at (10, 6)
+    Crawl from center (80,80):
+      Right: 55px, Left: 55px
+      Down: 57px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 109x116px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (80.0, 78.5)
+    Symmetry: Yes (score: 1.44)
+    Content density: 0.275 (27.5%)
+    Average alpha: 220.1
+    Center of mass: (78.9, 69.9)
+    Offset from center: (-1.1, -10.1)
+
+  Slice 5:
+    Bounding box: 142x148 at (9, 6)
+    Crawl from center (80,80):
+      Right: 55px, Left: 55px
+      Down: 57px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 55px
+      Size: 110x110px
+      Ratio: 0.688 (68.8%)
+    Interior flood fill bbox:
+      Interior size: 109x116px
+      Max square: 108x108px
+      Ratio: 0.675 (67.5%)
+      Interior center: (80.0, 78.5)
+    Symmetry: Yes (score: 1.02)
+    Content density: 0.305 (30.5%)
+    Average alpha: 221.5
+    Center of mass: (79.1, 75.3)
+    Offset from center: (-0.9, -4.7)
+
+
+================================================================================
+FRAME: house_frame_26
+================================================================================
+File: house_frame_26.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 171.8
+  Alpha std dev: 118.7
+  Unique alpha levels: 92
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.31)
+    Content density: 0.416 (41.6%)
+    Average alpha: 159.7
+    Center of mass: (79.5, 78.1)
+    Offset from center: (-0.5, -1.9)
+
+  Slice 1:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.22)
+    Content density: 0.264 (26.4%)
+    Average alpha: 209.7
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 2:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.22)
+    Content density: 0.264 (26.4%)
+    Average alpha: 209.7
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 3:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.22)
+    Content density: 0.264 (26.4%)
+    Average alpha: 209.7
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 4:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.22)
+    Content density: 0.264 (26.4%)
+    Average alpha: 209.7
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 5:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.08)
+    Content density: 0.294 (29.4%)
+    Average alpha: 212.0
+    Center of mass: (79.7, 85.2)
+    Offset from center: (-0.3, 5.2)
+
+
+================================================================================
+FRAME: house_frame_27
+================================================================================
+File: house_frame_27.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 201.9
+  Alpha std dev: 103.2
+  Unique alpha levels: 70
+  RGB max: 255
+  Bounding box: 152x160 at (4, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 152x160 at (4, 0)
+    Crawl from center (80,80):
+      Right: 53px, Left: 54px
+      Down: 55px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 53px
+      Size: 106x106px
+      Ratio: 0.662 (66.2%)
+    Interior flood fill bbox:
+      Interior size: 106x115px
+      Max square: 105x105px
+      Ratio: 0.656 (65.6%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 1.31)
+    Content density: 0.433 (43.3%)
+    Average alpha: 171.0
+    Center of mass: (79.1, 71.0)
+    Offset from center: (-0.9, -9.0)
+
+  Slice 1:
+    Bounding box: 136x150 at (12, 4)
+    Crawl from center (80,80):
+      Right: 53px, Left: 54px
+      Down: 55px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 53px
+      Size: 106x106px
+      Ratio: 0.662 (66.2%)
+    Interior flood fill bbox:
+      Interior size: 106x115px
+      Max square: 105x105px
+      Ratio: 0.656 (65.6%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 1.27)
+    Content density: 0.287 (28.7%)
+    Average alpha: 212.7
+    Center of mass: (78.9, 67.7)
+    Offset from center: (-1.1, -12.3)
+
+  Slice 2:
+    Bounding box: 136x150 at (12, 4)
+    Crawl from center (80,80):
+      Right: 53px, Left: 54px
+      Down: 55px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 53px
+      Size: 106x106px
+      Ratio: 0.662 (66.2%)
+    Interior flood fill bbox:
+      Interior size: 106x115px
+      Max square: 105x105px
+      Ratio: 0.656 (65.6%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 1.27)
+    Content density: 0.287 (28.7%)
+    Average alpha: 212.7
+    Center of mass: (78.9, 67.7)
+    Offset from center: (-1.1, -12.3)
+
+  Slice 3:
+    Bounding box: 136x150 at (12, 4)
+    Crawl from center (80,80):
+      Right: 53px, Left: 54px
+      Down: 55px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 53px
+      Size: 106x106px
+      Ratio: 0.662 (66.2%)
+    Interior flood fill bbox:
+      Interior size: 106x115px
+      Max square: 105x105px
+      Ratio: 0.656 (65.6%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 1.27)
+    Content density: 0.287 (28.7%)
+    Average alpha: 212.7
+    Center of mass: (78.9, 67.7)
+    Offset from center: (-1.1, -12.3)
+
+  Slice 4:
+    Bounding box: 136x150 at (12, 4)
+    Crawl from center (80,80):
+      Right: 53px, Left: 54px
+      Down: 55px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 53px
+      Size: 106x106px
+      Ratio: 0.662 (66.2%)
+    Interior flood fill bbox:
+      Interior size: 106x115px
+      Max square: 105x105px
+      Ratio: 0.656 (65.6%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 1.27)
+    Content density: 0.287 (28.7%)
+    Average alpha: 212.7
+    Center of mass: (78.9, 67.7)
+    Offset from center: (-1.1, -12.3)
+
+  Slice 5:
+    Bounding box: 141x152 at (8, 4)
+    Crawl from center (80,80):
+      Right: 53px, Left: 54px
+      Down: 55px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 53px
+      Size: 106x106px
+      Ratio: 0.662 (66.2%)
+    Interior flood fill bbox:
+      Interior size: 106x115px
+      Max square: 105x105px
+      Ratio: 0.656 (65.6%)
+      Interior center: (79.5, 78.0)
+    Symmetry: Yes (score: 2.01)
+    Content density: 0.318 (31.8%)
+    Average alpha: 212.8
+    Center of mass: (78.8, 73.3)
+    Offset from center: (-1.2, -6.7)
+
+
+================================================================================
+FRAME: house_frame_28
+================================================================================
+File: house_frame_28.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 233.7
+  Alpha std dev: 69.6
+  Unique alpha levels: 18
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 118x118px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.66)
+    Content density: 0.483 (48.3%)
+    Average alpha: 176.4
+    Center of mass: (79.7, 80.0)
+    Offset from center: (-0.3, 0.0)
+
+  Slice 1:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 118x118px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.66)
+    Content density: 0.381 (38.1%)
+    Average alpha: 186.0
+    Center of mass: (79.8, 80.1)
+    Offset from center: (-0.2, 0.1)
+
+  Slice 2:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 118x118px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.66)
+    Content density: 0.381 (38.1%)
+    Average alpha: 186.0
+    Center of mass: (79.8, 80.1)
+    Offset from center: (-0.2, 0.1)
+
+  Slice 3:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 118x118px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.66)
+    Content density: 0.381 (38.1%)
+    Average alpha: 186.0
+    Center of mass: (79.8, 80.1)
+    Offset from center: (-0.2, 0.1)
+
+  Slice 4:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 118x118px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.66)
+    Content density: 0.381 (38.1%)
+    Average alpha: 186.0
+    Center of mass: (79.8, 80.1)
+    Offset from center: (-0.2, 0.1)
+
+  Slice 5:
+    Bounding box: 152x156 at (4, 4)
+    Crawl from center (80,80):
+      Right: 59px, Left: 60px
+      Down: 58px, Up: 60px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 118x118px
+      Max square: 117x117px
+      Ratio: 0.731 (73.1%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.55)
+    Content density: 0.388 (38.8%)
+    Average alpha: 193.8
+    Center of mass: (79.4, 81.4)
+    Offset from center: (-0.6, 1.4)
+
+
+================================================================================
+FRAME: house_frame_29
+================================================================================
+File: house_frame_29.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 185.1
+  Alpha std dev: 112.7
+  Unique alpha levels: 96
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 57px, Left: 58px
+      Down: 57px, Up: 58px
+    Inscribed square (cross crawl):
+      Radius: 57px
+      Size: 114x114px
+      Ratio: 0.713 (71.2%)
+    Interior flood fill bbox:
+      Interior size: 114x114px
+      Max square: 113x113px
+      Ratio: 0.706 (70.6%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.21)
+    Content density: 0.439 (43.9%)
+    Average alpha: 167.3
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 1:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 57px, Left: 58px
+      Down: 57px, Up: 58px
+    Inscribed square (cross crawl):
+      Radius: 57px
+      Size: 114x114px
+      Ratio: 0.713 (71.2%)
+    Interior flood fill bbox:
+      Interior size: 114x114px
+      Max square: 113x113px
+      Ratio: 0.706 (70.6%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.38)
+    Content density: 0.294 (29.4%)
+    Average alpha: 209.8
+    Center of mass: (79.5, 79.6)
+    Offset from center: (-0.5, -0.4)
+
+  Slice 2:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 57px, Left: 58px
+      Down: 57px, Up: 58px
+    Inscribed square (cross crawl):
+      Radius: 57px
+      Size: 114x114px
+      Ratio: 0.713 (71.2%)
+    Interior flood fill bbox:
+      Interior size: 114x114px
+      Max square: 113x113px
+      Ratio: 0.706 (70.6%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.38)
+    Content density: 0.294 (29.4%)
+    Average alpha: 209.8
+    Center of mass: (79.5, 79.6)
+    Offset from center: (-0.5, -0.4)
+
+  Slice 3:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 57px, Left: 58px
+      Down: 57px, Up: 58px
+    Inscribed square (cross crawl):
+      Radius: 57px
+      Size: 114x114px
+      Ratio: 0.713 (71.2%)
+    Interior flood fill bbox:
+      Interior size: 114x114px
+      Max square: 113x113px
+      Ratio: 0.706 (70.6%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.38)
+    Content density: 0.294 (29.4%)
+    Average alpha: 209.8
+    Center of mass: (79.5, 79.6)
+    Offset from center: (-0.5, -0.4)
+
+  Slice 4:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 57px, Left: 58px
+      Down: 57px, Up: 58px
+    Inscribed square (cross crawl):
+      Radius: 57px
+      Size: 114x114px
+      Ratio: 0.713 (71.2%)
+    Interior flood fill bbox:
+      Interior size: 114x114px
+      Max square: 113x113px
+      Ratio: 0.706 (70.6%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.38)
+    Content density: 0.294 (29.4%)
+    Average alpha: 209.8
+    Center of mass: (79.5, 79.6)
+    Offset from center: (-0.5, -0.4)
+
+  Slice 5:
+    Bounding box: 152x152 at (4, 4)
+    Crawl from center (80,80):
+      Right: 57px, Left: 58px
+      Down: 57px, Up: 58px
+    Inscribed square (cross crawl):
+      Radius: 57px
+      Size: 114x114px
+      Ratio: 0.713 (71.2%)
+    Interior flood fill bbox:
+      Interior size: 114x114px
+      Max square: 113x113px
+      Ratio: 0.706 (70.6%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 2.00)
+    Content density: 0.313 (31.3%)
+    Average alpha: 211.5
+    Center of mass: (79.0, 83.1)
+    Offset from center: (-1.0, 3.1)
+
+
+================================================================================
+FRAME: house_frame_30
+================================================================================
+File: house_frame_30.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: gradient_alpha
+  Alpha range: 0 - 255
+  Alpha mean: 183.7
+  Alpha std dev: 113.4
+  Unique alpha levels: 86
+  RGB max: 255
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.49)
+    Content density: 0.438 (43.8%)
+    Average alpha: 167.6
+    Center of mass: (79.4, 79.4)
+    Offset from center: (-0.6, -0.6)
+
+  Slice 1:
+    Bounding box: 148x148 at (6, 6)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.46)
+    Content density: 0.287 (28.7%)
+    Average alpha: 214.9
+    Center of mass: (79.3, 79.3)
+    Offset from center: (-0.7, -0.7)
+
+  Slice 2:
+    Bounding box: 148x148 at (6, 6)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.46)
+    Content density: 0.287 (28.7%)
+    Average alpha: 214.9
+    Center of mass: (79.3, 79.3)
+    Offset from center: (-0.7, -0.7)
+
+  Slice 3:
+    Bounding box: 148x148 at (6, 6)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.46)
+    Content density: 0.287 (28.7%)
+    Average alpha: 214.9
+    Center of mass: (79.3, 79.3)
+    Offset from center: (-0.7, -0.7)
+
+  Slice 4:
+    Bounding box: 148x148 at (6, 6)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 1.46)
+    Content density: 0.287 (28.7%)
+    Average alpha: 214.9
+    Center of mass: (79.3, 79.3)
+    Offset from center: (-0.7, -0.7)
+
+  Slice 5:
+    Bounding box: 148x150 at (6, 6)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 2.04)
+    Content density: 0.309 (30.9%)
+    Average alpha: 215.5
+    Center of mass: (79.6, 83.1)
+    Offset from center: (-0.4, 3.1)
+
+
+================================================================================
+FRAME: house_japan
+================================================================================
+File: house_japan.png
+Dimensions: 960x160
+
+MASK ANALYSIS:
+  Type: full_alpha
+  Alpha range: 255 - 255
+  Alpha mean: 255.0
+  Alpha std dev: 0.0
+  Unique alpha levels: 1
+  RGB max: 0
+  Bounding box: 160x160 at (0, 0)
+
+SPLENDOR LEVEL ANALYSIS (6 slices):
+--------------------------------------------------------------------------------
+
+  Slice 0:
+    Bounding box: 160x160 at (0, 0)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.38)
+    Content density: 0.473 (47.3%)
+    Average alpha: 185.5
+    Center of mass: (79.4, 79.6)
+    Offset from center: (-0.6, -0.4)
+
+  Slice 1:
+    Bounding box: 158x158 at (1, 1)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.21)
+    Content density: 0.349 (34.9%)
+    Average alpha: 218.8
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 2:
+    Bounding box: 158x158 at (1, 1)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.21)
+    Content density: 0.349 (34.9%)
+    Average alpha: 218.8
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 3:
+    Bounding box: 158x158 at (1, 1)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.21)
+    Content density: 0.349 (34.9%)
+    Average alpha: 218.8
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 4:
+    Bounding box: 158x158 at (1, 1)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.21)
+    Content density: 0.349 (34.9%)
+    Average alpha: 218.8
+    Center of mass: (79.5, 79.5)
+    Offset from center: (-0.5, -0.5)
+
+  Slice 5:
+    Bounding box: 158x159 at (1, 1)
+    Crawl from center (80,80):
+      Right: 58px, Left: 59px
+      Down: 58px, Up: 59px
+    Inscribed square (cross crawl):
+      Radius: 58px
+      Size: 116x116px
+      Ratio: 0.725 (72.5%)
+    Interior flood fill bbox:
+      Interior size: 116x116px
+      Max square: 115x115px
+      Ratio: 0.719 (71.9%)
+      Interior center: (79.5, 79.5)
+    Symmetry: Yes (score: 0.17)
+    Content density: 0.359 (35.9%)
+    Average alpha: 220.4
+    Center of mass: (79.5, 80.8)
+    Offset from center: (-0.5, 0.8)
+
+
+================================================================================
+PATTERN ANALYSIS
+================================================================================
+
+INSCRIBED vs INTERIOR FLOOD FILL RATIOS:
+--------------------------------------------------------------------------------
+Format: frame_name [mask_type] inscribed / flood_fill
+
+dynasty                   [gradient_alpha] 0.612 / 0.674
+house                     [gradient_alpha] 0.662 / 0.675
+house_china               [full_alpha    ] 0.737 / 0.731
+house_frame_02            [gradient_alpha] 0.638 / 0.644
+house_frame_03            [gradient_alpha] 0.650 / 0.656
+house_frame_04            [full_alpha    ] 0.725 / 0.713
+house_frame_05            [gradient_alpha] 0.725 / 0.719
+house_frame_06            [gradient_alpha] 0.737 / 0.731
+house_frame_07            [gradient_alpha] 0.775 / 0.775
+house_frame_08            [gradient_alpha] 0.500 / 0.644
+house_frame_09            [full_alpha    ] 0.725 / 0.719
+house_frame_10            [gradient_alpha] 0.646 / 0.638
+house_frame_11            [gradient_alpha] 0.725 / 0.713
+house_frame_12            [gradient_alpha] 0.681 / 0.681
+house_frame_13            [full_alpha    ] 0.675 / 0.675
+house_frame_14            [gradient_alpha] 0.438 / 0.643
+house_frame_15            [gradient_alpha] 0.675 / 0.669
+house_frame_16            [gradient_alpha] 0.737 / 0.731
+house_frame_17            [gradient_alpha] 0.725 / 0.719
+house_frame_18            [gradient_alpha] 0.725 / 0.719
+house_frame_19            [gradient_alpha] 0.675 / 0.669
+house_frame_20            [gradient_alpha] 0.688 / 0.694
+house_frame_21            [gradient_alpha] 0.688 / 0.694
+house_frame_22            [gradient_alpha] 0.550 / 0.700
+house_frame_23            [gradient_alpha] 0.550 / 0.688
+house_frame_24            [gradient_alpha] 0.650 / 0.650
+house_frame_25            [gradient_alpha] 0.688 / 0.675
+house_frame_26            [gradient_alpha] 0.725 / 0.719
+house_frame_27            [gradient_alpha] 0.662 / 0.656
+house_frame_28            [gradient_alpha] 0.725 / 0.731
+house_frame_29            [gradient_alpha] 0.713 / 0.706
+house_frame_30            [gradient_alpha] 0.725 / 0.719
+house_japan               [full_alpha    ] 0.725 / 0.719
+
+
+================================================================================
+RECOMMENDATIONS
+================================================================================
+
+Full alpha masks (doggy masks):
+  Inscribed (cross crawl): 0.718
+  Interior flood fill: 0.711
+  Recommended scale: 0.71
+
+Gradient alpha masks:
+  Inscribed (cross crawl): 0.667
+  Interior flood fill: 0.690
+  Recommended scale: 0.69
+
+Current implementation:
+  Full alpha frames: scale=1.0
+  Gradient frames: scale=0.9
+
+NOTE: Interior flood fill measures the actual usable space inside the
+      frame by filling from center until hitting frame content.

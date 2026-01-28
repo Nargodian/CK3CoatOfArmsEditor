@@ -106,9 +106,11 @@ class PropertySlider(QWidget):
 	def _on_input_changed(self, text):
 		"""Handle input change (int mode)"""
 		if text.isdigit():
+			value = int(text)
 			self.slider.blockSignals(True)
-			self.slider.setValue(int(text))
+			self.slider.setValue(value)
 			self.slider.blockSignals(False)
+			self.valueChanged.emit(float(value))
 	
 	def _on_input_changed_float(self, text):
 		"""Handle input change (float mode)"""
@@ -118,6 +120,7 @@ class PropertySlider(QWidget):
 				self.slider.blockSignals(True)
 				self.slider.setValue(int(float_val * 100))
 				self.slider.blockSignals(False)
+				self.valueChanged.emit(float_val)
 			except ValueError:
 				pass
 	

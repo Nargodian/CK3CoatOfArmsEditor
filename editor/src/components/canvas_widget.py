@@ -495,6 +495,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.composite_shader.setUniformValue("noiseMaskSampler", 3)
 		
 		# Set per-frame scale and offset uniforms
+		safeMargin = 1.0
 		if self.current_frame_name == "None":
 			# No frame: render at full scale with no offset
 			self.composite_shader.setUniformValue("coaScale", QVector2D(1.0, 1.0))
@@ -510,11 +511,12 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
 		else:
 			# Unlisted frame: default CK3 scale and offset
-			self.composite_shader.setUniformValue("coaScale", QVector2D(0.9, 0.9))
+			safeMargin = 1.05 # Adjust for default scale of 0.9
+			self.composite_shader.setUniformValue("coaScale", QVector2D(0.9/safeMargin, 0.9/safeMargin))
 			self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
 		
 		# Composite quad always at fixed size (scaling/offset done in shader)
-		base_size = VIEWPORT_BASE_SIZE * self.zoom_level * 0.75
+		base_size = VIEWPORT_BASE_SIZE * self.zoom_level * 0.75 * safeMargin
 		# Texture coords: RTT renders Y-up (OpenGL standard), texture V=0 at bottom, V=1 at top
 		# Position Y=-1 (bottom) → V=0, Position Y=+1 (top) → V=1
 		vertices = np.array([
@@ -786,8 +788,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 							# Use official frame scales from CK3 culture files
 							if name in self.official_frame_scales:
 								scale_data = self.official_frame_scales[name]
-								self.frame_scales[name] = tuple(scale_data)
-								self.frame_offsets[name] = (0.0, 0.04)  # CK3 default offset
+								self.frame_scales[name] = (scale_data[0]/1.05, scale_data[1]/1.05)
+								self.frame_offsets[name] = (0.0, 0.00)  # CK3 default offset
 							else:
 								# Fallback: unlisted frames default to 1.0 scale, no offset
 								self.frame_scales[name] = (1.0, 1.0)

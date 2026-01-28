@@ -1,0 +1,852 @@
+================================================================================
+FRAME SHAPE SEMANTIC ANALYSIS
+================================================================================
+
+SHAPE CLASSIFICATIONS:
+--------------------------------------------------------------------------------
+dynasty                   circular, square, shield_pointed_bottom, constrained_sides, simple
+house                     circular, square, shield_pointed_bottom, constrained_sides, simple
+house_china               circular, square, shield_pointed_top, simple
+house_frame_02            circular, square, shield_pointed_bottom, constrained_right, simple
+house_frame_03            circular, shield_pointed_bottom, constrained_sides, simple
+house_frame_04            circular, square, simple
+house_frame_05            circular, square, tapered, constrained_sides, simple
+house_frame_06            oval, square, tapered, constrained_sides
+house_frame_07            oval, square, tapered, constrained_sides
+house_frame_08            circular, shield_pointed_top, constrained_sides, simple
+house_frame_09            circular, square, simple
+house_frame_10            circular, simple
+house_frame_11            circular, square, tapered, constrained_sides, simple
+house_frame_12            circular, simple
+house_frame_13            circular, simple
+house_frame_14            oval, square, shield_pointed_top, constrained_sides
+house_frame_15            circular, shield_pointed_top, constrained_sides, simple
+house_frame_16            circular, square, simple
+house_frame_17            oval, square, simple
+house_frame_18            circular, square, shield_pointed_top, constrained_left, simple
+house_frame_19            circular, shield_pointed_bottom, constrained_sides, simple
+house_frame_20            circular, square, shield_pointed_bottom, constrained_sides, simple
+house_frame_21            circular, square, shield_pointed_bottom, constrained_sides, simple
+house_frame_22            oval, square, shield_pointed_top, constrained_left, simple
+house_frame_23            oval, square, shield_pointed_bottom, constrained_sides
+house_frame_24            circular, shield_pointed_bottom, constrained_sides, simple
+house_frame_25            circular, square, shield_pointed_top, constrained_sides, simple
+house_frame_26            circular, square, tapered, constrained_sides, simple
+house_frame_27            circular, shield_pointed_bottom, constrained_sides, simple
+house_frame_28            circular, square, simple
+house_frame_29            circular, square, shield_pointed_top, constrained_left, simple
+house_frame_30            circular, square, tapered, constrained_sides, simple
+house_japan               oval, square, constrained_right, simple
+
+
+================================================================================
+DETAILED SHAPE ANALYSIS
+================================================================================
+
+
+================================================================================
+dynasty
+================================================================================
+Classification: circular, square, shield_pointed_bottom, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.813 (very round)
+  Aspect ratio: 1.019 (square-ish)
+  Convexity: 0.980 (simple/smooth)
+  Extent: 0.856
+  Vertices: 7
+
+Width Profile (how width changes vertically):
+  Range: -108px to 158px
+  Mean: 68.3px (±99.9)
+  Variation: 3.90 (highly variable - tapered shape)
+  Bottleneck at Y=100px (62.5% from top)
+
+Height Profile (how height changes horizontally):
+  Range: 21px to 154px
+  Mean: 110.9px (±48.0)
+  Variation: 1.20 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house
+================================================================================
+Classification: circular, square, shield_pointed_bottom, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.817 (very round)
+  Aspect ratio: 0.994 (square-ish)
+  Convexity: 0.973 (simple/smooth)
+  Extent: 0.835
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: 24px to 158px
+  Mean: 133.8px (±31.0)
+  Variation: 1.00 (highly variable - tapered shape)
+  Bottleneck at Y=155px (96.9% from top)
+
+Height Profile (how height changes horizontally):
+  Range: 23px to 139px
+  Mean: 59.9px (±46.3)
+  Variation: 1.94 (highly variable - side constraints)
+  Bottleneck at X=65px (40.6% from left)
+
+
+================================================================================
+house_china
+================================================================================
+Classification: circular, square, shield_pointed_top, simple
+
+Shape Descriptors:
+  Circularity: 0.818 (very round)
+  Aspect ratio: 0.994 (square-ish)
+  Convexity: 0.999 (simple/smooth)
+  Extent: 0.983
+  Vertices: 4
+
+Width Profile (how width changes vertically):
+  Range: 20px to 158px
+  Mean: 46.6px (±49.0)
+  Variation: 2.96 (highly variable - tapered shape)
+  Bottleneck at Y=40px (25.0% from top)
+
+Height Profile (how height changes horizontally):
+  Range: -120px to 158px
+  Mean: -64.1px (±101.8)
+  Variation: 0.00 (uniform height)
+
+
+================================================================================
+house_frame_02
+================================================================================
+Classification: circular, square, shield_pointed_bottom, constrained_right, simple
+
+Shape Descriptors:
+  Circularity: 0.810 (very round)
+  Aspect ratio: 0.969 (square-ish)
+  Convexity: 0.979 (simple/smooth)
+  Extent: 0.875
+  Vertices: 6
+
+Width Profile (how width changes vertically):
+  Range: 19px to 154px
+  Mean: 137.2px (±28.8)
+  Variation: 0.98 (highly variable - tapered shape)
+  Bottleneck at Y=155px (96.9% from top)
+
+Height Profile (how height changes horizontally):
+  Range: 13px to 125px
+  Mean: 32.0px (±27.3)
+  Variation: 3.50 (highly variable - side constraints)
+  Bottleneck at X=155px (96.9% from left)
+
+
+================================================================================
+house_frame_03
+================================================================================
+Classification: circular, shield_pointed_bottom, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.844 (very round)
+  Aspect ratio: 0.931 (tall)
+  Convexity: 0.996 (simple/smooth)
+  Extent: 0.856
+  Vertices: 7
+
+Width Profile (how width changes vertically):
+  Range: 24px to 148px
+  Mean: 129.0px (±32.3)
+  Variation: 0.96 (highly variable - tapered shape)
+  Bottleneck at Y=155px (96.9% from top)
+
+Height Profile (how height changes horizontally):
+  Range: 23px to 102px
+  Mean: 33.8px (±21.3)
+  Variation: 2.34 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house_frame_04
+================================================================================
+Classification: circular, square, simple
+
+Shape Descriptors:
+  Circularity: 0.818 (very round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 1.000 (simple/smooth)
+  Extent: 0.984
+  Vertices: 4
+
+Width Profile (how width changes vertically):
+  Range: -115px to 158px
+  Mean: -84.1px (±85.5)
+  Variation: 0.00 (uniform width)
+
+Height Profile (how height changes horizontally):
+  Range: -116px to 156px
+  Mean: -85.1px (±85.6)
+  Variation: 0.00 (uniform height)
+
+
+================================================================================
+house_frame_05
+================================================================================
+Classification: circular, square, tapered, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.886 (very round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 0.993 (simple/smooth)
+  Extent: 0.789
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: -116px to 158px
+  Mean: 84.3px (±91.8)
+  Variation: 3.25 (highly variable - tapered shape)
+  Bottleneck at Y=75px (46.9% from top)
+
+Height Profile (how height changes horizontally):
+  Range: -116px to 158px
+  Mean: 84.2px (±91.7)
+  Variation: 3.25 (highly variable - side constraints)
+  Bottleneck at X=75px (46.9% from left)
+
+
+================================================================================
+house_frame_06
+================================================================================
+Classification: oval, square, tapered, constrained_sides
+
+Shape Descriptors:
+  Circularity: 0.759 (somewhat round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 0.911 (complex/detailed)
+  Extent: 0.694
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: -118px to 158px
+  Mean: 103.3px (±58.6)
+  Variation: 2.67 (highly variable - tapered shape)
+  Bottleneck at Y=80px (50.0% from top)
+
+Height Profile (how height changes horizontally):
+  Range: -119px to 158px
+  Mean: 99.1px (±59.5)
+  Variation: 2.80 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house_frame_07
+================================================================================
+Classification: oval, square, tapered, constrained_sides
+
+Shape Descriptors:
+  Circularity: 0.767 (somewhat round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 0.937 (complex/detailed)
+  Extent: 0.777
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: -125px to 157px
+  Mean: 67.3px (±100.1)
+  Variation: 4.19 (highly variable - tapered shape)
+  Bottleneck at Y=80px (50.0% from top)
+
+Height Profile (how height changes horizontally):
+  Range: -125px to 157px
+  Mean: 67.1px (±100.4)
+  Variation: 4.20 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house_frame_08
+================================================================================
+Classification: circular, shield_pointed_top, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.813 (very round)
+  Aspect ratio: 0.918 (tall)
+  Convexity: 0.977 (simple/smooth)
+  Extent: 0.760
+  Vertices: 6
+
+Width Profile (how width changes vertically):
+  Range: 6px to 146px
+  Mean: 111.5px (±43.3)
+  Variation: 1.26 (highly variable - tapered shape)
+  Bottleneck at Y=0px (0.0% from top)
+
+Height Profile (how height changes horizontally):
+  Range: 20px to 158px
+  Mean: 119.1px (±29.4)
+  Variation: 1.16 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house_frame_09
+================================================================================
+Classification: circular, square, simple
+
+Shape Descriptors:
+  Circularity: 0.818 (very round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 1.000 (simple/smooth)
+  Extent: 0.984
+  Vertices: 4
+
+Width Profile (how width changes vertically):
+  Range: -116px to 158px
+  Mean: -79.2px (±84.5)
+  Variation: 0.00 (uniform width)
+
+Height Profile (how height changes horizontally):
+  Range: -116px to 156px
+  Mean: -79.2px (±84.2)
+  Variation: 0.00 (uniform height)
+
+
+================================================================================
+house_frame_10
+================================================================================
+Classification: circular, simple
+
+Shape Descriptors:
+  Circularity: 0.813 (very round)
+  Aspect ratio: 0.912 (tall)
+  Convexity: 0.999 (simple/smooth)
+  Extent: 0.983
+  Vertices: 4
+
+Width Profile (how width changes vertically):
+  Range: 130px to 146px
+  Mean: 145.2px (±2.9)
+  Variation: 0.11 (uniform width)
+
+Height Profile (how height changes horizontally):
+  Range: -116px to 155px
+  Mean: -77.2px (±72.7)
+  Variation: 0.00 (uniform height)
+
+
+================================================================================
+house_frame_11
+================================================================================
+Classification: circular, square, tapered, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.863 (very round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 0.988 (simple/smooth)
+  Extent: 0.722
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: -116px to 158px
+  Mean: 90.8px (±76.1)
+  Variation: 3.02 (highly variable - tapered shape)
+  Bottleneck at Y=80px (50.0% from top)
+
+Height Profile (how height changes horizontally):
+  Range: -115px to 158px
+  Mean: 90.8px (±75.8)
+  Variation: 3.01 (highly variable - side constraints)
+  Bottleneck at X=75px (46.9% from left)
+
+
+================================================================================
+house_frame_12
+================================================================================
+Classification: circular, simple
+
+Shape Descriptors:
+  Circularity: 0.813 (very round)
+  Aspect ratio: 0.944 (tall)
+  Convexity: 1.000 (simple/smooth)
+  Extent: 0.984
+  Vertices: 4
+
+Width Profile (how width changes vertically):
+  Range: 137px to 151px
+  Mean: 150.4px (±2.5)
+  Variation: 0.09 (uniform width)
+
+Height Profile (how height changes horizontally):
+  Range: -119px to 158px
+  Mean: -75.6px (±86.2)
+  Variation: 0.00 (uniform height)
+
+
+================================================================================
+house_frame_13
+================================================================================
+Classification: circular, simple
+
+Shape Descriptors:
+  Circularity: 0.818 (very round)
+  Aspect ratio: 0.950 (tall)
+  Convexity: 0.999 (simple/smooth)
+  Extent: 0.982
+  Vertices: 4
+
+Width Profile (how width changes vertically):
+  Range: 134px to 152px
+  Mean: 151.0px (±3.3)
+  Variation: 0.12 (uniform width)
+
+Height Profile (how height changes horizontally):
+  Range: -117px to 158px
+  Mean: -64.0px (±91.7)
+  Variation: 0.00 (uniform height)
+
+
+================================================================================
+house_frame_14
+================================================================================
+Classification: oval, square, shield_pointed_top, constrained_sides
+
+Shape Descriptors:
+  Circularity: 0.722 (somewhat round)
+  Aspect ratio: 0.963 (square-ish)
+  Convexity: 0.917 (complex/detailed)
+  Extent: 0.784
+  Vertices: 10
+
+Width Profile (how width changes vertically):
+  Range: 16px to 154px
+  Mean: 121.8px (±30.9)
+  Variation: 1.13 (highly variable - tapered shape)
+  Bottleneck at Y=0px (0.0% from top)
+
+Height Profile (how height changes horizontally):
+  Range: -118px to 158px
+  Mean: 110.4px (±77.6)
+  Variation: 2.50 (highly variable - side constraints)
+  Bottleneck at X=75px (46.9% from left)
+
+
+================================================================================
+house_frame_15
+================================================================================
+Classification: circular, shield_pointed_top, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.854 (very round)
+  Aspect ratio: 0.944 (tall)
+  Convexity: 0.996 (simple/smooth)
+  Extent: 0.887
+  Vertices: 7
+
+Width Profile (how width changes vertically):
+  Range: 16px to 151px
+  Mean: 133.7px (±31.5)
+  Variation: 1.01 (highly variable - tapered shape)
+  Bottleneck at Y=0px (0.0% from top)
+
+Height Profile (how height changes horizontally):
+  Range: -117px to 123px
+  Mean: 24.4px (±59.4)
+  Variation: 9.84 (highly variable - side constraints)
+  Bottleneck at X=75px (46.9% from left)
+
+
+================================================================================
+house_frame_16
+================================================================================
+Classification: circular, square, simple
+
+Shape Descriptors:
+  Circularity: 0.911 (very round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 0.999 (simple/smooth)
+  Extent: 0.925
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: -118px to 158px
+  Mean: -15.1px (±124.1)
+  Variation: 0.00 (uniform width)
+
+Height Profile (how height changes horizontally):
+  Range: -118px to 158px
+  Mean: -15.1px (±124.1)
+  Variation: 0.00 (uniform height)
+
+
+================================================================================
+house_frame_17
+================================================================================
+Classification: oval, square, simple
+
+Shape Descriptors:
+  Circularity: 0.788 (somewhat round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 0.972 (simple/smooth)
+  Extent: 0.891
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: -116px to 158px
+  Mean: -10.1px (±111.8)
+  Variation: 0.00 (uniform width)
+
+Height Profile (how height changes horizontally):
+  Range: -117px to 158px
+  Mean: -10.4px (±112.3)
+  Variation: 0.00 (uniform height)
+
+
+================================================================================
+house_frame_18
+================================================================================
+Classification: circular, square, shield_pointed_top, constrained_left, simple
+
+Shape Descriptors:
+  Circularity: 0.811 (very round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 0.965 (simple/smooth)
+  Extent: 0.886
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: 96px to 148px
+  Mean: 133.5px (±20.9)
+  Variation: 0.39 (highly variable - tapered shape)
+  Bottleneck at Y=10px (6.2% from top)
+
+Height Profile (how height changes horizontally):
+  Range: 96px to 148px
+  Mean: 133.5px (±20.9)
+  Variation: 0.39 (highly variable - side constraints)
+  Bottleneck at X=10px (6.2% from left)
+
+
+================================================================================
+house_frame_19
+================================================================================
+Classification: circular, shield_pointed_bottom, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.852 (very round)
+  Aspect ratio: 0.944 (tall)
+  Convexity: 0.996 (simple/smooth)
+  Extent: 0.886
+  Vertices: 7
+
+Width Profile (how width changes vertically):
+  Range: 51px to 151px
+  Mean: 136.8px (±24.7)
+  Variation: 0.73 (highly variable - tapered shape)
+  Bottleneck at Y=155px (96.9% from top)
+
+Height Profile (how height changes horizontally):
+  Range: -117px to 123px
+  Mean: 24.3px (±59.4)
+  Variation: 9.87 (highly variable - side constraints)
+  Bottleneck at X=75px (46.9% from left)
+
+
+================================================================================
+house_frame_20
+================================================================================
+Classification: circular, square, shield_pointed_bottom, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.850 (very round)
+  Aspect ratio: 0.975 (square-ish)
+  Convexity: 0.993 (simple/smooth)
+  Extent: 0.824
+  Vertices: 7
+
+Width Profile (how width changes vertically):
+  Range: 36px to 156px
+  Mean: 131.3px (±28.7)
+  Variation: 0.91 (highly variable - tapered shape)
+  Bottleneck at Y=155px (96.9% from top)
+
+Height Profile (how height changes horizontally):
+  Range: -118px to 127px
+  Mean: 30.1px (±58.0)
+  Variation: 8.13 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house_frame_21
+================================================================================
+Classification: circular, square, shield_pointed_bottom, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.872 (very round)
+  Aspect ratio: 0.963 (square-ish)
+  Convexity: 0.995 (simple/smooth)
+  Extent: 0.838
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: 40px to 154px
+  Mean: 130.9px (±33.5)
+  Variation: 0.87 (highly variable - tapered shape)
+  Bottleneck at Y=155px (96.9% from top)
+
+Height Profile (how height changes horizontally):
+  Range: -119px to 149px
+  Mean: 74.5px (±77.7)
+  Variation: 3.60 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house_frame_22
+================================================================================
+Classification: oval, square, shield_pointed_top, constrained_left, simple
+
+Shape Descriptors:
+  Circularity: 0.794 (somewhat round)
+  Aspect ratio: 1.006 (square-ish)
+  Convexity: 0.994 (simple/smooth)
+  Extent: 0.739
+  Vertices: 6
+
+Width Profile (how width changes vertically):
+  Range: -114px to 158px
+  Mean: 97.8px (±70.2)
+  Variation: 2.78 (highly variable - tapered shape)
+  Bottleneck at Y=25px (15.6% from top)
+
+Height Profile (how height changes horizontally):
+  Range: 24px to 62px
+  Mean: 38.0px (±10.9)
+  Variation: 1.00 (highly variable - side constraints)
+  Bottleneck at X=0px (0.0% from left)
+
+
+================================================================================
+house_frame_23
+================================================================================
+Classification: oval, square, shield_pointed_bottom, constrained_sides
+
+Shape Descriptors:
+  Circularity: 0.741 (somewhat round)
+  Aspect ratio: 0.994 (square-ish)
+  Convexity: 0.940 (complex/detailed)
+  Extent: 0.810
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: 32px to 158px
+  Mean: 129.0px (±32.7)
+  Variation: 0.98 (highly variable - tapered shape)
+  Bottleneck at Y=155px (96.9% from top)
+
+Height Profile (how height changes horizontally):
+  Range: 21px to 153px
+  Mean: 104.8px (±50.1)
+  Variation: 1.26 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house_frame_24
+================================================================================
+Classification: circular, shield_pointed_bottom, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.863 (very round)
+  Aspect ratio: 0.931 (tall)
+  Convexity: 0.989 (simple/smooth)
+  Extent: 0.821
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: 24px to 148px
+  Mean: 123.3px (±32.5)
+  Variation: 1.01 (highly variable - tapered shape)
+  Bottleneck at Y=155px (96.9% from top)
+
+Height Profile (how height changes horizontally):
+  Range: 22px to 136px
+  Mean: 56.5px (±41.3)
+  Variation: 2.02 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house_frame_25
+================================================================================
+Classification: circular, square, shield_pointed_top, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.827 (very round)
+  Aspect ratio: 0.956 (square-ish)
+  Convexity: 0.986 (simple/smooth)
+  Extent: 0.850
+  Vertices: 6
+
+Width Profile (how width changes vertically):
+  Range: 12px to 152px
+  Mean: 129.4px (±38.9)
+  Variation: 1.08 (highly variable - tapered shape)
+  Bottleneck at Y=0px (0.0% from top)
+
+Height Profile (how height changes horizontally):
+  Range: 22px to 156px
+  Mean: 122.5px (±36.9)
+  Variation: 1.09 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house_frame_26
+================================================================================
+Classification: circular, square, tapered, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.851 (very round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 0.978 (simple/smooth)
+  Extent: 0.687
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: -116px to 158px
+  Mean: 102.3px (±56.7)
+  Variation: 2.68 (highly variable - tapered shape)
+  Bottleneck at Y=80px (50.0% from top)
+
+Height Profile (how height changes horizontally):
+  Range: -116px to 158px
+  Mean: 102.2px (±56.8)
+  Variation: 2.68 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house_frame_27
+================================================================================
+Classification: circular, shield_pointed_bottom, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.829 (very round)
+  Aspect ratio: 0.943 (tall)
+  Convexity: 0.995 (simple/smooth)
+  Extent: 0.855
+  Vertices: 5
+
+Width Profile (how width changes vertically):
+  Range: 21px to 150px
+  Mean: 130.6px (±36.4)
+  Variation: 0.99 (highly variable - tapered shape)
+  Bottleneck at Y=155px (96.9% from top)
+
+Height Profile (how height changes horizontally):
+  Range: 24px to 120px
+  Mean: 39.7px (±31.8)
+  Variation: 2.42 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house_frame_28
+================================================================================
+Classification: circular, square, simple
+
+Shape Descriptors:
+  Circularity: 0.857 (very round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 0.993 (simple/smooth)
+  Extent: 0.910
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: -118px to 158px
+  Mean: -13.4px (±118.7)
+  Variation: 0.00 (uniform width)
+
+Height Profile (how height changes horizontally):
+  Range: -118px to 158px
+  Mean: -13.2px (±118.4)
+  Variation: 0.00 (uniform height)
+
+
+================================================================================
+house_frame_29
+================================================================================
+Classification: circular, square, shield_pointed_top, constrained_left, simple
+
+Shape Descriptors:
+  Circularity: 0.818 (very round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 0.974 (simple/smooth)
+  Extent: 0.755
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: 4px to 158px
+  Mean: 118.1px (±40.9)
+  Variation: 1.30 (highly variable - tapered shape)
+  Bottleneck at Y=0px (0.0% from top)
+
+Height Profile (how height changes horizontally):
+  Range: 4px to 158px
+  Mean: 118.1px (±40.9)
+  Variation: 1.30 (highly variable - side constraints)
+  Bottleneck at X=0px (0.0% from left)
+
+
+================================================================================
+house_frame_30
+================================================================================
+Classification: circular, square, tapered, constrained_sides, simple
+
+Shape Descriptors:
+  Circularity: 0.852 (very round)
+  Aspect ratio: 1.000 (square-ish)
+  Convexity: 0.978 (simple/smooth)
+  Extent: 0.759
+  Vertices: 8
+
+Width Profile (how width changes vertically):
+  Range: -116px to 158px
+  Mean: 96.7px (±77.3)
+  Variation: 2.83 (highly variable - tapered shape)
+  Bottleneck at Y=80px (50.0% from top)
+
+Height Profile (how height changes horizontally):
+  Range: -116px to 158px
+  Mean: 101.0px (±68.7)
+  Variation: 2.71 (highly variable - side constraints)
+  Bottleneck at X=80px (50.0% from left)
+
+
+================================================================================
+house_japan
+================================================================================
+Classification: oval, square, constrained_right, simple
+
+Shape Descriptors:
+  Circularity: 0.799 (somewhat round)
+  Aspect ratio: 1.006 (square-ish)
+  Convexity: 0.998 (simple/smooth)
+  Extent: 0.980
+  Vertices: 4
+
+Width Profile (how width changes vertically):
+  Range: -116px to 158px
+  Mean: -45.4px (±116.8)
+  Variation: 0.00 (uniform width)
+
+Height Profile (how height changes horizontally):
+  Range: 20px to 158px
+  Mean: 43.8px (±49.4)
+  Variation: 3.15 (highly variable - side constraints)
+  Bottleneck at X=135px (84.4% from left)
+

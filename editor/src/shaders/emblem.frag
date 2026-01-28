@@ -5,8 +5,6 @@ out vec4 FragColor;
 
 uniform sampler2D emblemMaskSampler;        // 8192×8192 emblem atlas with 256 tiles (16×16 grid, 512×512 per tile)
 uniform sampler2D patternMaskSampler;       // 8192×8192 pattern atlas with 256 tiles (16×16 grid, 512×512 per tile)
-uniform sampler2D texturedMaskSampler;      // Material/dirt texture (coa_mask_texture.png)
-uniform sampler2D noiseMaskSampler;         // Noise texture (noise.png)
 
 uniform int patternFlag; // Flag to enable pattern overlay
 uniform vec4 patternUV; // Pattern atlas UV coordinates (u0, v0, u1, v1)
@@ -77,14 +75,6 @@ void main()
 	}
 	// Clamp pattern mask to valid range
 	patternMaskValue = clamp(patternMaskValue, 0.0, 1.0);
-	
-	// Apply material mask using screen-space coordinates (blue channel = dirt/material)
-	vec4 materialSample = texture(texturedMaskSampler, coaUV);
-	outputColour = mix(outputColour, outputColour * materialSample.b, 0.5);
-	
-	// Apply noise grain for texture
-	float noise = texture(noiseMaskSampler, coaUV).r;
-	outputColour = mix(outputColour, outputColour * noise, 0.2);
 	
 	FragColor = vec4(outputColour, textureMask.a * patternMaskValue);
 }
