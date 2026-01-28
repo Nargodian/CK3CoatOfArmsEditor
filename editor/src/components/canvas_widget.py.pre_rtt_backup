@@ -23,100 +23,6 @@ from utils.path_resolver import (get_pattern_metadata_path, get_emblem_metadata_
                                   get_pattern_source_dir, get_emblem_source_dir, get_frames_dir)
 
 
-# ========================================
-# Constants
-# ========================================
-
-# Composite quad base size as fraction of viewport (NDC coordinates)
-# This determines how much of the viewport the design occupies at zoom=1.0
-# e.g., 0.8 means the design occupies 80% of the viewport width/height
-VIEWPORT_BASE_SIZE = 0.8
-
-# ========================================
-# Coordinate Conversion Functions
-# ========================================
-
-def layer_pos_to_opengl_coords(pos_x, pos_y):
-	"""Convert layer position (0-1 range) to OpenGL normalized coordinates.
-	
-	CK3 uses Y-down (0=top, 1=bottom), OpenGL uses Y-up (positive=up).
-	We invert Y when converting to OpenGL coordinates.
-	
-	Args:
-		pos_x: Layer X position (0-1, where 0.5 is center)
-		pos_y: Layer Y position (0-1, where 0.5 is center, 0=top in CK3)
-		
-	Returns:
-		(gl_x, gl_y): OpenGL coordinates in normalized device coordinates (-1 to +1)
-	"""
-	gl_x = pos_x * 2.0 - 1.0  # Map [0,1] to [-1,+1]
-	gl_y = -(pos_y * 2.0 - 1.0)  # Invert: CK3 Y-down to OpenGL Y-up
-	return gl_x, gl_y
-
-
-def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0):
-	"""Convert layer position (0-1 range) to Qt widget pixel coordinates.
-	
-	Args:
-		pos_x: Layer X position (0-1, where 0.5 is center)
-		pos_y: Layer Y position (0-1, where 0.5 is center)
-		canvas_size: Size of the canvas square in pixels
-		offset_x: X offset of canvas within parent widget
-		offset_y: Y offset of canvas within parent widget
-		
-	Returns:
-		(qt_x, qt_y): Qt pixel coordinates (Y-down)
-	"""
-	# First convert to OpenGL coords
-	gl_x, gl_y = layer_pos_to_opengl_coords(pos_x, pos_y)
-	
-	# Convert OpenGL normalized (-1.0 to +1.0) to pixels
-	# Must account for composite quad base_size factor (quad only occupies VIEWPORT_BASE_SIZE of viewport)
-	pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE
-	pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE
-	
-	# Qt Y-axis is inverted (down is positive)
-	# Canvas center is at (offset + size/2, offset + size/2)
-	qt_x = offset_x + canvas_size / 2 + pixel_x
-	qt_y = offset_y + canvas_size / 2 - pixel_y  # Negate Y for Qt coords
-	
-	return qt_x, qt_y
-
-
-def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0):
-	"""Convert Qt widget pixel coordinates to layer position (0-1 range).
-	
-	Args:
-		qt_x: Qt X pixel coordinate
-		qt_y: Qt Y pixel coordinate
-		canvas_size: Size of the canvas square in pixels
-		offset_x: X offset of canvas within parent widget
-		offset_y: Y offset of canvas within parent widget
-		
-	Returns:
-		(pos_x, pos_y): Layer position (0-1 range, 0=top in CK3)
-	"""
-	# Convert Qt pixels to canvas-relative pixels
-	pixel_x = qt_x - offset_x - canvas_size / 2
-	pixel_y = qt_y - offset_y - canvas_size / 2
-	
-	# Convert pixels to OpenGL normalized space
-	# Qt Y-down to OpenGL Y-up: negate pixel_y
-	# Must account for composite quad base_size factor
-	gl_x = pixel_x / (canvas_size / 2) / VIEWPORT_BASE_SIZE
-	gl_y = -pixel_y / (canvas_size / 2) / VIEWPORT_BASE_SIZE
-	
-	# Convert OpenGL coords back to layer position
-	# layer_pos_to_opengl_coords: gl_x = pos_x * 2.0 - 1.0
-	# Reversing: pos_x = (gl_x + 1.0) / 2.0
-	# layer_pos_to_opengl_coords: gl_y = -(pos_y * 2.0 - 1.0)
-	# Reversing: pos_y = (-gl_y + 1.0) / 2.0
-	pos_x = (gl_x + 1.0) / 2.0
-	pos_y = (-gl_y + 1.0) / 2.0
-	
-	return pos_x, pos_y
-
-
 class CoatOfArmsCanvas(QOpenGLWidget):
 	"""OpenGL canvas for rendering coat of arms with shaders"""
 	
@@ -175,7 +81,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		
 	def initializeGL(self):
 		"""Initialize OpenGL context and shaders"""
-		gl.glClearColor(0.05, 0.05, 0.05, 0.0)  # Transparent background
+		gl.glClearColor(0.05, 0.05, 0.05, 1.0)  # Darker background to distinguish from black CoA elements
 		gl.glEnable(gl.GL_BLEND)
 		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 		
@@ -277,9 +183,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		
 		# Composite framebuffer to viewport with frame mask
 		self._composite_to_viewport()
-		
-		# Render frame graphic on top
-		self._render_frame()
 	
 	def _render_coa_to_framebuffer(self):
 		"""Render pattern and emblems to RTT framebuffer in canonical 512x512 space"""
@@ -294,7 +197,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		
 		# Render base pattern
 		if self.base_shader and self.default_mask_texture:
-			base_size = 1.0  # Fill entire framebuffer
+			base_size = 0.8  # Fixed size in canonical space
 			
 			# Get pattern texture UV coordinates from atlas
 			u0, v0, u1, v1 = 0.0, 0.0, 1.0, 1.0
@@ -325,20 +228,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			gl.glBindTexture(gl.GL_TEXTURE_2D, pattern_texture_id)
 			self.base_shader.setUniformValue("patternMaskSampler", 0)
 			
-			# Bind material texture
-			if self.texturedMask:
-				gl.glActiveTexture(gl.GL_TEXTURE1)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
-				if self.base_shader.uniformLocation("texturedMaskSampler") != -1:
-					self.base_shader.setUniformValue("texturedMaskSampler", 1)
-			
-			# Bind noise texture
-			if self.noiseMask:
-				gl.glActiveTexture(gl.GL_TEXTURE2)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
-				if self.base_shader.uniformLocation("noiseMaskSampler") != -1:
-					self.base_shader.setUniformValue("noiseMaskSampler", 2)
-			
 			# Colors from base_colors attribute
 			self.base_shader.setUniformValue("color1", QVector3D(*self.base_colors[0]))
 			self.base_shader.setUniformValue("color2", QVector3D(*self.base_colors[1]))
@@ -364,13 +253,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 						self.design_shader.setUniformValue("patternMaskSampler", 2)
 					if self.design_shader.uniformLocation("patternUV") != -1:
 						self.design_shader.setUniformValue("patternUV", QVector4D(p_u0, p_v0, p_u1, p_v1))
-			
-			# Bind noise texture for grain effect (once, before layer loop)
-			if self.noiseMask:
-				gl.glActiveTexture(gl.GL_TEXTURE3)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
-				if self.design_shader.uniformLocation("noiseMaskSampler") != -1:
-					self.design_shader.setUniformValue("noiseMaskSampler", 3)
 			
 			for layer in self.layers:
 				if not layer.get('visible', True):
@@ -427,8 +309,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				flip_y = layer.get('flip_y', False)
 				rotation = layer.get('rotation', 0)
 				
-				# Convert layer position to OpenGL coordinates
-				center_x, center_y = layer_pos_to_opengl_coords(pos_x, pos_y)
+				center_x = (pos_x - 0.5) * 1.1
+				center_y = (pos_y - 0.5) * 1.1
 				
 				angle_rad = math.radians(-rotation)
 				cos_a = math.cos(angle_rad)
@@ -436,8 +318,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				
 				scale_sign_x = -1 if flip_x else 1
 				scale_sign_y = -1 if flip_y else 1
-				half_width = scale_x
-				half_height = scale_y
+				half_width = scale_x * 0.6
+				half_height = scale_y * 0.6
 				
 				unit_corners = [
 					(-1.0, -1.0),
@@ -480,70 +362,24 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		gl.glEnable(gl.GL_BLEND)
 		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 		
-		if not self.composite_shader or not self.vao:
-			return
-		
-		self.vao.bind()
-		self.composite_shader.bind()
-		
-		# Bind RTT texture
-		gl.glActiveTexture(gl.GL_TEXTURE0)
-		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
-		self.composite_shader.setUniformValue("coaTextureSampler", 0)
-		
-		# Bind frame mask texture
-		if self.current_frame_name in self.frame_masks:
-			gl.glActiveTexture(gl.GL_TEXTURE1)
-			gl.glBindTexture(gl.GL_TEXTURE_2D, self.frame_masks[self.current_frame_name])
-			self.composite_shader.setUniformValue("frameMaskSampler", 1)
-		
-		# Apply zoom to quad size
-		base_size = VIEWPORT_BASE_SIZE * self.zoom_level
-		# Texture coords: RTT renders Y-up (OpenGL standard), texture V=0 at bottom, V=1 at top
-		# Position Y=-1 (bottom) → V=0, Position Y=+1 (top) → V=1
-		vertices = np.array([
-			-base_size, -base_size, 0.0,  0.0, 0.0,  # bottom-left
-			 base_size, -base_size, 0.0,  1.0, 0.0,  # bottom-right
-			 base_size,  base_size, 0.0,  1.0, 1.0,  # top-right
-			-base_size,  base_size, 0.0,  0.0, 1.0,  # top-left
-		], dtype=np.float32)
-		
-		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
-		
-		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-		
-		self.composite_shader.release()
-		self.vao.release()
-	
-	def _render_frame(self):
-		"""Render frame graphic on top of CoA"""
-		if self.current_frame_name not in self.frameTextures:
-			return
-		
 		if not self.basic_shader or not self.vao:
 			return
 		
 		self.vao.bind()
 		self.basic_shader.bind()
 		
-		# Bind frame texture
+		# Bind RTT texture
 		gl.glActiveTexture(gl.GL_TEXTURE0)
-		gl.glBindTexture(gl.GL_TEXTURE_2D, self.frameTextures[self.current_frame_name])
+		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
 		self.basic_shader.setUniformValue("textureSampler", 0)
 		
-		# Frame textures are 6x1 grids (6 splendor levels horizontally)
-		# Calculate UV coordinates for the current prestige/splendor level (0-5)
-		frame_index = max(0, min(5, self.prestige_level))  # Clamp to 0-5
-		u0 = frame_index / 6.0
-		u1 = (frame_index + 1) / 6.0
-		
-		# Render frame at same size as composite
-		base_size = VIEWPORT_BASE_SIZE * self.zoom_level
+		# Apply zoom to quad size
+		base_size = 0.8 * self.zoom_level
 		vertices = np.array([
-			-base_size, -base_size, 0.0,  u0, 0.0,
-			 base_size, -base_size, 0.0,  u1, 0.0,
-			 base_size,  base_size, 0.0,  u1, 1.0,
-			-base_size,  base_size, 0.0,  u0, 1.0,
+			-base_size, -base_size, 0.0,  0.0, 1.0,
+			 base_size, -base_size, 0.0,  1.0, 1.0,
+			 base_size,  base_size, 0.0,  1.0, 0.0,
+			-base_size,  base_size, 0.0,  0.0, 0.0,
 		], dtype=np.float32)
 		
 		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
@@ -563,8 +399,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		gl.glColor4f(0.5, 0.5, 0.5, 0.5)
 		
 		# Draw vertical and horizontal lines
-		grid_size = VIEWPORT_BASE_SIZE * self.zoom_level
-		grid_step = (VIEWPORT_BASE_SIZE * 2.0 * self.zoom_level) / self.grid_divisions  # Divide into grid_divisions
+		grid_size = 0.8 * self.zoom_level
+		grid_step = (1.6 * self.zoom_level) / self.grid_divisions  # Divide into grid_divisions
 		
 		gl.glBegin(gl.GL_LINES)
 		
@@ -1144,8 +980,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					flip_y = layer.get('flip_y', False)
 					rotation = layer.get('rotation', 0)
 					
-					# Convert layer position to OpenGL coordinates
-					center_x, center_y = layer_pos_to_opengl_coords(pos_x, pos_y)
+					# Convert properties to screen coordinates (no zoom)
+					center_x = (pos_x - 0.5) * 1.1
+					center_y = (pos_y - 0.5) * 1.1
 					
 					# Calculate rotated and scaled quad vertices
 					import math
@@ -1156,8 +993,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					# Apply flip separately from scale magnitude
 					scale_sign_x = -1 if flip_x else 1
 					scale_sign_y = -1 if flip_y else 1
-					half_width = scale_x
-					half_height = scale_y
+					half_width = scale_x * 0.6
+					half_height = scale_y * 0.6
 					
 					# Define unit quad corners
 					unit_corners = [

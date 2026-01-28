@@ -40,12 +40,12 @@ void main()
 	outputColour = applyOverlay(outputColour, vec3(textureMask.b), 0.7);
 	
 	// When rendering to RTT framebuffer at 512×512, fragment coords map directly to normalized space
-	vec2 maskCoord = gl_FragCoord.xy / vec2(512.0, 512.0);
-	maskCoord.y = 1.0 - maskCoord.y;  // Flip Y (OpenGL bottom-up to texture top-down)
+	vec2 coaUV = gl_FragCoord.xy / vec2(512.0, 512.0);
+	coaUV.y = 1.0 - coaUV.y;  // Flip Y (OpenGL bottom-up to texture top-down)
 	
 	// Map normalized coordinates to pattern UV atlas space for emblem-specific masking
-	vec2 patternCoord = mix(patternUV.xy, patternUV.zw, maskCoord);
-	vec4 patternSample = texture(patternMaskSampler, patternCoord);
+	vec2 patternCoord = mix(patternUV.xy, patternUV.zw, coaUV);
+	vec4 patternMask = texture(patternMaskSampler, patternCoord);
 	// flags
 	// 0 mask off
 	// 1 maskR on
@@ -60,15 +60,15 @@ void main()
 
 	if((patternFlag & 1) == 1 && !allOrNoneSet)
 	{
-		patternMaskValue = max(0.0, patternSample.r - patternSample.g);
+		patternMaskValue = max(0.0, patternMask.r - patternMask.g);
 	}
 	if((patternFlag & 2) == 2 && !allOrNoneSet)
 	{
-		patternMaskValue += max(0.0, patternSample.g - patternSample.b);
+		patternMaskValue += max(0.0, patternMask.g - patternMask.b);
 	}
 	if((patternFlag & 4) == 4 && !allOrNoneSet)
 	{
-		patternMaskValue += patternSample.b;
+		patternMaskValue += patternMask.b;
 	}
 	// If no valid pattern channels selected, default to full pattern
 	if(allOrNoneSet)
@@ -79,11 +79,11 @@ void main()
 	patternMaskValue = clamp(patternMaskValue, 0.0, 1.0);
 	
 	// Apply material mask using screen-space coordinates (blue channel = dirt/material)
-	vec4 materialSample = texture(texturedMaskSampler, maskCoord);
+	vec4 materialSample = texture(texturedMaskSampler, coaUV);
 	outputColour = mix(outputColour, outputColour * materialSample.b, 0.5);
 	
 	// Apply noise grain for texture
-	float noise = texture(noiseMaskSampler, maskCoord).r;
+	float noise = texture(noiseMaskSampler, coaUV).r;
 	outputColour = mix(outputColour, outputColour * noise, 0.2);
 	
 	FragColor = vec4(outputColour, textureMask.a * patternMaskValue);

@@ -19,8 +19,8 @@ void main() {
 	vec4 coaColor = texture(coaTextureSampler, vTexCoord);
 	
 	// Sample frame mask (determines where CoA is visible)
-	float frameMask = texture(frameMaskSampler, vTexCoord).r;
+	float frameMask = texture(frameMaskSampler, vTexCoord).a;
 	
 	// Apply mask to CoA alpha
-	FragColor = vec4(coaColor.rgb, coaColor.a * frameMask);
+	FragColor = vec4(coaColor.rgb, frameMask);
 }
