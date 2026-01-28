@@ -991,11 +991,8 @@ class CoatOfArmsEditor(QMainWindow):
 		# Update canvas
 		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
 		
-		# Update transform widget
+		# Update transform widget (which updates properties panel)
 		self.canvas_area.update_transform_widget_for_layer()
-		
-		# Update properties sidebar
-		self.right_sidebar.update_properties_panel()
 		
 		# Save to history
 		self._save_state(f"Rotate {'+' if angle_delta > 0 else ''}{angle_delta}°")
