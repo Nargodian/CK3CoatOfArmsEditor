@@ -151,8 +151,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.frame_masks = {}  # Frame name -> frameMask texture ID
 		self.frame_scales = {}  # Frame name -> (scale_x, scale_y) tuple
 		self.frame_offsets = {}  # Frame name -> (offset_x, offset_y) tuple
-		self.frame_scales = {}  # Frame name -> (scale_x, scale_y) tuple
-		self.frame_offsets = {}  # Frame name -> (offset_x, offset_y) tuple
+		self.official_frame_scales = {}  # Official scales from CK3 culture files
+		self._load_official_frame_scales()
 		self.patternMask = None  # Current pattern mask (shield shape, changes with frame)
 		self.default_mask_texture = None  # Default white mask (fallback)
 		self.texturedMask = None  # CK3 material texture (dirt/fabric/paint) - coa_mask_texture.png
@@ -328,28 +328,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			
 			self.base_shader.bind()
 			
-			# Set viewport size to 512x512 for RTT
-			viewport_size = QVector2D(512.0, 512.0)
-			self.base_shader.setUniformValue("viewportSize", viewport_size)
-			
-			# Bind textures
+			# Bind pattern texture
 			gl.glActiveTexture(gl.GL_TEXTURE0)
 			gl.glBindTexture(gl.GL_TEXTURE_2D, pattern_texture_id)
 			self.base_shader.setUniformValue("patternMaskSampler", 0)
-			
-			# Bind material texture
-			if self.texturedMask:
-				gl.glActiveTexture(gl.GL_TEXTURE1)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
-				if self.base_shader.uniformLocation("texturedMaskSampler") != -1:
-					self.base_shader.setUniformValue("texturedMaskSampler", 1)
-			
-			# Bind noise texture
-			if self.noiseMask:
-				gl.glActiveTexture(gl.GL_TEXTURE2)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
-				if self.base_shader.uniformLocation("noiseMaskSampler") != -1:
-					self.base_shader.setUniformValue("noiseMaskSampler", 2)
 			
 			# Colors from base_colors attribute
 			self.base_shader.setUniformValue("color1", QVector3D(*self.base_colors[0]))
@@ -377,13 +359,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					if self.design_shader.uniformLocation("patternUV") != -1:
 						self.design_shader.setUniformValue("patternUV", QVector4D(p_u0, p_v0, p_u1, p_v1))
 			
-			# Bind noise texture for grain effect (once, before layer loop)
-			if self.noiseMask:
-				gl.glActiveTexture(gl.GL_TEXTURE3)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
-				if self.design_shader.uniformLocation("noiseMaskSampler") != -1:
-					self.design_shader.setUniformValue("noiseMaskSampler", 3)
-			
 			for layer in self.layers:
 				if not layer.get('visible', True):
 					continue
@@ -400,13 +375,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				gl.glActiveTexture(gl.GL_TEXTURE0)
 				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
 				self.design_shader.setUniformValue("emblemMaskSampler", 0)
-				
-				# Bind material mask texture
-				if self.texturedMask:
-					gl.glActiveTexture(gl.GL_TEXTURE1)
-					gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
-					if self.design_shader.uniformLocation("texturedMaskSampler") != -1:
-						self.design_shader.setUniformValue("texturedMaskSampler", 1)
 				
 				# Set emblem colors
 				color1 = layer.get('color1', [0.439, 0.129, 0.086])
@@ -508,24 +476,45 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			gl.glActiveTexture(gl.GL_TEXTURE1)
 			gl.glBindTexture(gl.GL_TEXTURE_2D, self.frame_masks[self.current_frame_name])
 			self.composite_shader.setUniformValue("frameMaskSampler", 1)
+		elif self.default_mask_texture:
+			# Use default white mask if no frame-specific mask exists
+			gl.glActiveTexture(gl.GL_TEXTURE1)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.default_mask_texture)
+			self.composite_shader.setUniformValue("frameMaskSampler", 1)
+		
+		# Bind material texture
+		if self.texturedMask:
+			gl.glActiveTexture(gl.GL_TEXTURE2)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
+			self.composite_shader.setUniformValue("texturedMaskSampler", 2)
+		
+		# Bind noise texture
+		if self.noiseMask:
+			gl.glActiveTexture(gl.GL_TEXTURE3)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
+			self.composite_shader.setUniformValue("noiseMaskSampler", 3)
 		
 		# Set per-frame scale and offset uniforms
-		if self.current_frame_name in self.frame_scales:
+		if self.current_frame_name == "None":
+			# No frame: render at full scale with no offset
+			self.composite_shader.setUniformValue("coaScale", QVector2D(1.0, 1.0))
+			self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.0))
+		elif self.current_frame_name in self.frame_scales:
 			scale = self.frame_scales[self.current_frame_name]
 			self.composite_shader.setUniformValue("coaScale", QVector2D(scale[0], scale[1]))
+			if self.current_frame_name in self.frame_offsets:
+				offset = self.frame_offsets[self.current_frame_name]
+				self.composite_shader.setUniformValue("coaOffset", QVector2D(offset[0], offset[1]))
+			else:
+				# Default CK3 offset for this frame
+				self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
 		else:
-			# Default CK3 scale
+			# Unlisted frame: default CK3 scale and offset
 			self.composite_shader.setUniformValue("coaScale", QVector2D(0.9, 0.9))
-		
-		if self.current_frame_name in self.frame_offsets:
-			offset = self.frame_offsets[self.current_frame_name]
-			self.composite_shader.setUniformValue("coaOffset", QVector2D(offset[0], offset[1]))
-		else:
-			# Default CK3 offset
 			self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
 		
 		# Composite quad always at fixed size (scaling/offset done in shader)
-		base_size = VIEWPORT_BASE_SIZE * self.zoom_level * 0.8
+		base_size = VIEWPORT_BASE_SIZE * self.zoom_level * 0.75
 		# Texture coords: RTT renders Y-up (OpenGL standard), texture V=0 at bottom, V=1 at top
 		# Position Y=-1 (bottom) → V=0, Position Y=+1 (top) → V=1
 		vertices = np.array([
@@ -767,58 +756,57 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 						
 						# Analyze mask properties
 						mask_data = np.array(mask_img)
-						max_rgb = max(mask_data[:,:,0].max(), mask_data[:,:,1].max(), mask_data[:,:,2].max())
-						min_alpha = mask_data[:,:,3].min()
 						max_alpha = mask_data[:,:,3].max()
 						
-						print(f"Mask analysis for {name}: RGB max={max_rgb}, Alpha range={min_alpha}-{max_alpha}")
-						
 						# Skip only if completely invalid (no alpha data at all)
-						if max_alpha == 0:
-							print(f"  → Skipping: no alpha data")
-							continue
-						
-						# Resize mask to match expected canvas size (800x800)
-						target_size = 800
-						if mask_img.size != (target_size, target_size):
-							mask_img = mask_img.resize((target_size, target_size), Image.Resampling.LANCZOS)
-							mask_data = np.array(mask_img)
-						
-						# Create OpenGL texture for mask
-						mask_id = gl.glGenTextures(1)
-						gl.glBindTexture(gl.GL_TEXTURE_2D, mask_id)
-						
-						# Use CLAMP_TO_BORDER to respect transparent edges
-						gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_BORDER)
-						gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_BORDER)
-						# Set border color to transparent black
-						gl.glTexParameterfv(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BORDER_COLOR, [0.0, 0.0, 0.0, 0.0])
-						gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
-						gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
-						
-						gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, mask_img.width, mask_img.height,
-						               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, mask_data.tobytes())
-						
-						self.frame_masks[name] = mask_id
-						
-						# Detect scale/offset based on mask alpha characteristics
-						# Full/near-full alpha = no soft edges = larger CoA scale
-						# Variable alpha with low minimum = soft edges = standard CK3 clipped scale
-						# Use >= 250 threshold to account for compression artifacts
-						if min_alpha >= 250:
-							# Full alpha mask: larger CoA scale (fills entire area)
-							self.frame_scales[name] = (1.0, 1.0)
-							self.frame_offsets[name] = (0.0, 0.0)
-							print(f"  → Full alpha detected: scale=1.0, offset=0.0")
-						else:
-							# Variable alpha mask: standard CK3 scale/offset
-							self.frame_scales[name] = (0.9, 0.9)
-							self.frame_offsets[name] = (0.0, 0.04)
-							print(f"  → Variable alpha detected: scale=0.9, offset=0.04")
-					else:
-						print(f"Mask not found for {name}: {mask_path}")
+						if max_alpha > 0:
+							# Resize mask to match expected canvas size (800x800)
+							target_size = 800
+							if mask_img.size != (target_size, target_size):
+								mask_img = mask_img.resize((target_size, target_size), Image.Resampling.LANCZOS)
+								mask_data = np.array(mask_img)
+							
+							# Create OpenGL texture for mask
+							mask_id = gl.glGenTextures(1)
+							gl.glBindTexture(gl.GL_TEXTURE_2D, mask_id)
+							
+							# Use CLAMP_TO_BORDER to respect transparent edges
+							gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_BORDER)
+							gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_BORDER)
+							# Set border color to transparent black
+							gl.glTexParameterfv(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BORDER_COLOR, [0.0, 0.0, 0.0, 0.0])
+							gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+							gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+							
+							gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, mask_img.width, mask_img.height,
+							               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, mask_data.tobytes())
+							
+							self.frame_masks[name] = mask_id
+							
+							# Use official frame scales from CK3 culture files
+							if name in self.official_frame_scales:
+								scale_data = self.official_frame_scales[name]
+								self.frame_scales[name] = tuple(scale_data)
+								self.frame_offsets[name] = (0.0, 0.04)  # CK3 default offset
+							else:
+								# Fallback: unlisted frames default to 1.0 scale, no offset
+								self.frame_scales[name] = (1.0, 1.0)
+								self.frame_offsets[name] = (0.0, 0.0)
 		except Exception as e:
 			print(f"Error loading frame textures: {e}")
+	
+	def _load_official_frame_scales(self):
+		"""Load official frame scales from CK3 culture files"""
+		try:
+			scale_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ck3_assets', 'frame_scales.json')
+			scale_path = os.path.normpath(scale_path)
+			
+			if os.path.exists(scale_path):
+				with open(scale_path, 'r') as f:
+					data = json.load(f)
+					self.official_frame_scales = data.get('frame_scales', {})
+		except Exception as e:
+			print(f"Error loading official frame scales: {e}")
 	
 	def _load_mask_texture(self):
 		"""Create a default white square mask texture matching real frame masks"""
@@ -947,11 +935,18 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.update()
 		elif frame_name == "None":
 			self.frameTexture = None
+			self.current_frame_name = "None"
 			self.patternMask = self.default_mask_texture
 			self.update()
 	
 	def set_prestige(self, level):
 		"""Set the prestige level (0-5)"""
+		if 0 <= level <= 5:
+			self.prestige_level = level
+			self.update()
+	
+	def set_splendor(self, level):
+		"""Set the splendor level (0-5) - same as prestige for rendering"""
 		if 0 <= level <= 5:
 			self.prestige_level = level
 			self.update()
@@ -1059,9 +1054,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			# Release framebuffer
 			fbo.release()
 			
-			# Restore normal viewport and clear color
+			# Restore normal viewport and clear color (keep transparent)
 			gl.glViewport(0, 0, self.width(), self.height())
-			gl.glClearColor(0.05, 0.05, 0.05, 1.0)
+			gl.glClearColor(0.05, 0.05, 0.05, 0.0)
 			
 			self.doneCurrent()
 			
@@ -1076,7 +1071,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			# Try to restore context state
 			try:
 				gl.glViewport(0, 0, self.width(), self.height())
-				gl.glClearColor(0.05, 0.05, 0.05, 1.0)
+				gl.glClearColor(0.05, 0.05, 0.05, 0.0)
 				self.doneCurrent()
 			except:
 				pass
@@ -1084,182 +1079,25 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			return False
 	
 	def _render_coa_for_export(self):
-		"""Render the CoA for export (similar to paintGL but without grid)"""
+		"""Render the CoA for export using the RTT pipeline"""
 		if not self.vao:
 			return
 		
-		self.vao.bind()
+		# Use same rendering pipeline as paintGL
+		# First render to framebuffer
+		self._render_coa_to_framebuffer()
 		
-		# Render base layer with base.frag
-		if self.base_texture and self.base_texture in self.texture_uv_map and self.base_shader:
-			self.base_shader.bind()
-			atlas_idx, u0, v0, u1, v1 = self.texture_uv_map[self.base_texture]
-			
-			if atlas_idx < len(self.texture_atlases):
-				gl.glActiveTexture(gl.GL_TEXTURE0)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
-				self.base_shader.setUniformValue("emblemMaskSampler", 0)
-				
-				
-				# Bind material mask texture
-				if self.texturedMask:
-					gl.glActiveTexture(gl.GL_TEXTURE1)
-					gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
-					if self.base_shader.uniformLocation("materialMaskSampler") != -1:
-						self.base_shader.setUniformValue("texturedMaskSampler", 1)
-				
-				# Bind noise texture
-				if self.noiseMask:
-					gl.glActiveTexture(gl.GL_TEXTURE2)
-					gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
-					if self.base_shader.uniformLocation("noiseSampler") != -1:
-						self.base_shader.setUniformValue("noiseMaskSampler", 2)
-				
-				# Set viewport size for mask coordinate calculation
-				# Use export size (2048) instead of widget size
-				self.base_shader.setUniformValue("viewportSize", 2048.0, 2048.0)
-				
-				# Set base colors from property sidebar
-				color1 = self.base_colors[0] if len(self.base_colors) > 0 else [0.439, 0.129, 0.086]
-				color2 = self.base_colors[1] if len(self.base_colors) > 1 else [0.588, 0.224, 0.0]
-				color3 = self.base_colors[2] if len(self.base_colors) > 2 else [0.733, 0.510, 0.180]
-				self.base_shader.setUniformValue("primaryColor", color1[0], color1[1], color1[2])
-				self.base_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
-				self.base_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
-				
-				# Update UV coordinates for base texture (no zoom for export)
-				base_size = 0.8
-				vertices = np.array([
-					-base_size, -base_size, 0.0,  u0, v1,
-					 base_size, -base_size, 0.0,  u1, v1,
-					 base_size,  base_size, 0.0,  u1, v0,
-					-base_size,  base_size, 0.0,  u0, v0,
-				], dtype=np.float32)
-				
-
+		# Then composite to viewport (which is the export FBO)
+		self._composite_to_viewport()
 		
-		# Render emblem layers with design.frag
-		if self.layers and self.design_shader:
-			self.design_shader.bind()
-			
-			for layer in self.layers:
-				# Skip hidden layers
-				if not layer.get('visible', True):
-					continue
-					
-				filename = layer.get('filename')
-				if not filename or filename not in self.texture_uv_map:
-					continue
-				
-				atlas_idx, u0, v0, u1, v1 = self.texture_uv_map[filename]
-				
-				if atlas_idx < len(self.texture_atlases):
-					gl.glActiveTexture(gl.GL_TEXTURE0)
-					gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
-					self.design_shader.setUniformValue("emblemMaskSampler", 0)
-					
-					
-					# Bind material mask texture
-					if self.texturedMask:
-						gl.glActiveTexture(gl.GL_TEXTURE1)
-						gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
-						if self.design_shader.uniformLocation("materialMaskSampler") != -1:
-							self.design_shader.setUniformValue("texturedMaskSampler", 1)
-					
-					# Bind noise texture
-					if self.noiseMask:
-						gl.glActiveTexture(gl.GL_TEXTURE2)
-						gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
-						if self.design_shader.uniformLocation("noiseSampler") != -1:
-							self.design_shader.setUniformValue("noiseMaskSampler", 2)
-					
-					# Set viewport size for mask coordinate calculation
-					self.design_shader.setUniformValue("viewportSize", 2048.0, 2048.0)
-					
-					# Set emblem colors from layer properties
-					color1 = layer.get('color1', [0.439, 0.129, 0.086])
-					color2 = layer.get('color2', [0.588, 0.224, 0.0])
-					color3 = layer.get('color3', [0.733, 0.510, 0.180])
-					self.design_shader.setUniformValue("primaryColor", color1[0], color1[1], color1[2])
-					self.design_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
-					self.design_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
-					
-					# Apply transform properties (no zoom for export)
-					pos_x = layer.get('pos_x', 0.5)
-					pos_y = layer.get('pos_y', 0.5)
-					scale_x = layer.get('scale_x', 0.5)
-					scale_y = layer.get('scale_y', 0.5)
-					flip_x = layer.get('flip_x', False)
-					flip_y = layer.get('flip_y', False)
-					rotation = layer.get('rotation', 0)
-					
-					# Convert layer position to OpenGL coordinates
-					center_x, center_y = layer_pos_to_opengl_coords(pos_x, pos_y)
-					
-					# Calculate rotated and scaled quad vertices
-					import math
-					angle_rad = math.radians(-rotation)
-					cos_a = math.cos(angle_rad)
-					sin_a = math.sin(angle_rad)
-					
-					# Apply flip separately from scale magnitude
-					scale_sign_x = -1 if flip_x else 1
-					scale_sign_y = -1 if flip_y else 1
-					half_width = scale_x
-					half_height = scale_y
-					
-					# Define unit quad corners
-					unit_corners = [
-						(-1.0, -1.0),  # Bottom-left
-						( 1.0, -1.0),  # Bottom-right
-						( 1.0,  1.0),  # Top-right
-						(-1.0,  1.0),  # Top-left
-					]
-					
-					# Apply transformations
-					transformed = []
-					for ux, uy in unit_corners:
-						fx = ux * scale_sign_x
-						fy = uy * scale_sign_y
-						rx = fx * cos_a - fy * sin_a
-						ry = fx * sin_a + fy * cos_a
-						sx = rx * half_width
-						sy = ry * half_height
-						transformed.append((sx + center_x, sy + center_y))
-					
-					# Update UV coordinates for this layer
-					vertices = np.array([
-						transformed[0][0], transformed[0][1], 0.0,  u0, v1,
-						transformed[1][0], transformed[1][1], 0.0,  u1, v1,
-						transformed[2][0], transformed[2][1], 0.0,  u1, v0,
-						transformed[3][0], transformed[3][1], 0.0,  u0, v0,
-					], dtype=np.float32)
-					
-
-			self.design_shader.release()
-		
-		# Render frame on top if selected
-		if self.frameTexture and self.basic_shader:
-			self.basic_shader.bind()
-			
-			gl.glActiveTexture(gl.GL_TEXTURE0)
-			gl.glBindTexture(gl.GL_TEXTURE_2D, self.frameTexture)
-			self.basic_shader.setUniformValue("emblemMaskSampler", 0)
-			
-			# Frame textures are 6x1 tiles for prestige levels
-			tile_width = 1.0 / 6.0
-			u_start = self.prestige_level * tile_width
-			u_end = u_start + tile_width
-			
-			# Full screen quad for frame (no zoom)
-			frame_size = 0.8
-			vertices = np.array([
-				-frame_size, -frame_size, 0.0,  u_start, 1.0,
-				 frame_size, -frame_size, 0.0,  u_end, 1.0,
-				 frame_size,  frame_size, 0.0,  u_end, 0.0,
-				-frame_size,  frame_size, 0.0,  u_start, 0.0,
-			], dtype=np.float32)
-			
-
-		
-		self.vao.release()
+		# Render frame on top if present
+		if self.frameTexture:
+			self._render_frame()
+	
+	# ========================================
+	# Mouse Event Handlers
+	# ========================================
+	
+	def mousePressEvent(self, event):
+		"""Handle mouse press events"""
+		pass
