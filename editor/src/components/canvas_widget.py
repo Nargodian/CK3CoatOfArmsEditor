@@ -457,7 +457,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	
 	def _composite_to_viewport(self):
 		"""Composite RTT texture to viewport with zoom and frame"""
-		gl.glViewport(0, 0, self.width(), self.height())
 		gl.glEnable(gl.GL_BLEND)
 		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 		
@@ -525,6 +524,90 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		base_size = VIEWPORT_BASE_SIZE * self.zoom_level * COMPOSITE_SCALE * safeMargin
 		# Texture coords: RTT renders Y-up (OpenGL standard), texture V=0 at bottom, V=1 at top
 		# Position Y=-1 (bottom) → V=0, Position Y=+1 (top) → V=1
+		vertices = np.array([
+			-base_size, -base_size, 0.0,  0.0, 0.0,  # bottom-left
+			 base_size, -base_size, 0.0,  1.0, 0.0,  # bottom-right
+			 base_size,  base_size, 0.0,  1.0, 1.0,  # top-right
+			-base_size,  base_size, 0.0,  0.0, 1.0,  # top-left
+		], dtype=np.float32)
+		
+		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+		
+		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+		
+		self.composite_shader.release()
+		self.vao.release()
+	
+	def _composite_to_fbo(self, fbo_handle):
+		"""Composite RTT texture to arbitrary FBO (for export) with frame mask
+		
+		Args:
+			fbo_handle: OpenGL framebuffer ID to render to
+		"""
+		# Bind target framebuffer
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, fbo_handle)
+		
+		gl.glEnable(gl.GL_BLEND)
+		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+		
+		if not self.composite_shader or not self.vao:
+			return
+		
+		self.vao.bind()
+		self.composite_shader.bind()
+		
+		# Bind RTT texture
+		gl.glActiveTexture(gl.GL_TEXTURE0)
+		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
+		self.composite_shader.setUniformValue("coaTextureSampler", 0)
+		
+		# Bind frame mask texture
+		if self.current_frame_name in self.frame_masks:
+			gl.glActiveTexture(gl.GL_TEXTURE1)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.frame_masks[self.current_frame_name])
+			self.composite_shader.setUniformValue("frameMaskSampler", 1)
+		elif self.default_mask_texture:
+			# Use default white mask if no frame-specific mask exists
+			gl.glActiveTexture(gl.GL_TEXTURE1)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.default_mask_texture)
+			self.composite_shader.setUniformValue("frameMaskSampler", 1)
+		
+		# Bind material texture
+		if self.texturedMask:
+			gl.glActiveTexture(gl.GL_TEXTURE2)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
+			self.composite_shader.setUniformValue("texturedMaskSampler", 2)
+		
+		# Bind noise texture
+		if self.noiseMask:
+			gl.glActiveTexture(gl.GL_TEXTURE3)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
+			self.composite_shader.setUniformValue("noiseMaskSampler", 3)
+		
+		# For export: use frame-specific scaling but no zoom or UI transforms
+		safeMargin = 1.0
+		if self.current_frame_name == "None":
+			self.composite_shader.setUniformValue("coaScale", QVector2D(1.0, 1.0))
+			self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.0))
+			self.composite_shader.setUniformValue("bleedMargin", 1.0)
+		elif self.current_frame_name in self.frame_scales:
+			safeMargin = 1.05
+			scale = self.frame_scales[self.current_frame_name]
+			self.composite_shader.setUniformValue("coaScale", QVector2D(scale[0], scale[1]))
+			self.composite_shader.setUniformValue("bleedMargin", safeMargin)
+			if self.current_frame_name in self.frame_offsets:
+				offset = self.frame_offsets[self.current_frame_name]
+				self.composite_shader.setUniformValue("coaOffset", QVector2D(offset[0], offset[1]))
+			else:
+				self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
+		else:
+			safeMargin = 1.05
+			self.composite_shader.setUniformValue("coaScale", QVector2D(0.9, 0.9))
+			self.composite_shader.setUniformValue("bleedMargin", safeMargin)
+			self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
+		
+		# Composite quad at fixed size (no zoom for export)
+		base_size = VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * safeMargin
 		vertices = np.array([
 			-base_size, -base_size, 0.0,  0.0, 0.0,  # bottom-left
 			 base_size, -base_size, 0.0,  1.0, 0.0,  # bottom-right
@@ -1033,8 +1116,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			from PyQt5.QtCore import QSize
 			import numpy as np
 			
-			# Use high resolution for quality export
-			export_size = 2048
+			# Use 512x512 for export
+			export_size = 512
 			
 			# Make this widget's context current
 			self.makeCurrent()
@@ -1097,12 +1180,19 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		if not self.vao:
 			return
 		
-		# Use same rendering pipeline as paintGL
-		# First render to framebuffer
+		# Save the export FBO handle and viewport before RTT unbinds it
+		export_fbo = gl.glGetIntegerv(gl.GL_FRAMEBUFFER_BINDING)
+		viewport = gl.glGetIntegerv(gl.GL_VIEWPORT)  # [x, y, width, height]
+		
+		# Render to internal RTT framebuffer (this will unbind to screen)
 		self._render_coa_to_framebuffer()
 		
-		# Then composite to viewport (which is the export FBO)
-		self._composite_to_viewport()
+		# Re-bind export FBO and restore viewport
+		gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, export_fbo)
+		gl.glViewport(viewport[0], viewport[1], viewport[2], viewport[3])
+		
+		# Composite RTT texture to export FBO
+		self._composite_to_fbo(export_fbo)
 		
 		# Render frame on top if present
 		if self.frameTexture:
