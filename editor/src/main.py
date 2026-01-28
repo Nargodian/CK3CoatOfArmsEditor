@@ -959,17 +959,17 @@ class CoatOfArmsEditor(QMainWindow):
 		elif event.key() == Qt.Key_M and not event.modifiers():
 			self.minimal_transform_btn.toggle()
 			event.accept()
-		# R key for rotate +45 degrees
+		# R key for rotate -45 degrees
 		elif event.key() == Qt.Key_R and not event.modifiers():
 			if self.right_sidebar.get_selected_indices():
-				self._rotate_selected_layers(45)
+				self._rotate_selected_layers(-45)
 				event.accept()
 			else:
 				super().keyPressEvent(event)
-		# Shift+R for rotate -45 degrees
+		# Shift+R for rotate +45 degrees
 		elif event.key() == Qt.Key_R and event.modifiers() == Qt.ShiftModifier:
 			if self.right_sidebar.get_selected_indices():
-				self._rotate_selected_layers(-45)
+				self._rotate_selected_layers(45)
 				event.accept()
 			else:
 				super().keyPressEvent(event)
