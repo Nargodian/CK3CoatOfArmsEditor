@@ -152,7 +152,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.frame_scales = {}  # Frame name -> (scale_x, scale_y) tuple
 		self.frame_offsets = {}  # Frame name -> (offset_x, offset_y) tuple
 		self.official_frame_scales = {}  # Official scales from CK3 culture files
-		self._load_official_frame_scales()
+		self.official_frame_offsets = {}  # Official offsets from CK3 culture files
+		self._load_official_frame_transforms()
 		self.patternMask = None  # Current pattern mask (shield shape, changes with frame)
 		self.default_mask_texture = None  # Default white mask (fallback)
 		self.texturedMask = None  # CK3 material texture (dirt/fabric/paint) - coa_mask_texture.png
@@ -502,7 +503,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.0))
 		elif self.current_frame_name in self.frame_scales:
 			scale = self.frame_scales[self.current_frame_name]
-			self.composite_shader.setUniformValue("coaScale", QVector2D(scale[0], scale[1]))
+			safeMargin = 1.05 # Adjust for default scale of 0.9
+			self.composite_shader.setUniformValue("coaScale", QVector2D(scale[0]*safeMargin, scale[1]*safeMargin))
 			if self.current_frame_name in self.frame_offsets:
 				offset = self.frame_offsets[self.current_frame_name]
 				self.composite_shader.setUniformValue("coaOffset", QVector2D(offset[0], offset[1]))
@@ -785,11 +787,16 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 							
 							self.frame_masks[name] = mask_id
 							
-							# Use official frame scales from CK3 culture files
+							# Use official frame scales and offsets from CK3 culture files
 							if name in self.official_frame_scales:
 								scale_data = self.official_frame_scales[name]
 								self.frame_scales[name] = (scale_data[0]/1.05, scale_data[1]/1.05)
-								self.frame_offsets[name] = (0.0, 0.00)  # CK3 default offset
+								# Use official offset if available, otherwise default to (0, 0)
+								if name in self.official_frame_offsets:
+									offset_data = self.official_frame_offsets[name]
+									self.frame_offsets[name] = (offset_data[0], offset_data[1])
+								else:
+									self.frame_offsets[name] = (0.0, 0.0)
 							else:
 								# Fallback: unlisted frames default to 1.0 scale, no offset
 								self.frame_scales[name] = (1.0, 1.0)
@@ -797,18 +804,19 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		except Exception as e:
 			print(f"Error loading frame textures: {e}")
 	
-	def _load_official_frame_scales(self):
-		"""Load official frame scales from CK3 culture files"""
+	def _load_official_frame_transforms(self):
+		"""Load official frame scales and offsets from CK3 culture files"""
 		try:
-			scale_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ck3_assets', 'frame_scales.json')
-			scale_path = os.path.normpath(scale_path)
+			transform_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ck3_assets', 'frame_transforms.json')
+			transform_path = os.path.normpath(transform_path)
 			
-			if os.path.exists(scale_path):
-				with open(scale_path, 'r') as f:
+			if os.path.exists(transform_path):
+				with open(transform_path, 'r') as f:
 					data = json.load(f)
 					self.official_frame_scales = data.get('frame_scales', {})
+					self.official_frame_offsets = data.get('frame_offsets', {})
 		except Exception as e:
-			print(f"Error loading official frame scales: {e}")
+			print(f"Error loading official frame transforms: {e}")
 	
 	def _load_mask_texture(self):
 		"""Create a default white square mask texture matching real frame masks"""

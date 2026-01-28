@@ -133,8 +133,10 @@ if __name__ == "__main__":
     print("\n=== JSON Output ===")
     print(json.dumps(output_data, indent=2))
     
+    print(f"\n✓ Saved to {output_path}")
+    
     # Save to file
-    output_path = "e:/Projects/CK3CoatOfArmsEditor/ck3_assets/frame_scales.json"
+    output_path = "e:/Projects/CK3CoatOfArmsEditor/ck3_assets/frame_transforms.json"
     with open(output_path, 'w') as f:
         json.dump(output_data, f, indent=2)
     
