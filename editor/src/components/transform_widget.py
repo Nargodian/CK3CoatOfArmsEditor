@@ -669,9 +669,10 @@ class TransformWidget(QWidget):
 				
 				# Calculate new scale based on distance from anchor to mouse
 				# Distance is full width (anchor is at opposite edge)
+				# Scale value IS the full width in layer coordinates
 				new_width_px = abs(current_pos.x() - anchor_x_px)
 				canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
-				new_scale_x = (new_width_px / canvas_scale) * 2  # * 2 because scale is half-extent
+				new_scale_x = new_width_px / canvas_scale
 				
 				# Preserve sign
 				sign_x = 1 if start_sx >= 0 else -1
@@ -714,9 +715,10 @@ class TransformWidget(QWidget):
 				
 				# Calculate new scale based on distance from anchor to mouse
 				# Distance is full height (anchor is at opposite edge)
+				# Scale value IS the full height in layer coordinates
 				new_height_px = abs(current_pos.y() - anchor_y_px)
 				canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
-				new_scale_y = (new_height_px / canvas_scale) * 2  # * 2 because scale is half-extent
+				new_scale_y = new_height_px / canvas_scale
 				
 				# Preserve sign
 				sign_y = 1 if start_sy >= 0 else -1
