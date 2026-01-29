@@ -211,6 +211,217 @@ def parse_ck3_file(file_path: Path) -> Dict:
 
 
 # ============================================================================
+# MOD SUPPORT - ASSET SOURCES
+# ============================================================================
+
+class ModAssetSource:
+    """Represents a source of coat of arms assets (base game or mod)."""
+    
+    def __init__(self, name: str, path: Path, is_base_game: bool = False):
+        self.name = name
+        self.path = Path(path)
+        self.is_base_game = is_base_game
+        self.has_emblems = False
+        self.has_patterns = False
+        self.has_frames = False
+        self.has_culture_files = False
+        self.has_emblem_metadata = False
+        self.has_pattern_metadata = False
+    
+    def __repr__(self):
+        return f"ModAssetSource(name={self.name}, has_emblems={self.has_emblems}, has_patterns={self.has_patterns}, has_frames={self.has_frames})"
+
+
+def parse_mod_file(mod_file_path: Path) -> Optional[Tuple[str, str]]:
+    """Parse a .mod file to extract name and path.
+    
+    Returns:
+        Tuple of (mod_name, mod_path) or None if parsing fails
+    """
+    try:
+        with open(mod_file_path, 'r', encoding='utf-8-sig') as f:
+            content = f.read()
+        
+        # Extract name
+        name_match = re.search(r'^name\s*=\s*"([^"]+)"', content, re.MULTILINE)
+        if not name_match:
+            return None
+        mod_name = name_match.group(1)
+        
+        # Extract path
+        path_match = re.search(r'^path\s*=\s*"([^"]+)"', content, re.MULTILINE)
+        if not path_match:
+            return None
+        mod_path = path_match.group(1)
+        
+        return (mod_name, mod_path)
+        
+    except Exception:
+        return None
+
+
+def detect_coa_assets(mod_path: Path) -> Dict[str, bool]:
+    """Detect which coat of arms asset types exist in a mod path.
+    
+    Returns:
+        Dict with boolean flags for each asset type
+    """
+    # Check for emblems
+    emblems_dir = mod_path / "gfx" / "coat_of_arms" / "colored_emblems"
+    has_emblems = emblems_dir.exists() and any(emblems_dir.glob("*.dds"))
+    
+    # Check for patterns
+    patterns_dir = mod_path / "gfx" / "coat_of_arms" / "patterns"
+    has_patterns = patterns_dir.exists() and any(patterns_dir.glob("*.dds"))
+    
+    # Check for frames
+    frames_dir = mod_path / "gfx" / "interface" / "coat_of_arms" / "frames"
+    has_frames = frames_dir.exists() and any(frames_dir.glob("*.dds"))
+    
+    # Check for culture files (frame transforms)
+    culture_dir = mod_path / "common" / "culture" / "cultures"
+    has_culture_files = culture_dir.exists() and any(culture_dir.glob("*.txt"))
+    
+    # Check for metadata files
+    has_emblem_metadata = emblems_dir.exists() and any(emblems_dir.glob("*.txt"))
+    has_pattern_metadata = patterns_dir.exists() and any(patterns_dir.glob("*.txt"))
+    
+    return {
+        'has_emblems': has_emblems,
+        'has_patterns': has_patterns,
+        'has_frames': has_frames,
+        'has_culture_files': has_culture_files,
+        'has_emblem_metadata': has_emblem_metadata,
+        'has_pattern_metadata': has_pattern_metadata
+    }
+
+
+def scan_mod_files(mod_dir: Path) -> List[Tuple[str, Path]]:
+    """Scan mod directory for .mod files and extract mod info.
+    
+    Returns:
+        List of (mod_name, mod_path) tuples
+    """
+    mod_files = list(mod_dir.glob("*.mod"))
+    mods = []
+    
+    for mod_file in mod_files:
+        result = parse_mod_file(mod_file)
+        if result:
+            mod_name, mod_path_str = result
+            # Convert path to Path object and handle relative paths
+            mod_path = Path(mod_path_str)
+            if mod_path.exists():
+                mods.append((mod_name, mod_path))
+    
+    return mods
+
+
+def build_asset_sources(base_game_dir: Path, mod_dir: Optional[Path] = None) -> List[ModAssetSource]:
+    """Build list of asset sources from base game and mods.
+    
+    Args:
+        base_game_dir: Path to CK3 base game installation
+        mod_dir: Optional path to mod directory
+    
+    Returns:
+        List of ModAssetSource objects (base game first, then mods with CoA assets)
+    """
+    sources = []
+    
+    # Add base game source
+    base_source = ModAssetSource("Base Game", base_game_dir, is_base_game=True)
+    base_assets = detect_coa_assets(base_game_dir / "game")
+    base_source.has_emblems = base_assets['has_emblems']
+    base_source.has_patterns = base_assets['has_patterns']
+    base_source.has_frames = base_assets['has_frames']
+    base_source.has_culture_files = base_assets['has_culture_files']
+    base_source.has_emblem_metadata = base_assets['has_emblem_metadata']
+    base_source.has_pattern_metadata = base_assets['has_pattern_metadata']
+    sources.append(base_source)
+    
+    # Add mod sources if mod directory provided
+    if mod_dir and mod_dir.exists():
+        mods = scan_mod_files(mod_dir)
+        
+        for mod_name, mod_path in mods:
+            mod_assets = detect_coa_assets(mod_path)
+            
+            # Only add mod if it has at least one CoA asset type
+            if any(mod_assets.values()):
+                mod_source = ModAssetSource(mod_name, mod_path)
+                mod_source.has_emblems = mod_assets['has_emblems']
+                mod_source.has_patterns = mod_assets['has_patterns']
+                mod_source.has_frames = mod_assets['has_frames']
+                mod_source.has_culture_files = mod_assets['has_culture_files']
+                mod_source.has_emblem_metadata = mod_assets['has_emblem_metadata']
+                mod_source.has_pattern_metadata = mod_assets['has_pattern_metadata']
+                sources.append(mod_source)
+    
+    return sources
+
+
+def find_asset_files(source: ModAssetSource, asset_type: str) -> List[Path]:
+    """Find asset files of a specific type in a source.
+    
+    Args:
+        source: ModAssetSource to search
+        asset_type: 'emblems', 'patterns', or 'frames'
+    
+    Returns:
+        List of DDS file paths
+    """
+    if source.is_base_game:
+        base_path = source.path / "game" / "gfx"
+    else:
+        base_path = source.path / "gfx"
+    
+    if asset_type == 'emblems':
+        search_dir = base_path / "coat_of_arms" / "colored_emblems"
+        pattern = "ce_*.dds"
+    elif asset_type == 'patterns':
+        search_dir = base_path / "coat_of_arms" / "patterns"
+        pattern = "pattern_*.dds"
+    elif asset_type == 'frames':
+        if source.is_base_game:
+            search_dir = source.path / "game" / "gfx" / "interface" / "coat_of_arms" / "frames"
+        else:
+            search_dir = source.path / "gfx" / "interface" / "coat_of_arms" / "frames"
+        pattern = "*.dds"
+    else:
+        return []
+    
+    if not search_dir.exists():
+        return []
+    
+    return list(search_dir.glob(pattern))
+
+
+def merge_metadata_simple(base_dict: Dict, new_dict: Dict, source_name: str) -> Dict:
+    """Merge metadata with simple top-level override.
+    
+    Args:
+        base_dict: Base metadata dictionary
+        new_dict: New metadata to merge in
+        source_name: Name of source for tracking
+    
+    Returns:
+        Merged dictionary (modifies base_dict in place and returns it)
+    """
+    for key, value in new_dict.items():
+        # Add source tracking if value is a dict
+        if isinstance(value, dict):
+            value['_source'] = source_name
+            if key in base_dict:
+                value['_overrides_base'] = True
+        
+        # Simple override: last one wins
+        base_dict[key] = value
+    
+    return base_dict
+
+
+# ============================================================================
 # EMBLEM ATLAS BAKING
 # ============================================================================
 
@@ -412,11 +623,15 @@ class ConversionWorker(QThread):
     progress = pyqtSignal(str, int, int)  # message, current, total
     finished = pyqtSignal(bool, str)  # success, message
     
-    def __init__(self, ck3_dir: Path, output_dir: Path):
+    def __init__(self, ck3_dir: Path, output_dir: Path, mod_dir: Optional[Path] = None):
         super().__init__()
         self.ck3_dir = Path(ck3_dir)
         self.output_dir = Path(output_dir)
+        self.mod_dir = Path(mod_dir) if mod_dir else None
         self.error_log = []
+        
+        # Build list of asset sources (base game + mods)
+        self.asset_sources = build_asset_sources(self.ck3_dir, self.mod_dir)
     
     def log_error(self, message: str):
         """Add error to log."""
@@ -434,34 +649,39 @@ class ConversionWorker(QThread):
     def run(self):
         """Main conversion process."""
         try:
-            total_steps = 5  # Added frame transforms step
+            # Log detected sources
+            self.progress.emit(f"Processing {len(self.asset_sources)} asset source(s)", 0, 0)
+            for source in self.asset_sources:
+                self.progress.emit(f"  - {source.name}", 0, 0)
+            
+            total_steps = 5
             current_step = 0
             
             # Step 1: Process emblems
             current_step += 1
             self.progress.emit("Processing emblems...", current_step, total_steps)
-            if not self.process_emblems():
+            if not self.process_emblems_from_sources():
                 self.finished.emit(False, "Emblem processing failed")
                 return
             
             # Step 2: Process patterns
             current_step += 1
             self.progress.emit("Processing patterns...", current_step, total_steps)
-            if not self.process_patterns():
+            if not self.process_patterns_from_sources():
                 self.finished.emit(False, "Pattern processing failed")
                 return
             
             # Step 3: Process frames
             current_step += 1
             self.progress.emit("Processing frames...", current_step, total_steps)
-            if not self.process_frames():
+            if not self.process_frames_from_sources():
                 self.finished.emit(False, "Frame processing failed")
                 return
             
             # Step 4: Extract frame transforms
             current_step += 1
             self.progress.emit("Extracting frame transforms...", current_step, total_steps)
-            if not self.extract_frame_transforms():
+            if not self.extract_frame_transforms_from_sources():
                 self.finished.emit(False, "Frame transform extraction failed")
                 return
             
@@ -472,7 +692,7 @@ class ConversionWorker(QThread):
             # Step 5: Convert metadata
             current_step += 1
             self.progress.emit("Converting metadata...", current_step, total_steps)
-            if not self.convert_metadata():
+            if not self.convert_metadata_from_sources():
                 self.finished.emit(False, "Metadata conversion failed")
                 return
             
@@ -483,264 +703,321 @@ class ConversionWorker(QThread):
                     f.write('\n'.join(self.error_log))
                 message = f"Conversion complete with {len(self.error_log)} errors. See conversion_errors.txt"
             else:
-                message = "Conversion completed successfully!"
+                # Count mods processed
+                mod_count = len(self.asset_sources) - 1
+                if mod_count > 0:
+                    message = f"Conversion completed successfully! Processed base game + {mod_count} mod(s)"
+                else:
+                    message = "Conversion completed successfully!"
             
             self.finished.emit(True, message)
             
         except Exception as e:
             self.finished.emit(False, f"Error: {str(e)}")
     
-    def process_emblems(self) -> bool:
-        """Process emblem DDS files to source PNGs and atlases."""
+    def process_emblems_from_sources(self) -> bool:
+        """Process emblem DDS files from all sources to source PNGs and atlases."""
         try:
-            emblem_source_dir = self.ck3_dir / "game" / "gfx" / "coat_of_arms" / "colored_emblems"
-            if not emblem_source_dir.exists():
-                self.log_error(f"Emblem source directory not found: {emblem_source_dir}")
-                return False
-            
             # Create output directories
             source_out = self.output_dir / "coa_emblems" / "source"
             atlas_out = self.output_dir / "coa_emblems" / "atlases"
             source_out.mkdir(parents=True, exist_ok=True)
             atlas_out.mkdir(parents=True, exist_ok=True)
             
-            # Find all emblem DDS files
-            dds_files = list(emblem_source_dir.glob("ce_*.dds"))
+            total_processed = 0
+            total_skipped = 0
+            total_errors = 0
             
-            processed = 0
-            skipped = 0
-            errors = 0
-            
-            for i, dds_file in enumerate(dds_files):
-                # Update progress every 50 files
-                if i % 50 == 0:
-                    self.progress.emit(f"Processing emblems... {i}/{len(dds_files)}", i, len(dds_files))
-                
-                base_name = dds_file.stem
-                source_png = source_out / f"{base_name}.png"
-                atlas_png = atlas_out / f"{base_name}_atlas.png"
-                
-                # Check if processing needed
-                needs_source = self.should_process(dds_file, source_png)
-                needs_atlas = self.should_process(dds_file, atlas_png)
-                
-                if not needs_source and not needs_atlas:
-                    skipped += 1
+            # Process each source
+            for source in self.asset_sources:
+                if not source.has_emblems:
                     continue
                 
-                # Load DDS
-                img_array = load_dds_image(dds_file)
-                if img_array is None:
-                    self.log_error(f"Failed to load DDS: {dds_file.name}")
-                    errors += 1
+                self.progress.emit(f"Processing emblems from {source.name}...", 0, 0)
+                
+                dds_files = find_asset_files(source, 'emblems')
+                
+                if not dds_files:
+                    self.progress.emit(f"No emblem files found in {source.name}", 0, 0)
                     continue
                 
-                try:
-                    # Save flat PNG for thumbnails
-                    if needs_source:
-                        img = Image.fromarray(img_array, mode='RGBA')
-                        if img.size != (256, 256):
-                            img = img.resize((256, 256), Image.Resampling.LANCZOS)
-                        img.save(source_png, 'PNG')
+                processed = 0
+                skipped = 0
+                errors = 0
+                
+                for i, dds_file in enumerate(dds_files):
+                    # Update progress every 50 files
+                    if i % 50 == 0:
+                        self.progress.emit(f"Processing emblems from {source.name}... {i}/{len(dds_files)}", i, len(dds_files))
                     
-                    # Create and save atlas
-                    if needs_atlas:
-                        atlas = create_emblem_atlas(img_array)
-                        atlas.save(atlas_png, 'PNG')
+                    base_name = dds_file.stem
+                    source_png = source_out / f"{base_name}.png"
+                    atlas_png = atlas_out / f"{base_name}_atlas.png"
                     
-                    processed += 1
+                    # Check if processing needed
+                    needs_source = self.should_process(dds_file, source_png)
+                    needs_atlas = self.should_process(dds_file, atlas_png)
                     
-                except Exception as e:
-                    self.log_error(f"Error processing {dds_file.name}: {str(e)}")
-                    errors += 1
+                    if not needs_source and not needs_atlas:
+                        skipped += 1
+                        continue
+                    
+                    # Load DDS
+                    img_array = load_dds_image(dds_file)
+                    if img_array is None:
+                        self.log_error(f"Failed to load DDS from {source.name}: {dds_file.name}")
+                        errors += 1
+                        continue
+                    
+                    try:
+                        # Save flat PNG for thumbnails
+                        if needs_source:
+                            img = Image.fromarray(img_array, mode='RGBA')
+                            if img.size != (256, 256):
+                                img = img.resize((256, 256), Image.Resampling.LANCZOS)
+                            img.save(source_png, 'PNG')
+                        
+                        # Create and save atlas
+                        if needs_atlas:
+                            atlas = create_emblem_atlas(img_array)
+                            atlas.save(atlas_png, 'PNG')
+                        
+                        processed += 1
+                        
+                    except Exception as e:
+                        self.log_error(f"Error processing {dds_file.name} from {source.name}: {str(e)}")
+                        errors += 1
+                
+                total_processed += processed
+                total_skipped += skipped
+                total_errors += errors
+                
+                self.progress.emit(f"{source.name}: {processed} emblems processed, {skipped} skipped, {errors} errors", 0, 0)
             
-            self.progress.emit(f"Emblems: {processed} processed, {skipped} skipped, {errors} errors", len(dds_files), len(dds_files))
+            self.progress.emit(f"Total emblems: {total_processed} processed, {total_skipped} skipped, {total_errors} errors", 0, 0)
             return True
             
         except Exception as e:
             self.log_error(f"Emblem processing error: {str(e)}")
             return False
     
-    def process_patterns(self) -> bool:
-        """Process pattern DDS files to source PNGs and atlases."""
+    def process_patterns_from_sources(self) -> bool:
+        """Process pattern DDS files from all sources to source PNGs and atlases."""
         try:
-            pattern_source_dir = self.ck3_dir / "game" / "gfx" / "coat_of_arms" / "patterns"
-            if not pattern_source_dir.exists():
-                self.log_error(f"Pattern source directory not found: {pattern_source_dir}")
-                return False
-            
             # Create output directories
             source_out = self.output_dir / "coa_patterns" / "source"
             atlas_out = self.output_dir / "coa_patterns" / "atlases"
             source_out.mkdir(parents=True, exist_ok=True)
             atlas_out.mkdir(parents=True, exist_ok=True)
             
-            # Find all pattern DDS files
-            dds_files = list(pattern_source_dir.glob("pattern_*.dds"))
+            total_processed = 0
+            total_skipped = 0
+            total_errors = 0
             
-            processed = 0
-            skipped = 0
-            errors = 0
-            
-            for i, dds_file in enumerate(dds_files):
-                self.progress.emit(f"Processing patterns... {i}/{len(dds_files)}", i, len(dds_files))
-                
-                base_name = dds_file.stem
-                source_png = source_out / f"{base_name}.png"
-                atlas_png = atlas_out / f"{base_name}_atlas.png"
-                
-                needs_source = self.should_process(dds_file, source_png)
-                needs_atlas = self.should_process(dds_file, atlas_png)
-                
-                if not needs_source and not needs_atlas:
-                    skipped += 1
+            # Process each source
+            for source in self.asset_sources:
+                if not source.has_patterns:
                     continue
                 
-                img_array = load_dds_image(dds_file)
-                if img_array is None:
-                    self.log_error(f"Failed to load DDS: {dds_file.name}")
-                    errors += 1
+                self.progress.emit(f"Processing patterns from {source.name}...", 0, 0)
+                
+                dds_files = find_asset_files(source, 'patterns')
+                
+                if not dds_files:
+                    self.progress.emit(f"No pattern files found in {source.name}", 0, 0)
                     continue
                 
-                try:
-                    if needs_source:
-                        img = Image.fromarray(img_array, mode='RGBA')
-                        if img.size != (256, 256):
-                            img = img.resize((256, 256), Image.Resampling.LANCZOS)
-                        img.save(source_png, 'PNG')
+                processed = 0
+                skipped = 0
+                errors = 0
+                
+                for i, dds_file in enumerate(dds_files):
+                    self.progress.emit(f"Processing patterns from {source.name}... {i}/{len(dds_files)}", i, len(dds_files))
                     
-                    if needs_atlas:
-                        atlas = create_pattern_atlas(img_array)
-                        atlas.save(atlas_png, 'PNG')
+                    base_name = dds_file.stem
+                    source_png = source_out / f"{base_name}.png"
+                    atlas_png = atlas_out / f"{base_name}_atlas.png"
                     
-                    processed += 1
+                    needs_source = self.should_process(dds_file, source_png)
+                    needs_atlas = self.should_process(dds_file, atlas_png)
                     
-                except Exception as e:
-                    self.log_error(f"Error processing {dds_file.name}: {str(e)}")
-                    errors += 1
+                    if not needs_source and not needs_atlas:
+                        skipped += 1
+                        continue
+                    
+                    img_array = load_dds_image(dds_file)
+                    if img_array is None:
+                        self.log_error(f"Failed to load DDS from {source.name}: {dds_file.name}")
+                        errors += 1
+                        continue
+                    
+                    try:
+                        if needs_source:
+                            img = Image.fromarray(img_array, mode='RGBA')
+                            if img.size != (256, 256):
+                                img = img.resize((256, 256), Image.Resampling.LANCZOS)
+                            img.save(source_png, 'PNG')
+                        
+                        if needs_atlas:
+                            atlas = create_pattern_atlas(img_array)
+                            atlas.save(atlas_png, 'PNG')
+                        
+                        processed += 1
+                        
+                    except Exception as e:
+                        self.log_error(f"Error processing {dds_file.name} from {source.name}: {str(e)}")
+                        errors += 1
+                
+                total_processed += processed
+                total_skipped += skipped
+                total_errors += errors
+                
+                self.progress.emit(f"{source.name}: {processed} patterns processed, {skipped} skipped, {errors} errors", 0, 0)
             
-            self.progress.emit(f"Patterns: {processed} processed, {skipped} skipped, {errors} errors", len(dds_files), len(dds_files))
+            self.progress.emit(f"Total patterns: {total_processed} processed, {total_skipped} skipped, {total_errors} errors", 0, 0)
             return True
             
         except Exception as e:
             self.log_error(f"Pattern processing error: {str(e)}")
             return False
     
-    def process_frames(self) -> bool:
-        """Process frame DDS files to PNGs."""
+    def process_frames_from_sources(self) -> bool:
+        """Process frame DDS files from all sources to PNGs."""
         try:
-            frame_source_dir = self.ck3_dir / "game" / "gfx" / "interface" / "coat_of_arms" / "frames"
-            if not frame_source_dir.exists():
-                self.log_error(f"Frame source directory not found: {frame_source_dir}")
-                return False
-            
             # Create output directory
             frame_out = self.output_dir / "coa_frames"
             frame_out.mkdir(parents=True, exist_ok=True)
             
-            # Find all frame DDS files
-            dds_files = list(frame_source_dir.glob("*.dds"))
+            total_processed = 0
+            total_skipped = 0
+            total_errors = 0
             
-            processed = 0
-            skipped = 0
-            errors = 0
-            
-            for i, dds_file in enumerate(dds_files):
-                self.progress.emit(f"Processing frames... {i}/{len(dds_files)}", i, len(dds_files))
-                
-                png_file = frame_out / f"{dds_file.stem}.png"
-                
-                if not self.should_process(dds_file, png_file):
-                    skipped += 1
+            # Process each source
+            for source in self.asset_sources:
+                if not source.has_frames:
                     continue
                 
-                img_array = load_dds_image(dds_file)
-                if img_array is None:
-                    self.log_error(f"Failed to load DDS: {dds_file.name}")
-                    errors += 1
+                self.progress.emit(f"Processing frames from {source.name}...", 0, 0)
+                
+                dds_files = find_asset_files(source, 'frames')
+                
+                if not dds_files:
+                    self.progress.emit(f"No frame files found in {source.name}", 0, 0)
                     continue
                 
-                try:
-                    img = Image.fromarray(img_array, mode='RGBA')
-                    img.save(png_file, 'PNG')
-                    processed += 1
-                except Exception as e:
-                    self.log_error(f"Error processing {dds_file.name}: {str(e)}")
-                    errors += 1
+                processed = 0
+                skipped = 0
+                errors = 0
+                
+                for i, dds_file in enumerate(dds_files):
+                    self.progress.emit(f"Processing frames from {source.name}... {i}/{len(dds_files)}", i, len(dds_files))
+                    
+                    png_file = frame_out / f"{dds_file.stem}.png"
+                    
+                    if not self.should_process(dds_file, png_file):
+                        skipped += 1
+                        continue
+                    
+                    img_array = load_dds_image(dds_file)
+                    if img_array is None:
+                        self.log_error(f"Failed to load DDS from {source.name}: {dds_file.name}")
+                        errors += 1
+                        continue
+                    
+                    try:
+                        img = Image.fromarray(img_array, mode='RGBA')
+                        img.save(png_file, 'PNG')
+                        processed += 1
+                    except Exception as e:
+                        self.log_error(f"Error processing {dds_file.name} from {source.name}: {str(e)}")
+                        errors += 1
+                
+                total_processed += processed
+                total_skipped += skipped
+                total_errors += errors
+                
+                self.progress.emit(f"{source.name}: {processed} frames processed, {skipped} skipped, {errors} errors", 0, 0)
             
-            self.progress.emit(f"Frames: {processed} processed, {skipped} skipped, {errors} errors", len(dds_files), len(dds_files))
+            self.progress.emit(f"Total frames: {total_processed} processed, {total_skipped} skipped, {total_errors} errors", 0, 0)
             return True
             
         except Exception as e:
             self.log_error(f"Frame processing error: {str(e)}")
             return False
     
-    def extract_frame_transforms(self) -> bool:
-        """Extract frame scales and offsets from culture files."""
+    def extract_frame_transforms_from_sources(self) -> bool:
+        """Extract frame scales and offsets from culture files in all sources."""
         try:
-            culture_dir = self.ck3_dir / "game" / "common" / "culture" / "cultures"
-            if not culture_dir.exists():
-                self.log_error(f"Culture directory not found: {culture_dir}")
-                return False
-            
-            self.progress.emit("Parsing culture files for frame data...", 0, 0)
-            
-            # Parse frame scales and offsets from culture files
             from collections import defaultdict, Counter
             
             frame_scales = defaultdict(list)
             frame_offsets = defaultdict(list)
             culture_to_frame = {}
             
-            culture_files = list(culture_dir.glob("*.txt"))
-            
-            for i, filepath in enumerate(culture_files):
-                self.progress.emit(f"Parsing {filepath.name}...", i, len(culture_files))
-                
-                try:
-                    with open(filepath, 'r', encoding='utf-8-sig') as f:
-                        lines = f.read().split('\n')
-                except Exception as e:
-                    self.log_error(f"Error reading {filepath.name}: {e}")
+            # Process each source
+            for source in self.asset_sources:
+                if not source.has_culture_files:
                     continue
                 
-                current_culture = None
-                current_frame = None
+                self.progress.emit(f"Extracting frame transforms from {source.name}...", 0, 0)
                 
-                for line in lines:
-                    # Detect culture definition start
-                    culture_match = re.match(r'^(\w+)\s*=\s*\{', line)
-                    if culture_match:
-                        current_culture = culture_match.group(1)
-                        current_frame = None
+                if source.is_base_game:
+                    culture_dir = source.path / "game" / "common" / "culture" / "cultures"
+                else:
+                    culture_dir = source.path / "common" / "culture" / "cultures"
+                
+                if not culture_dir.exists():
+                    continue
+                
+                culture_files = list(culture_dir.glob("*.txt"))
+                
+                for i, filepath in enumerate(culture_files):
+                    self.progress.emit(f"Parsing {filepath.name} from {source.name}...", i, len(culture_files))
+                    
+                    try:
+                        with open(filepath, 'r', encoding='utf-8-sig') as f:
+                            lines = f.read().split('\n')
+                    except Exception as e:
+                        self.log_error(f"Error reading {filepath.name} from {source.name}: {e}")
                         continue
                     
-                    # Find house_coa_frame
-                    frame_match = re.search(r'house_coa_frame\s*=\s*(house_frame_\d+)', line)
-                    if frame_match and current_culture:
-                        current_frame = frame_match.group(1)
+                    current_culture = None
+                    current_frame = None
                     
-                    # Find house_coa_mask_scale
-                    scale_match = re.search(r'house_coa_mask_scale\s*=\s*\{\s*([\d.]+)\s+([\d.]+)\s*\}', line)
-                    if scale_match and current_culture and current_frame:
-                        scale_x = float(scale_match.group(1))
-                        scale_y = float(scale_match.group(2))
+                    for line in lines:
+                        # Detect culture definition start
+                        culture_match = re.match(r'^(\w+)\s*=\s*\{', line)
+                        if culture_match:
+                            current_culture = culture_match.group(1)
+                            current_frame = None
+                            continue
                         
-                        frame_scales[current_frame].append((scale_x, scale_y))
-                        culture_to_frame[current_culture] = {
-                            'frame': current_frame,
-                            'scale': [scale_x, scale_y]
-                        }
-                    
-                    # Find house_coa_mask_offset
-                    offset_match = re.search(r'house_coa_mask_offset\s*=\s*\{\s*([\d.-]+)\s+([\d.-]+)\s*\}', line)
-                    if offset_match and current_culture and current_frame:
-                        offset_x = float(offset_match.group(1))
-                        offset_y = float(offset_match.group(2))
+                        # Find house_coa_frame
+                        frame_match = re.search(r'house_coa_frame\s*=\s*(house_frame_\d+)', line)
+                        if frame_match and current_culture:
+                            current_frame = frame_match.group(1)
                         
-                        frame_offsets[current_frame].append((offset_x, offset_y))
-                        if current_culture in culture_to_frame:
-                            culture_to_frame[current_culture]['offset'] = [offset_x, offset_y]
+                        # Find house_coa_mask_scale
+                        scale_match = re.search(r'house_coa_mask_scale\s*=\s*\{\s*([\d.]+)\s+([\d.]+)\s*\}', line)
+                        if scale_match and current_culture and current_frame:
+                            scale_x = float(scale_match.group(1))
+                            scale_y = float(scale_match.group(2))
+                            
+                            frame_scales[current_frame].append((scale_x, scale_y))
+                            culture_to_frame[current_culture] = {
+                                'frame': current_frame,
+                                'scale': [scale_x, scale_y]
+                            }
+                        
+                        # Find house_coa_mask_offset
+                        offset_match = re.search(r'house_coa_mask_offset\s*=\s*\{\s*([\d.-]+)\s+([\d.-]+)\s*\}', line)
+                        if offset_match and current_culture and current_frame:
+                            offset_x = float(offset_match.group(1))
+                            offset_y = float(offset_match.group(2))
+                            
+                            frame_offsets[current_frame].append((offset_x, offset_y))
+                            if current_culture in culture_to_frame:
+                                culture_to_frame[current_culture]['offset'] = [offset_x, offset_y]
             
             # Build final dict with recommended scale/offset per frame
             frame_scale_dict = {}
@@ -772,7 +1049,7 @@ class ConversionWorker(QThread):
             output_data = {
                 'frame_scales': frame_scale_dict,
                 'frame_offsets': frame_offset_dict,
-                'description': 'Auto-generated from CK3 culture files',
+                'description': 'Auto-generated from CK3 culture files (base game + mods)',
                 'scale_values_used': sorted(list(set(tuple(v) for v in frame_scale_dict.values())))
             }
             
@@ -780,7 +1057,7 @@ class ConversionWorker(QThread):
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(output_data, f, indent=2)
             
-            self.progress.emit(f"Frame transforms: {len(frame_scale_dict)} frames extracted", len(culture_files), len(culture_files))
+            self.progress.emit(f"Frame transforms: {len(frame_scale_dict)} frames extracted", 0, 0)
             return True
             
         except Exception as e:
@@ -818,41 +1095,61 @@ class ConversionWorker(QThread):
             self.log_error(f"Mask texture extraction error: {str(e)}")
             return False
     
-    def convert_metadata(self) -> bool:
-        """Convert CK3 .txt metadata files to JSON."""
+    def convert_metadata_from_sources(self) -> bool:
+        """Convert CK3 .txt metadata files to JSON from all sources."""
         try:
-            metadata_dir = self.ck3_dir / "game" / "gfx" / "coat_of_arms"
-            self.progress.emit(f"Metadata dir: {metadata_dir}", 0, 0)
+            emblems_metadata = {}
+            patterns_metadata = {}
             
-            # Convert emblems metadata
-            emblems_txt = metadata_dir / "colored_emblems" / "50_coa_designer_emblems.txt"
-            self.progress.emit(f"Checking emblems: {emblems_txt}", 0, 0)
-            if emblems_txt.exists():
-                self.progress.emit("Parsing emblems file...", 0, 0)
-                data = parse_ck3_file(emblems_txt)
+            # Process each source
+            for source in self.asset_sources:
+                if source.is_base_game:
+                    metadata_dir = source.path / "game" / "gfx" / "coat_of_arms"
+                else:
+                    metadata_dir = source.path / "gfx" / "coat_of_arms"
+                
+                self.progress.emit(f"Converting metadata from {source.name}...", 0, 0)
+                
+                # Convert emblems metadata
+                if source.has_emblem_metadata:
+                    emblems_dir = metadata_dir / "colored_emblems"
+                    if emblems_dir.exists():
+                        emblem_txt_files = list(emblems_dir.glob("*.txt"))
+                        for txt_file in emblem_txt_files:
+                            self.progress.emit(f"Parsing {txt_file.name} from {source.name}...", 0, 0)
+                            try:
+                                data = parse_ck3_file(txt_file)
+                                emblems_metadata = merge_metadata_simple(emblems_metadata, data, source.name)
+                            except Exception as e:
+                                self.log_error(f"Error parsing {txt_file.name} from {source.name}: {e}")
+                
+                # Convert patterns metadata
+                if source.has_pattern_metadata:
+                    patterns_dir = metadata_dir / "patterns"
+                    if patterns_dir.exists():
+                        pattern_txt_files = list(patterns_dir.glob("*.txt"))
+                        for txt_file in pattern_txt_files:
+                            self.progress.emit(f"Parsing {txt_file.name} from {source.name}...", 0, 0)
+                            try:
+                                data = parse_ck3_file(txt_file)
+                                patterns_metadata = merge_metadata_simple(patterns_metadata, data, source.name)
+                            except Exception as e:
+                                self.log_error(f"Error parsing {txt_file.name} from {source.name}: {e}")
+            
+            # Write merged metadata
+            if emblems_metadata:
                 output_path = self.output_dir / "coa_emblems" / "metadata" / "50_coa_designer_emblems.json"
                 output_path.parent.mkdir(parents=True, exist_ok=True)
-                self.progress.emit(f"Writing to: {output_path}", 0, 0)
                 with open(output_path, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, indent=2)
-                self.progress.emit("Emblems metadata converted", 0, 0)
-            else:
-                self.progress.emit(f"Emblems file not found: {emblems_txt}", 0, 0)
+                    json.dump(emblems_metadata, f, indent=2)
+                self.progress.emit(f"Emblems metadata: {len(emblems_metadata)} entries", 0, 0)
             
-            # Convert patterns metadata
-            patterns_txt = metadata_dir / "patterns" / "50_coa_designer_patterns.txt"
-            self.progress.emit(f"Checking patterns: {patterns_txt}", 0, 0)
-            if patterns_txt.exists():
-                self.progress.emit("Parsing patterns file...", 0, 0)
-                data = parse_ck3_file(patterns_txt)
+            if patterns_metadata:
                 output_path = self.output_dir / "coa_patterns" / "metadata" / "50_coa_designer_patterns.json"
                 output_path.parent.mkdir(parents=True, exist_ok=True)
-                self.progress.emit(f"Writing to: {output_path}", 0, 0)
                 with open(output_path, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, indent=2)
-                self.progress.emit("Patterns metadata converted", 0, 0)
-            else:
-                self.progress.emit(f"Patterns file not found: {patterns_txt}", 0, 0)
+                    json.dump(patterns_metadata, f, indent=2)
+                self.progress.emit(f"Patterns metadata: {len(patterns_metadata)} entries", 0, 0)
             
             return True
             
@@ -903,6 +1200,18 @@ class AssetConverterGUI(QMainWindow):
         ck3_layout.addWidget(self.ck3_browse_btn)
         ck3_group.setLayout(ck3_layout)
         layout.addWidget(ck3_group)
+        
+        # Mod Directory selection (optional)
+        mod_group = QGroupBox("Mod Directory (Optional)")
+        mod_layout = QHBoxLayout()
+        self.mod_path_edit = QLineEdit()
+        self.mod_path_edit.setPlaceholderText("Optional: Select mod directory to include mod assets...")
+        self.mod_browse_btn = QPushButton("Browse...")
+        self.mod_browse_btn.clicked.connect(self.browse_mod_dir)
+        mod_layout.addWidget(self.mod_path_edit)
+        mod_layout.addWidget(self.mod_browse_btn)
+        mod_group.setLayout(mod_layout)
+        layout.addWidget(mod_group)
         
         # Output Directory selection
         output_group = QGroupBox("Output Directory")
@@ -967,6 +1276,15 @@ class AssetConverterGUI(QMainWindow):
         if dir_path:
             self.ck3_path_edit.setText(dir_path)
     
+    def browse_mod_dir(self):
+        """Open directory browser for mod directory."""
+        dir_path = QFileDialog.getExistingDirectory(
+            self, "Select Mod Directory",
+            "", QFileDialog.ShowDirsOnly
+        )
+        if dir_path:
+            self.mod_path_edit.setText(dir_path)
+    
     def browse_output_dir(self):
         """Open directory browser for output location."""
         dir_path = QFileDialog.getExistingDirectory(
@@ -1019,21 +1337,27 @@ class AssetConverterGUI(QMainWindow):
         
         ck3_dir = Path(self.ck3_path_edit.text())
         output_dir = Path(self.output_path_edit.text())
+        mod_dir_text = self.mod_path_edit.text().strip()
+        mod_dir = Path(mod_dir_text) if mod_dir_text else None
         
         # Disable UI during conversion
         self.convert_btn.setText("Converting...")
         self.convert_btn.setEnabled(False)
         self.ck3_browse_btn.setEnabled(False)
+        self.mod_browse_btn.setEnabled(False)
         self.output_browse_btn.setEnabled(False)
         self.ck3_path_edit.setEnabled(False)
+        self.mod_path_edit.setEnabled(False)
         self.output_path_edit.setEnabled(False)
         
         self.log_text.clear()
         self.log(f"Starting conversion from: {ck3_dir}")
+        if mod_dir:
+            self.log(f"Including mods from: {mod_dir}")
         self.log(f"Output to: {output_dir}")
         
         # Create and start worker thread
-        self.worker = ConversionWorker(ck3_dir, output_dir)
+        self.worker = ConversionWorker(ck3_dir, output_dir, mod_dir)
         self.worker.progress.connect(self.on_progress)
         self.worker.finished.connect(self.on_finished)
         self.worker.start()
@@ -1064,8 +1388,10 @@ class AssetConverterGUI(QMainWindow):
             self.convert_btn.setEnabled(True)
             # Re-enable UI for retry
             self.ck3_browse_btn.setEnabled(True)
+            self.mod_browse_btn.setEnabled(True)
             self.output_browse_btn.setEnabled(True)
             self.ck3_path_edit.setEnabled(True)
+            self.mod_path_edit.setEnabled(True)
             self.output_path_edit.setEnabled(True)
         
         self.progress_bar.setValue(0 if not success else 100)
