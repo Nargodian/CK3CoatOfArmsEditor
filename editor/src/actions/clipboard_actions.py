@@ -1,14 +1,6 @@
 """Clipboard operations - copy/paste CoA and layers"""
 from PyQt5.QtWidgets import QMessageBox, QApplication
 
-#COA INTEGRATION ACTION: Step 6 - Clipboard actions marked for future model integration
-# TODO Step 6: Replace with CoA model clipboard methods
-# - Copy CoA: Use self.main_window.coa.to_string()
-# - Paste CoA: Use CoA.from_string(clipboard_text)
-# - Copy Layer: Serialize selected layers from model
-# - Paste Layer: Parse and add to model
-# For now, keeping old code paths active to maintain functionality
-
 
 class ClipboardActions:
 	"""Handles clipboard operations for CoA and layers"""
@@ -23,14 +15,15 @@ class ClipboardActions:
 	
 	def copy_coa(self):
 		"""Copy current CoA to clipboard"""
-		from services.file_operations import coa_to_clipboard_text, build_coa_for_save
-		
+		#COA INTEGRATION ACTION: Step 7 - Use CoA model for copy operations
 		try:
-			# Build CoA data
-			coa_data = build_coa_for_save(self.main_window.right_sidebar.layers)
+			# Use model's to_string() method
+			clipboard_text = self.main_window.coa.to_string()
 			
-			# Convert to clipboard text format
-			clipboard_text = coa_to_clipboard_text(coa_data)
+			# OLD CODE (will remove in Step 9):
+			# from services.file_operations import coa_to_clipboard_text, build_coa_for_save
+			# coa_data = build_coa_for_save(self.main_window.right_sidebar.layers)
+			# clipboard_text = coa_to_clipboard_text(coa_data)
 			
 			# Copy to clipboard
 			clipboard = QApplication.clipboard()
@@ -47,9 +40,7 @@ class ClipboardActions:
 	
 	def paste_coa(self):
 		"""Paste CoA from clipboard"""
-		from utils.coa_parser import parse_coa_string
-		from services.coa_serializer import parse_coa_for_editor
-		
+		#COA INTEGRATION ACTION: Step 7 - Use CoA model for paste operations
 		try:
 			clipboard = QApplication.clipboard()
 			text = clipboard.text()
@@ -62,7 +53,13 @@ class ClipboardActions:
 				)
 				return
 			
-			# Parse clipboard text
+			# Parse into model using from_string()
+			self.main_window.coa = type(self.main_window.coa).from_string(text)
+			
+			# OLD CODE (still needed for UI until Step 9):
+			# Parse clipboard text for UI
+			from utils.coa_parser import parse_coa_string
+			from services.coa_serializer import parse_coa_for_editor
 			coa_data = parse_coa_string(text)
 			layers = parse_coa_for_editor(coa_data)
 			

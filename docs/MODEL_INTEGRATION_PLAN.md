@@ -15,15 +15,15 @@
 - ✅ **Step 5: Canvas Area & Widget** - CoA references wired (Jan 29, 2026)
 - ✅ **Gap Fix: Alignment Methods** - Added align_layers() and move_layers_to() to model (Jan 29, 2026)
 - ✅ **Step 6: Transform Actions** - Align, flip, rotate, move_to using CoA model (Jan 29, 2026)
-- 🔄 **Step 7: Clipboard Actions** - Next
-- ⬜ Step 8: Undo/Redo System
-- ⬜ Step 9: Test Basic Operations
+- ✅ **Step 7: Clipboard Actions** - Copy/Paste CoA using model (Jan 29, 2026)
+- 🔄 **Step 8: Test Basic Smoke Test** - Next: verify app starts
+- ⬜ Step 9: Undo/Redo System
 - ⬜ Step 10: Cleanup - Remove Old System
 - ⬜ Step 11: Integration Testing
 
 **Integration Breadcrumbs:** Search for `#COA INTEGRATION ACTION:` comments in code to trace changes
 
-**Note:** Added get_uuid_at_index() and get_uuids_from_indices() helper methods for index↔UUID conversion
+**Note:** Copy/Paste layer operations still use old serialization (subset operation, deferred to later)
 
 ---
 
