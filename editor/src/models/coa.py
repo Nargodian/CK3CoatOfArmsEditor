@@ -174,6 +174,9 @@ class CoA:
     def from_string(cls, ck3_text: str) -> 'CoA':
         """Parse CoA from CK3 format string
         
+        Uses the mature CoAParser from utils.coa_parser for parsing.
+        Converts parsed structure into model format with UUIDs.
+        
         Args:
             ck3_text: CK3 coat of arms definition
             
@@ -189,6 +192,7 @@ class CoA:
                     texture = "emblem_cross.dds"
                     color1 = "blue"
                     color2 = "yellow"
+                    mask = { 1 0 0 }
                     instance = {
                         position = { 0.5 0.5 }
                         scale = { 0.8 0.8 }
@@ -198,102 +202,252 @@ class CoA:
                 }
             }
         """
+        # Import parser (lazy to avoid circular dependencies)
+        from utils.coa_parser import CoAParser
+        from utils.color_utils import color_name_to_rgb
+        
         coa = cls()
         
-        # TODO: Implement full CK3 parser
-        # For now, this is a placeholder that needs the parser from services/coa_parser.py
-        # The parser should:
-        # 1. Extract pattern and color1/color2
-        # 2. Parse each colored_emblem block
-        # 3. For each emblem, create Layer with:
-        #    - filename from texture
-        #    - colors from color1/color2/color3
-        #    - instances from instance blocks
-        # 4. Preserve or generate UUIDs for each layer
+        # Parse CK3 text
+        parser = CoAParser()
+        try:
+            parsed = parser.parse_string(ck3_text)
+        except Exception as e:
+            coa._logger.error(f"Failed to parse CoA: {e}")
+            raise ValueError(f"Invalid CK3 format: {e}")
         
-        coa._logger.warning("from_string() not fully implemented - using placeholder")
+        # Extract CoA object (first key)
+        if not parsed:
+            coa._logger.warning("Empty CoA parsed")
+            return coa
+        
+        coa_key = list(parsed.keys())[0]
+        coa_obj = parsed[coa_key]
+        
+        # Extract base pattern and colors
+        coa._pattern = coa_obj.get('pattern', DEFAULT_PATTERN_TEXTURE)
+        
+        # Parse color1
+        color1_raw = coa_obj.get('color1', DEFAULT_BASE_COLOR1)
+        if isinstance(color1_raw, str):
+            if color1_raw.startswith('rgb'):
+                # Parse "rgb { R G B }"
+                rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color1_raw)
+                if rgb_match:
+                    coa._pattern_color1 = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
+                    coa._pattern_color1_name = None
+            else:
+                # Named color
+                coa._pattern_color1 = color_name_to_rgb(color1_raw)
+                coa._pattern_color1_name = color1_raw
+        
+        # Parse color2
+        color2_raw = coa_obj.get('color2', DEFAULT_BASE_COLOR2)
+        if isinstance(color2_raw, str):
+            if color2_raw.startswith('rgb'):
+                rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color2_raw)
+                if rgb_match:
+                    coa._pattern_color2 = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
+                    coa._pattern_color2_name = None
+            else:
+                coa._pattern_color2 = color_name_to_rgb(color2_raw)
+                coa._pattern_color2_name = color2_raw
+        
+        # Parse colored_emblem blocks
+        emblems = coa_obj.get('colored_emblem', [])
+        
+        # Collect all layers with depth for sorting
+        layers_with_depth = []
+        
+        for emblem in emblems:
+            filename = emblem.get('texture', '')
+            
+            # Parse colors
+            color1_raw = emblem.get('color1', DEFAULT_EMBLEM_COLOR1)
+            color2_raw = emblem.get('color2', DEFAULT_EMBLEM_COLOR2)
+            color3_raw = emblem.get('color3', DEFAULT_EMBLEM_COLOR3)
+            
+            # Helper to parse color
+            def parse_color(color_raw, default_name):
+                if isinstance(color_raw, str):
+                    if color_raw.startswith('rgb'):
+                        rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color_raw)
+                        if rgb_match:
+                            return ([int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))], None)
+                    return (color_name_to_rgb(color_raw), color_raw)
+                return (color_name_to_rgb(default_name), default_name)
+            
+            color1, color1_name = parse_color(color1_raw, DEFAULT_EMBLEM_COLOR1)
+            color2, color2_name = parse_color(color2_raw, DEFAULT_EMBLEM_COLOR2)
+            color3, color3_name = parse_color(color3_raw, DEFAULT_EMBLEM_COLOR3)
+            
+            # Parse mask
+            mask_raw = emblem.get('mask')
+            mask = None
+            if mask_raw:
+                if isinstance(mask_raw, list) and len(mask_raw) == 3:
+                    mask = mask_raw
+            
+            # Parse instances
+            instances = emblem.get('instance', [])
+            if not instances:
+                # No instance block = default single instance
+                instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0, 'depth': 0}]
+            
+            # Create layer data
+            layer_data = {
+                'filename': filename,
+                'colors': 3,  # Will be auto-detected from texture
+                'color1': color1,
+                'color2': color2,
+                'color3': color3,
+                'color1_name': color1_name,
+                'color2_name': color2_name,
+                'color3_name': color3_name,
+                'mask': mask,
+                'instances': [],
+                'selected_instance': 0,
+                'flip_x': False,  # Will be set per-instance
+                'flip_y': False,
+                'uuid': str(uuid_module.uuid4())
+            }
+            
+            # Parse instances
+            for inst in instances:
+                pos = inst.get('position', [0.5, 0.5])
+                scale = inst.get('scale', [1.0, 1.0])
+                rotation = inst.get('rotation', 0)
+                depth = inst.get('depth', 0.0)
+                
+                # Extract flip from negative scale
+                scale_x = abs(scale[0])
+                scale_y = abs(scale[1])
+                flip_x = scale[0] < 0
+                flip_y = scale[1] < 0
+                
+                # Store flip at layer level if first instance (for backwards compat)
+                if len(layer_data['instances']) == 0:
+                    layer_data['flip_x'] = flip_x
+                    layer_data['flip_y'] = flip_y
+                
+                instance_data = {
+                    'pos_x': pos[0],
+                    'pos_y': pos[1],
+                    'scale_x': scale_x,
+                    'scale_y': scale_y,
+                    'rotation': float(rotation),
+                    'depth': float(depth)
+                }
+                layer_data['instances'].append(instance_data)
+            
+            # Store layer with depth for sorting
+            max_depth = max(inst['depth'] for inst in layer_data['instances'])
+            layers_with_depth.append((max_depth, layer_data))
+        
+        # Sort by depth (higher depth = further back = first in list)
+        layers_with_depth.sort(key=lambda x: x[0], reverse=True)
+        
+        # Add layers to model (back to front)
+        for _, layer_data in layers_with_depth:
+            # Remove depth from instances (only used for sorting)
+            for inst in layer_data['instances']:
+                del inst['depth']
+            
+            # Create Layer and add to collection
+            layer = Layer(layer_data, caller='CoA')
+            coa._layers.insert(0, layer, caller='CoA')  # Insert at front (reversed order)
+        
+        coa._logger.debug(f"Parsed CoA with {len(coa._layers)} layers")
         return coa
     
     def to_string(self) -> str:
         """Export CoA to CK3 format string
         
+        Uses mature serialization matching the running application's format.
+        Includes mask field support and proper depth ordering.
+        
         Returns:
             CK3 coat of arms definition
         """
+        from utils.color_utils import rgb_to_color_name
+        
+        # Helper to normalize RGB [0-255] to [0-1] range expected by rgb_to_color_name
+        def normalize_rgb(rgb):
+            """Convert [0-255] range to [0-1] range"""
+            if not rgb:
+                return [1.0, 1.0, 1.0]
+            return [rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0]
+        
+        # Helper to format color (add quotes if it's a named color)
+        def format_color(rgb, color_name):
+            normalized = normalize_rgb(rgb)
+            color_str = rgb_to_color_name(normalized, color_name)
+            if color_str.startswith('rgb'):
+                return color_str  # Already formatted as "rgb { R G B }"
+            else:
+                return f'"{color_str}"'  # Named color, add quotes
+        
         lines = []
-        lines.append("{")
+        lines.append("coa_export = {")
         
         # Pattern and colors
         lines.append(f'\tpattern = "{self._pattern}"')
         
-        # Pattern colors (with names if available)
-        if self._pattern_color1_name:
-            lines.append(f'\tcolor1 = "{self._pattern_color1_name}"')
-        else:
-            r, g, b = self._pattern_color1
-            lines.append(f'\tcolor1 = rgb {{ {r} {g} {b} }}')
+        # Pattern color 1
+        lines.append(f'\tcolor1 = {format_color(self._pattern_color1, self._pattern_color1_name)}')
         
-        if self._pattern_color2_name:
-            lines.append(f'\tcolor2 = "{self._pattern_color2_name}"')
-        else:
-            r, g, b = self._pattern_color2
-            lines.append(f'\tcolor2 = rgb {{ {r} {g} {b} }}')
+        # Pattern color 2
+        lines.append(f'\tcolor2 = {format_color(self._pattern_color2, self._pattern_color2_name)}')
         
-        # Layers (colored emblems)
-        for layer in self._layers:
-            lines.append(self._layer_to_ck3(layer))
+        # Colored emblems (layers)
+        for depth_index, layer in enumerate(self._layers):
+            lines.append("\tcolored_emblem = {")
+            lines.append(f'\t\ttexture = "{layer.filename}"')
+            
+            # Layer colors
+            lines.append(f'\t\tcolor1 = {format_color(layer.color1, layer.color1_name)}')
+            if layer.colors >= 2:
+                lines.append(f'\t\tcolor2 = {format_color(layer.color2, layer.color2_name)}')
+            if layer.colors >= 3:
+                lines.append(f'\t\tcolor3 = {format_color(layer.color3, layer.color3_name)}')
+            
+            # Mask (only if set)
+            if layer.mask is not None:
+                mask_values = ' '.join(str(v) for v in layer.mask)
+                lines.append(f'\t\tmask = {{ {mask_values} }}')
+            
+            # Instances
+            for instance in range(layer.instance_count):
+                inst = layer.get_instance(instance, caller='CoA')
+                lines.append("\t\tinstance = {")
+                
+                # Position
+                lines.append(f"\t\t\tposition = {{ {inst['pos_x']:.4f} {inst['pos_y']:.4f} }}")
+                
+                # Scale (combine with flip)
+                scale_x = inst['scale_x']
+                scale_y = inst['scale_y']
+                if layer.flip_x:
+                    scale_x = -scale_x
+                if layer.flip_y:
+                    scale_y = -scale_y
+                lines.append(f"\t\t\tscale = {{ {scale_x:.4f} {scale_y:.4f} }}")
+                
+                # Rotation (only if non-zero)
+                if inst['rotation'] != 0.0:
+                    lines.append(f"\t\t\trotation = {inst['rotation']:.2f}")
+                
+                # Depth (higher = further back)
+                # Calculate depth from position in list
+                if depth_index < len(self._layers) - 1:
+                    depth_from_back = len(self._layers) - 1 - depth_index
+                    lines.append(f"\t\t\tdepth = {float(depth_from_back) + 0.01:.2f}")
+                
+                lines.append("\t\t}")
+            
+            lines.append("\t}")
         
         lines.append("}")
-        
-        return '\n'.join(lines)
-    
-    def _layer_to_ck3(self, layer: Layer) -> str:
-        """Convert layer to CK3 colored_emblem block
-        
-        Args:
-            layer: Layer to export
-            
-        Returns:
-            CK3 colored_emblem text
-        """
-        lines = []
-        lines.append("\tcolored_emblem = {")
-        lines.append(f'\t\ttexture = "{layer.filename}"')
-        
-        # Colors (with names if available)
-        if layer.color1_name:
-            lines.append(f'\t\tcolor1 = "{layer.color1_name}"')
-        else:
-            r, g, b = layer.color1
-            lines.append(f'\t\tcolor1 = rgb {{ {r} {g} {b} }}')
-        
-        if layer.colors >= 2:
-            if layer.color2_name:
-                lines.append(f'\t\tcolor2 = "{layer.color2_name}"')
-            else:
-                r, g, b = layer.color2
-                lines.append(f'\t\tcolor2 = rgb {{ {r} {g} {b} }}')
-        
-        if layer.colors >= 3:
-            if layer.color3_name:
-                lines.append(f'\t\tcolor3 = "{layer.color3_name}"')
-            else:
-                r, g, b = layer.color3
-                lines.append(f'\t\tcolor3 = rgb {{ {r} {g} {b} }}')
-        
-        # Instances
-        for i in range(layer.instance_count):
-            instance = layer.get_instance(i, caller='CoA')
-            lines.append("\t\tinstance = {")
-            lines.append(f"\t\t\tposition = {{ {instance['pos_x']:.4f} {instance['pos_y']:.4f} }}")
-            lines.append(f"\t\t\tscale = {{ {instance['scale_x']:.4f} {instance['scale_y']:.4f} }}")
-            if instance['rotation'] != 0.0:
-                lines.append(f"\t\t\trotation = {instance['rotation']:.2f}")
-            if instance['depth'] != 0.0:
-                lines.append(f"\t\t\tdepth = {instance['depth']:.4f}")
-            lines.append("\t\t}")
-        
-        lines.append("\t}")
         return '\n'.join(lines)
     
     # ========================================

@@ -679,6 +679,363 @@ class TestCoASerialization(unittest.TestCase):
         
         # Should have 3 instance blocks
         self.assertEqual(ck3_text.count('instance = {'), 3)
+    
+    def test_to_string_with_multiple_layers(self):
+        """Test to_string with multiple layers (multiple colored_emblem blocks)"""
+        # Add 3 different layers
+        uuid1 = self.coa.add_layer(emblem_path="lion.dds", pos_x=0.3, pos_y=0.3)
+        uuid2 = self.coa.add_layer(emblem_path="cross.dds", pos_x=0.5, pos_y=0.5)
+        uuid3 = self.coa.add_layer(emblem_path="crown.dds", pos_x=0.7, pos_y=0.7)
+        
+        ck3_text = self.coa.to_string()
+        
+        # Should have 3 colored_emblem blocks
+        self.assertEqual(ck3_text.count('colored_emblem = {'), 3)
+        
+        # Should have all 3 textures
+        self.assertIn('texture = "lion.dds"', ck3_text)
+        self.assertIn('texture = "cross.dds"', ck3_text)
+        self.assertIn('texture = "crown.dds"', ck3_text)
+    
+    def test_round_trip_multiple_layers(self):
+        """Test from_string -> to_string round trip preserves multiple layers"""
+        ck3_input = '''coa_export = {
+    pattern = "pattern_solid.dds"
+    color1 = "white"
+    color2 = "red"
+    colored_emblem = {
+        texture = "lion.dds"
+        color1 = "blue"
+        instance = {
+            position = { 0.3 0.3 }
+            scale = { 0.5 0.5 }
+        }
+    }
+    colored_emblem = {
+        texture = "cross.dds"
+        color1 = "red"
+        color2 = "white"
+        instance = {
+            position = { 0.5 0.5 }
+            scale = { 0.6 0.6 }
+        }
+    }
+    colored_emblem = {
+        texture = "crown.dds"
+        color1 = "gold"
+        mask = { 1 0 0 }
+        instance = {
+            position = { 0.7 0.7 }
+            scale = { 0.4 0.4 }
+            rotation = 45.0
+        }
+    }
+}'''
+        
+        # Parse and re-export
+        coa_loaded = CoA.from_string(ck3_input)
+        ck3_output = coa_loaded.to_string()
+        
+        # Verify layer count
+        self.assertEqual(coa_loaded.get_layer_count(), 3)
+        
+        # Verify all textures preserved
+        self.assertIn('texture = "lion.dds"', ck3_output)
+        self.assertIn('texture = "cross.dds"', ck3_output)
+        self.assertIn('texture = "crown.dds"', ck3_output)
+        
+        # Verify mask preserved
+        self.assertIn('mask = { 1 0 0 }', ck3_output)
+        
+        # Verify rotation preserved
+        self.assertIn('rotation = 45.00', ck3_output)
+    
+    def test_merge_split_round_trip_preserves_positions(self):
+        """Test that merge → serialize → parse → split → serialize preserves positions
+        
+        Workflow:
+        1. Create lion, cross1, cross2 (3 separate layers)
+        2. Merge two crosses into cross×2 (multi-instance layer)
+        3. Serialize to CK3 format
+        4. Parse back from CK3 format
+        5. Split cross×2 back into 2 separate layers
+        6. Serialize again
+        7. Verify positions match original
+        """
+        # Step 1: Create 3 layers with specific positions
+        lion_uuid = self.coa.add_layer(emblem_path="lion.dds", pos_x=0.3, pos_y=0.3)
+        cross1_uuid = self.coa.add_layer(emblem_path="cross.dds", pos_x=0.5, pos_y=0.5)
+        cross2_uuid = self.coa.add_layer(emblem_path="cross.dds", pos_x=0.7, pos_y=0.7)
+        
+        # Set different scales and rotations
+        self.coa.set_layer_scale(cross1_uuid, 0.5, 0.5)
+        self.coa.set_layer_rotation(cross1_uuid, 15.0)
+        self.coa.set_layer_scale(cross2_uuid, 0.6, 0.6)
+        self.coa.set_layer_rotation(cross2_uuid, 30.0)
+        
+        # Store original positions for comparison
+        original_positions = {
+            'lion': (0.3, 0.3),
+            'cross1': (0.5, 0.5, 0.5, 0.5, 15.0),  # pos_x, pos_y, scale_x, scale_y, rotation
+            'cross2': (0.7, 0.7, 0.6, 0.6, 30.0)
+        }
+        
+        # Step 2: Merge the two crosses
+        merged_uuid = self.coa.merge_layers([cross1_uuid, cross2_uuid])
+        self.assertIsNotNone(merged_uuid)
+        self.assertEqual(self.coa.get_layer_count(), 2)  # lion + merged cross
+        
+        # Step 3: Serialize
+        ck3_after_merge = self.coa.to_string()
+        
+        # Verify multi-instance export (should have 2 instance blocks in one colored_emblem)
+        cross_emblems = ck3_after_merge.count('texture = "cross.dds"')
+        self.assertEqual(cross_emblems, 1)  # One colored_emblem block
+        instance_count = ck3_after_merge.count('instance = {')
+        self.assertEqual(instance_count, 3)  # lion(1) + cross(2)
+        
+        # Step 4: Parse back
+        coa_reloaded = CoA.from_string(ck3_after_merge)
+        self.assertEqual(coa_reloaded.get_layer_count(), 2)
+        
+        # Step 5: Split the merged cross layer back into separate layers
+        all_uuids = coa_reloaded.get_all_layer_uuids()
+        cross_uuid_reloaded = None
+        for uuid in all_uuids:
+            filename = coa_reloaded.get_layer_property(uuid, 'filename')
+            if filename == 'cross.dds':
+                cross_uuid_reloaded = uuid
+                break
+        
+        self.assertIsNotNone(cross_uuid_reloaded)
+        
+        # Split returns list of new UUIDs
+        split_uuids = coa_reloaded.split_layer(cross_uuid_reloaded)
+        self.assertEqual(len(split_uuids), 2)
+        self.assertEqual(coa_reloaded.get_layer_count(), 3)  # lion + cross + cross
+        
+        # Step 6: Serialize again after split
+        ck3_after_split = coa_reloaded.to_string()
+        
+        # Step 7: Verify positions preserved
+        # Should have 3 separate colored_emblem blocks again
+        self.assertEqual(ck3_after_split.count('colored_emblem = {'), 3)
+        
+        # Check that positions are approximately preserved
+        self.assertIn('position = { 0.5000 0.5000 }', ck3_after_split)
+        self.assertIn('position = { 0.7000 0.7000 }', ck3_after_split)
+        
+        # Check scales preserved
+        self.assertIn('scale = { 0.5000 0.5000 }', ck3_after_split)
+        self.assertIn('scale = { 0.6000 0.6000 }', ck3_after_split)
+        
+        # Check rotations preserved
+        self.assertIn('rotation = 15.00', ck3_after_split)
+        self.assertIn('rotation = 30.00', ck3_after_split)
+    
+    def test_pattern_only_serialization(self):
+        """Test serialization with no layers (pattern only)"""
+        self.coa.pattern = "pattern_horizontal_split.dds"
+        self.coa.pattern_color1 = [255, 0, 0]
+        self.coa.pattern_color1_name = "red"
+        self.coa.pattern_color2 = [0, 0, 255]
+        self.coa.pattern_color2_name = "blue"
+        
+        ck3_text = self.coa.to_string()
+        
+        # Should have pattern and colors but no colored_emblem
+        self.assertIn('pattern = "pattern_horizontal_split.dds"', ck3_text)
+        self.assertIn('color1 = "red"', ck3_text)
+        self.assertIn('color2 = "blue"', ck3_text)
+        self.assertNotIn('colored_emblem', ck3_text)
+        
+        # Round trip
+        coa_loaded = CoA.from_string(ck3_text)
+        self.assertEqual(coa_loaded.pattern, "pattern_horizontal_split.dds")
+        self.assertEqual(coa_loaded.get_layer_count(), 0)
+    
+    def test_mixed_instance_counts_serialization(self):
+        """Test serialization with mix of single and multi-instance layers"""
+        # Single instance layer
+        uuid1 = self.coa.add_layer(emblem_path="lion.dds", pos_x=0.2, pos_y=0.2)
+        
+        # Multi-instance layer (3 instances)
+        uuid2 = self.coa.add_layer(emblem_path="star.dds", pos_x=0.5, pos_y=0.5)
+        self.coa.add_instance(uuid2, pos_x=0.4, pos_y=0.6)
+        self.coa.add_instance(uuid2, pos_x=0.6, pos_y=0.4)
+        
+        # Another single instance layer
+        uuid3 = self.coa.add_layer(emblem_path="cross.dds", pos_x=0.8, pos_y=0.8)
+        
+        ck3_text = self.coa.to_string()
+        
+        # Should have 3 colored_emblem blocks
+        self.assertEqual(ck3_text.count('colored_emblem = {'), 3)
+        
+        # Should have 5 total instances (1 + 3 + 1)
+        self.assertEqual(ck3_text.count('instance = {'), 5)
+        
+        # Round trip preserves structure
+        coa_loaded = CoA.from_string(ck3_text)
+        self.assertEqual(coa_loaded.get_layer_count(), 3)
+        
+        # Verify instance counts per layer
+        all_uuids = coa_loaded.get_all_layer_uuids()
+        star_uuid = None
+        for uuid in all_uuids:
+            if coa_loaded.get_layer_property(uuid, 'filename') == 'star.dds':
+                star_uuid = uuid
+                break
+        
+        self.assertIsNotNone(star_uuid)
+        star_layer = coa_loaded._layers.get_layer(star_uuid)
+        self.assertEqual(star_layer.instance_count, 3)
+    
+    def test_mask_preserved_through_operations(self):
+        """Test that mask field survives merge, serialize, parse, split"""
+        # Create two layers with same texture and mask
+        uuid1 = self.coa.add_layer(emblem_path="emblem.dds", pos_x=0.3, pos_y=0.3)
+        uuid2 = self.coa.add_layer(emblem_path="emblem.dds", pos_x=0.7, pos_y=0.7)
+        
+        # Set mask on both via layer property
+        layer1 = self.coa._layers.get_layer(uuid1)
+        layer2 = self.coa._layers.get_layer(uuid2)
+        layer1.mask = [1, 0, 0]
+        layer2.mask = [1, 0, 0]
+        
+        # Merge
+        merged_uuid = self.coa.merge_layers([uuid1, uuid2])
+        
+        # Verify mask on merged layer
+        merged_layer = self.coa._layers.get_layer(merged_uuid)
+        self.assertEqual(merged_layer.mask, [1, 0, 0])
+        
+        # Serialize and parse
+        ck3_text = self.coa.to_string()
+        self.assertIn('mask = { 1 0 0 }', ck3_text)
+        
+        coa_loaded = CoA.from_string(ck3_text)
+        
+        # Split and verify mask on both split layers
+        all_uuids = coa_loaded.get_all_layer_uuids()
+        merged_uuid_loaded = all_uuids[0]
+        
+        split_uuids = coa_loaded.split_layer(merged_uuid_loaded)
+        self.assertEqual(len(split_uuids), 2)
+        
+        # Both split layers should have mask
+        for uuid in split_uuids:
+            layer = coa_loaded._layers.get_layer(uuid)
+            self.assertEqual(layer.mask, [1, 0, 0])
+    
+    def test_mixed_color_formats_serialization(self):
+        """Test serialization with mix of named colors and RGB colors"""
+        # Layer 1: Named colors
+        uuid1 = self.coa.add_layer(emblem_path="lion.dds")
+        self.coa.set_layer_color(uuid1, 1, [255, 255, 255], "white")
+        
+        # Layer 2: RGB colors (no names)
+        uuid2 = self.coa.add_layer(emblem_path="cross.dds")
+        self.coa.set_layer_color(uuid2, 1, [128, 64, 192], None)  # Custom color
+        
+        # Layer 3: Mix of both
+        uuid3 = self.coa.add_layer(emblem_path="star.dds")
+        self.coa.set_layer_color(uuid3, 1, [255, 0, 0], "red")
+        self.coa.set_layer_color(uuid3, 2, [100, 150, 200], None)
+        
+        ck3_text = self.coa.to_string()
+        
+        # Verify named color quoted
+        self.assertIn('color1 = "white"', ck3_text)
+        self.assertIn('color1 = "red"', ck3_text)
+        
+        # Verify RGB format present (actual values may vary due to normalization)
+        self.assertIn('rgb {', ck3_text)
+        
+        # Round trip preserves both formats
+        coa_loaded = CoA.from_string(ck3_text)
+        self.assertEqual(coa_loaded.get_layer_count(), 3)
+    
+    def test_empty_coa_serialization(self):
+        """Test that empty CoA (no layers) serializes correctly"""
+        ck3_text = self.coa.to_string()
+        
+        # Should have pattern and colors but no emblems
+        self.assertIn('pattern =', ck3_text)
+        self.assertIn('color1 =', ck3_text)
+        self.assertIn('color2 =', ck3_text)
+        self.assertNotIn('colored_emblem', ck3_text)
+        
+        # Round trip
+        coa_loaded = CoA.from_string(ck3_text)
+        self.assertEqual(coa_loaded.get_layer_count(), 0)
+    
+    def test_complex_multi_layer_multi_instance_round_trip(self):
+        """Test complex scenario: multiple layers, some with multiple instances, various properties"""
+        # Layer 1: Single instance with mask
+        uuid1 = self.coa.add_layer(emblem_path="lion.dds", pos_x=0.5, pos_y=0.2)
+        layer1 = self.coa._layers.get_layer(uuid1)
+        layer1.mask = [1, 0, 0]
+        self.coa.set_layer_color(uuid1, 1, [255, 215, 0], "gold")
+        
+        # Layer 2: 3 instances, no mask
+        uuid2 = self.coa.add_layer(emblem_path="star.dds", pos_x=0.3, pos_y=0.5)
+        self.coa.add_instance(uuid2, pos_x=0.5, pos_y=0.5, rotation=120.0)
+        self.coa.add_instance(uuid2, pos_x=0.7, pos_y=0.5, rotation=240.0)
+        self.coa.set_layer_color(uuid2, 1, [255, 255, 255], "white")
+        
+        # Layer 3: 2 instances with mask
+        uuid3 = self.coa.add_layer(emblem_path="cross.dds", pos_x=0.3, pos_y=0.8)
+        self.coa.add_instance(uuid3, pos_x=0.7, pos_y=0.8)
+        layer3 = self.coa._layers.get_layer(uuid3)
+        layer3.mask = [0, 2, 0]
+        self.coa.set_layer_color(uuid3, 1, [128, 0, 128], None)  # RGB
+        
+        # Serialize
+        ck3_text = self.coa.to_string()
+        
+        # Verify structure
+        self.assertEqual(ck3_text.count('colored_emblem = {'), 3)
+        self.assertEqual(ck3_text.count('instance = {'), 6)  # 1 + 3 + 2
+        self.assertEqual(ck3_text.count('mask = {'), 2)
+        
+        # Parse
+        coa_loaded = CoA.from_string(ck3_text)
+        self.assertEqual(coa_loaded.get_layer_count(), 3)
+        
+        # Verify details preserved
+        all_uuids = coa_loaded.get_all_layer_uuids()
+        
+        # Find lion layer
+        lion_uuid = None
+        star_uuid = None
+        cross_uuid = None
+        for uuid in all_uuids:
+            filename = coa_loaded.get_layer_property(uuid, 'filename')
+            if filename == 'lion.dds':
+                lion_uuid = uuid
+            elif filename == 'star.dds':
+                star_uuid = uuid
+            elif filename == 'cross.dds':
+                cross_uuid = uuid
+        
+        # Verify lion: single instance with mask
+        self.assertIsNotNone(lion_uuid)
+        lion_layer = coa_loaded._layers.get_layer(lion_uuid)
+        self.assertEqual(lion_layer.instance_count, 1)
+        self.assertEqual(lion_layer.mask, [1, 0, 0])
+        
+        # Verify star: 3 instances, no mask
+        self.assertIsNotNone(star_uuid)
+        star_layer = coa_loaded._layers.get_layer(star_uuid)
+        self.assertEqual(star_layer.instance_count, 3)
+        self.assertIsNone(star_layer.mask)
+        
+        # Verify cross: 2 instances with mask
+        self.assertIsNotNone(cross_uuid)
+        cross_layer = coa_loaded._layers.get_layer(cross_uuid)
+        self.assertEqual(cross_layer.instance_count, 2)
+        self.assertEqual(cross_layer.mask, [0, 2, 0])
 
 
 class TestCoAHelperMethods(unittest.TestCase):
