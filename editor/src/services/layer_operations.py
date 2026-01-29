@@ -98,53 +98,29 @@ def create_default_layer(filename, colors=3, **overrides):
     return layer_data
 
 
-def _migrate_layer_to_instances(layer_data):
-    """Migrate old single-instance format to new instances list format
-    
-    Converts pos_x, pos_y, scale_x, scale_y, rotation, depth fields
-    to instances list format. Modifies layer_data in place.
-    
-    Args:
-        layer_data: Layer dictionary to migrate
-    """
-    # Check if already migrated
-    if 'instances' in layer_data and isinstance(layer_data['instances'], list):
-        # Already has instances, but may have old fields too - clean them up
-        for key in ['pos_x', 'pos_y', 'scale_x', 'scale_y', 'rotation', 'depth']:
-            layer_data.pop(key, None)
-        return
-    
-    # Build instance from old format fields
-    instance = {
-        'pos_x': layer_data.pop('pos_x', DEFAULT_POSITION_X),
-        'pos_y': layer_data.pop('pos_y', DEFAULT_POSITION_Y),
-        'scale_x': layer_data.pop('scale_x', DEFAULT_SCALE_X),
-        'scale_y': layer_data.pop('scale_y', DEFAULT_SCALE_Y),
-        'rotation': layer_data.pop('rotation', DEFAULT_ROTATION),
-        'depth': layer_data.pop('depth', 0.0)
-    }
-    
-    # Set new format
-    layer_data['instances'] = [instance]
-    layer_data['selected_instance'] = 0
+# _migrate_layer_to_instances removed - Layer objects handle instances internally
 
 
 def duplicate_layer(layer, offset_x=0.0, offset_y=0.0):
     """Duplicate a layer with optional position offset
     
     Args:
-        layer: Source layer dictionary
+        layer: Source Layer object
         offset_x: X position offset for duplicate
         offset_y: Y position offset for duplicate
         
     Returns:
         New layer dictionary (deep copy)
     """
-    # Migrate old format if needed
-    _migrate_layer_to_instances(layer)
+    # Convert Layer object to dict
+    from models.layer import Layer
+    if isinstance(layer, Layer):
+        layer_data = layer.to_dict()
+    else:
+        layer_data = dict(layer)
     
     # Create a deep copy to avoid reference issues with lists
-    duplicated = dict(layer)
+    duplicated = dict(layer_data)
     
     # Deep copy the mask list if present
     if 'mask' in duplicated and duplicated['mask'] is not None:
@@ -169,17 +145,21 @@ def serialize_layer_to_text(layer):
     """Serialize a single layer to colored_emblem block format
     
     Args:
-        layer: Layer dictionary
+        layer: Layer object or dictionary
         
     Returns:
         String in CoA colored_emblem format
     """
-    # Migrate old format if needed
-    _migrate_layer_to_instances(layer)
+    # Convert Layer object to dict
+    from models.layer import Layer
+    if isinstance(layer, Layer):
+        layer_data = layer.to_dict()
+    else:
+        layer_data = layer
     
     # Build instance list
     instances = []
-    for inst in layer.get('instances', []):
+    for inst in layer_data.get('instances', []):
         instance_data = {
             "position": [inst.get('pos_x', DEFAULT_POSITION_X), inst.get('pos_y', DEFAULT_POSITION_Y)],
             "scale": [inst.get('scale_x', DEFAULT_SCALE_X), inst.get('scale_y', DEFAULT_SCALE_Y)],
@@ -200,19 +180,19 @@ def serialize_layer_to_text(layer):
         }]
     
     emblem_data = {
-        "texture": layer.get('filename', ''),
+        "texture": layer_data.get('filename', ''),
         "instance": instances
     }
     
     # Add mask if present (None means render everywhere, so omit it)
-    mask = layer.get('mask')
+    mask = layer_data.get('mask')
     if mask is not None:
         emblem_data['mask'] = mask
     
     # Add colors only if they differ from defaults
-    color1_str = rgb_to_color_name(layer.get('color1', [1.0, 1.0, 1.0]), layer.get('color1_name'))
-    color2_str = rgb_to_color_name(layer.get('color2', [1.0, 1.0, 1.0]), layer.get('color2_name'))
-    color3_str = rgb_to_color_name(layer.get('color3', [1.0, 1.0, 1.0]), layer.get('color3_name'))
+    color1_str = rgb_to_color_name(layer_data.get('color1', [1.0, 1.0, 1.0]), layer_data.get('color1_name'))
+    color2_str = rgb_to_color_name(layer_data.get('color2', [1.0, 1.0, 1.0]), layer_data.get('color2_name'))
+    color3_str = rgb_to_color_name(layer_data.get('color3', [1.0, 1.0, 1.0]), layer_data.get('color3_name'))
     
     if color1_str != DEFAULT_EMBLEM_COLOR1:
         emblem_data['color1'] = color1_str
@@ -384,35 +364,42 @@ def split_layer_instances(layer):
     """Split a multi-instance layer into N single-instance layers
     
     Args:
-        layer: Layer dictionary with instances array
+        layer: Layer object or dictionary with instances array
         
     Returns:
         List of new layer dictionaries, one per instance
     """
-    _migrate_layer_to_instances(layer)
+    # Convert Layer object to dict if needed
+    from models.layer import Layer
+    if isinstance(layer, Layer):
+        layer_data = layer.to_dict()
+    else:
+        layer_data = layer
     
-    instances = layer.get('instances', [])
+    _migrate_layer_to_instances(layer_data)
+    
+    instances = layer_data.get('instances', [])
     if len(instances) <= 1:
         # Already single instance, return copy of original
-        return [duplicate_layer(layer)]
+        return [duplicate_layer(layer_data)]
     
     # Create one layer per instance
     new_layers = []
     for inst in instances:
         # Create new layer with same properties
         new_layer = {
-            'filename': layer.get('filename'),
-            'path': layer.get('path'),
-            'colors': layer.get('colors', 3),
-            'flip_x': layer.get('flip_x', False),
-            'flip_y': layer.get('flip_y', False),
-            'color1': layer.get('color1'),
-            'color2': layer.get('color2'),
-            'color3': layer.get('color3'),
-            'color1_name': layer.get('color1_name'),
-            'color2_name': layer.get('color2_name'),
-            'color3_name': layer.get('color3_name'),
-            'mask': list(layer['mask']) if layer.get('mask') else None,
+            'filename': layer_data.get('filename'),
+            'path': layer_data.get('path'),
+            'colors': layer_data.get('colors', 3),
+            'flip_x': layer_data.get('flip_x', False),
+            'flip_y': layer_data.get('flip_y', False),
+            'color1': layer_data.get('color1'),
+            'color2': layer_data.get('color2'),
+            'color3': layer_data.get('color3'),
+            'color1_name': layer_data.get('color1_name'),
+            'color2_name': layer_data.get('color2_name'),
+            'color3_name': layer_data.get('color3_name'),
+            'mask': list(layer_data['mask']) if layer_data.get('mask') else None,
             'instances': [dict(inst)],  # Single instance copy
             'selected_instance': 0
         }
@@ -422,10 +409,10 @@ def split_layer_instances(layer):
 
 
 def check_layers_compatible_for_merge(layers):
-    """Check if layers can be merged as instances
+    """Check if layers can be merged (same texture, colors, mask)
     
     Args:
-        layers: List of layer dictionaries
+        layers: List of Layer objects or dictionaries
         
     Returns:
         Tuple of (is_compatible, differences_dict)
@@ -435,8 +422,17 @@ def check_layers_compatible_for_merge(layers):
     if not layers or len(layers) < 2:
         return True, {}
     
+    # Convert Layer objects to dicts
+    from models.layer import Layer
+    layers_data = []
+    for layer in layers:
+        if isinstance(layer, Layer):
+            layers_data.append(layer.to_dict())
+        else:
+            layers_data.append(layer)
+    
     # Get reference properties from first layer
-    first = layers[0]
+    first = layers_data[0]
     ref_filename = first.get('filename')
     ref_colors = first.get('colors')
     ref_mask = first.get('mask')
@@ -449,22 +445,22 @@ def check_layers_compatible_for_merge(layers):
     differences = {}
     
     # Check each layer against reference
-    for idx, layer in enumerate(layers[1:], start=1):
-        if layer.get('filename') != ref_filename:
+    for idx, layer_data in enumerate(layers_data[1:], start=1):
+        if layer_data.get('filename') != ref_filename:
             differences.setdefault('filename', []).append(idx)
-        if layer.get('colors') != ref_colors:
+        if layer_data.get('colors') != ref_colors:
             differences.setdefault('colors', []).append(idx)
-        if layer.get('mask') != ref_mask:
+        if layer_data.get('mask') != ref_mask:
             differences.setdefault('mask', []).append(idx)
-        if layer.get('flip_x') != ref_flip_x:
+        if layer_data.get('flip_x') != ref_flip_x:
             differences.setdefault('flip_x', []).append(idx)
-        if layer.get('flip_y') != ref_flip_y:
+        if layer_data.get('flip_y') != ref_flip_y:
             differences.setdefault('flip_y', []).append(idx)
-        if layer.get('color1') != ref_color1:
+        if layer_data.get('color1') != ref_color1:
             differences.setdefault('color1', []).append(idx)
-        if layer.get('color2') != ref_color2:
+        if layer_data.get('color2') != ref_color2:
             differences.setdefault('color2', []).append(idx)
-        if layer.get('color3') != ref_color3:
+        if layer_data.get('color3') != ref_color3:
             differences.setdefault('color3', []).append(idx)
     
     is_compatible = len(differences) == 0
@@ -475,7 +471,7 @@ def merge_layers_as_instances(layers, use_topmost_properties=False):
     """Merge multiple layers into one multi-instance layer
     
     Args:
-        layers: List of layer dictionaries to merge
+        layers: List of Layer objects or dictionaries to merge
         use_topmost_properties: If True, use properties from topmost layer (index 0)
                                 If False and layers incompatible, raise ValueError
         
@@ -488,18 +484,27 @@ def merge_layers_as_instances(layers, use_topmost_properties=False):
     if not layers:
         return None
     
-    if len(layers) == 1:
-        return duplicate_layer(layers[0])
+    # Convert Layer objects to dicts
+    from models.layer import Layer
+    layers_data = []
+    for layer in layers:
+        if isinstance(layer, Layer):
+            layers_data.append(layer.to_dict())
+        else:
+            layers_data.append(layer)
+    
+    if len(layers_data) == 1:
+        return duplicate_layer(layers_data[0])
     
     # Check compatibility
-    is_compatible, differences = check_layers_compatible_for_merge(layers)
+    is_compatible, differences = check_layers_compatible_for_merge(layers_data)
     
     if not is_compatible and not use_topmost_properties:
         diff_props = ', '.join(differences.keys())
         raise ValueError(f"Layers have incompatible properties: {diff_props}")
     
     # Use topmost layer (index 0) as base
-    base = layers[0]
+    base = layers_data[0]
     _migrate_layer_to_instances(base)
     
     # Create merged layer with base properties
@@ -521,9 +526,9 @@ def merge_layers_as_instances(layers, use_topmost_properties=False):
     }
     
     # Collect all instances from all layers
-    for layer in layers:
-        _migrate_layer_to_instances(layer)
-        for inst in layer.get('instances', []):
+    for layer_data in layers_data:
+        _migrate_layer_to_instances(layer_data)
+        for inst in layer_data.get('instances', []):
             merged['instances'].append(dict(inst))
     
     return merged

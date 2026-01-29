@@ -151,7 +151,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb'],
 			CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb']
 		]  # Default base colors from constants
-		self.layers = []  # List of layer data from property sidebar (OLD CODE: keep for now)
 		self.frameTexture = None  # Current frame texture
 		self.frameTextures = {}  # Frame name -> texture ID
 		self.frame_masks = {}  # Frame name -> frameMask texture ID
@@ -370,7 +369,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.vao.release()
 		
 		# Render emblem layers
-		if self.layers and self.design_shader:
+		if self.coa and self.design_shader and self.coa.get_layer_count() > 0:
 			self.vao.bind()  # Bind VAO once for all emblem layers
 			self.design_shader.bind()
 			
@@ -385,11 +384,14 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 					if self.design_shader.uniformLocation("patternUV") != -1:
 						self.design_shader.setUniformValue("patternUV", QVector4D(p_u0, p_v0, p_u1, p_v1))
 			
-			for layer in self.layers:
-				if not layer.get('visible', True):
+			# Iterate through layers using UUIDs
+			for layer_uuid in self.coa.get_all_layer_uuids():
+				# Get layer properties via UUID-based queries
+				visible = self.coa.get_layer_property(layer_uuid, 'visible')
+				if not visible:
 					continue
 				
-				filename = layer.get('filename')
+				filename = self.coa.get_layer_property(layer_uuid, 'filename')
 				if not filename or filename not in self.texture_uv_map:
 					continue
 				
@@ -402,16 +404,16 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
 				self.design_shader.setUniformValue("emblemMaskSampler", 0)
 				
-				# Set emblem colors
-				color1 = layer.get('color1', [0.439, 0.129, 0.086])
-				color2 = layer.get('color2', [0.588, 0.224, 0.0])
-				color3 = layer.get('color3', [0.733, 0.510, 0.180])
+				# Set emblem colors via CoA queries
+				color1 = self.coa.get_layer_property(layer_uuid, 'color1')
+				color2 = self.coa.get_layer_property(layer_uuid, 'color2')
+				color3 = self.coa.get_layer_property(layer_uuid, 'color3')
 				self.design_shader.setUniformValue("primaryColor", color1[0], color1[1], color1[2])
 				self.design_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
 				self.design_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
 				
 				# Set pattern mask flag
-				mask = layer.get('mask')
+				mask = self.coa.get_layer_property(layer_uuid, 'mask')
 				if mask is None:
 					pattern_flag = 0
 				else:
@@ -424,14 +426,14 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 						pattern_flag |= 4
 				self.design_shader.setUniformValue("patternFlag", pattern_flag)
 				
-				# Apply transforms (no zoom in canonical space)
-				pos_x = layer.get('pos_x', 0.5)
-				pos_y = layer.get('pos_y', 0.5)
-				scale_x = layer.get('scale_x', 0.5)
-				scale_y = layer.get('scale_y', 0.5)
-				flip_x = layer.get('flip_x', False)
-				flip_y = layer.get('flip_y', False)
-				rotation = layer.get('rotation', 0)
+				# Apply transforms via CoA queries (no zoom in canonical space)
+				pos_x = self.coa.get_layer_property(layer_uuid, 'pos_x')
+				pos_y = self.coa.get_layer_property(layer_uuid, 'pos_y')
+				scale_x = self.coa.get_layer_property(layer_uuid, 'scale_x')
+				scale_y = self.coa.get_layer_property(layer_uuid, 'scale_y')
+				flip_x = self.coa.get_layer_property(layer_uuid, 'flip_x')
+				flip_y = self.coa.get_layer_property(layer_uuid, 'flip_y')
+				rotation = self.coa.get_layer_property(layer_uuid, 'rotation')
 				
 				# Convert layer position to OpenGL coordinates
 				center_x, center_y = layer_pos_to_opengl_coords(pos_x, pos_y)
@@ -1085,8 +1087,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.update()
 	
 	def set_layers(self, layers):
-		"""Update the emblem layers to render"""
-		self.layers = layers
+		"""Update the emblem layers to render (DEPRECATED - kept for compatibility)"""
+		# Deprecated: Canvas now uses CoA directly via get_all_layer_uuids()
+		pass
+	
+	def set_coa(self, coa):
+		"""Update from CoA model reference"""
+		self.coa = coa
 		self.update()
 	
 	def resizeGL(self, w, h):

@@ -479,9 +479,9 @@ class AssetSidebar(QFrame):
 			if self.right_sidebar.layers:
 				layer = self.right_sidebar.layers[0]
 				return {
-					'color1': layer.get('color1', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'])),
-					'color2': layer.get('color2', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'])),
-					'color3': layer.get('color3', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'])),
+					'color1': layer.color1 or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb']),
+					'color2': layer.color2 or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb']),
+					'color3': layer.color3 or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb']),
 					'background1': background1,
 					'background2': background2,
 					'background3': background3
@@ -500,9 +500,9 @@ class AssetSidebar(QFrame):
 		
 		# Extract colors from layer (stored as 0-1 range floats)
 		return {
-			'color1': layer.get('color1', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'])),
-			'color2': layer.get('color2', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'])),
-			'color3': layer.get('color3', tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'])),
+			'color1': layer.color1 or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb']),
+			'color2': layer.color2 or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb']),
+			'color3': layer.color3 or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb']),
 			'background1': background1,
 			'background2': background2,
 			'background3': background3

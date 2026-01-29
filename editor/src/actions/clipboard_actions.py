@@ -1,5 +1,6 @@
 """Clipboard operations - copy/paste CoA and layers"""
 from PyQt5.QtWidgets import QMessageBox, QApplication
+from models.layer import Layer
 
 
 class ClipboardActions:
@@ -54,17 +55,59 @@ class ClipboardActions:
 				return
 			
 			# Parse into model using from_string()
-			self.main_window.coa = type(self.main_window.coa).from_string(text)
+			from models.coa import CoA
+			self.main_window.coa = CoA.from_string(text)
 			
-			# OLD CODE (still needed for UI until Step 9):
-			# Parse clipboard text for UI
-			from utils.coa_parser import parse_coa_string
-			from services.coa_serializer import parse_coa_for_editor
-			coa_data = parse_coa_string(text)
-			layers = parse_coa_for_editor(coa_data)
+			# Apply to UI - update from model
+			self.main_window.canvas_area.canvas_widget.set_base_texture(self.main_window.coa.pattern)
+			self.main_window.canvas_area.canvas_widget.set_base_colors([self.main_window.coa.pattern_color1, self.main_window.coa.pattern_color2, self.main_window.coa.pattern_color3])
+			self.main_window.canvas_area.canvas_widget.base_color1_name = self.main_window.coa.pattern_color1_name
+			self.main_window.canvas_area.canvas_widget.base_color2_name = self.main_window.coa.pattern_color2_name
+			self.main_window.canvas_area.canvas_widget.base_color3_name = self.main_window.coa.pattern_color3_name
 			
-			# Apply the CoA data
-			self.main_window._apply_coa_data(coa_data)
+			base_color_names = [self.main_window.coa.pattern_color1_name, self.main_window.coa.pattern_color2_name, self.main_window.coa.pattern_color3_name]
+			self.main_window.right_sidebar.set_base_colors([self.main_window.coa.pattern_color1, self.main_window.coa.pattern_color2, self.main_window.coa.pattern_color3], base_color_names)
+			
+			# Convert Layer objects to dicts for old UI code (temporary until Step 10)
+			self.main_window.right_sidebar.layers = []
+			for i in range(self.main_window.coa.get_layer_count()):
+				layer = self.main_window.coa.get_layer_by_index(i)
+				layer_dict = {
+					'uuid': layer.uuid,
+					'filename': layer.filename,
+					'pos_x': layer.pos_x,
+					'pos_y': layer.pos_y,
+					'scale_x': layer.scale_x,
+					'scale_y': layer.scale_y,
+					'rotation': layer.rotation,
+					'depth': i,
+					'color1': layer.color1,
+					'color2': layer.color2,
+					'color3': layer.color3,
+					'color1_name': layer.color1_name,
+					'color2_name': layer.color2_name,
+					'color3_name': layer.color3_name,
+					'mask': layer.mask,
+					'flip_x': layer.flip_x,
+					'flip_y': layer.flip_y,
+					'instance_count': layer.instance_count,
+				}
+				self.main_window.right_sidebar.layers.append(layer_dict)
+			
+			# Update UI
+			self.main_window.right_sidebar.tab_widget.setCurrentIndex(1)
+			self.main_window.right_sidebar._rebuild_layer_list()
+			if len(self.main_window.right_sidebar.layers) > 0:
+				self.main_window.right_sidebar._select_layer(0)
+			
+			# Update canvas
+			self.main_window.canvas_area.canvas_widget.set_layers(self.main_window.right_sidebar.layers)
+			
+			# OLD CODE (will remove in Step 10):
+			# from utils.coa_parser import parse_coa_string
+			# from services.coa_serializer import parse_coa_for_editor
+			# coa_data = parse_coa_string(text)
+			# self.main_window._apply_coa_data(coa_data)
 			
 			self.main_window.status_left.setText("CoA pasted from clipboard")
 			
@@ -267,8 +310,6 @@ class ClipboardActions:
 	
 	def duplicate_selected_layer(self):
 		"""Duplicate selected layer(s) and place above"""
-		from services.layer_operations import duplicate_layer
-		
 		selected_indices = self.main_window.right_sidebar.get_selected_indices()
 		
 		if not selected_indices:
@@ -279,15 +320,10 @@ class ClipboardActions:
 			)
 			return
 		
-		# Duplicate in reverse order to maintain relative positioning
-		new_indices = []
-		for idx in reversed(selected_indices):
+		# Duplicate using CoA model
+		for idx in selected_indices:
 			layer = self.main_window.right_sidebar.layers[idx]
-			new_layer = duplicate_layer(layer)
-			
-			# Insert above the original (at the same index, pushing original down)
-			self.main_window.right_sidebar.layers.insert(idx, new_layer)
-			new_indices.insert(0, idx)
+			self.main_window.coa.duplicate_layer(layer.uuid)
 		
 		# Update UI
 		self.main_window.right_sidebar.refresh_layer_list()
@@ -302,25 +338,17 @@ class ClipboardActions:
 	
 	def duplicate_selected_layer_below(self):
 		"""Duplicate selected layer(s) and place below"""
-		from services.layer_operations import duplicate_layer
-		
 		selected_indices = self.main_window.right_sidebar.get_selected_indices()
 		
 		if not selected_indices:
 			return
 		
-		# Duplicate in order, inserting below each
-		new_indices = []
-		offset = 0
+		# Duplicate using CoA model and move below
 		for idx in selected_indices:
-			adjusted_idx = idx + offset
-			layer = self.main_window.right_sidebar.layers[adjusted_idx]
-			new_layer = duplicate_layer(layer)
-			
-			# Insert below the original
-			self.main_window.right_sidebar.layers.insert(adjusted_idx + 1, new_layer)
-			new_indices.append(adjusted_idx + 1)
-			offset += 1
+			layer = self.main_window.right_sidebar.layers[idx]
+			new_uuid = self.main_window.coa.duplicate_layer(layer.uuid)
+			# Move new layer from after to before original
+			self.main_window.coa.move_layer(new_uuid, idx)
 		
 		# Update UI
 		self.main_window.right_sidebar.refresh_layer_list()

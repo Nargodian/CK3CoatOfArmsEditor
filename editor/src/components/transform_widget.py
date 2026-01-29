@@ -148,6 +148,13 @@ class TransformWidget(QWidget):
 		if not self.visible:
 			return
 		
+		# Validate transform values - skip painting if any are NaN or invalid
+		import math
+		if (math.isnan(self.pos_x) or math.isnan(self.pos_y) or 
+		    math.isnan(self.scale_x) or math.isnan(self.scale_y) or
+		    math.isnan(self.rotation)):
+			return  # Skip painting with invalid values
+		
 		painter = QPainter(self)
 		painter.setRenderHint(QPainter.Antialiasing)
 		

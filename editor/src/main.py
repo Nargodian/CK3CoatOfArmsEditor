@@ -2,6 +2,9 @@ import sys
 import os
 import json
 
+# DEBUG MODE: Set to True to get full tracebacks instead of popup error messages
+DEBUG_MODE = True
+
 # Add editor/src to path so imports work when running directly
 if __name__ == "__main__":
 	# Get the directory containing this file (editor/src)
@@ -23,11 +26,15 @@ from components.property_sidebar import PropertySidebar
 
 #COA INTEGRATION ACTION: Import CoA model for integration Step 1
 from models.coa import CoA
+from models.layer import Layer
 
 # Utility imports
 from utils.coa_parser import parse_coa_string, serialize_coa_to_string
 from utils.history_manager import HistoryManager
 from utils.color_utils import color_name_to_rgb, rgb_to_color_name
+
+# Constants
+from constants import DEFAULT_BASE_CATEGORY
 
 # Service imports
 from services.file_operations import (
@@ -35,7 +42,7 @@ from services.file_operations import (
     build_coa_for_save, coa_to_clipboard_text, is_layer_subblock
 )
 from services.layer_operations import (
-    duplicate_layer, serialize_layer_to_text, parse_layer_from_text,
+    serialize_layer_to_text, parse_layer_from_text,
     parse_multiple_layers_from_text
 )
 from services.coa_serializer import parse_coa_for_editor
@@ -433,8 +440,9 @@ class CoatOfArmsEditor(QMainWindow):
 	
 	def _select_all_layers(self):
 		"""Select all layers"""
-		if self.right_sidebar.layers:
-			all_indices = set(range(len(self.right_sidebar.layers)))
+		layer_count = self.coa.get_layer_count()
+		if layer_count > 0:
+			all_indices = set(range(layer_count))
 			self.right_sidebar.set_selected_indices(all_indices)
 			if self.canvas_area:
 				self.canvas_area.update_transform_widget_for_layer()
@@ -566,6 +574,8 @@ class CoatOfArmsEditor(QMainWindow):
 				else:
 					QMessageBox.warning(self, "Export Failed", "Failed to export PNG.")
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.critical(self, "Export Error", f"Failed to export PNG:\n{str(e)}")
 	
 	def _update_window_title(self):
@@ -623,6 +633,8 @@ class CoatOfArmsEditor(QMainWindow):
 					# Filter out files that no longer exist
 					self.recent_files = [f for f in self.recent_files if os.path.exists(f)]
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			print(f"Error loading config: {e}")
 			self.recent_files = []
 	
@@ -639,6 +651,8 @@ class CoatOfArmsEditor(QMainWindow):
 			with open(self.config_file, 'w', encoding='utf-8') as f:
 				json.dump(config, f, indent=2)
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			print(f"Error saving config: {e}")
 	
 	def _add_to_recent_files(self, filepath):
@@ -706,48 +720,22 @@ class CoatOfArmsEditor(QMainWindow):
 			# Apply to UI - update from model
 			# Set base texture and colors
 			self.canvas_area.canvas_widget.set_base_texture(self.coa.pattern)
-			self.canvas_area.canvas_widget.set_base_colors([self.coa.color1, self.coa.color2, self.coa.color3])
-			self.canvas_area.canvas_widget.base_color1_name = self.coa.color1_name
-			self.canvas_area.canvas_widget.base_color2_name = self.coa.color2_name
-			self.canvas_area.canvas_widget.base_color3_name = self.coa.color3_name
+			self.canvas_area.canvas_widget.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3])
+			self.canvas_area.canvas_widget.base_color1_name = self.coa.pattern_color1_name
+			self.canvas_area.canvas_widget.base_color2_name = self.coa.pattern_color2_name
+			self.canvas_area.canvas_widget.base_color3_name = self.coa.pattern_color3_name
 			
-			base_color_names = [self.coa.color1_name, self.coa.color2_name, self.coa.color3_name]
-			self.right_sidebar.set_base_colors([self.coa.color1, self.coa.color2, self.coa.color3], base_color_names)
-			
-			# Convert Layer objects to dicts for old UI code (temporary until Step 10)
-			self.right_sidebar.layers = []
-			for i in range(self.coa.get_layer_count()):
-				layer = self.coa._layers[i]
-				layer_dict = {
-					'uuid': layer.uuid,
-					'filename': layer.filename,
-					'pos_x': layer.pos_x,
-					'pos_y': layer.pos_y,
-					'scale_x': layer.scale_x,
-					'scale_y': layer.scale_y,
-					'rotation': layer.rotation,
-					'depth': layer.depth,
-					'color1': layer.color1,
-					'color2': layer.color2,
-					'color3': layer.color3,
-					'color1_name': layer.color1_name,
-					'color2_name': layer.color2_name,
-					'color3_name': layer.color3_name,
-					'mask': layer.mask,
-					'flip_x': layer.flip_x,
-					'flip_y': layer.flip_y,
-					'instance_count': layer.instance_count,
-				}
-				self.right_sidebar.layers.append(layer_dict)
+			base_color_names = [self.coa.pattern_color1_name, self.coa.pattern_color2_name, self.coa.pattern_color3_name]
+			self.right_sidebar.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3], base_color_names)
 			
 			# Update UI - switch to Layers tab and rebuild
 			self.right_sidebar.tab_widget.setCurrentIndex(1)
 			self.right_sidebar._rebuild_layer_list()
-			if len(self.right_sidebar.layers) > 0:
+			if self.coa.get_layer_count() > 0:
 				self.right_sidebar._select_layer(0)
 			
 			# Update canvas
-			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			self.canvas_area.canvas_widget.set_coa(self.coa)
 			
 			# OLD CODE (will remove in Step 10):
 			# coa_data = load_coa_from_file(filepath)
@@ -765,6 +753,8 @@ class CoatOfArmsEditor(QMainWindow):
 			self.history_manager.clear()
 			self._save_state("Load CoA")
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.critical(self, "Load Error", f"Failed to load coat of arms:\n{str(e)}")
 	
 	def _clear_recent_files(self):
@@ -805,6 +795,8 @@ class CoatOfArmsEditor(QMainWindow):
 				
 				print("Autosaved")
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			print(f"Autosave failed: {e}")
 	
 	def _check_autosave_recovery(self):
@@ -829,65 +821,34 @@ class CoatOfArmsEditor(QMainWindow):
 					# Apply to UI - update from model
 					# Set base texture and colors
 					self.canvas_area.canvas_widget.set_base_texture(self.coa.pattern)
-					self.canvas_area.canvas_widget.set_base_colors([self.coa.color1, self.coa.color2, self.coa.color3])
-					self.canvas_area.canvas_widget.base_color1_name = self.coa.color1_name
-					self.canvas_area.canvas_widget.base_color2_name = self.coa.color2_name
-					self.canvas_area.canvas_widget.base_color3_name = self.coa.color3_name
-					
-					base_color_names = [self.coa.color1_name, self.coa.color2_name, self.coa.color3_name]
-					self.right_sidebar.set_base_colors([self.coa.color1, self.coa.color2, self.coa.color3], base_color_names)
-					
-					# Convert Layer objects to dicts for old UI code (temporary until Step 10)
-					self.right_sidebar.layers = []
-					for i in range(self.coa.get_layer_count()):
-						layer = self.coa._layers[i]
-						layer_dict = {
-							'uuid': layer.uuid,
-							'filename': layer.filename,
-							'pos_x': layer.pos_x,
-							'pos_y': layer.pos_y,
-							'scale_x': layer.scale_x,
-							'scale_y': layer.scale_y,
-							'rotation': layer.rotation,
-							'depth': layer.depth,
-							'color1': layer.color1,
-							'color2': layer.color2,
-							'color3': layer.color3,
-							'color1_name': layer.color1_name,
-							'color2_name': layer.color2_name,
-							'color3_name': layer.color3_name,
-							'mask': layer.mask,
-							'flip_x': layer.flip_x,
-							'flip_y': layer.flip_y,
-							'instance_count': layer.instance_count,
-						}
-						self.right_sidebar.layers.append(layer_dict)
-					
-					# Update UI
-					self.right_sidebar.tab_widget.setCurrentIndex(1)
-					self.right_sidebar._rebuild_layer_list()
-					if len(self.right_sidebar.layers) > 0:
-						self.right_sidebar._select_layer(0)
-					
-					# Update canvas
-					self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-					
-					# OLD CODE (will remove in Step 10):
-					# coa_data = load_coa_from_file(self.autosave_file)
-					# self._apply_coa_data(coa_data)
-					
-					# Mark as unsaved (since it's recovered from autosave)
-					self.current_file_path = None
-					self.is_saved = False
-					self._update_window_title()
-					
-					# Clear history and save state
-					self.history_manager.clear()
-					self._save_state("Recover autosave")
+				self.canvas_area.canvas_widget.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3])
+				self.canvas_area.canvas_widget.base_color1_name = self.coa.pattern_color1_name
+				self.canvas_area.canvas_widget.base_color2_name = self.coa.pattern_color2_name
+				self.canvas_area.canvas_widget.base_color3_name = self.coa.pattern_color3_name
+				
+				base_color_names = [self.coa.pattern_color1_name, self.coa.pattern_color2_name, self.coa.pattern_color3_name]
+				self.right_sidebar.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3], base_color_names)
+				
+				# Update UI
+				self.right_sidebar.tab_widget.setCurrentIndex(1)
+				# OLD CODE (will remove in Step 10):
+				# coa_data = load_coa_from_file(self.autosave_file)
+				# self._apply_coa_data(coa_data)
+				
+				# Mark as unsaved (since it's recovered from autosave)
+				self.current_file_path = None
+				self.is_saved = False
+				self._update_window_title()
+				
+				# Clear history and save state
+				self.history_manager.clear()
+				self._save_state("Recover autosave")
 				
 				# Remove autosave file after prompt
 				os.remove(self.autosave_file)
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			print(f"Error checking autosave: {e}")
 			# Try to remove corrupted autosave file
 			try:
@@ -958,16 +919,13 @@ class CoatOfArmsEditor(QMainWindow):
 	
 	def _update_layer_texture(self, idx, dds_filename, color_count):
 		"""Update existing layer's texture while preserving other properties"""
-		if 0 <= idx < len(self.right_sidebar.layers):
-			old_layer = self.right_sidebar.layers[idx]
+		if 0 <= idx < self.coa.get_layer_count():
+			layer = self.coa.get_layer_by_index(idx)
 			
-			# Preserve all existing properties, update only texture-related fields
-			self.right_sidebar.layers[idx] = {
-				**old_layer,
-				'filename': dds_filename,
-				'path': dds_filename,
-				'colors': color_count
-			}
+			# Update Layer object attributes
+			layer.filename = dds_filename
+			layer.path = dds_filename
+			layer.colors = color_count
 			
 			# Invalidate thumbnail cache for this layer since texture changed
 			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
@@ -976,38 +934,21 @@ class CoatOfArmsEditor(QMainWindow):
 			# Update UI and canvas
 			self.right_sidebar._rebuild_layer_list()
 			self.right_sidebar._update_layer_selection()
-			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			self.canvas_area.canvas_widget.set_coa(self.coa)
 			self._save_state("Change layer texture")
 	
 	def _create_layer_with_texture(self, dds_filename, color_count):
 		"""Create new layer with selected texture at top of stack"""
-		new_layer = {
-			'filename': dds_filename,
-			'path': dds_filename,
-			'colors': color_count,
-			'instances': [{
-				'pos_x': 0.5,
-				'pos_y': 0.5,
-				'scale_x': DEFAULT_SCALE_X,
-				'scale_y': DEFAULT_SCALE_Y,
-				'rotation': DEFAULT_ROTATION,
-				'depth': 0.0
-			}],
-			'selected_instance': 0,
-			'flip_x': DEFAULT_FLIP_X,
-			'flip_y': DEFAULT_FLIP_Y,
-			'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'],
-			'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'],
-			'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
-			'color1_name': DEFAULT_EMBLEM_COLOR1,
-			'color2_name': DEFAULT_EMBLEM_COLOR2,
-			'color3_name': DEFAULT_EMBLEM_COLOR3,
-			'mask': None  # No mask = render everywhere (default)
-		}
+		# Use CoA model to add layer
+		layer_uuid = self.coa.add_layer(
+			emblem_path=dds_filename,
+			pos_x=0.5,
+			pos_y=0.5,
+			colors=color_count
+		)
 		
-		# Append to end of array (which displays at top due to reversed UI)
-		self.right_sidebar.layers.append(new_layer)
-		new_index = len(self.right_sidebar.layers) - 1
+		# Find new layer's index (CoA appends to end, which displays at top)
+		new_index = self.coa.get_layer_count() - 1
 		self.right_sidebar.selected_layer_indices = {new_index}
 		self.right_sidebar.last_selected_index = new_index
 		
@@ -1016,7 +957,7 @@ class CoatOfArmsEditor(QMainWindow):
 		self.right_sidebar._update_layer_selection()
 		
 		# Update canvas
-		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+		self.canvas_area.canvas_widget.set_coa(self.coa)
 		
 		# Trigger selection change callback to update properties and transform widget
 		self.right_sidebar._on_layer_selection_changed()
@@ -1054,19 +995,19 @@ class CoatOfArmsEditor(QMainWindow):
 					move_amount = ARROW_KEY_MOVE_FINE if event.modifiers() & Qt.ShiftModifier else ARROW_KEY_MOVE_NORMAL
 					
 					for idx in selected_indices:
-						layer = self.right_sidebar.layers[idx]
+						layer = self.coa.get_layer_by_index(idx)
 						if event.key() == Qt.Key_Left:
-							layer['pos_x'] = max(0.0, layer.get('pos_x', 0.5) - move_amount)
+							layer.pos_x = max(0.0, layer.pos_x - move_amount)
 						elif event.key() == Qt.Key_Right:
-							layer['pos_x'] = min(1.0, layer.get('pos_x', 0.5) + move_amount)
+							layer.pos_x = min(1.0, layer.pos_x + move_amount)
 						elif event.key() == Qt.Key_Up:
-							layer['pos_y'] = max(0.0, layer.get('pos_y', 0.5) - move_amount)
+							layer.pos_y = max(0.0, layer.pos_y - move_amount)
 						elif event.key() == Qt.Key_Down:
-							layer['pos_y'] = min(1.0, layer.get('pos_y', 0.5) + move_amount)
+							layer.pos_y = min(1.0, layer.pos_y + move_amount)
 					
 					# Update UI
 					self.right_sidebar._load_layer_properties()
-					self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+					self.canvas_area.canvas_widget.set_coa(self.coa)
 					self.canvas_area.update_transform_widget_for_layer()
 					
 					# Save to history
@@ -1129,9 +1070,10 @@ class CoatOfArmsEditor(QMainWindow):
 				super().keyPressEvent(event)
 		# Ctrl+A for select all layers
 		elif event.key() == Qt.Key_A and event.modifiers() & Qt.ControlModifier:
-			if self.right_sidebar.layers:
+			layer_count = self.coa.get_layer_count()
+			if layer_count > 0:
 				# Select all layer indices
-				all_indices = set(range(len(self.right_sidebar.layers)))
+				all_indices = set(range(layer_count))
 				self.right_sidebar.set_selected_indices(all_indices)
 				# Update transform widget for multi-selection
 				if self.canvas_area:
@@ -1170,12 +1112,12 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# Rotate each selected layer
 		for idx in selected_indices:
-			if 0 <= idx < len(self.right_sidebar.layers):
-				layer = self.right_sidebar.layers[idx]
-				layer['rotation'] = (layer['rotation'] + angle_delta) % 360
+			if 0 <= idx < self.coa.get_layer_count():
+				layer = self.coa.get_layer_by_index(idx)
+				layer.rotation = (layer.rotation + angle_delta) % 360
 		
 		# Update canvas
-		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+		self.canvas_area.canvas_widget.set_coa(self.coa)
 		
 		# Update transform widget (which updates properties panel)
 		self.canvas_area.update_transform_widget_for_layer()
@@ -1221,50 +1163,23 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.selected_layer_indices = set(state.get('selected_layer_indices', set()))
 			
 			# Update all UI components to reflect restored CoA state
-			# Note: This still uses old methods temporarily - will be updated in future steps
 			# Right sidebar needs to rebuild layer list from CoA
-			self.right_sidebar.layers = []  # Clear old dict list
-			for i in range(self.coa.get_layer_count()):
-				layer = self.coa._layers[i]
-				# Convert Layer object to dict for old UI code (temporary)
-				layer_dict = {
-					'uuid': layer.uuid,
-					'filename': layer.filename,
-					'pos_x': layer.pos_x,
-					'pos_y': layer.pos_y,
-					'scale_x': layer.scale_x,
-					'scale_y': layer.scale_y,
-					'rotation': layer.rotation,
-					'depth': layer.depth,
-					'color1': layer.color1,
-					'color2': layer.color2,
-					'color3': layer.color3,
-					'color1_name': layer.color1_name,
-					'color2_name': layer.color2_name,
-					'color3_name': layer.color3_name,
-					'mask': layer.mask,
-					'flip_x': layer.flip_x,
-					'flip_y': layer.flip_y,
-					'instance_count': layer.instance_count,
-				}
-				self.right_sidebar.layers.append(layer_dict)
-			
 			self.right_sidebar._rebuild_layer_list()
 			self.right_sidebar._update_layer_selection()
 			
 			# Restore base texture and colors
 			self.canvas_area.canvas_widget.set_base_texture(self.coa.pattern)
-			self.canvas_area.canvas_widget.set_base_colors([self.coa.color1, self.coa.color2, self.coa.color3])
-			self.canvas_area.canvas_widget.base_color1_name = self.coa.color1_name
-			self.canvas_area.canvas_widget.base_color2_name = self.coa.color2_name
-			self.canvas_area.canvas_widget.base_color3_name = self.coa.color3_name
+			self.canvas_area.canvas_widget.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3])
+			self.canvas_area.canvas_widget.base_color1_name = self.coa.pattern_color1_name
+			self.canvas_area.canvas_widget.base_color2_name = self.coa.pattern_color2_name
+			self.canvas_area.canvas_widget.base_color3_name = self.coa.pattern_color3_name
 			
 			# Update property sidebar base colors
-			base_color_names = [self.coa.color1_name, self.coa.color2_name, self.coa.color3_name]
-			self.right_sidebar.set_base_colors([self.coa.color1, self.coa.color2, self.coa.color3], base_color_names)
+			base_color_names = [self.coa.pattern_color1_name, self.coa.pattern_color2_name, self.coa.pattern_color3_name]
+			self.right_sidebar.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3], base_color_names)
 			
 			# Restore canvas layers
-			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			self.canvas_area.canvas_widget.set_coa(self.coa)
 			
 			# Update layer properties and transform widget if layers are selected
 			selected_indices = list(state.get('selected_layer_indices', set()))
@@ -1346,7 +1261,7 @@ class CoatOfArmsEditor(QMainWindow):
 			left_msg = "Ready"
 		
 		# Right side: Stats
-		layer_count = len(self.right_sidebar.layers) if hasattr(self, 'right_sidebar') else 0
+		layer_count = self.coa.get_layer_count() if hasattr(self, 'right_sidebar') else 0
 		selected_indices = self.right_sidebar.get_selected_indices() if hasattr(self, 'right_sidebar') else []
 		
 		if selected_indices:
@@ -1379,10 +1294,8 @@ class CoatOfArmsEditor(QMainWindow):
 			if not self._prompt_save_if_needed():
 				return
 			
-			# Clear all layers
-			self.right_sidebar.layers = []
+			# Clear selection (layers will be empty via CoA model)
 			self.right_sidebar.clear_selection()
-			self.right_sidebar._rebuild_layer_list()
 			
 			# Reset base to default pattern and colors
 			from constants import DEFAULT_PATTERN_TEXTURE, DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3
@@ -1396,7 +1309,10 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			self.canvas_area.canvas_widget.set_base_texture(default_pattern)
 			self.canvas_area.canvas_widget.set_base_colors(default_colors)
-			self.canvas_area.canvas_widget.set_layers([])
+			
+			# Create new empty CoA
+			self.coa = CoA(pattern=default_pattern, pattern_color1=default_color_names[0], pattern_color2=default_color_names[1], pattern_color3=default_color_names[2])
+			self.canvas_area.canvas_widget.set_coa(self.coa)
 			
 			# Reset property sidebar base colors with color names
 			self.right_sidebar.set_base_colors(default_colors, default_color_names)
@@ -1419,6 +1335,8 @@ class CoatOfArmsEditor(QMainWindow):
 			self.history_manager.clear()
 			self._save_state("New CoA")
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.critical(self, "Error", f"Error creating new CoA: {e}")
 	
 	def save_coa(self):
@@ -1444,6 +1362,8 @@ class CoatOfArmsEditor(QMainWindow):
 			if filename:
 				self._save_to_file(filename)
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.critical(self, "Save Error", f"Failed to save coat of arms:\n{str(e)}")
 	
 	def _save_to_file(self, filename):
@@ -1486,6 +1406,8 @@ class CoatOfArmsEditor(QMainWindow):
 			if os.path.exists(self.autosave_file):
 				os.remove(self.autosave_file)
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.critical(self, "Save Error", f"Failed to save coat of arms:\n{str(e)}")
 	
 	def load_coa(self):
@@ -1515,6 +1437,8 @@ class CoatOfArmsEditor(QMainWindow):
 			# Copy to clipboard
 			QApplication.clipboard().setText(coa_text)
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.warning(self, "Copy Error", f"Failed to copy coat of arms: {str(e)}")
 	
 	def paste_coa(self):
@@ -1532,17 +1456,33 @@ class CoatOfArmsEditor(QMainWindow):
 				self.paste_layer()
 				return
 			
-			# Parse CoA data
-			coa_data = parse_coa_string(coa_text)
-			if not coa_data:
-				raise ValueError("Failed to parse coat of arms data - not a valid CK3 format")
+			# Parse using CoA model
+			self.coa = CoA.from_string(coa_text)
 			
-			# Apply to editor
-			self._apply_coa_data(coa_data)
+			# Update UI from CoA model
+			self.canvas_area.canvas_widget.set_base_texture(self.coa.pattern)
+			self.canvas_area.canvas_widget.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3])
+			self.canvas_area.canvas_widget.base_color1_name = self.coa.pattern_color1_name
+			self.canvas_area.canvas_widget.base_color2_name = self.coa.pattern_color2_name
+			self.canvas_area.canvas_widget.base_color3_name = self.coa.pattern_color3_name
+			
+			base_color_names = [self.coa.pattern_color1_name, self.coa.pattern_color2_name, self.coa.pattern_color3_name]
+			self.right_sidebar.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3], base_color_names)
+			
+			# Update UI
+			self.right_sidebar.tab_widget.setCurrentIndex(1)
+			self.right_sidebar._rebuild_layer_list()
+			if self.coa.get_layer_count() > 0:
+				self.right_sidebar._select_layer(0)
+			
+			# Update canvas
+			self.canvas_area.canvas_widget.set_coa(self.coa)
 			
 			# Save to history after pasting
 			self._save_state("Paste CoA")
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.critical(self, "Paste Error", f"Failed to paste coat of arms:\n{str(e)}\n\nThe clipboard may not contain valid coat of arms data.")
 	
 	def copy_layer(self):
@@ -1556,8 +1496,8 @@ class CoatOfArmsEditor(QMainWindow):
 			# Serialize all selected layers using service
 			layer_texts = []
 			for layer_idx in selected_indices:
-				if 0 <= layer_idx < len(self.right_sidebar.layers):
-					layer = self.right_sidebar.layers[layer_idx]
+				if 0 <= layer_idx < self.coa.get_layer_count():
+					layer = self.coa.get_layer_by_index(layer_idx)
 					layer_text = serialize_layer_to_text(layer)
 					layer_texts.append(layer_text)
 			
@@ -1565,6 +1505,8 @@ class CoatOfArmsEditor(QMainWindow):
 				full_text = '\n\n'.join(layer_texts)
 				QApplication.clipboard().setText(full_text)
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.warning(self, "Copy Error", f"Failed to copy layer: {str(e)}")
 	
 	def duplicate_selected_layer(self):
@@ -1578,33 +1520,28 @@ class CoatOfArmsEditor(QMainWindow):
 			# Sort indices to maintain order
 			sorted_indices = sorted(selected_indices)
 			
-			# Duplicate all selected layers
-			duplicated_layers = []
+			# Duplicate all selected layers using CoA model
+			new_uuids = []
 			for layer_idx in sorted_indices:
-				if layer_idx < len(self.right_sidebar.layers):
-					layer = self.right_sidebar.layers[layer_idx]
-					duplicated_layer = duplicate_layer(layer)
-					duplicated_layers.append(duplicated_layer)
+				if layer_idx < self.coa.get_layer_count():
+					layer = self.coa.get_layer_by_index(layer_idx)
+					new_uuid = self.coa.duplicate_layer(layer.uuid)
+					new_uuids.append(new_uuid)
 			
-			if not duplicated_layers:
+			if not new_uuids:
 				return
 			
-			# Determine insertion position
-			if len(selected_indices) > 1:
-				# Multiple layers selected - place at the end (highest index = in front)
-				insert_position = len(self.right_sidebar.layers)
-			else:
-				# Single layer selected - place directly above it (higher index = in front)
-				insert_position = max(sorted_indices) + 1
-			
-			# Insert all duplicated layers at position
-			for i, dup_layer in enumerate(duplicated_layers):
-				self.right_sidebar.layers.insert(insert_position + i, dup_layer)
+			# Find indices of new layers
+			new_indices = set()
+			for uuid in new_uuids:
+				idx = self.coa.get_layer_index(uuid)
+				if idx is not None:
+					new_indices.add(idx)
 			
 			# Select the newly duplicated layers
-			new_indices = set(range(insert_position, insert_position + len(duplicated_layers)))
-			self.right_sidebar.selected_layer_indices = new_indices
-			self.right_sidebar.last_selected_index = insert_position
+			if new_indices:
+				self.right_sidebar.selected_layer_indices = new_indices
+				self.right_sidebar.last_selected_index = max(new_indices)
 			
 			# Clear layer thumbnail cache since indices have shifted
 			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
@@ -1614,7 +1551,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar._rebuild_layer_list()
 			
 			# Update canvas and transform widget
-			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			self.canvas_area.canvas_widget.set_coa(self.coa)
 			if self.canvas_area:
 				self.canvas_area.update_transform_widget_for_layer()
 			
@@ -1623,9 +1560,11 @@ class CoatOfArmsEditor(QMainWindow):
 			self.repaint()  # Update main window and taskbar preview
 			
 			# Save to history
-			layer_word = "layers" if len(duplicated_layers) > 1 else "layer"
-			self._save_state(f"Duplicate {len(duplicated_layers)} {layer_word}")
+			layer_word = "layers" if len(new_uuids) > 1 else "layer"
+			self._save_state(f"Duplicate {len(new_uuids)} {layer_word}")
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.warning(self, "Duplicate Error", f"Failed to duplicate layer: {str(e)}")
 	
 	def duplicate_selected_layer_below(self):
@@ -1637,16 +1576,16 @@ class CoatOfArmsEditor(QMainWindow):
 				return
 			
 			layer_idx = selected_indices[0]
-			if layer_idx >= len(self.right_sidebar.layers):
+			if layer_idx >= self.coa.get_layer_count():
 				return
 			
-			# Duplicate the layer
-			layer = self.right_sidebar.layers[layer_idx]
-			duplicated_layer = duplicate_layer(layer)
+			# Get layer and duplicate using CoA model
+			layer = self.coa.get_layer_by_index(layer_idx)
+			new_uuid = self.coa.duplicate_layer(layer.uuid)
 			
-			# Insert BEFORE (below) the original layer - lower index = further back
-			insert_position = layer_idx
-			self.right_sidebar.layers.insert(insert_position, duplicated_layer)
+			# CoA.duplicate_layer inserts AFTER original, but we need it BEFORE
+			# So move it from layer_idx+1 to layer_idx
+			self.coa.move_layer(new_uuid, layer_idx)
 			
 			# Keep the ORIGINAL layer selected (which is now at layer_idx + 1)
 			self.right_sidebar.selected_layer_indices = {layer_idx + 1}
@@ -1660,7 +1599,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar._rebuild_layer_list()
 			
 			# Update canvas layers (but don't update transform widget - that would kill the drag)
-			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			self.canvas_area.canvas_widget.set_coa(self.coa)
 			
 			# Force immediate canvas redraw
 			self.canvas_area.canvas_widget.repaint()
@@ -1669,6 +1608,8 @@ class CoatOfArmsEditor(QMainWindow):
 			# Save to history
 			self._save_state("Duplicate layer below")
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			print(f"Error duplicating layer below: {e}")
 	
 	def _split_selected_layer(self):
@@ -1684,14 +1625,13 @@ class CoatOfArmsEditor(QMainWindow):
 				return
 			
 			layer_idx = selected_indices[0]
-			if layer_idx >= len(self.right_sidebar.layers):
+			if layer_idx >= self.coa.get_layer_count():
 				return
 			
-			layer = self.right_sidebar.layers[layer_idx]
+			layer = self.coa.get_layer_by_index(layer_idx)
 			
 			# Check if it's multi-instance
-			instances = layer.get('instances', [])
-			if len(instances) <= 1:
+			if layer.instance_count <= 1:
 				QMessageBox.information(self, "Split Instances", 
 					"Selected layer only has one instance.")
 				return
@@ -1699,31 +1639,32 @@ class CoatOfArmsEditor(QMainWindow):
 			# Split the layer
 			new_layers = split_layer_instances(layer)
 			
-			# Replace original with split layers (insert at same position)
-			self.right_sidebar.layers.pop(layer_idx)
-			for i, new_layer in enumerate(new_layers):
-				self.right_sidebar.layers.insert(layer_idx + i, new_layer)
-			
-			# Select all new layers
-			self.right_sidebar.selected_layer_indices = set(range(layer_idx, layer_idx + len(new_layers)))
-			self.right_sidebar.last_selected_index = layer_idx
-			
-			# Clear thumbnail cache
-			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
-				self.right_sidebar.layer_list_widget.clear_thumbnail_cache()
-			
-			# Rebuild UI
-			self.right_sidebar._rebuild_layer_list()
-			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-			self.canvas_area.update_transform_widget_for_layer()
-			
-			# Force repaint
-			self.canvas_area.canvas_widget.repaint()
-			self.repaint()
-			
-			# Save to history
-			self._save_state(f"Split {len(new_layers)} instances")
+			# Replace original with split layers - use CoA model
+			layer_uuid = layer.uuid
+			self.coa.remove_layer(layer_uuid)
+			# Insert new layers in reverse order to maintain positions
+			for new_layer in reversed(new_layers):
+				self.coa.insert_layer_at_index(layer_idx, new_layer)
+				self.right_sidebar.last_selected_index = layer_idx
+				
+				# Clear thumbnail cache
+				if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
+					self.right_sidebar.layer_list_widget.clear_thumbnail_cache()
+				
+				# Rebuild UI
+				self.right_sidebar._rebuild_layer_list()
+				self.canvas_area.canvas_widget.set_coa(self.coa)
+				self.canvas_area.update_transform_widget_for_layer()
+				
+				# Force repaint
+				self.canvas_area.canvas_widget.repaint()
+				self.repaint()
+				
+				# Save to history
+				self._save_state(f"Split {len(new_layers)} instances")
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.warning(self, "Split Error", f"Failed to split layer: {str(e)}")
 	
 	def _merge_selected_layers(self):
@@ -1740,7 +1681,7 @@ class CoatOfArmsEditor(QMainWindow):
 				return
 			
 			# Get layers in order (topmost first)
-			layers_to_merge = [self.right_sidebar.layers[idx] for idx in selected_indices]
+			layers_to_merge = [self.coa.get_layer_by_index(idx) for idx in selected_indices]
 			
 			# Check compatibility
 			is_compatible, differences = check_layers_compatible_for_merge(layers_to_merge)
@@ -1769,37 +1710,37 @@ class CoatOfArmsEditor(QMainWindow):
 			# Merge layers
 			merged_layer = merge_layers_as_instances(layers_to_merge, use_topmost_properties=use_topmost)
 			
-
+			# Remove old layers using CoA model
+			for layer in layers_to_merge:
+				self.coa.remove_layer(layer.uuid)
+			
 			# Insert merged layer at position of topmost selected
 			insert_pos = min(selected_indices)
-			self.right_sidebar.layers.insert(insert_pos, merged_layer)
-			
-			# Select the new merged layer
-			self.right_sidebar.selected_layer_indices = {insert_pos}
-			self.right_sidebar.last_selected_index = insert_pos
-			
+			self.coa.insert_layer_at_index(insert_pos, merged_layer)
 			# Clear thumbnail cache
 			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
 				self.right_sidebar.layer_list_widget.clear_thumbnail_cache()
-			
-			# Rebuild UI
-			self.right_sidebar._rebuild_layer_list()
-			self.right_sidebar._update_layer_selection()  # Update selection state properly
-			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-			self.canvas_area.update_transform_widget_for_layer()
-			
-			# Load properties to show instance selector
-			if hasattr(self.right_sidebar, '_load_layer_properties'):
-				self.right_sidebar._load_layer_properties()
-			
-			# Force repaint
-			self.canvas_area.canvas_widget.repaint()
-			self.repaint()
-			
-			# Save to history
-			instance_count = len(merged_layer.get('instances', []))
-			self._save_state(f"Merge {len(layers_to_merge)} layers ({instance_count} instances)")
+				
+				# Rebuild UI
+				self.right_sidebar._rebuild_layer_list()
+				self.right_sidebar._update_layer_selection()  # Update selection state properly
+				self.canvas_area.canvas_widget.set_coa(self.coa)
+				self.canvas_area.update_transform_widget_for_layer()
+				
+				# Load properties to show instance selector
+				if hasattr(self.right_sidebar, '_load_layer_properties'):
+					self.right_sidebar._load_layer_properties()
+				
+				# Force repaint
+				self.canvas_area.canvas_widget.repaint()
+				self.repaint()
+				
+				# Save to history
+				instance_count = merged_layer.instance_count
+				self._save_state(f"Merge {len(layers_to_merge)} layers ({instance_count} instances)")
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.warning(self, "Merge Error", f"Failed to merge layers: {str(e)}")
 	
 	def _update_menu_actions(self):
@@ -1807,15 +1748,16 @@ class CoatOfArmsEditor(QMainWindow):
 		if not hasattr(self.right_sidebar, 'layers'):
 			return
 		
+		layer_count = self.coa.get_layer_count()
 		selected_indices = self.right_sidebar.get_selected_indices()
 		has_selection = len(selected_indices) > 0
 		is_single = len(selected_indices) == 1
 		is_multi = len(selected_indices) >= 2
 		
 		# Split: enabled only for single-selection multi-instance layers
-		if is_single and has_selection and selected_indices[0] < len(self.right_sidebar.layers):
-			layer = self.right_sidebar.layers[selected_indices[0]]
-			is_multi_instance = len(layer.get('instances', [])) > 1
+		if is_single and has_selection and selected_indices[0] < layer_count and layer_count > 0:
+			layer = self.coa.get_layer_by_index(selected_indices[0])
+			is_multi_instance = layer.instance_count > 1 if layer else False
 			self.split_instances_action.setEnabled(is_multi_instance)
 		else:
 			self.split_instances_action.setEnabled(False)
@@ -1831,23 +1773,28 @@ class CoatOfArmsEditor(QMainWindow):
 			if not layer_text.strip():
 				return
 			
-			# Parse layers from clipboard using service
-			layers_data = parse_multiple_layers_from_text(layer_text)
+			# Parse layers from clipboard using service (returns dicts)
+			layers_data_dicts = parse_multiple_layers_from_text(layer_text)
 			
-			if not layers_data:
+			if not layers_data_dicts:
 				raise ValueError("Clipboard does not contain valid layer data")
 			
+			# Convert dicts to Layer objects
+			from models.layer import Layer
+			layers_data = [Layer(layer_dict) for layer_dict in layers_data_dicts]
+			
 			# Apply small offset to pasted layers (0.02 as per design decision)
-			for layer_data in layers_data:
-				layer_data['pos_x'] = min(1.0, layer_data.get('pos_x', 0.5) + 0.02)
-				layer_data['pos_y'] = min(1.0, layer_data.get('pos_y', 0.5) + 0.02)
+			for layer in layers_data:
+				layer.pos_x = min(1.0, layer.pos_x + 0.02)
+				layer.pos_y = min(1.0, layer.pos_y + 0.02)
 			
 			# Add all layers at the end (front-most)
-			start_index = len(self.right_sidebar.layers)
-			self.right_sidebar.layers.extend(layers_data)
+			start_index = self.coa.get_layer_count()
+			for layer in layers_data:
+				self.coa.add_layer_object(layer)
 			
 			# Select all newly pasted layers
-			new_indices = list(range(start_index, len(self.right_sidebar.layers)))
+			new_indices = list(range(start_index, self.coa.get_layer_count()))
 			self.right_sidebar.selected_layer_indices = set(new_indices)
 			self.right_sidebar.last_selected_index = new_indices[-1] if new_indices else None
 			
@@ -1862,7 +1809,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.tab_widget.setTabEnabled(2, True)
 			
 			# Update canvas and transform widget
-			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			self.canvas_area.canvas_widget.set_coa(self.coa)
 			
 			# Use timer to ensure transform widget updates after UI settles
 			if self.canvas_area:
@@ -1872,6 +1819,8 @@ class CoatOfArmsEditor(QMainWindow):
 			layer_word = "layers" if len(layers_data) > 1 else "layer"
 			self._save_state(f"Paste {len(layers_data)} {layer_word}")
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.warning(self, "Paste Error", f"Failed to paste layer: {str(e)}")
 	
 	def paste_layer_smart(self):
@@ -1899,10 +1848,14 @@ class CoatOfArmsEditor(QMainWindow):
 			if not layer_text.strip():
 				return
 			
-			# Parse layers from clipboard using service (handles multiple)
-			layers_data = parse_multiple_layers_from_text(layer_text)
-			if not layers_data:
+			# Parse layers from clipboard using service (returns dicts)
+			layers_data_dicts = parse_multiple_layers_from_text(layer_text)
+			if not layers_data_dicts:
 				raise ValueError("Clipboard does not contain valid layer data")
+			
+			# Convert dicts to Layer objects
+			from models.layer import Layer
+			layers_data = [Layer(layer_dict, caller='paste_layer_at_position') for layer_dict in layers_data_dicts]
 			
 			# Convert mouse position to normalized coordinates [0-1]
 			# Canvas uses 0.5 as center, so we need to map from widget coords
@@ -1920,9 +1873,7 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Get zoom level from canvas widget
 			zoom_level = self.canvas_area.canvas_widget.zoom_level
-			
-			print(f"DEBUG PASTE: mouse_pos=({mouse_pos.x()}, {mouse_pos.y()}), local=({local_x}, {local_y})")
-			print(f"DEBUG PASTE: canvas_geometry=({canvas_geometry.x()}, {canvas_geometry.y()}, {canvas_geometry.width()}x{canvas_geometry.height()})")
+		
 			print(f"DEBUG PASTE: canvas_size={canvas_size}, offset=({canvas_offset_x}, {canvas_offset_y})")
 			print(f"DEBUG PASTE: canvas_x={canvas_x}, canvas_y={canvas_y}")
 			print(f"DEBUG PASTE: zoom_level={zoom_level}")
@@ -1941,28 +1892,28 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Calculate centroid of pasted layers to preserve relative positions
 			if len(layers_data) > 1:
-				centroid_x = sum(layer.get('pos_x', 0.5) for layer in layers_data) / len(layers_data)
-				centroid_y = sum(layer.get('pos_y', 0.5) for layer in layers_data) / len(layers_data)
+				centroid_x = sum(layer.pos_x for layer in layers_data) / len(layers_data)
+				centroid_y = sum(layer.pos_y for layer in layers_data) / len(layers_data)
 				
 				# Calculate offset from centroid to click position
 				offset_x = norm_x - centroid_x
 				offset_y = norm_y - centroid_y
 				
 				# Apply offset to all layers (preserves relative positions)
-				for layer_data in layers_data:
-					layer_data['pos_x'] = max(0.0, min(1.0, layer_data.get('pos_x', 0.5) + offset_x))
-					layer_data['pos_y'] = max(0.0, min(1.0, layer_data.get('pos_y', 0.5) + offset_y))
+				for layer in layers_data:
+					layer.pos_x = max(0.0, min(1.0, layer.pos_x + offset_x))
+					layer.pos_y = max(0.0, min(1.0, layer.pos_y + offset_y))
 			else:
 				# Single layer - just set to click position
-				layers_data[0]['pos_x'] = norm_x
-				layers_data[0]['pos_y'] = norm_y
+				layers_data[0].pos_x = norm_x
+				layers_data[0].pos_y = norm_y
 			
-			# Add all layers at the top (end of list = frontmost)
-			start_index = len(self.right_sidebar.layers)
-			self.right_sidebar.layers.extend(layers_data)
+			start_index = self.coa.get_layer_count()
+			for layer in layers_data:
+				self.coa.add_layer_object(layer)
 			
 			# Select all newly pasted layers
-			new_indices = list(range(start_index, len(self.right_sidebar.layers)))
+			new_indices = list(range(start_index, self.coa.get_layer_count()))
 			self.right_sidebar.selected_layer_indices = set(new_indices)
 			self.right_sidebar.last_selected_index = new_indices[-1] if new_indices else None
 			
@@ -1979,7 +1930,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.tab_widget.setTabEnabled(2, True)
 			
 			# Update canvas and transform widget
-			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			self.canvas_area.canvas_widget.set_coa(self.coa)
 			
 			# Use timer to ensure transform widget updates after UI settles
 			if self.canvas_area:
@@ -1989,6 +1940,8 @@ class CoatOfArmsEditor(QMainWindow):
 			layer_word = "layers" if len(layers_data) > 1 else "layer"
 			self._save_state(f"Paste {len(layers_data)} {layer_word} at position")
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.warning(self, "Paste Error", f"Failed to paste layers: {str(e)}")
 	
 	def _apply_coa_data(self, coa_data):
@@ -2013,7 +1966,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar._select_layer(0)
 		
 		# Update canvas
-		self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+		self.canvas_area.canvas_widget.set_coa(self.coa)
 
 	def _find_asset_path(self, filename):
 		"""Find the display path for an asset by filename"""

@@ -22,15 +22,14 @@ class LayerListWidget(QWidget):
 		super().__init__(parent)
 		#COA INTEGRATION ACTION: Step 3 - Add CoA model reference (set externally)
 		self.coa = None  # Reference to CoA model (will be set by MainWindow)
-		self.layers = []  # Reference to layers list (OLD CODE: keep for now, will remove in Step 9)
-		self.selected_layer_indices = set()
-		self.last_selected_index = None
-		self.layer_buttons = []
+		self.selected_layer_uuids = set()  # Track selection by UUID
+		self.last_selected_uuid = None
+		self.layer_buttons = []  # List of (uuid, button) tuples
 		self.drop_zones = []
 		self.active_drop_zone = None
-		self.drag_start_index = None
+		self.drag_start_uuid = None
 		self.drag_start_pos = None
-		self.thumbnail_cache = {}  # layer_index -> QPixmap cache
+		self.thumbnail_cache = {}  # uuid -> QPixmap cache
 		self.property_sidebar = None  # Reference to parent PropertySidebar (for accessing base colors)
 		
 		# Callbacks (set by parent)
@@ -54,13 +53,16 @@ class LayerListWidget(QWidget):
 		self.setAcceptDrops(True)
 	
 	def set_layers(self, layers):
-		"""Set the layers list reference"""
-		self.layers = layers
+		"""DEPRECATED: Kept for compatibility. Widget now reads from CoA directly."""
+		pass
 	
 	def rebuild(self):
-		"""Rebuild the layer list UI with drop zones"""
+		"""Rebuild the layer list UI from CoA model"""
+		if not self.coa:
+			return
+		
 		# Clear existing layer buttons and drop zones
-		for btn in self.layer_buttons:
+		for uuid, btn in self.layer_buttons:
 			btn.deleteLater()
 		self.layer_buttons.clear()
 		
@@ -74,22 +76,25 @@ class LayerListWidget(QWidget):
 			if item.widget():
 				item.widget().deleteLater()
 			elif item.spacerItem():
-				# Remove spacer items too
 				pass
+		
+		# Get UUIDs from CoA (bottom to top)
+		uuids = self.coa.get_all_layer_uuids()
 		
 		# Add drop zone at top (inserts at end of array, appears at top of display)
 		layout_pos = 0
-		self._add_drop_zone(len(self.layers), layout_pos)
+		self._add_drop_zone(len(uuids), layout_pos)
 		layout_pos += 1
 		
 		# Add layer buttons in reverse order (top layer = frontmost = last index)
-		for i in range(len(self.layers)):
-			# Calculate actual layer index (reversed)
-			actual_index = len(self.layers) - 1 - i
-			layer_btn = self._create_layer_button(actual_index)
+		for i in range(len(uuids)):
+			# Calculate actual layer index (reversed for display)
+			actual_index = len(uuids) - 1 - i
+			uuid = uuids[actual_index]
+			layer_btn = self._create_layer_button(uuid)
 			
 			self.layers_layout.insertWidget(layout_pos, layer_btn)
-			self.layer_buttons.append(layer_btn)
+			self.layer_buttons.append((uuid, layer_btn))
 			layout_pos += 1
 			
 			# Add drop zone after this layer
@@ -99,23 +104,24 @@ class LayerListWidget(QWidget):
 		# Re-add stretch at the end
 		self.layers_layout.addStretch()
 	
-	def _create_layer_button(self, actual_index):
-		"""Create a layer button widget"""
-		layer = self.layers[actual_index]
+	def _create_layer_button(self, uuid):
+		"""Create a layer button widget from UUID"""
+		if not self.coa:
+			return QPushButton()
 		
-		# Calculate instance count early (used for badge and name)
-		instances = layer.get('instances', [])
-		instance_count = len(instances)
+		# Query properties from CoA using UUID
+		filename = self.coa.get_layer_property(uuid, 'filename')
+		instance_count = self.coa.get_layer_property(uuid, 'instance_count')
 		
 		layer_btn = QPushButton()
 		layer_btn.setCheckable(True)
 		layer_btn.setFixedHeight(60)
-		layer_btn.setProperty('layer_index', actual_index)
-		layer_btn.clicked.connect(lambda checked: self._select_layer(actual_index))
+		layer_btn.setProperty('layer_uuid', uuid)
+		layer_btn.clicked.connect(lambda checked: self._select_layer_by_uuid(uuid))
 		
 		# Enable drag functionality
-		layer_btn.mousePressEvent = lambda event, idx=actual_index, btn=layer_btn: self._layer_mouse_press(event, idx, btn)
-		layer_btn.mouseMoveEvent = lambda event, idx=actual_index, btn=layer_btn: self._layer_mouse_move(event, idx, btn)
+		layer_btn.mousePressEvent = lambda event, u=uuid, btn=layer_btn: self._layer_mouse_press(event, u, btn)
+		layer_btn.mouseMoveEvent = lambda event, u=uuid, btn=layer_btn: self._layer_mouse_move(event, u, btn)
 		
 		# Create layout for layer button content
 		btn_layout = QHBoxLayout(layer_btn)
@@ -134,7 +140,7 @@ class LayerListWidget(QWidget):
 		icon_label.setStyleSheet("border: 1px solid rgba(255, 255, 255, 40); border-radius: 3px;")
 		
 		# Generate colored thumbnail
-		thumbnail = self._generate_layer_thumbnail(actual_index, size=48)
+		thumbnail = self._generate_layer_thumbnail(uuid, size=48)
 		if thumbnail and not thumbnail.isNull():
 			icon_label.setPixmap(thumbnail)
 		
@@ -163,8 +169,8 @@ class LayerListWidget(QWidget):
 		
 		btn_layout.addWidget(icon_container)
 		
-		# Add layer name (instance_count already calculated above)
-		layer_name = layer.get('filename', 'Empty Layer')
+		# Add layer name - query from CoA by UUID
+		layer_name = filename or 'Empty Layer'
 		
 		# Remove .dds extension for display
 		if layer_name.lower().endswith('.dds'):
@@ -182,7 +188,7 @@ class LayerListWidget(QWidget):
 		btn_layout.addWidget(name_label, stretch=1)
 		
 		# Add inline color, duplicate and delete buttons
-		button_container = self._create_inline_buttons(actual_index)
+		button_container = self._create_inline_buttons(uuid)
 		btn_layout.addWidget(button_container)
 		
 		# Check if multi-instance for blue tint
@@ -227,7 +233,7 @@ class LayerListWidget(QWidget):
 		
 		return layer_btn
 	
-	def _create_inline_buttons(self, actual_index):
+	def _create_inline_buttons(self, uuid):
 		"""Create inline duplicate, delete, and color buttons for a layer"""
 		button_container = QWidget()
 		button_container.setStyleSheet("border: none;")
@@ -236,8 +242,7 @@ class LayerListWidget(QWidget):
 		inline_layout.setSpacing(2)
 		
 		# Color buttons container (stacked vertically like traffic lights)
-		layer = self.layers[actual_index]
-		num_colors = layer.get('colors', 3)
+		num_colors = 3  # Layer objects always have 3 colors
 		
 		color_container = QWidget()
 		color_container.setStyleSheet("border: none;")
@@ -251,9 +256,9 @@ class LayerListWidget(QWidget):
 			color_btn.setFixedSize(16, 16)
 			color_btn.setToolTip(f"Color {color_idx}")
 			
-			# Get current color and set background
+			# Get current color from CoA by UUID
 			color_key = f'color{color_idx}'
-			color_rgb = layer.get(color_key, [1.0, 1.0, 1.0])
+			color_rgb = self.coa.get_layer_property(uuid, color_key) or [1.0, 1.0, 1.0]
 			r, g, b = int(color_rgb[0] * 255), int(color_rgb[1] * 255), int(color_rgb[2] * 255)
 			
 			color_btn.setStyleSheet(f"""
@@ -267,7 +272,7 @@ class LayerListWidget(QWidget):
 					border: 2px solid rgba(255, 255, 255, 150);
 				}}
 			""")
-			color_btn.clicked.connect(lambda checked, idx=actual_index, c_idx=color_idx: self._handle_color_pick(idx, c_idx))
+			color_btn.clicked.connect(lambda checked, u=uuid, c_idx=color_idx: self._handle_color_pick(u, c_idx))
 			color_layout.addWidget(color_btn)
 		
 		# Add stretch if less than 3 colors to maintain vertical spacing
@@ -286,8 +291,10 @@ class LayerListWidget(QWidget):
 		action_layout.setContentsMargins(0, 0, 0, 0)
 		action_layout.setSpacing(2)
 		
-		# Visibility toggle button
-		visible = layer.get('visible', True)
+		# Visibility toggle button - query from CoA by UUID
+		visible = self.coa.get_layer_property(uuid, 'visible')
+		if visible is None:
+			visible = True
 		visibility_btn = QPushButton("👁" if visible else "🚫")
 		visibility_btn.setFixedSize(20, 20)
 		visibility_btn.setToolTip("Toggle Visibility")
@@ -304,7 +311,7 @@ class LayerListWidget(QWidget):
 				background-color: rgba(141, 191, 90, 100);
 			}
 		""")
-		visibility_btn.clicked.connect(lambda checked: self._handle_visibility_toggle(actual_index))
+		visibility_btn.clicked.connect(lambda checked: self._handle_visibility_toggle(uuid))
 		action_layout.addWidget(visibility_btn)
 		
 		# Duplicate button
@@ -324,7 +331,7 @@ class LayerListWidget(QWidget):
 				background-color: rgba(90, 141, 191, 100);
 			}
 		""")
-		duplicate_btn.clicked.connect(lambda checked: self._handle_duplicate(actual_index))
+		duplicate_btn.clicked.connect(lambda checked: self._handle_duplicate(uuid))
 		action_layout.addWidget(duplicate_btn)
 		
 		# Delete button
@@ -345,26 +352,26 @@ class LayerListWidget(QWidget):
 				background-color: rgba(191, 90, 90, 100);
 			}
 		""")
-		delete_btn.clicked.connect(lambda checked: self._handle_delete(actual_index))
+		delete_btn.clicked.connect(lambda checked: self._handle_delete(uuid))
 		action_layout.addWidget(delete_btn)
 		
 		inline_layout.addWidget(action_container)
 		
 		return button_container
 	
-	def _layer_mouse_press(self, event, index, button):
+	def _layer_mouse_press(self, event, uuid, button):
 		"""Handle mouse press on layer button for drag start"""
 		if event.button() == Qt.LeftButton:
-			self.drag_start_index = index
+			self.drag_start_uuid = uuid
 			self.drag_start_pos = event.pos()
 		QPushButton.mousePressEvent(button, event)
 	
-	def _layer_mouse_move(self, event, index, button):
+	def _layer_mouse_move(self, event, uuid, button):
 		"""Handle mouse move on layer button for drag operation"""
 		if not (event.buttons() & Qt.LeftButton):
 			return
 		
-		if self.drag_start_index is None:
+		if self.drag_start_uuid is None:
 			return
 		
 		# Check if dragged far enough
@@ -375,30 +382,42 @@ class LayerListWidget(QWidget):
 		selected_indices = self.get_selected_indices()
 		
 		# If dragged layer is not in selection, make it the only selection
-		if index not in selected_indices:
-			selected_indices = [index]
-			self.selected_layer_indices = {index}
+		# Convert button position (idx in layer_buttons) to CoA index
+		button_idx = None
+		for idx, (btn_uuid, _) in enumerate(self.layer_buttons):
+			if btn_uuid == uuid:
+				button_idx = idx
+				break
+		
+		if button_idx is None:
+			return
+		
+		if button_idx not in selected_indices:
+			selected_indices = [button_idx]
+			self.selected_layer_uuids = {uuid}
 			self.update_selection_visuals()
 		
-		# Start drag with selected indices
+		# Start drag with selected UUIDs (convert from indices)
+		selected_uuids = [self.layer_buttons[idx][0] for idx in selected_indices if idx < len(self.layer_buttons)]
+		
 		drag = QDrag(button)
 		mime_data = QMimeData()
-		mime_data.setData('application/x-layer-indices', QByteArray(json.dumps(selected_indices).encode('utf-8')))
+		mime_data.setData('application/x-layer-uuids', QByteArray(json.dumps(selected_uuids).encode('utf-8')))
 		drag.setMimeData(mime_data)
 		
 		drag.exec_(Qt.MoveAction)
-		self.drag_start_index = None
+		self.drag_start_uuid = None
 	
 	def dragEnterEvent(self, event):
 		"""Handle drag enter on layer list"""
-		if event.mimeData().hasFormat('application/x-layer-indices'):
+		if event.mimeData().hasFormat('application/x-layer-uuids'):
 			event.accept()
 		else:
 			event.ignore()
 	
 	def dragMoveEvent(self, event):
 		"""Handle drag move over layer list and highlight drop zones"""
-		if event.mimeData().hasFormat('application/x-layer-indices'):
+		if event.mimeData().hasFormat('application/x-layer-uuids'):
 			# Find which drop zone is closest to cursor
 			drop_pos = event.pos()
 			closest_zone = None
@@ -440,12 +459,12 @@ class LayerListWidget(QWidget):
 			self.active_drop_zone.style().polish(self.active_drop_zone)
 			self.active_drop_zone = None
 		
-		if event.mimeData().hasFormat('application/x-layer-indices'):
-			# Get dragged indices
-			dragged_indices_json = bytes(event.mimeData().data('application/x-layer-indices')).decode('utf-8')
-			dragged_indices = json.loads(dragged_indices_json)
+		if event.mimeData().hasFormat('application/x-layer-uuids'):
+			# Get dragged UUIDs
+			dragged_uuids_json = bytes(event.mimeData().data('application/x-layer-uuids')).decode('utf-8')
+			dragged_uuids = json.loads(dragged_uuids_json)
 			
-			if not dragged_indices:
+			if not dragged_uuids:
 				event.ignore()
 				return
 			
@@ -468,37 +487,23 @@ class LayerListWidget(QWidget):
 			# Get the target index from the drop zone
 			target_index = closest_zone.property('drop_index')
 			
-			# Extract layers to be moved (maintain their array order)
-			sorted_indices = sorted(dragged_indices)
-			dragged_layers = [self.layers[idx] for idx in sorted_indices]
+			# Use CoA method to move layers by UUID
+			# For now, move layers one at a time (CoA.move_layer handles reordering)
+			# Note: This is a simplification - proper multi-move would need a CoA method
+			for i, uuid in enumerate(dragged_uuids):
+				# Move each layer to target_index + i
+				self.coa.move_layer(uuid, target_index + i)
 			
-			# Remove dragged layers from list (highest to lowest)
-			for idx in sorted(dragged_indices, reverse=True):
-				self.layers.pop(idx)
-			
-			# Adjust target index after removals
-			adjusted_target = target_index
-			for idx in sorted_indices:
-				if idx < target_index:
-					adjusted_target -= 1
-			
-			# Insert layers at target position
-			for i, layer in enumerate(dragged_layers):
-				insert_pos = adjusted_target + i
-				insert_pos = max(0, min(len(self.layers), insert_pos))
-				self.layers.insert(insert_pos, layer)
-			
-			# Update selection to new indices
-			new_indices = list(range(adjusted_target, adjusted_target + len(dragged_layers)))
-			self.selected_layer_indices = set(new_indices)
-			self.last_selected_index = new_indices[-1] if new_indices else None
+			# Update selection to new UUIDs (keep same UUIDs selected)
+			self.selected_layer_uuids = set(dragged_uuids)
+			self.last_selected_uuid = dragged_uuids[-1] if dragged_uuids else None
 			
 			self.rebuild()
 			self.update_selection_visuals()
 			
 			# Notify parent of reorder
 			if self.on_layers_reordered:
-				self.on_layers_reordered(len(dragged_indices))
+				self.on_layers_reordered(len(dragged_uuids))
 			
 			event.accept()
 		else:
@@ -537,33 +542,47 @@ class LayerListWidget(QWidget):
 		# Look up in the global texture preview map
 		return TEXTURE_PREVIEW_MAP.get(filename)
 	
-	def _select_layer(self, index):
-		"""Handle layer selection with modifier key support"""
+	def _select_layer_by_uuid(self, uuid):
+		"""Handle layer selection by UUID with modifier key support"""
 		modifiers = QApplication.keyboardModifiers()
 		ctrl_pressed = modifiers & Qt.ControlModifier
 		shift_pressed = modifiers & Qt.ShiftModifier
 		
-		if shift_pressed and self.last_selected_index is not None:
-			# Shift+Click: Range selection
-			start = min(index, self.last_selected_index)
-			end = max(index, self.last_selected_index)
-			self.selected_layer_indices = set(range(start, end + 1))
+		if shift_pressed and self.last_selected_uuid is not None:
+			# Shift+Click: Range selection - need to select all UUIDs between last and current
+			# Get indices of both UUIDs to determine range
+			current_idx = None
+			last_idx = None
+			for idx, (btn_uuid, _) in enumerate(self.layer_buttons):
+				if btn_uuid == uuid:
+					current_idx = idx
+				if btn_uuid == self.last_selected_uuid:
+					last_idx = idx
+			
+			if current_idx is not None and last_idx is not None:
+				start = min(current_idx, last_idx)
+				end = max(current_idx, last_idx)
+				# Select all UUIDs in range
+				self.selected_layer_uuids = set()
+				for idx in range(start, end + 1):
+					if idx < len(self.layer_buttons):
+						self.selected_layer_uuids.add(self.layer_buttons[idx][0])
 		elif ctrl_pressed:
 			# Ctrl+Click: Toggle selection
-			if index in self.selected_layer_indices:
-				self.selected_layer_indices.discard(index)
+			if uuid in self.selected_layer_uuids:
+				self.selected_layer_uuids.discard(uuid)
 			else:
-				self.selected_layer_indices.add(index)
-			self.last_selected_index = index
+				self.selected_layer_uuids.add(uuid)
+			self.last_selected_uuid = uuid
 		else:
 			# Regular click: Single selection
-			if index in self.selected_layer_indices and len(self.selected_layer_indices) == 1:
+			if uuid in self.selected_layer_uuids and len(self.selected_layer_uuids) == 1:
 				# Clicking the only selected layer - deselect it
-				self.selected_layer_indices.clear()
-				self.last_selected_index = None
+				self.selected_layer_uuids.clear()
+				self.last_selected_uuid = None
 			else:
-				self.selected_layer_indices = {index}
-				self.last_selected_index = index
+				self.selected_layer_uuids = {uuid}
+				self.last_selected_uuid = uuid
 		
 		# Update UI
 		self.update_selection_visuals()
@@ -572,27 +591,44 @@ class LayerListWidget(QWidget):
 		if self.on_selection_changed:
 			self.on_selection_changed()
 	
+	def _select_layer(self, index):
+		"""Handle layer selection with modifier key support (DEPRECATED - use _select_layer_by_uuid)"""
+		# Convert index to UUID and delegate
+		if index < len(self.layer_buttons):
+			uuid = self.layer_buttons[index][0]
+			self._select_layer_by_uuid(uuid)
+	
 	def update_selection_visuals(self):
 		"""Update which layer buttons are checked"""
-		for i, btn in enumerate(self.layer_buttons):
-			actual_layer_index = len(self.layers) - 1 - i
-			btn.setChecked(actual_layer_index in self.selected_layer_indices)
+		for uuid, btn in self.layer_buttons:
+			btn.setChecked(uuid in self.selected_layer_uuids)
+	
+	def get_selected_uuids(self):
+		"""Get list of selected layer UUIDs (primary selection API)"""
+		return list(self.selected_layer_uuids)
 	
 	def get_selected_indices(self):
-		"""Get sorted list of selected layer indices"""
-		return sorted(list(self.selected_layer_indices))
+		"""Get sorted list of selected layer indices (DEPRECATED - converts from UUIDs)"""
+		indices = []
+		for idx, (btn_uuid, _) in enumerate(self.layer_buttons):
+			if btn_uuid in self.selected_layer_uuids:
+				indices.append(idx)
+		return sorted(indices)
 	
 	def set_selected_indices(self, indices):
-		"""Update selection state with new indices"""
-		self.selected_layer_indices = set(indices) if not isinstance(indices, set) else indices
+		"""Update selection state with new indices (converts to UUIDs)"""
+		self.selected_layer_uuids.clear()
+		for idx in indices:
+			if idx < len(self.layer_buttons):
+				self.selected_layer_uuids.add(self.layer_buttons[idx][0])
 		self.update_selection_visuals()
 		if self.on_selection_changed:
 			self.on_selection_changed()
 	
 	def clear_selection(self):
 		"""Clear selection and update UI"""
-		self.selected_layer_indices.clear()
-		self.last_selected_index = None
+		self.selected_layer_uuids.clear()
+		self.last_selected_uuid = None
 		self.update_selection_visuals()
 		if self.on_selection_changed:
 			self.on_selection_changed()
@@ -607,54 +643,62 @@ class LayerListWidget(QWidget):
 				self.clear_selection()
 		super().mousePressEvent(event)
 	
-	def _handle_duplicate(self, index):
+	def _handle_duplicate(self, uuid):
 		"""Handle duplicate button click"""
 		if self.on_duplicate_layer:
-			self.on_duplicate_layer(index)
+			# Pass UUID directly instead of converting to index
+			self.on_duplicate_layer(uuid)
 	
-	def _handle_delete(self, index):
+	def _handle_delete(self, uuid):
 		"""Handle delete button click"""
 		if self.on_delete_layer:
-			self.on_delete_layer(index)
+			# Pass UUID directly instead of converting to index
+			self.on_delete_layer(uuid)
 	
-	def _handle_visibility_toggle(self, index):
+	def _handle_visibility_toggle(self, uuid):
 		"""Handle visibility toggle button click"""
 		if self.on_visibility_toggled:
-			self.on_visibility_toggled(index)
+			# Pass UUID directly instead of converting to index
+			self.on_visibility_toggled(uuid)
 	
-	def _handle_color_pick(self, index, color_index):
+	def _handle_color_pick(self, uuid, color_index):
 		"""Handle color button click - open color picker"""
 		if self.on_color_changed:
-			self.on_color_changed(index, color_index)
+			# Pass UUID directly instead of converting to index
+			self.on_color_changed(uuid, color_index)
 	
-	def _generate_layer_thumbnail(self, layer_index, size=48):
+	def _uuid_to_index(self, uuid):
+		"""Convert UUID to index by searching layer_buttons list"""
+		for idx, (btn_uuid, _) in enumerate(self.layer_buttons):
+			if btn_uuid == uuid:
+				return idx
+		return None
+	
+	def _generate_layer_thumbnail(self, uuid, size=48):
 		"""Generate a dynamically colored thumbnail for a layer
 		
 		Args:
-			layer_index: Index of layer in layers list
+			uuid: UUID of layer in CoA model
 			size: Thumbnail size (square)
 		
 		Returns:
 			QPixmap thumbnail or None
 		"""
 		# Check cache first
-		cache_key = (layer_index, size)
+		cache_key = (uuid, size)
 		if cache_key in self.thumbnail_cache:
 			return self.thumbnail_cache[cache_key]
 		
-		if layer_index < 0 or layer_index >= len(self.layers):
-			return None
-		
-		layer = self.layers[layer_index]
-		filename = layer.get('filename', '')
+		# Query layer properties from CoA by UUID
+		filename = self.coa.get_layer_property(uuid, 'filename')
 		
 		if not filename:
 			return None
 		
 		from utils.color_utils import get_contrasting_background
 		
-		# Get actual layer colors (in 0-1 range)
-		emblem_color1 = layer.get('color1', [0.75, 0.525, 0.188])
+		# Get actual layer colors (in 0-1 range) - query from CoA
+		emblem_color1 = self.coa.get_layer_property(uuid, 'color1') or [0.75, 0.525, 0.188]
 		
 		# Get base background color from property sidebar (not from layer data)
 		if self.property_sidebar and hasattr(self.property_sidebar, 'get_base_colors'):
@@ -666,11 +710,11 @@ class LayerListWidget(QWidget):
 		# Choose background color with smart contrast
 		background_color = get_contrasting_background(emblem_color1, base_background_color1)
 		
-		# Extract colors from layer (already in 0-1 range)
+		# Extract colors from CoA (already in 0-1 range)
 		colors = {
-			'color1': tuple(layer.get('color1', [0.75, 0.525, 0.188])),
-			'color2': tuple(layer.get('color2', [0.45, 0.133, 0.090])),
-			'color3': tuple(layer.get('color3', [0.45, 0.133, 0.090])),
+			'color1': tuple(self.coa.get_layer_property(uuid, 'color1') or [0.75, 0.525, 0.188]),
+			'color2': tuple(self.coa.get_layer_property(uuid, 'color2') or [0.45, 0.133, 0.090]),
+			'color3': tuple(self.coa.get_layer_property(uuid, 'color3') or [0.45, 0.133, 0.090]),
 			'background1': background_color
 		}
 		
@@ -696,10 +740,10 @@ class LayerListWidget(QWidget):
 		
 		return None
 	
-	def invalidate_thumbnail(self, layer_index):
-		"""Invalidate cached thumbnail for a specific layer"""
-		# Remove all size variants for this layer
-		keys_to_remove = [k for k in self.thumbnail_cache.keys() if k[0] == layer_index]
+	def invalidate_thumbnail(self, uuid):
+		"""Invalidate cached thumbnail for a specific layer by UUID"""
+		# Remove all size variants for this layer UUID
+		keys_to_remove = [k for k in self.thumbnail_cache.keys() if k[0] == uuid]
 		for key in keys_to_remove:
 			del self.thumbnail_cache[key]
 	

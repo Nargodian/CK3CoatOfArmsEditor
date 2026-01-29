@@ -379,6 +379,16 @@ class Layer:
         """Set mask channels or None"""
         self._data['mask'] = value
     
+    @property
+    def visible(self) -> bool:
+        """Get visibility state"""
+        return self._data.get('visible', True)
+    
+    @visible.setter
+    def visible(self, value: bool):
+        """Set visibility state"""
+        self._data['visible'] = bool(value)
+    
     # ========================================
     # Instance Management
     # ========================================
@@ -596,6 +606,36 @@ class Layer:
         LayerTracker.log_call(caller, self._id, 'to_dict')
         return dict(self._data)
     
+    def duplicate(self, caller: str = 'unknown', offset_x: float = 0.0, offset_y: float = 0.0) -> 'Layer':
+        """Create a duplicate of this layer with a new UUID
+        
+        Args:
+            caller: Registered key identifying the caller
+            offset_x: X position offset for all instances (default 0.0)
+            offset_y: Y position offset for all instances (default 0.0)
+            
+        Returns:
+            New Layer object with duplicated data and new UUID
+        """
+        LayerTracker.log_call(caller, self._id, 'duplicate', value=f"offset=({offset_x},{offset_y})")
+        
+        # Deep copy the data dict
+        import copy
+        duplicated = copy.deepcopy(self._data)
+        
+        # Generate new UUID
+        duplicated['uuid'] = str(uuid_module.uuid4())
+        
+        # Apply offset to all instances if provided
+        if offset_x != 0.0 or offset_y != 0.0:
+            for inst in duplicated['instances']:
+                if offset_x != 0.0:
+                    inst['pos_x'] = min(1.0, max(0.0, inst['pos_x'] + offset_x))
+                if offset_y != 0.0:
+                    inst['pos_y'] = min(1.0, max(0.0, inst['pos_y'] + offset_y))
+        
+        return Layer(duplicated, caller=caller)
+    
     def __repr__(self) -> str:
         """String representation for debugging"""
         return f"Layer(uuid='{self.uuid}', filename='{self.filename}', instances={self.instance_count})"
@@ -661,6 +701,20 @@ class Layers:
         
         self._layers.append(layer)
         LayerTracker.log_call(caller, layer.id, 'Layers.append')
+    
+    def extend(self, layers: List[Layer], caller: str = 'unknown'):
+        """Add multiple layers to end
+        
+        Args:
+            layers: List of layers to add
+            caller: Registered key identifying the caller
+        """
+        for layer in layers:
+            if not isinstance(layer, Layer):
+                raise TypeError(f"Expected Layer, got {type(layer)}")
+        
+        self._layers.extend(layers)
+        LayerTracker.log_call(caller, -1, 'Layers.extend', value=f"{len(layers)} layers")
     
     def insert(self, index: int, layer: Layer, caller: str = 'unknown'):
         """Insert layer at index

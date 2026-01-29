@@ -50,6 +50,7 @@ from typing import Dict, List, Optional, Tuple, Any
 import uuid as uuid_module
 from copy import deepcopy
 import math
+import inspect
 
 from models.layer import Layer, Layers
 from constants import (
@@ -57,7 +58,7 @@ from constants import (
     DEFAULT_SCALE_X, DEFAULT_SCALE_Y,
     DEFAULT_ROTATION,
     DEFAULT_PATTERN_TEXTURE,
-    DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2,
+    DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
     DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
     CK3_NAMED_COLORS
 )
@@ -90,17 +91,78 @@ class CoA:
         self._pattern = DEFAULT_PATTERN_TEXTURE
         self._pattern_color1 = CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb'].copy()
         self._pattern_color2 = CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb'].copy()
+        self._pattern_color3 = CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'].copy()
         self._pattern_color1_name = DEFAULT_BASE_COLOR1
         self._pattern_color2_name = DEFAULT_BASE_COLOR2
+        self._pattern_color3_name = DEFAULT_BASE_COLOR3
         
-        # Layers collection
-        self._layers = Layers(caller='CoA')
+        # Layers collection - stored with name mangling to prevent external access
+        # Access ONLY through the _layers property which validates the caller
+        self.__layers = Layers(caller='CoA')
         
         self._logger.debug("Created new CoA")
     
     # ========================================
     # Properties
     # ========================================
+    
+    @property
+    def _layers(self):
+        """Protected layers access - only accessible from within CoA class
+        
+        Raises:
+            AttributeError: If accessed from outside the CoA class
+        """
+        # Check caller - get the frame that's trying to access _layers
+        frame = inspect.currentframe()
+        try:
+            caller_frame = frame.f_back
+            # Get the caller's self object
+            caller_self = caller_frame.f_locals.get('self')
+            # Allow access if called from within a CoA instance method
+            if caller_self is not None and isinstance(caller_self, CoA):
+                return self.__layers
+            else:
+                # Get caller info for better error message
+                caller_filename = caller_frame.f_code.co_filename
+                caller_lineno = caller_frame.f_lineno
+                caller_function = caller_frame.f_code.co_name
+                raise AttributeError(
+                    f"Direct access to CoA._layers is forbidden! "
+                    f"Attempted from {caller_filename}:{caller_lineno} in {caller_function}(). "
+                    f"Use CoA's public methods instead (get_layer_by_uuid, get_layer_count, etc.)"
+                )
+        finally:
+            del frame  # Avoid reference cycles
+    
+    @_layers.setter
+    def _layers(self, value):
+        """Protected layers setter - only accessible from within CoA class
+        
+        Raises:
+            AttributeError: If accessed from outside the CoA class
+        """
+        # Check caller - get the frame that's trying to set _layers
+        frame = inspect.currentframe()
+        try:
+            caller_frame = frame.f_back
+            # Get the caller's self object
+            caller_self = caller_frame.f_locals.get('self')
+            # Allow setting if called from within a CoA instance method
+            if caller_self is not None and isinstance(caller_self, CoA):
+                self.__layers = value
+            else:
+                # Get caller info for better error message
+                caller_filename = caller_frame.f_code.co_filename
+                caller_lineno = caller_frame.f_lineno
+                caller_function = caller_frame.f_code.co_name
+                raise AttributeError(
+                    f"Direct modification of CoA._layers is forbidden! "
+                    f"Attempted from {caller_filename}:{caller_lineno} in {caller_function}(). "
+                    f"Use CoA's public methods instead"
+                )
+        finally:
+            del frame  # Avoid reference cycles
     
     @property
     def pattern(self) -> str:
@@ -160,6 +222,30 @@ class CoA:
         """Set pattern color 2 name"""
         self._pattern_color2_name = value
         self._logger.debug(f"Set pattern_color2_name: {value}")
+    
+    @property
+    def pattern_color3(self) -> List[int]:
+        """Get pattern color 3 RGB"""
+        return self._pattern_color3.copy()
+    
+    @pattern_color3.setter
+    def pattern_color3(self, value: List[int]):
+        """Set pattern color 3 RGB"""
+        if not isinstance(value, list) or len(value) != 3:
+            raise ValueError(f"Color must be [R, G, B] list, got {value}")
+        self._pattern_color3 = value.copy()
+        self._logger.debug(f"Set pattern_color3: {value}")
+    
+    @property
+    def pattern_color3_name(self) -> str:
+        """Get pattern color 3 name"""
+        return self._pattern_color3_name
+    
+    @pattern_color3_name.setter
+    def pattern_color3_name(self, value: str):
+        """Set pattern color 3 name"""
+        self._pattern_color3_name = value
+        self._logger.debug(f"Set pattern_color3_name: {value}")
     
     @property
     def layers(self) -> Layers:
@@ -252,6 +338,18 @@ class CoA:
             else:
                 coa._pattern_color2 = color_name_to_rgb(color2_raw)
                 coa._pattern_color2_name = color2_raw
+        
+        # Parse color3
+        color3_raw = coa_obj.get('color3', DEFAULT_BASE_COLOR3)
+        if isinstance(color3_raw, str):
+            if color3_raw.startswith('rgb'):
+                rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color3_raw)
+                if rgb_match:
+                    coa._pattern_color3 = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
+                    coa._pattern_color3_name = None
+            else:
+                coa._pattern_color3 = color_name_to_rgb(color3_raw)
+                coa._pattern_color3_name = color3_raw
         
         # Parse colored_emblem blocks
         emblems = coa_obj.get('colored_emblem', [])
@@ -398,6 +496,9 @@ class CoA:
         
         # Pattern color 2
         lines.append(f'\tcolor2 = {format_color(self._pattern_color2, self._pattern_color2_name)}')
+        
+        # Pattern color 3
+        lines.append(f'\tcolor3 = {format_color(self._pattern_color3, self._pattern_color3_name)}')
         
         # Colored emblems (layers)
         for depth_index, layer in enumerate(self._layers):
@@ -1738,6 +1839,67 @@ class CoA:
         """
         return len(self._layers)
     
+    def get_all_layer_uuids(self) -> List[str]:
+        """Get UUIDs of all layers in order (bottom to top)
+        
+        Returns:
+            List of layer UUIDs (index 0 = bottom/back, last = top/front)
+        """
+        return [layer.uuid for layer in self._layers]
+    
+    def get_layer_by_uuid(self, uuid: str) -> Optional[Layer]:
+        """Get layer object by UUID
+        
+        Args:
+            uuid: Layer UUID
+            
+        Returns:
+            Layer object or None if not found
+        """
+        return self._layers.get_by_uuid(uuid)
+    
+    def get_layer_by_index(self, index: int) -> Optional[Layer]:
+        """Get layer object by index
+        
+        Args:
+            index: Layer index (0 = bottom)
+            
+        Returns:
+            Layer object or None if index out of range
+        """
+        if 0 <= index < len(self._layers):
+            return self._layers[index]
+        return None
+    
+    def get_layer_uuid_by_index(self, index: int) -> Optional[str]:
+        """Get layer UUID by index
+        
+        Args:
+            index: Layer index (0 = bottom)
+            
+        Returns:
+            Layer UUID or None if index out of range
+        """
+        layer = self.get_layer_by_index(index)
+        return layer.uuid if layer else None
+    
+    def add_layer_object(self, layer: Layer):
+        """Add an existing Layer object to the CoA
+        
+        Args:
+            layer: Layer object to add
+        """
+        self._layers.append(layer, caller='CoA')
+    
+    def insert_layer_at_index(self, index: int, layer: Layer):
+        """Insert a layer at a specific index
+        
+        Args:
+            index: Position to insert (0 = bottom)
+            layer: Layer object to insert
+        """
+        self._layers.insert(index, layer, caller='CoA')
+    
     def get_uuid_at_index(self, index: int) -> str:
         """Get UUID of layer at specific index
         
@@ -1796,6 +1958,7 @@ class CoA:
         self._pattern_color2 = snapshot['pattern_color2'].copy()
         self._pattern_color1_name = snapshot['pattern_color1_name']
         self._pattern_color2_name = snapshot['pattern_color2_name']
+        # Property setter validates caller is from within CoA
         self._layers = Layers.from_dict_list(snapshot['layers'], caller='CoA')
         
         self._logger.debug("Restored from snapshot")

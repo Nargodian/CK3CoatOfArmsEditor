@@ -1,6 +1,19 @@
 """File operations for the main window - new, save, load, export"""
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
 
+# Import DEBUG_MODE from main
+import sys
+import os
+# Add parent directory to path to import from main
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+	sys.path.insert(0, parent_dir)
+	
+try:
+	from main import DEBUG_MODE
+except ImportError:
+	DEBUG_MODE = True  # Fallback if main not available
+
 #COA INTEGRATION ACTION: Step 6 - File actions use CoA model (Step 2 already implemented in main.py)
 # Main file operations (save/load) already migrated in Step 2
 # These helper methods delegate to main window which uses CoA model
@@ -95,6 +108,8 @@ class FileActions:
 			self.main_window.status_left.setText(f"Saved to {os.path.basename(filename)}")
 			
 		except Exception as e:
+			if DEBUG_MODE:
+				raise e
 			QMessageBox.critical(
 				self.main_window,
 				"Error",
@@ -103,8 +118,8 @@ class FileActions:
 	
 	def load_coa(self):
 		"""Load a coat of arms from file"""
-		from services.file_operations import load_coa_from_file
-		from services.coa_serializer import parse_coa_for_editor
+		#COA INTEGRATION ACTION: Step 2 - Use CoA model for loading
+		from models.coa import CoA
 		
 		if not self.main_window._prompt_save_if_needed():
 			return
@@ -118,30 +133,80 @@ class FileActions:
 		
 		if filename:
 			try:
-				# Load and parse the file
-				coa_data = load_coa_from_file(filename)
-				layers = parse_coa_for_editor(coa_data)
+				# Read file
+				with open(filename, 'r', encoding='utf-8') as f:
+					coa_text = f.read()
 				
-				# Clear history before loading
-				self.main_window.history_manager.clear()
+				# Parse into model
+				self.main_window.coa = CoA.from_string(coa_text)
 				
-				# Set layers
-				self.main_window.right_sidebar.set_layers(layers)
-				self.main_window.canvas_area.canvas_widget.set_layers(layers)
+				# Apply to UI - update from model
+				self.main_window.canvas_area.canvas_widget.set_base_texture(self.main_window.coa.pattern)
+				self.main_window.canvas_area.canvas_widget.set_base_colors([self.main_window.coa.pattern_color1, self.main_window.coa.pattern_color2, self.main_window.coa.pattern_color3])
+				self.main_window.canvas_area.canvas_widget.base_color1_name = self.main_window.coa.pattern_color1_name
+				self.main_window.canvas_area.canvas_widget.base_color2_name = self.main_window.coa.pattern_color2_name
+				self.main_window.canvas_area.canvas_widget.base_color3_name = self.main_window.coa.pattern_color3_name
+				
+				base_color_names = [self.main_window.coa.pattern_color1_name, self.main_window.coa.pattern_color2_name, self.main_window.coa.pattern_color3_name]
+				self.main_window.right_sidebar.set_base_colors([self.main_window.coa.pattern_color1, self.main_window.coa.pattern_color2, self.main_window.coa.pattern_color3], base_color_names)
+				
+				# Convert Layer objects to dicts for old UI code (temporary until Step 10)
+				self.main_window.right_sidebar.layers = []
+				for i in range(self.main_window.coa.get_layer_count()):
+					layer = self.main_window.coa.get_layer_by_index(i)
+					layer_dict = {
+						'uuid': layer.uuid,
+						'filename': layer.filename,
+						'pos_x': layer.pos_x,
+						'pos_y': layer.pos_y,
+						'scale_x': layer.scale_x,
+						'scale_y': layer.scale_y,
+						'rotation': layer.rotation,
+						'depth': i,
+						'color1': layer.color1,
+						'color2': layer.color2,
+						'color3': layer.color3,
+						'color1_name': layer.color1_name,
+						'color2_name': layer.color2_name,
+						'color3_name': layer.color3_name,
+						'mask': layer.mask,
+						'flip_x': layer.flip_x,
+						'flip_y': layer.flip_y,
+						'instance_count': layer.instance_count,
+					}
+					self.main_window.right_sidebar.layers.append(layer_dict)
+				
+				# Update UI
+				self.main_window.right_sidebar.tab_widget.setCurrentIndex(1)
+				self.main_window.right_sidebar._rebuild_layer_list()
+				if len(self.main_window.right_sidebar.layers) > 0:
+					self.main_window.right_sidebar._select_layer(0)
+				
+				# Update canvas
+				self.main_window.canvas_area.canvas_widget.set_layers(self.main_window.right_sidebar.layers)
 				
 				# Update file tracking
-				self.main_window.current_file = filename
-				self.main_window.is_modified = False
+				self.main_window.current_file_path = filename
+				self.main_window.is_saved = True
 				self.main_window._update_window_title()
 				
 				# Add to recent files
 				self.main_window._add_to_recent_files(filename)
 				
+				# Clear history before loading
+				self.main_window.history_manager.clear()
+				
 				# Create initial history entry
 				self.main_window._save_state("Load CoA")
-				self.main_window.is_modified = False
+				
+				# OLD CODE (will remove in Step 10):
+				# coa_data = load_coa_from_file(filename)
+				# layers = parse_coa_for_editor(coa_data)
+				# self.main_window.right_sidebar.set_layers(layers)
 				
 			except Exception as e:
+				if DEBUG_MODE:
+					raise e
 				QMessageBox.critical(
 					self.main_window,
 					"Error",
@@ -164,6 +229,8 @@ class FileActions:
 			
 			# Ensure .png extension
 			if not filename.lower().endswith('.png'):
+				if DEBUG_MODE:
+					raise e
 				filename += '.png'
 			
 			# Get the canvas widget's pixmap/image

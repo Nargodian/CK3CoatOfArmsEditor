@@ -188,30 +188,29 @@ class CanvasArea(QFrame):
 		
 		# Use layer_index parameter if provided (backward compatibility)
 		if layer_index is not None:
-			if layer_index < 0 or layer_index >= len(self.property_sidebar.layers):
+			if layer_index < 0 or layer_index >= self.property_sidebar.get_layer_count():
 				self.transform_widget.set_visible(False)
 				return
-			selected_indices = [layer_index]
-		
-		if not selected_indices:
-			self.transform_widget.set_visible(False)
-			return
 		
 		# SINGLE SELECTION: Show layer transform directly
 		if len(selected_indices) == 1:
 			idx = selected_indices[0]
-			if idx < 0 or idx >= len(self.property_sidebar.layers):
+			# Read from CoA model for transform widget positioning
+			if not self.main_window or not self.main_window.coa:
+				self.transform_widget.set_visible(False)
+				return
+			if idx < 0 or idx >= self.main_window.coa.get_layer_count():
 				self.transform_widget.set_visible(False)
 				return
 			
-			layer = self.property_sidebar.layers[idx]
-			pos_x = layer.get('pos_x', 0.5)
-			pos_y = layer.get('pos_y', 0.5)
-			scale_x = layer.get('scale_x', 0.5)
-			scale_y = layer.get('scale_y', 0.5)
-			rotation = layer.get('rotation', 0)
+			layer = self.main_window.coa.get_layer_by_index(idx)
+			pos_x = layer.pos_x
+			pos_y = layer.pos_y
+			scale_x = layer.scale_x
+			scale_y = layer.scale_y
+			rotation = layer.rotation
 			
-			self.transform_widget.set_transform(pos_x, pos_y, scale_x, scale_y, rotation, is_multi_selection=False)
+			self.transform_widget.set_transform(pos_x, pos_y, scale_x, scale_y, rotation)
 			self.transform_widget.set_visible(True)
 			return
 		
@@ -228,14 +227,14 @@ class CanvasArea(QFrame):
 			max_y = float('-inf')
 			
 			for idx in selected_indices:
-				if idx < 0 or idx >= len(self.property_sidebar.layers):
+				if idx < 0 or idx >= self.property_sidebar.get_layer_count():
 					continue
 				
-				layer = self.property_sidebar.layers[idx]
-				pos_x = layer.get('pos_x', 0.5)
-				pos_y = layer.get('pos_y', 0.5)
-				scale_x = layer.get('scale_x', 0.5)
-				scale_y = layer.get('scale_y', 0.5)
+				layer = self.property_sidebar.get_layer_by_index(idx)
+				pos_x = layer.pos_x
+				pos_y = layer.pos_y
+				scale_x = layer.scale_x
+				scale_y = layer.scale_y
 				
 				# Calculate layer AABB in normalized space (use abs for negative scales/flips)
 				layer_min_x = pos_x - abs(scale_x) / 2
@@ -282,18 +281,18 @@ class CanvasArea(QFrame):
 		# SINGLE SELECTION: Direct update
 		if len(selected_indices) == 1:
 			idx = selected_indices[0]
-			if idx < 0 or idx >= len(self.property_sidebar.layers):
+			if idx < 0 or idx >= self.property_sidebar.get_layer_count():
 				return
 			
-			layer = self.property_sidebar.layers[idx]
+			layer = self.property_sidebar.get_layer_by_index(idx)
 			# Clamp position to valid range [0, 1]
-			layer['pos_x'] = max(0.0, min(1.0, pos_x))
-			layer['pos_y'] = max(0.0, min(1.0, pos_y))
-			layer['scale_x'] = scale_x
-			layer['scale_y'] = scale_y
-			layer['rotation'] = rotation
+			layer.pos_x = max(0.0, min(1.0, pos_x))
+			layer.pos_y = max(0.0, min(1.0, pos_y))
+			layer.scale_x = scale_x
+			layer.scale_y = scale_y
+			layer.rotation = rotation
 			
-			self.canvas_widget.set_layers(self.property_sidebar.layers)
+			self.canvas_widget.set_coa(self.main_window.coa)
 			# Don't reload properties during drag - causes feedback loop that resets flip state
 			# Properties will be reloaded when drag ends in _on_transform_ended()
 			return
@@ -304,15 +303,15 @@ class CanvasArea(QFrame):
 			self._drag_start_layers = []
 			self._aabb_synced = False  # Track if we've synced AABB this drag
 			for idx in selected_indices:
-				if idx < 0 or idx >= len(self.property_sidebar.layers):
+				if idx < 0 or idx >= self.property_sidebar.get_layer_count():
 					continue
-				layer = self.property_sidebar.layers[idx]
+				layer = self.property_sidebar.get_layer_by_index(idx)
 				self._drag_start_layers.append({
 					'index': idx,
-					'pos_x': layer.get('pos_x', 0.5),
-					'pos_y': layer.get('pos_y', 0.5),
-					'scale_x': layer.get('scale_x', 0.5),
-					'scale_y': layer.get('scale_y', 0.5)
+					'pos_x': layer.pos_x,
+					'pos_y': layer.pos_y,
+					'scale_x': layer.scale_x,
+					'scale_y': layer.scale_y
 				})
 			
 			# Calculate and cache the original group AABB (only once at drag start)
@@ -370,7 +369,7 @@ class CanvasArea(QFrame):
 		import math
 		for layer_state in self._drag_start_layers:
 			idx = layer_state['index']
-			if idx < 0 or idx >= len(self.property_sidebar.layers):
+			if idx < 0 or idx >= self.property_sidebar.get_layer_count():
 				continue
 			
 			# Get original positions from cache
@@ -427,21 +426,17 @@ class CanvasArea(QFrame):
 				new_scale_y = max(0.01, min(1.0, new_scale_y))
 			
 			# Update actual layer (flip_x and flip_y are preserved automatically)
-			layer = self.property_sidebar.layers[idx]
-			layer['pos_x'] = new_pos_x
-			layer['pos_y'] = new_pos_y
-			layer['scale_x'] = new_scale_x
-			layer['scale_y'] = new_scale_y
+			layer = self.property_sidebar.get_layer_by_index(idx)
+			layer.pos_x = new_pos_x
+			layer.pos_y = new_pos_y
+			layer.scale_x = new_scale_x
+			layer.scale_y = new_scale_y
 			# Task 3.6: Individual layer rotations are preserved (NOT modified)
-		
-		# Update canvas
-		self.canvas_widget.set_layers(self.property_sidebar.layers)
-		# Don't reload properties during drag - it's expensive and causes UI issues
-		# Properties will be reloaded when drag ends
 	
 	def _on_transform_ended(self):
-		"""Handle transform drag end - save to history"""
-		# Clear drag cache for next operation
+		"""Handle transform widget drag end"""
+		# Update canvas
+		self.canvas_widget.set_coa(self.main_window.coa)
 		self._drag_start_layers = None
 		self._drag_start_aabb = None
 		
