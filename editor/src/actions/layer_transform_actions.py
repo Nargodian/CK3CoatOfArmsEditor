@@ -127,3 +127,42 @@ class LayerTransformActions:
 		
 		# Save to history
 		self.main_window._save_state(f"Rotate {degrees}°")
+	
+	def move_to(self, position):
+		"""Move selected layers to fixed positions
+		
+		Args:
+			position: One of 'left', 'center', 'right', 'top', 'middle', 'bottom'
+		"""
+		selected_indices = self.main_window.right_sidebar.get_selected_indices()
+		if not selected_indices:
+			return
+		
+		# Define fixed positions (0.0 to 1.0 range)
+		fixed_positions = {
+			'left': 0.25,
+			'center': 0.5,
+			'right': 0.75,
+			'top': 0.25,
+			'middle': 0.5,
+			'bottom': 0.75
+		}
+		
+		target = fixed_positions.get(position, 0.5)
+		
+		if position in ['left', 'center', 'right']:
+			# Horizontal movement
+			for idx in selected_indices:
+				self.main_window.right_sidebar.layers[idx]['pos_x'] = target
+		else:
+			# Vertical movement
+			for idx in selected_indices:
+				self.main_window.right_sidebar.layers[idx]['pos_y'] = target
+		
+		# Update UI
+		self.main_window.right_sidebar._load_layer_properties()
+		self.main_window.canvas_area.canvas_widget.set_layers(self.main_window.right_sidebar.layers)
+		self.main_window.canvas_area.update_transform_widget_for_layer()
+		
+		# Save to history
+		self.main_window._save_state(f"Move to {position}")

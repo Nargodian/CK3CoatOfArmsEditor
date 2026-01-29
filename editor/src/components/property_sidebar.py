@@ -978,6 +978,10 @@ class PropertySidebar(QFrame):
 		if self.main_window and hasattr(self.main_window, '_update_transform_actions'):
 			self.main_window._update_transform_actions()
 		
+		# Update move to action states in main window
+		if self.main_window and hasattr(self.main_window, '_update_move_to_actions'):
+			self.main_window._update_move_to_actions()
+		
 		# Update properties tab state
 		selected_indices = self.get_selected_indices()
 		if selected_indices:

@@ -265,7 +265,7 @@ class CoatOfArmsEditor(QMainWindow):
 		self.rotate_minus_90_action.triggered.connect(lambda: self._rotate_layers(-90))
 		
 		# Store transform actions for enabling/disabling
-		self.transform_actions = [
+		self.transform_action_list = [
 			self.flip_x_action,
 			self.flip_y_action,
 			self.rotate_90_action,
@@ -313,6 +313,42 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# Initially disable alignment actions
 		self._update_alignment_actions()
+		
+		# Move to submenu (move to fixed positions)
+		move_to_menu = edit_menu.addMenu("&Move to")
+		
+		self.move_to_left_action = move_to_menu.addAction("&Left")
+		self.move_to_left_action.triggered.connect(lambda: self._move_to('left'))
+		
+		self.move_to_center_action = move_to_menu.addAction("&Center")
+		self.move_to_center_action.triggered.connect(lambda: self._move_to('center'))
+		
+		self.move_to_right_action = move_to_menu.addAction("&Right")
+		self.move_to_right_action.triggered.connect(lambda: self._move_to('right'))
+		
+		move_to_menu.addSeparator()
+		
+		self.move_to_top_action = move_to_menu.addAction("&Top")
+		self.move_to_top_action.triggered.connect(lambda: self._move_to('top'))
+		
+		self.move_to_middle_action = move_to_menu.addAction("&Middle")
+		self.move_to_middle_action.triggered.connect(lambda: self._move_to('middle'))
+		
+		self.move_to_bottom_action = move_to_menu.addAction("&Bottom")
+		self.move_to_bottom_action.triggered.connect(lambda: self._move_to('bottom'))
+		
+		# Store move to actions for enabling/disabling
+		self.move_to_actions = [
+			self.move_to_left_action,
+			self.move_to_center_action,
+			self.move_to_right_action,
+			self.move_to_top_action,
+			self.move_to_middle_action,
+			self.move_to_bottom_action
+		]
+		
+		# Initially disable move to actions
+		self._update_move_to_actions()
 		
 		edit_menu.addSeparator()
 		
@@ -429,19 +465,37 @@ class CoatOfArmsEditor(QMainWindow):
 		"""Enable or disable transform actions based on selection count"""
 		if not hasattr(self, 'right_sidebar'):
 			# Right sidebar not yet initialized, disable all transform actions
-			for action in self.transform_actions:
+			for action in self.transform_action_list:
 				action.setEnabled(False)
 			return
 		
 		selected_count = len(self.right_sidebar.get_selected_indices())
 		enabled = selected_count >= 1
 		
-		for action in self.transform_actions:
+		for action in self.transform_action_list:
 			action.setEnabled(enabled)
 	
 	def _align_layers(self, alignment):
 		"""Align selected layers"""
 		self.transform_actions.align_layers(alignment)
+	
+	def _update_move_to_actions(self):
+		"""Enable or disable move to actions based on selection count"""
+		if not hasattr(self, 'right_sidebar'):
+			# Right sidebar not yet initialized, disable all move to actions
+			for action in self.move_to_actions:
+				action.setEnabled(False)
+			return
+		
+		selected_count = len(self.right_sidebar.get_selected_indices())
+		enabled = selected_count >= 1
+		
+		for action in self.move_to_actions:
+			action.setEnabled(enabled)
+	
+	def _move_to(self, position):
+		"""Move selected layers to fixed position"""
+		self.transform_actions.move_to(position)
 	
 	def _flip_x(self):
 		"""Flip selected layers horizontally"""
