@@ -17,7 +17,7 @@
 - ✅ **Step 6: Transform Actions** - Align, flip, rotate, move_to using CoA model (Jan 29, 2026)
 - ✅ **Step 7: Clipboard Actions** - Copy/Paste CoA using model (Jan 29, 2026)
 - 🔄 **Step 8: Test Basic Smoke Test** - Next: verify app starts
-- ⬜ Step 9: Undo/Redo System
+- ✅ **Step 9: Undo/Redo System** - Using CoA snapshot methods (Jan 29, 2026)
 - ⬜ Step 10: Cleanup - Remove Old System
 - ⬜ Step 11: Integration Testing
 

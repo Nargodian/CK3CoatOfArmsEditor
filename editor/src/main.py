@@ -1093,18 +1093,25 @@ class CoatOfArmsEditor(QMainWindow):
 	
 	def _capture_current_state(self):
 		"""Capture the current state for history"""
-		canvas = self.canvas_area.canvas_widget
-		
+		#COA INTEGRATION ACTION: Step 9 - Use CoA model snapshot for undo/redo
+		# NEW CODE: Use model's snapshot for CoA data
 		state = {
-			'layers': [dict(layer) for layer in self.right_sidebar.layers],  # Deep copy
-			'selected_layer_indices': set(self.right_sidebar.selected_layer_indices),  # Copy set
-			'base_texture': canvas.base_texture,
-			'base_colors': canvas.base_colors[:],  # Copy list
-			'base_color1_name': getattr(canvas, 'base_color1_name', None),
-			'base_color2_name': getattr(canvas, 'base_color2_name', None),
-			'base_color3_name': getattr(canvas, 'base_color3_name', None),
-			# TODO: Add frame and splendor level when implemented
+			'coa_snapshot': self.coa.get_snapshot(),
+			'selected_layer_indices': set(self.right_sidebar.selected_layer_indices),  # UI state
 		}
+		
+		# OLD CODE: Deep copy of dicts
+		# canvas = self.canvas_area.canvas_widget
+		# state = {
+		# 	'layers': [dict(layer) for layer in self.right_sidebar.layers],  # Deep copy
+		# 	'selected_layer_indices': set(self.right_sidebar.selected_layer_indices),  # Copy set
+		# 	'base_texture': canvas.base_texture,
+		# 	'base_colors': canvas.base_colors[:],  # Copy list
+		# 	'base_color1_name': getattr(canvas, 'base_color1_name', None),
+		# 	'base_color2_name': getattr(canvas, 'base_color2_name', None),
+		# 	'base_color3_name': getattr(canvas, 'base_color3_name', None),
+		# }
+		
 		return state
 	
 	def _restore_state(self, state):
@@ -1114,26 +1121,55 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		self._is_applying_history = True
 		try:
-			# Restore layers
-			self.right_sidebar.layers = [dict(layer) for layer in state['layers']]
+			#COA INTEGRATION ACTION: Step 9 - Restore from CoA model snapshot
+			# NEW CODE: Restore CoA from snapshot
+			self.coa.set_snapshot(state['coa_snapshot'])
+			
+			# Restore UI selection state
 			self.right_sidebar.selected_layer_indices = set(state.get('selected_layer_indices', set()))
+			
+			# Update all UI components to reflect restored CoA state
+			# Note: This still uses old methods temporarily - will be updated in future steps
+			# Right sidebar needs to rebuild layer list from CoA
+			self.right_sidebar.layers = []  # Clear old dict list
+			for i in range(self.coa.get_layer_count()):
+				layer = self.coa._layers[i]
+				# Convert Layer object to dict for old UI code (temporary)
+				layer_dict = {
+					'uuid': layer.uuid,
+					'filename': layer.filename,
+					'pos_x': layer.pos_x,
+					'pos_y': layer.pos_y,
+					'scale_x': layer.scale_x,
+					'scale_y': layer.scale_y,
+					'rotation': layer.rotation,
+					'depth': layer.depth,
+					'color1': layer.color1,
+					'color2': layer.color2,
+					'color3': layer.color3,
+					'color1_name': layer.color1_name,
+					'color2_name': layer.color2_name,
+					'color3_name': layer.color3_name,
+					'mask': layer.mask,
+					'flip_x': layer.flip_x,
+					'flip_y': layer.flip_y,
+					'instance_count': layer.instance_count,
+				}
+				self.right_sidebar.layers.append(layer_dict)
+			
 			self.right_sidebar._rebuild_layer_list()
 			self.right_sidebar._update_layer_selection()
 			
-			# Restore base
-			self.canvas_area.canvas_widget.set_base_texture(state['base_texture'])
-			self.canvas_area.canvas_widget.set_base_colors(state['base_colors'])
-			self.canvas_area.canvas_widget.base_color1_name = state.get('base_color1_name')
-			self.canvas_area.canvas_widget.base_color2_name = state.get('base_color2_name')
-			self.canvas_area.canvas_widget.base_color3_name = state.get('base_color3_name')
+			# Restore base texture and colors
+			self.canvas_area.canvas_widget.set_base_texture(self.coa.pattern)
+			self.canvas_area.canvas_widget.set_base_colors([self.coa.color1, self.coa.color2, self.coa.color3])
+			self.canvas_area.canvas_widget.base_color1_name = self.coa.color1_name
+			self.canvas_area.canvas_widget.base_color2_name = self.coa.color2_name
+			self.canvas_area.canvas_widget.base_color3_name = self.coa.color3_name
 			
 			# Update property sidebar base colors
-			base_color_names = [
-				state.get('base_color1_name'),
-				state.get('base_color2_name'),
-				state.get('base_color3_name')
-			]
-			self.right_sidebar.set_base_colors(state['base_colors'], base_color_names)
+			base_color_names = [self.coa.color1_name, self.coa.color2_name, self.coa.color3_name]
+			self.right_sidebar.set_base_colors([self.coa.color1, self.coa.color2, self.coa.color3], base_color_names)
 			
 			# Restore canvas layers
 			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
@@ -1147,6 +1183,25 @@ class CoatOfArmsEditor(QMainWindow):
 			else:
 				self.right_sidebar.tab_widget.setTabEnabled(2, False)
 				self.canvas_area.transform_widget.set_visible(False)
+			
+			# OLD CODE: Dict-based restore
+			# self.right_sidebar.layers = [dict(layer) for layer in state['layers']]
+			# self.right_sidebar.selected_layer_indices = set(state.get('selected_layer_indices', set()))
+			# self.right_sidebar._rebuild_layer_list()
+			# self.right_sidebar._update_layer_selection()
+			# self.canvas_area.canvas_widget.set_base_texture(state['base_texture'])
+			# self.canvas_area.canvas_widget.set_base_colors(state['base_colors'])
+			# self.canvas_area.canvas_widget.base_color1_name = state.get('base_color1_name')
+			# self.canvas_area.canvas_widget.base_color2_name = state.get('base_color2_name')
+			# self.canvas_area.canvas_widget.base_color3_name = state.get('base_color3_name')
+			# base_color_names = [
+			# 	state.get('base_color1_name'),
+			# 	state.get('base_color2_name'),
+			# 	state.get('base_color3_name')
+			# ]
+			# self.right_sidebar.set_base_colors(state['base_colors'], base_color_names)
+			# self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			
 		finally:
 			self._is_applying_history = False
 			# Update status bar after state is fully restored
