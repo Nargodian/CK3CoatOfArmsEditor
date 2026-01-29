@@ -214,44 +214,33 @@ class CanvasArea(QFrame):
 			self.transform_widget.set_visible(True)
 			return
 		
-		# MULTI-SELECTION: Calculate screen-space AABB
+		# MULTI-SELECTION: Calculate screen-space AABB using CoA
 		# Use cached AABB if it exists (persists after rotation to prevent inflation)
 		if self.transform_widget.cached_aabb is not None:
 			# Use cached values to maintain baseline scale
 			group_pos_x, group_pos_y, group_scale_x, group_scale_y = self.transform_widget.cached_aabb
 		else:
-			# Calculate AABB from current layer positions
-			min_x = float('inf')
-			max_x = float('-inf')
-			min_y = float('inf')
-			max_y = float('-inf')
-			
+			# Get UUIDs for selected layers
+			selected_uuids = []
 			for idx in selected_indices:
-				if idx < 0 or idx >= self.property_sidebar.get_layer_count():
-					continue
-				
-				layer = self.property_sidebar.get_layer_by_index(idx)
-				pos_x = layer.pos_x
-				pos_y = layer.pos_y
-				scale_x = layer.scale_x
-				scale_y = layer.scale_y
-				
-				# Calculate layer AABB in normalized space (use abs for negative scales/flips)
-				layer_min_x = pos_x - abs(scale_x) / 2
-				layer_max_x = pos_x + abs(scale_x) / 2
-				layer_min_y = pos_y - abs(scale_y) / 2
-				layer_max_y = pos_y + abs(scale_y) / 2
-				
-				min_x = min(min_x, layer_min_x)
-				max_x = max(max_x, layer_max_x)
-				min_y = min(min_y, layer_min_y)
-				max_y = max(max_y, layer_max_y)
+				uuid = self.main_window.coa.get_layer_uuid_by_index(idx)
+				if uuid:
+					selected_uuids.append(uuid)
 			
-			# Calculate group center and scale
-			group_pos_x = (min_x + max_x) / 2
-			group_pos_y = (min_y + max_y) / 2
-			group_scale_x = max_x - min_x
-			group_scale_y = max_y - min_y
+			if not selected_uuids:
+				self.transform_widget.set_visible(False)
+				return
+			
+			# Use CoA's AABB calculation
+			try:
+				bounds = self.main_window.coa.get_layers_bounds(selected_uuids)
+				group_pos_x = bounds['center_x']
+				group_pos_y = bounds['center_y']
+				group_scale_x = bounds['width']
+				group_scale_y = bounds['height']
+			except ValueError:
+				self.transform_widget.set_visible(False)
+				return
 		
 		# Don't cache AABB if we just rotated - keep the pre-rotation cache
 		# Only cache when starting fresh (no existing cache)

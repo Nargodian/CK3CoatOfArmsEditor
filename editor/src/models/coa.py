@@ -1709,10 +1709,10 @@ class CoA:
             sx = instance['scale_x']
             sy = instance['scale_y']
             
-            # Approximate half-extents (assume unit texture scaled)
-            # In reality, we'd need actual texture dimensions
-            half_w = sx * 0.1  # Placeholder
-            half_h = sy * 0.1  # Placeholder
+            # Scale values represent the full width/height in normalized space
+            # Use absolute values to handle negative scales (flips)
+            half_w = abs(sx) / 2.0
+            half_h = abs(sy) / 2.0
             
             # Update bounds
             min_x = min(min_x, x - half_w)
