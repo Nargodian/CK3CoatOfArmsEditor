@@ -1738,6 +1738,34 @@ class CoA:
         """
         return len(self._layers)
     
+    def get_uuid_at_index(self, index: int) -> str:
+        """Get UUID of layer at specific index
+        
+        Args:
+            index: Layer index (0 = bottom/back, len-1 = top/front)
+            
+        Returns:
+            Layer UUID
+            
+        Raises:
+            IndexError: If index out of range
+        """
+        return self._layers[index].uuid
+    
+    def get_uuids_from_indices(self, indices: List[int]) -> List[str]:
+        """Convert list of indices to list of UUIDs
+        
+        Args:
+            indices: List of layer indices
+            
+        Returns:
+            List of layer UUIDs in same order
+            
+        Raises:
+            IndexError: If any index out of range
+        """
+        return [self._layers[i].uuid for i in indices]
+    
     # ========================================
     # Snapshot API (for undo/redo)
     # ========================================

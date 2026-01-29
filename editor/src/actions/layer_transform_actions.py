@@ -19,6 +19,7 @@ class LayerTransformActions:
 		Args:
 			alignment: One of 'left', 'center', 'right', 'top', 'middle', 'bottom'
 		"""
+		#COA INTEGRATION ACTION: Step 6 - Use CoA model for alignment
 		selected_indices = self.main_window.right_sidebar.get_selected_indices()
 		if len(selected_indices) < 2:
 			QMessageBox.information(
@@ -28,32 +29,34 @@ class LayerTransformActions:
 			)
 			return
 		
-		layers = [self.main_window.right_sidebar.layers[i] for i in selected_indices]
+		# Convert indices to UUIDs
+		uuids = self.main_window.coa.get_uuids_from_indices(selected_indices)
 		
-		if alignment in ['left', 'center', 'right']:
-			# Horizontal alignment
-			positions = [layer.get('pos_x', 0.5) for layer in layers]
-			if alignment == 'left':
-				target = min(positions)
-			elif alignment == 'right':
-				target = max(positions)
-			else:  # center
-				target = sum(positions) / len(positions)
-			
-			for idx in selected_indices:
-				self.main_window.right_sidebar.layers[idx]['pos_x'] = target
+		# Use model method
+		self.main_window.coa.align_layers(uuids, alignment)
 		
-		else:  # vertical alignment
-			positions = [layer.get('pos_y', 0.5) for layer in layers]
-			if alignment == 'top':
-				target = min(positions)
-			elif alignment == 'bottom':
-				target = max(positions)
-			else:  # middle
-				target = sum(positions) / len(positions)
-			
-			for idx in selected_indices:
-				self.main_window.right_sidebar.layers[idx]['pos_y'] = target
+		# OLD CODE (will remove in Step 9):
+		# layers = [self.main_window.right_sidebar.layers[i] for i in selected_indices]
+		# if alignment in ['left', 'center', 'right']:
+		# 	positions = [layer.get('pos_x', 0.5) for layer in layers]
+		# 	if alignment == 'left':
+		# 		target = min(positions)
+		# 	elif alignment == 'right':
+		# 		target = max(positions)
+		# 	else:
+		# 		target = sum(positions) / len(positions)
+		# 	for idx in selected_indices:
+		# 		self.main_window.right_sidebar.layers[idx]['pos_x'] = target
+		# else:
+		# 	positions = [layer.get('pos_y', 0.5) for layer in layers]
+		# 	if alignment == 'top':
+		# 		target = min(positions)
+		# 	elif alignment == 'bottom':
+		# 		target = max(positions)
+		# 	else:
+		# 		target = sum(positions) / len(positions)
+		# 	for idx in selected_indices:
+		# 		self.main_window.right_sidebar.layers[idx]['pos_y'] = target
 		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
@@ -65,15 +68,23 @@ class LayerTransformActions:
 	
 	def flip_x(self):
 		"""Flip selected layers horizontally"""
+		#COA INTEGRATION ACTION: Step 6 - Use CoA model for flip operations
 		selected_indices = self.main_window.right_sidebar.get_selected_indices()
 		if not selected_indices:
 			return
 		
-		for idx in selected_indices:
-			layer = self.main_window.right_sidebar.layers[idx]
-			# Flip scale_x
-			current_scale_x = layer.get('scale_x', 1.0)
-			layer['scale_x'] = -current_scale_x
+		# Convert indices to UUIDs
+		uuids = self.main_window.coa.get_uuids_from_indices(selected_indices)
+		
+		# Use model method for each layer
+		for uuid in uuids:
+			self.main_window.coa.flip_layer(uuid, flip_x=True, flip_y=None)
+		
+		# OLD CODE (will remove in Step 9):
+		# for idx in selected_indices:
+		# 	layer = self.main_window.right_sidebar.layers[idx]
+		# 	current_scale_x = layer.get('scale_x', 1.0)
+		# 	layer['scale_x'] = -current_scale_x
 		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
@@ -85,15 +96,23 @@ class LayerTransformActions:
 	
 	def flip_y(self):
 		"""Flip selected layers vertically"""
+		#COA INTEGRATION ACTION: Step 6 - Use CoA model for flip operations
 		selected_indices = self.main_window.right_sidebar.get_selected_indices()
 		if not selected_indices:
 			return
 		
-		for idx in selected_indices:
-			layer = self.main_window.right_sidebar.layers[idx]
-			# Flip scale_y
-			current_scale_y = layer.get('scale_y', 1.0)
-			layer['scale_y'] = -current_scale_y
+		# Convert indices to UUIDs
+		uuids = self.main_window.coa.get_uuids_from_indices(selected_indices)
+		
+		# Use model method for each layer
+		for uuid in uuids:
+			self.main_window.coa.flip_layer(uuid, flip_x=None, flip_y=True)
+		
+		# OLD CODE (will remove in Step 9):
+		# for idx in selected_indices:
+		# 	layer = self.main_window.right_sidebar.layers[idx]
+		# 	current_scale_y = layer.get('scale_y', 1.0)
+		# 	layer['scale_y'] = -current_scale_y
 		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
@@ -109,16 +128,24 @@ class LayerTransformActions:
 		Args:
 			degrees: Rotation amount in degrees (90, 180, or -90)
 		"""
+		#COA INTEGRATION ACTION: Step 6 - Use CoA model for rotation operations
 		selected_indices = self.main_window.right_sidebar.get_selected_indices()
 		if not selected_indices:
 			return
 		
-		for idx in selected_indices:
-			layer = self.main_window.right_sidebar.layers[idx]
-			# Add rotation (normalized to 0-360)
-			current_rotation = layer.get('rotation', 0.0)
-			new_rotation = (current_rotation + degrees) % 360
-			layer['rotation'] = new_rotation
+		# Convert indices to UUIDs
+		uuids = self.main_window.coa.get_uuids_from_indices(selected_indices)
+		
+		# Use model method for each layer
+		for uuid in uuids:
+			self.main_window.coa.rotate_layer(uuid, degrees)
+		
+		# OLD CODE (will remove in Step 9):
+		# for idx in selected_indices:
+		# 	layer = self.main_window.right_sidebar.layers[idx]
+		# 	current_rotation = layer.get('rotation', 0.0)
+		# 	new_rotation = (current_rotation + degrees) % 360
+		# 	layer['rotation'] = new_rotation
 		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
@@ -134,30 +161,29 @@ class LayerTransformActions:
 		Args:
 			position: One of 'left', 'center', 'right', 'top', 'middle', 'bottom'
 		"""
+		#COA INTEGRATION ACTION: Step 6 - Use CoA model for move_to operations
 		selected_indices = self.main_window.right_sidebar.get_selected_indices()
 		if not selected_indices:
 			return
 		
-		# Define fixed positions (0.0 to 1.0 range)
-		fixed_positions = {
-			'left': 0.25,
-			'center': 0.5,
-			'right': 0.75,
-			'top': 0.25,
-			'middle': 0.5,
-			'bottom': 0.75
-		}
+		# Convert indices to UUIDs
+		uuids = self.main_window.coa.get_uuids_from_indices(selected_indices)
 		
-		target = fixed_positions.get(position, 0.5)
+		# Use model method
+		self.main_window.coa.move_layers_to(uuids, position)
 		
-		if position in ['left', 'center', 'right']:
-			# Horizontal movement
-			for idx in selected_indices:
-				self.main_window.right_sidebar.layers[idx]['pos_x'] = target
-		else:
-			# Vertical movement
-			for idx in selected_indices:
-				self.main_window.right_sidebar.layers[idx]['pos_y'] = target
+		# OLD CODE (will remove in Step 9):
+		# fixed_positions = {
+		# 	'left': 0.25, 'center': 0.5, 'right': 0.75,
+		# 	'top': 0.25, 'middle': 0.5, 'bottom': 0.75
+		# }
+		# target = fixed_positions.get(position, 0.5)
+		# if position in ['left', 'center', 'right']:
+		# 	for idx in selected_indices:
+		# 		self.main_window.right_sidebar.layers[idx]['pos_x'] = target
+		# else:
+		# 	for idx in selected_indices:
+		# 		self.main_window.right_sidebar.layers[idx]['pos_y'] = target
 		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
