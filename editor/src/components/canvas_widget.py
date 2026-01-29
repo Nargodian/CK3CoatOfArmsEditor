@@ -3,6 +3,10 @@ from PyQt5.QtWidgets import QOpenGLWidget
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader, QOpenGLVertexArrayObject, QOpenGLBuffer, QVector2D, QVector3D, QVector4D
 
+#COA INTEGRATION ACTION: Step 5 - Import Layer and CoA models for type hints and future use
+from models.coa import CoA
+from models.layer import Layer
+
 # External library imports
 import OpenGL.GL as gl
 import numpy as np
@@ -130,6 +134,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	
 	def __init__(self, parent=None):
 		super().__init__(parent)
+		#COA INTEGRATION ACTION: Step 5 - Add CoA model reference (set by CanvasArea/MainWindow)
+		self.coa = None  # Reference to CoA model (will be set externally)
 		self.base_shader = None  # Shader for base layer
 		self.design_shader = None  # Shader for emblem layers
 		self.basic_shader = None  # Shader for frame rendering
@@ -145,7 +151,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb'],
 			CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb']
 		]  # Default base colors from constants
-		self.layers = []  # List of layer data from property sidebar
+		self.layers = []  # List of layer data from property sidebar (OLD CODE: keep for now)
 		self.frameTexture = None  # Current frame texture
 		self.frameTextures = {}  # Frame name -> texture ID
 		self.frame_masks = {}  # Frame name -> frameMask texture ID

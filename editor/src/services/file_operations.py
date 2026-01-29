@@ -82,31 +82,47 @@ def build_coa_for_save(base_colors, base_texture, layers, base_color_names):
         coa_data["coa_export"]["colored_emblem"] = []
         
         for depth_index, layer in enumerate(layers):
-            texture = layer.get('filename', layer.get('path', ''))
-            # Combine flip and scale for export
-            scale_x = layer.get('scale_x', 1.0)
-            scale_y = layer.get('scale_y', 1.0)
-            if layer.get('flip_x', False):
-                scale_x = -scale_x
-            if layer.get('flip_y', False):
-                scale_y = -scale_y
+            # Migrate old format if needed
+            if 'pos_x' in layer and 'instances' not in layer:
+                from services.layer_operations import _migrate_layer_to_instances
+                _migrate_layer_to_instances(layer)
             
-            instance = {
-                "position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
-                "scale": [scale_x, scale_y],
-                "rotation": int(layer.get('rotation', 0))
-            }
-            # Add depth: higher depth = further back
-            # First layer (frontmost) = no depth, subsequent layers get increasing depth
-            if depth_index < len(layers) - 1:
-                # Calculate depth from back: last layer gets highest depth
-                depth_from_back = len(layers) - 1 - depth_index
-                instance["depth"] = float(depth_from_back) + 0.01
+            texture = layer.get('filename', layer.get('path', ''))
+            
+            # Build instances list
+            instances = []
+            for inst in layer.get('instances', []):
+                # Combine flip and scale for export
+                scale_x = inst.get('scale_x', 1.0)
+                scale_y = inst.get('scale_y', 1.0)
+                if layer.get('flip_x', False):
+                    scale_x = -scale_x
+                if layer.get('flip_y', False):
+                    scale_y = -scale_y
+                
+                instance = {
+                    "position": [inst.get('pos_x', 0.5), inst.get('pos_y', 0.5)],
+                    "scale": [scale_x, scale_y],
+                    "rotation": int(inst.get('rotation', 0))
+                }
+                
+                # Add depth: higher depth = further back
+                # First layer (frontmost) = no depth, subsequent layers get increasing depth
+                if depth_index < len(layers) - 1:
+                    # Calculate depth from back: last layer gets highest depth
+                    depth_from_back = len(layers) - 1 - depth_index
+                    instance["depth"] = float(depth_from_back) + 0.01
+                
+                instances.append(instance)
+            
+            # If no instances, create default
+            if not instances:
+                instances = [{"position": [0.5, 0.5], "scale": [1.0, 1.0], "rotation": 0}]
             
             emblem = {
                 "texture": texture,
                 "color1": rgb_to_color_name(layer.get('color1'), layer.get('color1_name')),
-                "instance": [instance]
+                "instance": instances
             }
             
             # Add mask if present (None means render everywhere, so omit it)
@@ -153,30 +169,44 @@ def build_coa_for_clipboard(base_colors, base_texture, layers, base_color_names)
     
     # Add emblem layers with depth values
     for layer_idx, layer in enumerate(layers):
-        # Combine flip and scale for export
-        scale_x = layer.get('scale_x', 1.0)
-        scale_y = layer.get('scale_y', 1.0)
-        if layer.get('flip_x', False):
-            scale_x = -scale_x
-        if layer.get('flip_y', False):
-            scale_y = -scale_y
+        # Migrate old format if needed
+        if 'pos_x' in layer and 'instances' not in layer:
+            from services.layer_operations import _migrate_layer_to_instances
+            _migrate_layer_to_instances(layer)
         
-        instance = {
-            "position": [layer.get('pos_x', 0.5), layer.get('pos_y', 0.5)],
-            "scale": [scale_x, scale_y],
-            "rotation": int(layer.get('rotation', 0))
-        }
-        # Add depth: higher depth = further back
-        # First layer (frontmost) = no depth, subsequent layers get increasing depth
-        if layer_idx < len(layers) - 1:
-            # Calculate depth from back: last layer gets highest depth
-            depth_from_back = len(layers) - 1 - layer_idx
-            instance['depth'] = float(depth_from_back) + 0.01
+        # Build instances list
+        instances = []
+        for inst in layer.get('instances', []):
+            # Combine flip and scale for export
+            scale_x = inst.get('scale_x', 1.0)
+            scale_y = inst.get('scale_y', 1.0)
+            if layer.get('flip_x', False):
+                scale_x = -scale_x
+            if layer.get('flip_y', False):
+                scale_y = -scale_y
+            
+            instance = {
+                "position": [inst.get('pos_x', 0.5), inst.get('pos_y', 0.5)],
+                "scale": [scale_x, scale_y],
+                "rotation": int(inst.get('rotation', 0))
+            }
+            # Add depth: higher depth = further back
+            # First layer (frontmost) = no depth, subsequent layers get increasing depth
+            if layer_idx < len(layers) - 1:
+                # Calculate depth from back: last layer gets highest depth
+                depth_from_back = len(layers) - 1 - layer_idx
+                instance['depth'] = float(depth_from_back) + 0.01
+            
+            instances.append(instance)
+        
+        # If no instances, create default
+        if not instances:
+            instances = [{"position": [0.5, 0.5], "scale": [1.0, 1.0], "rotation": 0}]
         
         emblem = {
             "texture": layer.get('filename', ''),
             "color1": rgb_to_color_name(layer.get('color1'), layer.get('color1_name')),
-            "instance": [instance]
+            "instance": instances
         }
         
         # Add mask if present (None means render everywhere, so omit it)

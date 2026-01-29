@@ -1,7 +1,7 @@
 # CK3 CoA Editor - Development Roadmap
 
-**Last Updated:** January 27, 2026  
-**Status:** Pattern Mask Feature - ✅ Implemented  
+**Last Updated:** January 29, 2026  
+**Status:** Phase 1 Complete - Ready for Phase 2  
 
 This document consolidates the feature implementation plan and development priorities for the CK3 Coat of Arms Editor.
 
@@ -21,13 +21,18 @@ This document consolidates the feature implementation plan and development prior
 
 ## Current Status
 
-### ✅ Completed Features
-- **Pattern Mask System** (Phase 1)
-  - Data model: `mask` field in layer data as `[int, int, int]` list
-  - Serialization: Round-trip support for mask field
-  - UI: Pattern Mask section with 3 checkboxes and color indicators
-  - Shader: Bitwise flag system with exclusive masking (subtraction algorithm)
-  - Canvas: Pattern texture UV mapping with atlas coordinates
+### ✅ Phase 1 Complete (January 2026)
+**Pattern Mask System** - Fully implemented and tested
+- ✅ Data model: `mask` field in layer data as `[int, int, int]` list
+- ✅ Serialization: Round-trip support for mask field
+- ✅ UI: Pattern Mask section with 3 checkboxes and color indicators
+- ✅ Shader: Bitwise flag system with exclusive masking (subtraction algorithm)
+- ✅ Canvas: Pattern texture UV mapping with atlas coordinates
+- ✅ All game samples tested and working
+- ✅ Export/import round-trip verified
+
+### 🎯 Next Up: Phase 2 - Multi-Instance Support
+Focus on expanding emblem capabilities to match CK3's multi-instance format.
 
 ---
 
@@ -79,97 +84,122 @@ layer_data = {
 
 ## Phase 2: Multi-Instance Support
 
-### 🔄 PLANNED - High Priority
+### 🔄 IN PROGRESS - High Priority
 
 **Objective:** Support multiple instances per emblem layer (matches CK3's official file format).
 
-### Current Limitation
-```python
-# Parser reads all instances but editor only uses first
-instances = emblem.get('instance', [])
-instance = instances[0]  # ❌ ONLY USES FIRST
-```
+### Current Status
+**Phase 2A: Complete ✅** - Import/Export and rendering support for multi-instance layers
+- ✅ Data model with instances list
+- ✅ Import all instances from CoA files
+- ✅ Export all instances to CoA files
+- ✅ Canvas renders all instances
+- ✅ Backwards compatibility migration
+
+**Phase 2B: In Progress** - User interface and instance management
+
+### Design Constraints
+
+**Important:** Multi-instance layers are treated as **atomic groups** in the editor:
+- All instances transform together as a unit
+- Individual instances cannot be selected or edited separately on canvas
+- Per-instance editing requires splitting the layer first
+- This simplifies the UI and prevents accidental desynchronization
 
 ### Target Architecture
 
-#### Data Model Update
+#### Data Model (Complete)
 ```python
 layer_data = {
     'filename': 'ce_lion_rampant.dds',
     'instances': [  # List of instance dicts
         {
-            'pos_x': 0.3,
-            'pos_y': 0.3,
-            'scale_x': 0.5,
-            'scale_y': 0.5,
-            'rotation': 0.0,
-            'depth': 1.0
+            'pos_x': 0.3, 'pos_y': 0.3,
+            'scale_x': 0.5, 'scale_y': 0.5,
+            'rotation': 0.0, 'depth': 1.0
         },
         {
-            'pos_x': 0.7,
-            'pos_y': 0.7,
-            'scale_x': 0.5,
-            'scale_y': 0.5,
-            'rotation': 0.0,
-            'depth': 1.0
+            'pos_x': 0.7, 'pos_y': 0.7,
+            'scale_x': 0.5, 'scale_y': 0.5,
+            'rotation': 0.0, 'depth': 1.0
         }
     ],
+    'selected_instance': 0,  # Currently selected instance (for properties)
     'color1': [...],  # Colors apply to all instances
     'mask': [1, 0, 0],  # Mask applies to all instances
+    'flip_x': False,  # Flip applies to all instances
+    'flip_y': False
 }
 ```
 
 #### Implementation Phases
 
-**Phase 2A: Import/Export Support (4-6 hours)**
-- Read all instances from emblems during import
-- Store multiple instances in layer data
-- Export all instances to CoA format
-- Canvas renders all instances for each layer
-- Backwards compatibility: migrate old single-instance format
+**Phase 2B: UI Indicators and Basic Management (4-6 hours)**
+- Visual indicator in layer list for multi-instance layers
+  - Badge/icon showing instance count (e.g., "×3" or special character)
+  - Hover tooltip: "Multi-instance layer (3 instances)"
+- Layer operations behavior:
+  - **Duplicate Layer**: Creates separate layer with copies of all instances
+  - **Delete Layer**: Removes entire multi-instance layer and all instances
+  - **Add Layer**: Always creates single-instance layer (cannot add instances via this button)
+- Transform widget: Operates on all instances as a group
+- Property editors: Show properties of selected instance but editing affects first instance only
 
-**Phase 2B: Instance Management UI (8-12 hours)**
-- Instance list view in property sidebar
-- Add/Remove/Duplicate instance buttons
-- Per-instance property editing (position, scale, rotation, depth)
-- Visual indicators for multi-instance layers in layer list
-- Canvas interaction: click to select individual instances
-
-**Phase 2C: Advanced Features (6-8 hours)**
-- **Break Apart**: Right-click → "Break Apart Instances" (ungroup to separate layers)
-- **Manual Grouping**: Select multiple compatible layers → "Group as Instances"
-- **Auto-Consolidation**: Preference setting to auto-group on export
-  - Detects consecutive layers with same texture/colors/mask
-  - Consolidates to single emblem with multiple instances
-  - Reduces file size, matches CK3 convention
+**Phase 2C: Split and Merge Commands (6-8 hours)**
+- **Menu: Layers → Split Instances**
+  - Enabled only when single multi-instance layer is selected
+  - Breaks layer into N separate single-instance layers
+  - Each layer preserves its instance's position, scale, rotation
+  - Colors, mask, flip state copied to all new layers
+- **Menu: Layers → Merge as Instances**
+  - Enabled when 2+ compatible layers are selected
+  - **Compatibility check:**
+    - Same texture (`filename`)
+    - Same colors (`color1`, `color2`, `color3`)
+    - Same mask value
+  - **Warning dialog if incompatible:**
+    - "Selected layers have different properties (texture/colors/mask)."
+    - "Merging will use the topmost layer's properties for all instances."
+    - "Continue? [Yes] [No]"
+  - Creates single layer with multiple instances
+  - Each original layer becomes one instance (preserves pos/scale/rotation/depth)
+  - Non-instance properties (color, mask, flip) taken from topmost selected layer
 
 #### UI Mockup
 ```
 ┌─────────────────────────────┐
-│ Instances (3)               │
+│ Layers                      │
 ├─────────────────────────────┤
-│ ☑ #1: (0.3,0.3) s:0.5 r:0° │
-│ ☐ #2: (0.7,0.3) s:0.5 r:0° │ ← disabled/hidden
-│ ☑ #3: (0.5,0.7) s:0.5 r:0° │
+│ [✓] Lion ×3                 │ ← Badge shows instance count
+│ [ ] Shield                  │
+│ [✓] Cross ×2                │ ← Hover: "Multi-instance layer (2 instances)"
+│ [ ] Border                  │
 ├─────────────────────────────┤
-│ Selected Instance #1:       │
+│ [Add] [Delete] [Duplicate]  │
+└─────────────────────────────┘
+
+Properties Tab:
+┌─────────────────────────────┐
+│ Instance 1 of 3             │ ← Info label (read-only)
 │ Position: [0.30][0.30]      │
 │ Scale:    [0.50][0.50]      │
 │ Rotation: [0.00]°           │
-│ Depth:    [1.00]            │
 ├─────────────────────────────┤
-│ [Add] [Remove] [Break Apart]│
+│ Applies to all instances:   │
+│ Colors: [■][■][■]           │
+│ Pattern Mask: [☑][☐][☐]    │
+│ Flip: [☐ X] [☐ Y]           │
 └─────────────────────────────┘
 ```
 
 #### Files to Modify
-- `editor/src/services/layer_operations.py` - Multi-instance data model
-- `editor/src/components/canvas_widget.py` - Render all instances
-- `editor/src/components/property_sidebar.py` - Instance manager UI
-- `editor/src/services/file_operations.py` - Export multiple instances
-- `editor/src/main.py` - Backwards compatibility migration
+- `editor/src/components/property_sidebar_widgets/layer_list_widget.py` - Add instance count badge
+- `editor/src/components/property_sidebar.py` - Update property display for multi-instance
+- `editor/src/main.py` - Add Split/Merge menu commands
+- `editor/src/services/layer_operations.py` - Add split_layer() and merge_layers() functions
+- `editor/src/components/dialogs/` - Create merge warning dialog (new file)
 
-**Estimated Total Effort:** 18-26 hours
+**Estimated Total Effort:** 10-14 hours
 
 ---
 
@@ -287,7 +317,66 @@ Official CK3 files use variables:
 
 Parser already handles these by skipping non-block lines. No action needed.
 
-#### 4.4 Performance Optimization
+#### 4.4 Rotation Mode Selector for Group Transforms
+**Problem:** Group rotation needs different behaviors depending on whether users want layer-level or instance-level transforms, especially for multi-instance layers.
+
+**Solution:**
+- Add dropdown selector (QComboBox) for rotation mode
+- Located near "Minimal Transform" button in transform controls
+- 6 modes covering shallow (layer-level) and deep (instance-level) transforms
+
+**Rotation Modes:**
+
+**Shallow Modes** (operate on layers as units):
+1. **Rotate Only**
+   - Each layer rotates around its own center
+   - Multi-instance layers: instances orbit within layer (ferris wheel effect)
+   - Single-instance layers: just rotate in place
+   
+2. **Orbit Only**
+   - Layers orbit around selection center
+   - No layer rotation applied
+   - Instances maintain positions within their layers
+   
+3. **Both** (Orbit + Rotate)
+   - Layers orbit around selection center AND rotate
+   - Multi-instance layers: instances orbit within while layer group orbits
+   - Combined ferris wheel effect
+
+**Deep Modes** (operate on individual instances):
+4. **Rotate Only Deep**
+   - Every instance rotates around its own center
+   - No position changes at all (pure spin)
+   - Multi-instance layers: instances rotate independently, no orbital motion
+   
+5. **Orbit Only Deep**
+   - Every instance orbits around selection center
+   - No rotation changes (orientations preserved)
+   - Treats all instances as independent entities
+   
+6. **Both Deep** (Orbit + Rotate)
+   - Every instance orbits around selection center AND rotates individually
+   - Complete independence - no layer grouping
+
+**Key Distinction:**
+- **Shallow**: Layer-level transforms. Multi-instance layers behave as groups.
+- **Deep**: Instance-level transforms. Every instance is independent regardless of layer structure.
+
+**Implementation:**
+- Add QComboBox with 6 options
+- Labels match mode names above for clarity
+- Modify `CoA.rotate_selection()` to accept `rotation_mode` parameter
+- Model layer handles transform routing based on mode
+- UI passes selected mode from dropdown to model
+- State persists per session
+
+**Files:** 
+- `editor/src/models/coa.py` - Add rotation_mode parameter to rotate_selection()
+- `editor/src/components/transform_widget.py` - Add mode dropdown
+- `editor/src/components/canvas_area.py` - Pass mode to model
+**Effort:** 4-6 hours
+
+#### 4.5 Performance Optimization
 - Profile rendering with 33+ instance layers
 - Consider GPU instanced rendering if needed
 - Cache instance transforms
@@ -355,15 +444,16 @@ layer = {
 ```python
 layer = {
     'instances': [
-        {'pos_x': 0.5, 'pos_y': 0.5, 'scale_x': 1.0, ...}
+        {'pos_x': 0.5, 'pos_y': 0.5, 'scale_x': 1.0, 'scale_y': 1.0, 'rotation': 0.0, 'depth': 0.0}
     ],
+    'selected_instance': 0,  # Index of currently selected instance
     'mask': None  # or [1, 0, 0]
 }
 ```
 
-**Migration strategy:**
+**Migration strategy (Complete ✅):**
 ```python
-# On file load
+# Automatic migration in _migrate_layer_to_instances()
 if 'pos_x' in layer and 'instances' not in layer:
     # Convert old format to new
     layer['instances'] = [{
@@ -372,28 +462,39 @@ if 'pos_x' in layer and 'instances' not in layer:
         'scale_x': layer.pop('scale_x'),
         'scale_y': layer.pop('scale_y'),
         'rotation': layer.pop('rotation', 0.0),
-        'depth': layer.pop('depth', 1.0)
+        'depth': layer.pop('depth', 0.0)
     }]
+    layer['selected_instance'] = 0
 
 if 'mask' not in layer:
     layer['mask'] = None  # Default to all channels
 ```
 
-### Instance Auto-Consolidation Logic
+### Instance Layer Behavior
 
-**Detection criteria:**
-- Consecutive layers in stack
-- Same `filename` (texture)
-- Same `color1`, `color2`, `color3`
-- Same `mask` value
-- Only transforms differ
+#### Layer Operations
+- **Add Layer**: Creates new single-instance layer (no option to add instances)
+- **Duplicate Layer**: Creates separate multi-instance layer with all instances copied
+- **Delete Layer**: Removes entire layer and all its instances
+- **Move Up/Down**: Moves entire multi-instance layer as a unit
 
-**Preference setting:**
-- `Settings → Export → Auto-consolidate instances`
-- Default: **OFF**
-- When ON: Export consolidates matching layers into single `colored_emblem` with multiple `instance` blocks
+#### Transform Operations
+- All instances transform together as a group
+- Canvas transform widget affects all instances uniformly
+- **Implementation:** Reuse existing multi-selection group transform logic from `canvas_area.py`
+  - Multi-instance layers treated as "permanent multi-selection"
+  - AABB-based group transform already handles this case
+- No individual instance selection on canvas
+- Properties tab shows first instance's transform values
 
-**Important:** Pre-existing consolidated instances (from imported files) are always preserved regardless of setting.
+#### Split and Merge
+- **Split Instances**: Menu command (Layers → Split Instances) breaks multi-instance layer into N single-instance layers
+- **Merge as Instances**: Menu command (Layers → Merge as Instances) combines selected layers into one multi-instance layer
+  - Compatibility check: same texture, colors, and mask
+  - Warning dialog if properties don't match
+  - Merge uses topmost layer's properties for all instances
+
+**Note:** Auto-consolidation feature removed. Multi-instance layers are explicitly managed via Split/Merge commands only.
 
 ---
 
@@ -402,9 +503,9 @@ if 'mask' not in layer:
 | Feature | Priority | Effort | Impact | Status |
 |---------|----------|--------|--------|--------|
 | Pattern Mask System | ⚠️ CRITICAL | 4-6h | High | ✅ Complete |
-| Multi-Instance Import/Export | High | 4-6h | High | 📋 Planned |
-| Multi-Instance UI | High | 8-12h | Very High | 📋 Planned |
-| Instance Grouping/Ungrouping | Medium | 6-8h | High | 📋 Planned |
+| Multi-Instance Import/Export | High | 4-6h | High | ✅ Complete |
+| Multi-Instance UI Indicators | High | 4-6h | High | 📋 Planned |
+| Split/Merge Commands | High | 6-8h | High | 📋 Planned |
 | Layout Templates (CK3) | Medium | 4-6h | Medium | 📋 Planned |
 | Layout Templates (Procedural) | Medium | 4-6h | Medium | 📋 Planned |
 | Pattern-as-Emblem | Low | 2-3h | Low | 📋 Planned |
@@ -416,111 +517,110 @@ if 'mask' not in layer:
 ## Testing Strategy
 
 ### Critical Tests
-- ✅ Load all game samples (coa_sample_0 through coa_sample_11)
+- ✅ Load all game samples (coa_sample_0 through coa_sample_12)
 - ✅ Export and reimport - verify round-trip preservation
 - ✅ Load official CK3 files from game directory
 - ✅ Verify mask values preserved and functional
-- 🔄 Verify all instances preserved (Phase 2)
+- ✅ Verify all instances preserved and rendered (Phase 2A)
 
-### Integration Tests (Phase 2)
-- Create multi-instance layer → export → verify structure
-- Edit instances → verify changes persist
-- Undo/redo with multi-instance layers
-- Copy/paste layers with multiple instances
-- Break apart instances → verify separate layers created
-- Group layers as instances → verify consolidation
-- Auto-consolidation on export (with preference enabled)
+### Integration Tests (Phase 2B/C)
+- Load multi-instance CoA file (e.g., coa_sample_1.txt with 2 instances)
+- Verify instance count badge displays correctly
+- Split multi-instance layer → verify N separate layers created
+- Select multiple compatible layers → merge as instances → verify single layer
+- Attempt merge with incompatible layers → verify warning dialog appears
+- Merge with override → verify topmost layer's properties applied
+- Transform multi-instance layer → verify all instances move together
+- Duplicate multi-instance layer → verify separate layer created
+- Delete multi-instance layer → verify all instances removed
 
 ### Backwards Compatibility
-- Load old project files (pre-Phase 2)
-- Verify migration to new data format
-- Export from migrated project works correctly
-- No data loss during migration
+- ✅ Load old project files (pre-Phase 2)
+- ✅ Verify automatic migration to new data format
+- ✅ Export from migrated project works correctly
+- ✅ No data loss during migration
 
 ---
 
 ## Open Questions
 
-### 1. Instance Selection UI
-**Question:** How should users select individual instances in multi-instance layers?
+### 1. Instance Count Badge Display
+**Question:** What character/icon should represent multi-instance layers?
 
 **Options:**
-- A. Click cycles through overlapping instances
-- B. Context menu lists all instances at click position
-- C. Instance list in sidebar is primary selection method (click to select)
-- D. Combination: sidebar list + canvas click highlights
+- A. "×N" (e.g., "×3") - Simple, clear, uses multiplication symbol
+- B. "⚏ N" or "▤ N" - Icon + number
+- C. "[N]" - Brackets around count
+- D. Superscript number in parentheses
 
-**Recommendation:** Option D (sidebar list primary, canvas provides visual feedback)
+**Recommendation:** Option A ("×3") - Clear, compact, universally understood
 
-### 2. Import Default Behavior
-**Question:** When importing CoAs with multiple instances, default behavior?
-
-**Options:**
-- A. Always import grouped (preserves structure)
-- B. Always import separated (easier editing)
-- C. Ask user every time (flexible but annoying)
-- D. User preference setting (best?)
-
-**Recommendation:** Option D with default=grouped (preserves file structure, matches CK3 convention)
-
-### 3. Instance Auto-Consolidation Sensitivity
-**Question:** When detecting "same colors" for consolidation, how strict?
+### 2. Split Instance Naming
+**Question:** How should split layers be named?
 
 **Options:**
-- A. Exact RGB match only
-- B. Allow small tolerance (e.g., ±0.01 per channel)
+- A. "Lion #1", "Lion #2", "Lion #3" - Numbered suffix
+- B. "Lion (1 of 3)", "Lion (2 of 3)", "Lion (3 of 3)" - Position indicator
+- C. Original name for all - Let user rename if needed
 
-**Recommendation:** Option A (exact match) - user can manually group if needed
+**Recommendation:** Option A - Simple, follows common conventions
 
-### 4. Mask Channel Detection
-**Question:** How to determine available mask channels in a pattern?
+### 3. Merge Order Behavior
+**Question:** Which layer's non-instance properties take precedence when merging?
+
+**Answer (Decided):** Topmost selected layer's properties override all others.
+- Consistent with "top layer wins" mental model
+- User warned via dialog before merge
+
+### 4. Transform Widget Multi-Instance Feedback
+**Question:** Should transform widget visually indicate when operating on multi-instance?
 
 **Options:**
-- A. Hard-code known patterns (fragile, requires maintenance)
-- B. Probe pattern texture for mask channel data (runtime analysis)
-- C. Default to 3 channels, disable unavailable ones in UI
+- A. No special indication (current behavior)
+- B. Show "[×N]" in widget header
+- C. Different color/style for multi-instance transform
 
-**Recommendation:** Option C with future enhancement to Option B
+**Recommendation:** Option B - Subtle reminder without cluttering UI
 
 ---
 
 ## Development Timeline Estimate
 
-### Week 1: Multi-Instance Foundation
-- Implement multi-instance data model
-- Update import/export logic
-- Basic canvas rendering of all instances
-- Backwards compatibility migration
-- Testing and bug fixes
+### ✅ Completed: Phase 1 & Phase 2A (January 2026)
+- Pattern Mask System fully implemented
+- Multi-instance data model and migration
+- Import/export all instances
+- Canvas rendering all instances
+- Backwards compatibility
 
-### Week 2: Instance Management UI
-- Instance list view in property sidebar
-- Add/Remove/Duplicate functionality
-- Per-instance property editing
-- Canvas selection interaction
-- Layer list visual indicators
+### Week 1-2: Phase 2B - UI Indicators
+- Instance count badge in layer list
+- Hover tooltips
+- Property display updates
+- Testing with real game files
 
-### Week 3: Advanced Instance Features
-- Break apart instances
-- Manual grouping
-- Auto-consolidation preference and logic
+### Week 3-4: Phase 2C - Split/Merge Commands
+- Split Instances menu command
+- Merge as Instances menu command
+- Compatibility checking
+- Warning dialog for incompatible merges
 - Testing complex scenarios
 
-### Week 4: Layout Templates
+### Week 5-6: Layout Templates (Phase 3)
 - Hard-code CK3 official layouts
 - Implement procedural generators
 - Template selection dialog
 - Parameter input dialogs for procedural
 - Preview visualization (optional)
 
-### Week 5: Polish & Documentation
+### Week 7: Polish & Documentation
 - Pattern-as-emblem support
 - Optional pattern field
 - Performance profiling and optimization
 - Update documentation
 - Final testing and release
 
-**Total Estimated Time:** 5-6 weeks (assuming part-time development)
+**Total Estimated Time:** 6-7 weeks (assuming part-time development)
 
 ---
 

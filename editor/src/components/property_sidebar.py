@@ -25,7 +25,9 @@ class PropertySidebar(QFrame):
 		super().__init__(parent)
 		self.setMinimumWidth(250)
 		self.setMaximumWidth(400)
-		self.layers = []  # List of layer data dicts
+		#COA INTEGRATION ACTION: Step 3 - Add CoA model reference (set by MainWindow)
+		self.coa = None  # Reference to CoA model (will be set externally)
+		self.layers = []  # List of layer data dicts (OLD CODE: keep for now)
 		self.selected_layer_indices = set()  # Set of selected layer indices for multi-select
 		self.last_selected_index = None  # Track for range selection with Shift+Click
 		self.layer_buttons = []  # Keep track of layer buttons
@@ -74,6 +76,9 @@ class PropertySidebar(QFrame):
 	def get_property_value(self, property_name):
 		"""Get property value from selected layers. Returns actual value if all same, 'Mixed' if different.
 		
+		For instance properties (pos_x, pos_y, scale_x, scale_y, rotation), returns the value
+		from the selected instance within each layer.
+		
 		Args:
 			property_name: String key for layer property (e.g., 'pos_x', 'scale_x', 'rotation')
 		
@@ -86,19 +91,53 @@ class PropertySidebar(QFrame):
 		if not selected_indices:
 			return None
 		
+		# Instance properties are stored within instances list
+		instance_properties = ['pos_x', 'pos_y', 'scale_x', 'scale_y', 'rotation', 'depth']
+		
 		# Single selection - return actual value
 		if len(selected_indices) == 1:
 			idx = selected_indices[0]
 			if idx < len(self.layers):
-				return self.layers[idx].get(property_name)
+				layer = self.layers[idx]
+				
+				# Migrate old format if needed
+				if property_name in instance_properties and 'pos_x' in layer and 'instances' not in layer:
+					from services.layer_operations import _migrate_layer_to_instances
+					_migrate_layer_to_instances(layer)
+				
+				# Get value from selected instance or layer directly
+				if property_name in instance_properties and 'instances' in layer:
+					instances = layer.get('instances', [])
+					selected_inst = layer.get('selected_instance', 0)
+					if 0 <= selected_inst < len(instances):
+						return instances[selected_inst].get(property_name)
+					return None
+				else:
+					# Non-instance property (like colors, mask, flip)
+					return layer.get(property_name)
 			return None
 		
 		# Multi-selection - check if all values are the same
 		values = []
 		for idx in selected_indices:
 			if idx < len(self.layers):
-				val = self.layers[idx].get(property_name)
-				values.append(val)
+				layer = self.layers[idx]
+				
+				# Migrate old format if needed
+				if property_name in instance_properties and 'pos_x' in layer and 'instances' not in layer:
+					from services.layer_operations import _migrate_layer_to_instances
+					_migrate_layer_to_instances(layer)
+				
+				# Get value from selected instance or layer directly
+				if property_name in instance_properties and 'instances' in layer:
+					instances = layer.get('instances', [])
+					selected_inst = layer.get('selected_instance', 0)
+					if 0 <= selected_inst < len(instances):
+						val = instances[selected_inst].get(property_name)
+						values.append(val)
+				else:
+					val = layer.get(property_name)
+					values.append(val)
 		
 		if not values:
 			return None
@@ -233,8 +272,10 @@ class PropertySidebar(QFrame):
 		
 		# Use LayerListWidget
 		self.layer_list_widget = LayerListWidget()
+		#COA INTEGRATION ACTION: Step 3 - Pass CoA reference to layer list widget
+		# This is set later when MainWindow initializes references
 		self.layer_list_widget.property_sidebar = self  # Give layer list access to base colors
-		self.layer_list_widget.set_layers(self.layers)
+		self.layer_list_widget.set_layers(self.layers)  # OLD CODE: still needed until Step 9
 		
 		# Setup callbacks
 		self.layer_list_widget.on_selection_changed = self._on_layer_selection_changed
@@ -375,6 +416,43 @@ class PropertySidebar(QFrame):
 			self.emblem_color_layout.addWidget(color_btn)
 		self.emblem_color_layout.addStretch()
 		content_layout.addLayout(self.emblem_color_layout)
+		
+		# Multi-instance indicator (shown when editing multi-instance layer)
+		self.instance_selector_widget = QWidget()
+		instance_selector_layout = QHBoxLayout(self.instance_selector_widget)
+		instance_selector_layout.setContentsMargins(5, 5, 5, 5)
+		instance_selector_layout.setSpacing(5)
+		
+		self.instance_label = QLabel("Editing Instance:")
+		self.instance_label.setStyleSheet("font-size: 11px; color: #5a8dbf;")
+		instance_selector_layout.addWidget(self.instance_label)
+		
+		self.instance_prev_btn = QPushButton("<")
+		self.instance_prev_btn.setFixedSize(24, 24)
+		self.instance_prev_btn.clicked.connect(self._prev_instance)
+		instance_selector_layout.addWidget(self.instance_prev_btn)
+		
+		self.instance_display = QLabel("1 of 1")
+		self.instance_display.setStyleSheet("font-size: 11px; color: #5a8dbf; font-weight: bold;")
+		self.instance_display.setAlignment(Qt.AlignCenter)
+		self.instance_display.setMinimumWidth(50)
+		instance_selector_layout.addWidget(self.instance_display)
+		
+		self.instance_next_btn = QPushButton(">")
+		self.instance_next_btn.setFixedSize(24, 24)
+		self.instance_next_btn.clicked.connect(self._next_instance)
+		instance_selector_layout.addWidget(self.instance_next_btn)
+		
+		instance_selector_layout.addStretch()
+		self.instance_selector_widget.setStyleSheet("""
+			QWidget {
+				background-color: rgba(90, 141, 191, 15);
+				border: 1px solid rgba(90, 141, 191, 50);
+				border-radius: 4px;
+			}
+		""")
+		self.instance_selector_widget.setVisible(False)
+		content_layout.addWidget(self.instance_selector_widget)
 		
 		# Instance Properties
 		self._add_property_section(content_layout, "Instance")
@@ -649,13 +727,17 @@ class PropertySidebar(QFrame):
 			'filename': DEFAULT_EMBLEM_TEXTURE,
 			'path': DEFAULT_EMBLEM_TEXTURE,
 			'colors': 1,
-			'pos_x': DEFAULT_POSITION_X,
-			'pos_y': DEFAULT_POSITION_Y,
-			'scale_x': DEFAULT_SCALE_X,
-			'scale_y': DEFAULT_SCALE_Y,
+			'instances': [{
+				'pos_x': DEFAULT_POSITION_X,
+				'pos_y': DEFAULT_POSITION_Y,
+				'scale_x': DEFAULT_SCALE_X,
+				'scale_y': DEFAULT_SCALE_Y,
+				'rotation': DEFAULT_ROTATION,
+				'depth': 0.0
+			}],
+			'selected_instance': 0,
 			'flip_x': DEFAULT_FLIP_X,
 			'flip_y': DEFAULT_FLIP_Y,
-			'rotation': DEFAULT_ROTATION,
 			'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'],
 			'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'],
 			'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
@@ -674,6 +756,54 @@ class PropertySidebar(QFrame):
 		
 		# Trigger selection change callback to update properties and transform widget
 		self._on_layer_selection_changed()
+	
+	def _prev_instance(self):
+		"""Switch to previous instance in multi-instance layer"""
+		selected_indices = self.get_selected_indices()
+		if len(selected_indices) != 1:
+			return
+		
+		idx = selected_indices[0]
+		if idx >= len(self.layers):
+			return
+		
+		layer = self.layers[idx]
+		instances = layer.get('instances', [])
+		if len(instances) <= 1:
+			return
+		
+		selected_inst = layer.get('selected_instance', 0)
+		new_inst = (selected_inst - 1) % len(instances)
+		layer['selected_instance'] = new_inst
+		
+		# Reload properties and update transform widget
+		self._load_layer_properties()
+		if self.canvas_area:
+			self.canvas_area.update_transform_widget_for_layer()
+	
+	def _next_instance(self):
+		"""Switch to next instance in multi-instance layer"""
+		selected_indices = self.get_selected_indices()
+		if len(selected_indices) != 1:
+			return
+		
+		idx = selected_indices[0]
+		if idx >= len(self.layers):
+			return
+		
+		layer = self.layers[idx]
+		instances = layer.get('instances', [])
+		if len(instances) <= 1:
+			return
+		
+		selected_inst = layer.get('selected_instance', 0)
+		new_inst = (selected_inst + 1) % len(instances)
+		layer['selected_instance'] = new_inst
+		
+		# Reload properties and update transform widget
+		self._load_layer_properties()
+		if self.canvas_area:
+			self.canvas_area.update_transform_widget_for_layer()
 	
 	def _delete_layer(self):
 		"""Delete all selected layers"""
@@ -964,6 +1094,9 @@ class PropertySidebar(QFrame):
 		self.selected_layer_indices = self.layer_list_widget.selected_layer_indices
 		self.last_selected_index = self.layer_list_widget.last_selected_index
 		
+		# Update selection UI (this also calls _update_menu_actions via main_window)
+		self._update_layer_selection()
+		
 		# Update asset sidebar emblem previews if viewing emblems
 		# (patterns use base colors which don't change with layer selection)
 		if self.main_window and hasattr(self.main_window, 'left_sidebar'):
@@ -1036,15 +1169,36 @@ class PropertySidebar(QFrame):
 			self.layer_list_widget.update_selection_visuals()
 	
 	def _update_layer_property(self, prop_name, value):
-		"""Update a property of all selected layers"""
+		"""Update a property of all selected layers
+		
+		For instance properties (pos_x, pos_y, scale_x, scale_y, rotation), updates
+		the selected instance within each layer.
+		"""
 		selected_indices = self.get_selected_indices()
 		if not selected_indices:
 			return
 		
+		# Instance properties are stored within instances list
+		instance_properties = ['pos_x', 'pos_y', 'scale_x', 'scale_y', 'rotation', 'depth']
+		
 		# Apply to ALL selected layers
 		for idx in selected_indices:
 			if 0 <= idx < len(self.layers):
-				self.layers[idx][prop_name] = value
+				layer = self.layers[idx]
+				
+				# Migrate old format if needed
+				if prop_name in instance_properties and 'pos_x' in layer and 'instances' not in layer:
+					from services.layer_operations import _migrate_layer_to_instances
+					_migrate_layer_to_instances(layer)
+				
+				# Update instance property or layer property
+				if prop_name in instance_properties and 'instances' in layer:
+					instances = layer.get('instances', [])
+					selected_inst = layer.get('selected_instance', 0)
+					if 0 <= selected_inst < len(instances):
+						instances[selected_inst][prop_name] = value
+				else:
+					layer[prop_name] = value
 		
 		if self.canvas_widget:
 			self.canvas_widget.set_layers(self.layers)
@@ -1073,10 +1227,24 @@ class PropertySidebar(QFrame):
 		# Apply to ALL selected layers
 		for idx in selected_indices:
 			if 0 <= idx < len(self.layers):
-				self.layers[idx]['scale_x'] = scale_x
-				self.layers[idx]['scale_y'] = scale_y
-				self.layers[idx]['flip_x'] = flip_x
-				self.layers[idx]['flip_y'] = flip_y
+				layer = self.layers[idx]
+				
+				# Migrate old format if needed
+				if 'pos_x' in layer and 'instances' not in layer:
+					from services.layer_operations import _migrate_layer_to_instances
+					_migrate_layer_to_instances(layer)
+				
+				# Update instance properties
+				if 'instances' in layer:
+					instances = layer.get('instances', [])
+					selected_inst = layer.get('selected_instance', 0)
+					if 0 <= selected_inst < len(instances):
+						instances[selected_inst]['scale_x'] = scale_x
+						instances[selected_inst]['scale_y'] = scale_y
+				
+				# Flip is stored at layer level (applies to all instances)
+				layer['flip_x'] = flip_x
+				layer['flip_y'] = flip_y
 		
 		if self.canvas_widget:
 			self.canvas_widget.set_layers(self.layers)
@@ -1180,6 +1348,21 @@ class PropertySidebar(QFrame):
 		self.pos_y_editor.blockSignals(False)
 		self.scale_editor.blockSignals(False)
 		self.rotation_editor.blockSignals(False)
+		
+		# Update instance selector for single-selection multi-instance layers
+		if len(selected_indices) == 1:
+			idx = selected_indices[0]
+			if idx < len(self.layers):
+				layer = self.layers[idx]
+				instances = layer.get('instances', [])
+				if len(instances) > 1:
+					selected_inst = layer.get('selected_instance', 0)
+					self.instance_display.setText(f"{selected_inst + 1} of {len(instances)}")
+					self.instance_selector_widget.setVisible(True)
+				else:
+					self.instance_selector_widget.setVisible(False)
+		else:
+			self.instance_selector_widget.setVisible(False)
 		
 		# Update mask UI
 		self._update_mask_ui()
@@ -1298,7 +1481,11 @@ class PropertySidebar(QFrame):
 			else:
 				# No selection
 				self.multi_select_label.setVisible(False)
-				self.single_layer_label.setVisible(False)	
+				self.single_layer_label.setVisible(False)
+		
+		# Update main window menu actions (split/merge enable state)
+		if self.main_window and hasattr(self.main_window, '_update_menu_actions'):
+			self.main_window._update_menu_actions()	
 	# ========================================
 	# Pattern Mask Management
 	# ========================================

@@ -21,6 +21,9 @@ from components.asset_sidebar import AssetSidebar
 from components.canvas_area import CanvasArea
 from components.property_sidebar import PropertySidebar
 
+#COA INTEGRATION ACTION: Import CoA model for integration Step 1
+from models.coa import CoA
+
 # Utility imports
 from utils.coa_parser import parse_coa_string, serialize_coa_to_string
 from utils.history_manager import HistoryManager
@@ -55,6 +58,10 @@ class CoatOfArmsEditor(QMainWindow):
 		self.setWindowTitle("Coat Of Arms Designer")
 		self.resize(1280, 720)
 		self.setMinimumSize(1280, 720)
+		
+		#COA INTEGRATION ACTION: Initialize CoA model instance (Step 1 - MainWindow initialization)
+		# This is the single source of truth for all CoA data going forward
+		self.coa = CoA()
 		
 		# Initialize history manager
 		self.history_manager = HistoryManager(max_history=MAX_HISTORY_ENTRIES)
@@ -96,6 +103,9 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		self.setup_ui()
 		
+		# Initialize menu action states
+		QTimer.singleShot(100, self._update_menu_actions)
+		
 		# Check for autosave recovery after UI is set up
 		QTimer.singleShot(500, self._check_autosave_recovery)
 	
@@ -120,11 +130,17 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# Center canvas area
 		self.canvas_area = CanvasArea(self)
+		#COA INTEGRATION ACTION: Step 4-5 - Pass CoA reference to canvas area and canvas widget
+		self.canvas_area.coa = self.coa
+		self.canvas_area.canvas_widget.coa = self.coa
 		splitter.addWidget(self.canvas_area)
 		
 		# Right properties sidebar
 		self.right_sidebar = PropertySidebar(self)
 		self.right_sidebar.main_window = self
+		#COA INTEGRATION ACTION: Step 3 - Pass CoA reference to property sidebar and layer list
+		self.right_sidebar.coa = self.coa
+		self.right_sidebar.layer_list_widget.coa = self.coa
 		splitter.addWidget(self.right_sidebar)
 		
 		# Connect sidebars together
@@ -206,20 +222,6 @@ class CoatOfArmsEditor(QMainWindow):
 		paste_coa_action = file_menu.addAction("&Paste CoA from Clipboard")
 		paste_coa_action.setShortcut("Ctrl+Shift+V")
 		paste_coa_action.triggered.connect(self.paste_coa)
-		
-		file_menu.addSeparator()
-		
-		copy_layer_action = file_menu.addAction("Copy &Layer")
-		copy_layer_action.setShortcut("Ctrl+C")
-		copy_layer_action.triggered.connect(self.copy_layer)
-		
-		paste_layer_action = file_menu.addAction("Paste Layer")
-		paste_layer_action.setShortcut("Ctrl+V")
-		paste_layer_action.triggered.connect(self.paste_layer_smart)
-		
-		duplicate_layer_action = file_menu.addAction("&Duplicate Layer")
-		duplicate_layer_action.setShortcut("Ctrl+D")
-		duplicate_layer_action.triggered.connect(self.duplicate_selected_layer)
 		
 		file_menu.addSeparator()
 		
@@ -356,6 +358,34 @@ class CoatOfArmsEditor(QMainWindow):
 		select_all_action.setShortcut("Ctrl+A")
 		select_all_action.triggered.connect(self._select_all_layers)
 		
+		# Layers Menu
+		layers_menu = menubar.addMenu("&Layers")
+		
+		copy_layer_action = layers_menu.addAction("&Copy Layer")
+		copy_layer_action.setShortcut("Ctrl+C")
+		copy_layer_action.triggered.connect(self.copy_layer)
+		
+		paste_layer_action = layers_menu.addAction("&Paste Layer")
+		paste_layer_action.setShortcut("Ctrl+V")
+		paste_layer_action.triggered.connect(self.paste_layer_smart)
+		
+		duplicate_layer_action = layers_menu.addAction("&Duplicate Layer")
+		duplicate_layer_action.setShortcut("Ctrl+D")
+		duplicate_layer_action.triggered.connect(self.duplicate_selected_layer)
+		
+		layers_menu.addSeparator()
+		
+		# Instance submenu
+		instance_menu = layers_menu.addMenu("&Instance")
+		
+		self.split_instances_action = instance_menu.addAction("&Split")
+		self.split_instances_action.triggered.connect(self._split_selected_layer)
+		self.split_instances_action.setEnabled(False)  # Enabled only for multi-instance layers
+		
+		self.merge_as_instances_action = instance_menu.addAction("&Merge")
+		self.merge_as_instances_action.triggered.connect(self._merge_selected_layers)
+		self.merge_as_instances_action.setEnabled(False)  # Enabled only for multi-selection
+		
 		# View Menu
 		view_menu = menubar.addMenu("&View")
 		
@@ -409,6 +439,7 @@ class CoatOfArmsEditor(QMainWindow):
 			if self.canvas_area:
 				self.canvas_area.update_transform_widget_for_layer()
 			self.right_sidebar.tab_widget.setTabEnabled(2, True)
+			self._update_menu_actions()
 	
 	def _show_about(self):
 		"""Show about dialog"""
@@ -664,8 +695,16 @@ class CoatOfArmsEditor(QMainWindow):
 			return
 		
 		try:
-			# Load the file
-			coa_data = load_coa_from_file(filepath)
+			#COA INTEGRATION ACTION: Step 2 - Use CoA.from_string() for load operations
+			# Read file
+			with open(filepath, 'r', encoding='utf-8') as f:
+				coa_text = f.read()
+			
+			# Parse into model
+			self.coa = CoA.from_string(coa_text)
+			
+			# Apply to UI (TODO: replace with model-driven updates in later steps)
+			coa_data = load_coa_from_file(filepath)  # OLD CODE: still needed for UI until Step 3-6
 			self._apply_coa_data(coa_data)
 			
 			# Set current file path and mark as saved
@@ -693,28 +732,31 @@ class CoatOfArmsEditor(QMainWindow):
 		try:
 			# Only autosave if there are unsaved changes
 			if not self.is_saved:
+				#COA INTEGRATION ACTION: Step 2 - Use CoA model for autosave
 				# Create config directory if it doesn't exist
 				os.makedirs(self.config_dir, exist_ok=True)
 				
-				# Get current state
-				canvas = self.canvas_area.canvas_widget
-				base_colors = self.right_sidebar.get_base_colors()
-				base_color_names = [
-					getattr(canvas, 'base_color1_name', 'black'),
-					getattr(canvas, 'base_color2_name', 'yellow'),
-					getattr(canvas, 'base_color3_name', 'black')
-				]
+				# Save using model
+				coa_string = self.coa.to_string()
+				with open(self.autosave_file, 'w', encoding='utf-8') as f:
+					f.write(coa_string)
 				
-				# Build CoA data
-				coa_data = build_coa_for_save(
-					base_colors,
-					canvas.base_texture,
-					self.right_sidebar.layers,
-					base_color_names
-				)
+				# OLD CODE (will remove in Step 9):
+				# canvas = self.canvas_area.canvas_widget
+				# base_colors = self.right_sidebar.get_base_colors()
+				# base_color_names = [
+				# 	getattr(canvas, 'base_color1_name', 'black'),
+				# 	getattr(canvas, 'base_color2_name', 'yellow'),
+				# 	getattr(canvas, 'base_color3_name', 'black')
+				# ]
+				# coa_data = build_coa_for_save(
+				# 	base_colors,
+				# 	canvas.base_texture,
+				# 	self.right_sidebar.layers,
+				# 	base_color_names
+				# )
+				# save_coa_to_file(coa_data, self.autosave_file)
 				
-				# Save to autosave file
-				save_coa_to_file(coa_data, self.autosave_file)
 				print("Autosaved")
 		except Exception as e:
 			print(f"Autosave failed: {e}")
@@ -732,7 +774,13 @@ class CoatOfArmsEditor(QMainWindow):
 				)
 				
 				if reply == QMessageBox.Yes:
-					# Load autosave
+					#COA INTEGRATION ACTION: Step 2 - Use CoA model for autosave recovery
+					# Read and parse into model
+					with open(self.autosave_file, 'r', encoding='utf-8') as f:
+						coa_text = f.read()
+					self.coa = CoA.from_string(coa_text)
+					
+					# Load autosave (OLD CODE: still needed for UI until Step 3-6)
 					coa_data = load_coa_from_file(self.autosave_file)
 					self._apply_coa_data(coa_data)
 					
@@ -845,14 +893,17 @@ class CoatOfArmsEditor(QMainWindow):
 			'filename': dds_filename,
 			'path': dds_filename,
 			'colors': color_count,
-			'depth': 0,
-			'pos_x': 0.5,
-			'pos_y': 0.5,
-			'scale_x': DEFAULT_SCALE_X,
-			'scale_y': DEFAULT_SCALE_Y,
+			'instances': [{
+				'pos_x': 0.5,
+				'pos_y': 0.5,
+				'scale_x': DEFAULT_SCALE_X,
+				'scale_y': DEFAULT_SCALE_Y,
+				'rotation': DEFAULT_ROTATION,
+				'depth': 0.0
+			}],
+			'selected_instance': 0,
 			'flip_x': DEFAULT_FLIP_X,
 			'flip_y': DEFAULT_FLIP_Y,
-			'rotation': DEFAULT_ROTATION,
 			'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'],
 			'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'],
 			'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
@@ -1251,25 +1302,30 @@ class CoatOfArmsEditor(QMainWindow):
 	def _save_to_file(self, filename):
 		"""Internal method to save CoA data to a file"""
 		try:
+			#COA INTEGRATION ACTION: Step 2 - Use CoA.to_string() for save operations
+			# New model-based save path
+			coa_string = self.coa.to_string()
+			
+			# Write directly to file
+			with open(filename, 'w', encoding='utf-8') as f:
+				f.write(coa_string)
+			
+			# OLD CODE (kept for now, will remove in Step 9):
 			# Get current state
-			canvas = self.canvas_area.canvas_widget
-			base_colors = self.right_sidebar.get_base_colors()
-			base_color_names = [
-				getattr(canvas, 'base_color1_name', 'black'),
-				getattr(canvas, 'base_color2_name', 'yellow'),
-				getattr(canvas, 'base_color3_name', 'black')
-			]
-			
-			# Build CoA data structure using service
-			coa_data = build_coa_for_save(
-				base_colors, 
-				canvas.base_texture, 
-				self.right_sidebar.layers,
-				base_color_names
-			)
-			
-			# Save to file
-			save_coa_to_file(coa_data, filename)
+			# canvas = self.canvas_area.canvas_widget
+			# base_colors = self.right_sidebar.get_base_colors()
+			# base_color_names = [
+			# 	getattr(canvas, 'base_color1_name', 'black'),
+			# 	getattr(canvas, 'base_color2_name', 'yellow'),
+			# 	getattr(canvas, 'base_color3_name', 'black')
+			# ]
+			# coa_data = build_coa_for_save(
+			# 	base_colors, 
+			# 	canvas.base_texture, 
+			# 	self.right_sidebar.layers,
+			# 	base_color_names
+			# )
+			# save_coa_to_file(coa_data, filename)
 			
 			# Update current file path and mark as saved
 			self.current_file_path = filename
@@ -1464,9 +1520,161 @@ class CoatOfArmsEditor(QMainWindow):
 			self.repaint()
 			
 			# Save to history
-			self._save_state("Duplicate layer (Ctrl+drag)")
+			self._save_state("Duplicate layer below")
 		except Exception as e:
-			QMessageBox.warning(self, "Duplicate Error", f"Failed to duplicate layer: {str(e)}")
+			print(f"Error duplicating layer below: {e}")
+	
+	def _split_selected_layer(self):
+		"""Split a multi-instance layer into separate single-instance layers"""
+		try:
+			from services.layer_operations import split_layer_instances
+			
+			# Require single layer selection
+			selected_indices = self.right_sidebar.get_selected_indices()
+			if not selected_indices or len(selected_indices) != 1:
+				QMessageBox.information(self, "Split Instances", 
+					"Please select a single layer to split.")
+				return
+			
+			layer_idx = selected_indices[0]
+			if layer_idx >= len(self.right_sidebar.layers):
+				return
+			
+			layer = self.right_sidebar.layers[layer_idx]
+			
+			# Check if it's multi-instance
+			instances = layer.get('instances', [])
+			if len(instances) <= 1:
+				QMessageBox.information(self, "Split Instances", 
+					"Selected layer only has one instance.")
+				return
+			
+			# Split the layer
+			new_layers = split_layer_instances(layer)
+			
+			# Replace original with split layers (insert at same position)
+			self.right_sidebar.layers.pop(layer_idx)
+			for i, new_layer in enumerate(new_layers):
+				self.right_sidebar.layers.insert(layer_idx + i, new_layer)
+			
+			# Select all new layers
+			self.right_sidebar.selected_layer_indices = set(range(layer_idx, layer_idx + len(new_layers)))
+			self.right_sidebar.last_selected_index = layer_idx
+			
+			# Clear thumbnail cache
+			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
+				self.right_sidebar.layer_list_widget.clear_thumbnail_cache()
+			
+			# Rebuild UI
+			self.right_sidebar._rebuild_layer_list()
+			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			self.canvas_area.update_transform_widget_for_layer()
+			
+			# Force repaint
+			self.canvas_area.canvas_widget.repaint()
+			self.repaint()
+			
+			# Save to history
+			self._save_state(f"Split {len(new_layers)} instances")
+		except Exception as e:
+			QMessageBox.warning(self, "Split Error", f"Failed to split layer: {str(e)}")
+	
+	def _merge_selected_layers(self):
+		"""Merge multiple layers into one multi-instance layer"""
+		try:
+			from services.layer_operations import merge_layers_as_instances, check_layers_compatible_for_merge
+			from PyQt5.QtWidgets import QMessageBox
+			
+			# Require multi-selection
+			selected_indices = self.right_sidebar.get_selected_indices()
+			if not selected_indices or len(selected_indices) < 2:
+				QMessageBox.information(self, "Merge as Instances", 
+					"Please select multiple layers to merge.")
+				return
+			
+			# Get layers in order (topmost first)
+			layers_to_merge = [self.right_sidebar.layers[idx] for idx in selected_indices]
+			
+			# Check compatibility
+			is_compatible, differences = check_layers_compatible_for_merge(layers_to_merge)
+			
+			use_topmost = False
+			if not is_compatible:
+				# Show warning dialog
+				diff_list = []
+				for prop, indices in differences.items():
+					diff_list.append(f"  • {prop}: differs on layers {', '.join(str(i) for i in indices)}")
+				diff_text = "\n".join(diff_list)
+				
+				msg = QMessageBox(self)
+				msg.setIcon(QMessageBox.Warning)
+				msg.setWindowTitle("Incompatible Layers")
+				msg.setText("The selected layers have different properties:")
+				msg.setInformativeText(f"{diff_text}\n\nMerge anyway using properties from topmost layer?")
+				msg.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
+				msg.setDefaultButton(QMessageBox.Cancel)
+				
+				result = msg.exec_()
+				if result != QMessageBox.Yes:
+					return
+				use_topmost = True
+			
+			# Merge layers
+			merged_layer = merge_layers_as_instances(layers_to_merge, use_topmost_properties=use_topmost)
+			
+
+			# Insert merged layer at position of topmost selected
+			insert_pos = min(selected_indices)
+			self.right_sidebar.layers.insert(insert_pos, merged_layer)
+			
+			# Select the new merged layer
+			self.right_sidebar.selected_layer_indices = {insert_pos}
+			self.right_sidebar.last_selected_index = insert_pos
+			
+			# Clear thumbnail cache
+			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
+				self.right_sidebar.layer_list_widget.clear_thumbnail_cache()
+			
+			# Rebuild UI
+			self.right_sidebar._rebuild_layer_list()
+			self.right_sidebar._update_layer_selection()  # Update selection state properly
+			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			self.canvas_area.update_transform_widget_for_layer()
+			
+			# Load properties to show instance selector
+			if hasattr(self.right_sidebar, '_load_layer_properties'):
+				self.right_sidebar._load_layer_properties()
+			
+			# Force repaint
+			self.canvas_area.canvas_widget.repaint()
+			self.repaint()
+			
+			# Save to history
+			instance_count = len(merged_layer.get('instances', []))
+			self._save_state(f"Merge {len(layers_to_merge)} layers ({instance_count} instances)")
+		except Exception as e:
+			QMessageBox.warning(self, "Merge Error", f"Failed to merge layers: {str(e)}")
+	
+	def _update_menu_actions(self):
+		"""Update menu action enabled states based on current selection"""
+		if not hasattr(self.right_sidebar, 'layers'):
+			return
+		
+		selected_indices = self.right_sidebar.get_selected_indices()
+		has_selection = len(selected_indices) > 0
+		is_single = len(selected_indices) == 1
+		is_multi = len(selected_indices) >= 2
+		
+		# Split: enabled only for single-selection multi-instance layers
+		if is_single and has_selection and selected_indices[0] < len(self.right_sidebar.layers):
+			layer = self.right_sidebar.layers[selected_indices[0]]
+			is_multi_instance = len(layer.get('instances', [])) > 1
+			self.split_instances_action.setEnabled(is_multi_instance)
+		else:
+			self.split_instances_action.setEnabled(False)
+		
+		# Merge: enabled for 2 or more layers selected
+		self.merge_as_instances_action.setEnabled(is_multi)
 	
 	def paste_layer(self):
 		"""Paste layers from clipboard (as CoA sub-blocks) and add to layers"""

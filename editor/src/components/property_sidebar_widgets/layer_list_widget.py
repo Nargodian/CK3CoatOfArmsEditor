@@ -20,7 +20,9 @@ class LayerListWidget(QWidget):
 	
 	def __init__(self, parent=None):
 		super().__init__(parent)
-		self.layers = []  # Reference to layers list (will be set externally)
+		#COA INTEGRATION ACTION: Step 3 - Add CoA model reference (set externally)
+		self.coa = None  # Reference to CoA model (will be set by MainWindow)
+		self.layers = []  # Reference to layers list (OLD CODE: keep for now, will remove in Step 9)
 		self.selected_layer_indices = set()
 		self.last_selected_index = None
 		self.layer_buttons = []
@@ -100,6 +102,11 @@ class LayerListWidget(QWidget):
 	def _create_layer_button(self, actual_index):
 		"""Create a layer button widget"""
 		layer = self.layers[actual_index]
+		
+		# Calculate instance count early (used for badge and name)
+		instances = layer.get('instances', [])
+		instance_count = len(instances)
+		
 		layer_btn = QPushButton()
 		layer_btn.setCheckable(True)
 		layer_btn.setFixedHeight(60)
@@ -115,7 +122,13 @@ class LayerListWidget(QWidget):
 		btn_layout.setContentsMargins(5, 5, 5, 5)
 		btn_layout.setSpacing(8)
 		
-		# Add preview icon with dynamic coloring
+		# Add preview icon with dynamic coloring and badge overlay
+		icon_container = QWidget()
+		icon_container.setFixedSize(48, 48)
+		icon_container_layout = QVBoxLayout(icon_container)
+		icon_container_layout.setContentsMargins(0, 0, 0, 0)
+		icon_container_layout.setSpacing(0)
+		
 		icon_label = QLabel()
 		icon_label.setFixedSize(48, 48)
 		icon_label.setStyleSheet("border: 1px solid rgba(255, 255, 255, 40); border-radius: 3px;")
@@ -125,34 +138,92 @@ class LayerListWidget(QWidget):
 		if thumbnail and not thumbnail.isNull():
 			icon_label.setPixmap(thumbnail)
 		
-		btn_layout.addWidget(icon_label)
+		icon_container_layout.addWidget(icon_label)
 		
-		# Add layer name
-		name_label = QLabel(layer.get('filename', 'Empty Layer'))
+		# Add instance count badge for multi-instance layers
+		if instance_count > 1:
+			badge = QLabel(str(instance_count))
+			badge.setStyleSheet("""
+				QLabel {
+					background-color: #5a8dbf;
+					color: white;
+					border: 1px solid rgba(255, 255, 255, 60);
+					border-radius: 3px;
+					font-size: 9px;
+					font-weight: bold;
+					padding: 2px 4px;
+				}
+			""")
+			badge.setAlignment(Qt.AlignCenter)
+			badge.setMinimumSize(18, 16)
+			# Position badge in top-right corner
+			badge.setParent(icon_container)
+			badge.move(32, 0)
+			badge.raise_()
+		
+		btn_layout.addWidget(icon_container)
+		
+		# Add layer name (instance_count already calculated above)
+		layer_name = layer.get('filename', 'Empty Layer')
+		
+		# Remove .dds extension for display
+		if layer_name.lower().endswith('.dds'):
+			layer_name = layer_name[:-4]
+		
+		name_label = QLabel(layer_name)
 		name_label.setWordWrap(True)
 		name_label.setStyleSheet("border: none; font-size: 11px;")
+		
+		# Add tooltip for multi-instance layers
+		if instance_count > 1:
+			instance_word = "instances" if instance_count > 1 else "instance"
+			name_label.setToolTip(f"Multi-instance layer ({instance_count} {instance_word})")
+		
 		btn_layout.addWidget(name_label, stretch=1)
 		
 		# Add inline color, duplicate and delete buttons
 		button_container = self._create_inline_buttons(actual_index)
 		btn_layout.addWidget(button_container)
 		
-		layer_btn.setStyleSheet("""
-			QPushButton {
-				text-align: left;
-				border: 1px solid rgba(255, 255, 255, 40);
-				border-radius: 4px;
-				background-color: rgba(255, 255, 255, 10);
-			}
-			QPushButton:hover {
-				background-color: rgba(255, 255, 255, 20);
-				border: 1px solid rgba(255, 255, 255, 60);
-			}
-			QPushButton:checked {
-				border: 2px solid #5a8dbf;
-				background-color: rgba(90, 141, 191, 30);
-			}
-		""")
+		# Check if multi-instance for blue tint
+		is_multi_instance = instance_count > 1
+		
+		if is_multi_instance:
+			# Blue tint for multi-instance layers
+			layer_btn.setStyleSheet("""
+				QPushButton {
+					text-align: left;
+					border: 1px solid rgba(90, 141, 191, 60);
+					border-radius: 4px;
+					background-color: rgba(90, 141, 191, 20);
+				}
+				QPushButton:hover {
+					background-color: rgba(90, 141, 191, 35);
+					border: 1px solid rgba(90, 141, 191, 80);
+				}
+				QPushButton:checked {
+					border: 2px solid #5a8dbf;
+					background-color: rgba(90, 141, 191, 45);
+				}
+			""")
+		else:
+			# Normal style for single-instance layers
+			layer_btn.setStyleSheet("""
+				QPushButton {
+					text-align: left;
+					border: 1px solid rgba(255, 255, 255, 40);
+					border-radius: 4px;
+					background-color: rgba(255, 255, 255, 10);
+				}
+				QPushButton:hover {
+					background-color: rgba(255, 255, 255, 20);
+					border: 1px solid rgba(255, 255, 255, 60);
+				}
+				QPushButton:checked {
+					border: 2px solid #5a8dbf;
+					background-color: rgba(90, 141, 191, 30);
+				}
+			""")
 		
 		return layer_btn
 	
