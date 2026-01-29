@@ -13,7 +13,8 @@
 - ✅ **Step 3: Layer List Widget** - CoA reference passed to widgets (Jan 29, 2026)
 - ✅ **Step 4: Property Sidebar** - CoA reference passed (Jan 29, 2026)
 - ✅ **Step 5: Canvas Area & Widget** - CoA references wired (Jan 29, 2026)
-- 🔄 **Step 6: Menu Actions** - Next
+- ✅ **Gap Fix: Alignment Methods** - Added align_layers() and move_layers_to() to model (Jan 29, 2026)
+- 🔄 **Step 6: Menu Actions** - In Progress
 - ⬜ Step 7: Undo/Redo System
 - ⬜ Step 8: Test Basic Operations
 - ⬜ Step 9: Cleanup - Remove Old System

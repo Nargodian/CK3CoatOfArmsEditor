@@ -1,6 +1,14 @@
 """Clipboard operations - copy/paste CoA and layers"""
 from PyQt5.QtWidgets import QMessageBox, QApplication
 
+#COA INTEGRATION ACTION: Step 6 - Clipboard actions marked for future model integration
+# TODO Step 6: Replace with CoA model clipboard methods
+# - Copy CoA: Use self.main_window.coa.to_string()
+# - Paste CoA: Use CoA.from_string(clipboard_text)
+# - Copy Layer: Serialize selected layers from model
+# - Paste Layer: Parse and add to model
+# For now, keeping old code paths active to maintain functionality
+
 
 class ClipboardActions:
 	"""Handles clipboard operations for CoA and layers"""

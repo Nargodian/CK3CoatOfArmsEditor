@@ -961,6 +961,105 @@ class CoA:
         
         self._logger.debug(f"Flipped layer {uuid}: x={flip_x}, y={flip_y}")
     
+    def align_layers(self, uuids: List[str], alignment: str):
+        """Align multiple layers relative to each other
+        
+        Args:
+            uuids: List of layer UUIDs (must be 2 or more)
+            alignment: One of 'left', 'center', 'right', 'top', 'middle', 'bottom'
+            
+        Raises:
+            ValueError: If less than 2 layers, invalid alignment, or UUID not found
+        """
+        if len(uuids) < 2:
+            raise ValueError("Must have at least 2 layers to align")
+        
+        valid_alignments = ['left', 'center', 'right', 'top', 'middle', 'bottom']
+        if alignment not in valid_alignments:
+            raise ValueError(f"alignment must be one of {valid_alignments}, got '{alignment}'")
+        
+        # Get all layers
+        layers = []
+        for uuid in uuids:
+            layer = self._layers.get_by_uuid(uuid)
+            if not layer:
+                raise ValueError(f"Layer with UUID '{uuid}' not found")
+            layers.append(layer)
+        
+        # Horizontal alignments
+        if alignment in ['left', 'center', 'right']:
+            positions = [layer.pos_x for layer in layers]
+            
+            if alignment == 'left':
+                target = min(positions)
+            elif alignment == 'right':
+                target = max(positions)
+            else:  # center
+                target = sum(positions) / len(positions)
+            
+            for layer in layers:
+                layer.pos_x = target
+        
+        # Vertical alignments
+        else:
+            positions = [layer.pos_y for layer in layers]
+            
+            if alignment == 'top':
+                target = min(positions)
+            elif alignment == 'bottom':
+                target = max(positions)
+            else:  # middle
+                target = sum(positions) / len(positions)
+            
+            for layer in layers:
+                layer.pos_y = target
+        
+        self._logger.debug(f"Aligned {len(uuids)} layers: {alignment}")
+    
+    def move_layers_to(self, uuids: List[str], position: str):
+        """Move layers to fixed canvas positions
+        
+        Args:
+            uuids: List of layer UUIDs
+            position: One of 'left', 'center', 'right', 'top', 'middle', 'bottom'
+            
+        Raises:
+            ValueError: If invalid position or UUID not found
+        """
+        valid_positions = ['left', 'center', 'right', 'top', 'middle', 'bottom']
+        if position not in valid_positions:
+            raise ValueError(f"position must be one of {valid_positions}, got '{position}'")
+        
+        # Define fixed positions (0.0 to 1.0 range)
+        fixed_positions = {
+            'left': 0.25,
+            'center': 0.5,
+            'right': 0.75,
+            'top': 0.25,
+            'middle': 0.5,
+            'bottom': 0.75
+        }
+        
+        target = fixed_positions[position]
+        
+        # Get all layers
+        layers = []
+        for uuid in uuids:
+            layer = self._layers.get_by_uuid(uuid)
+            if not layer:
+                raise ValueError(f"Layer with UUID '{uuid}' not found")
+            layers.append(layer)
+        
+        # Apply position
+        if position in ['left', 'center', 'right']:
+            for layer in layers:
+                layer.pos_x = target
+        else:
+            for layer in layers:
+                layer.pos_y = target
+        
+        self._logger.debug(f"Moved {len(uuids)} layers to {position}")
+    
     # ========================================
     # Transform Operations (Multi-Layer Group)
     # ========================================

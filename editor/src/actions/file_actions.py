@@ -1,6 +1,10 @@
 """File operations for the main window - new, save, load, export"""
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
 
+#COA INTEGRATION ACTION: Step 6 - File actions use CoA model (Step 2 already implemented in main.py)
+# Main file operations (save/load) already migrated in Step 2
+# These helper methods delegate to main window which uses CoA model
+
 
 class FileActions:
 	"""Handles all file menu operations"""
