@@ -703,9 +703,55 @@ class CoatOfArmsEditor(QMainWindow):
 			# Parse into model
 			self.coa = CoA.from_string(coa_text)
 			
-			# Apply to UI (TODO: replace with model-driven updates in later steps)
-			coa_data = load_coa_from_file(filepath)  # OLD CODE: still needed for UI until Step 3-6
-			self._apply_coa_data(coa_data)
+			# Apply to UI - update from model
+			# Set base texture and colors
+			self.canvas_area.canvas_widget.set_base_texture(self.coa.pattern)
+			self.canvas_area.canvas_widget.set_base_colors([self.coa.color1, self.coa.color2, self.coa.color3])
+			self.canvas_area.canvas_widget.base_color1_name = self.coa.color1_name
+			self.canvas_area.canvas_widget.base_color2_name = self.coa.color2_name
+			self.canvas_area.canvas_widget.base_color3_name = self.coa.color3_name
+			
+			base_color_names = [self.coa.color1_name, self.coa.color2_name, self.coa.color3_name]
+			self.right_sidebar.set_base_colors([self.coa.color1, self.coa.color2, self.coa.color3], base_color_names)
+			
+			# Convert Layer objects to dicts for old UI code (temporary until Step 10)
+			self.right_sidebar.layers = []
+			for i in range(self.coa.get_layer_count()):
+				layer = self.coa._layers[i]
+				layer_dict = {
+					'uuid': layer.uuid,
+					'filename': layer.filename,
+					'pos_x': layer.pos_x,
+					'pos_y': layer.pos_y,
+					'scale_x': layer.scale_x,
+					'scale_y': layer.scale_y,
+					'rotation': layer.rotation,
+					'depth': layer.depth,
+					'color1': layer.color1,
+					'color2': layer.color2,
+					'color3': layer.color3,
+					'color1_name': layer.color1_name,
+					'color2_name': layer.color2_name,
+					'color3_name': layer.color3_name,
+					'mask': layer.mask,
+					'flip_x': layer.flip_x,
+					'flip_y': layer.flip_y,
+					'instance_count': layer.instance_count,
+				}
+				self.right_sidebar.layers.append(layer_dict)
+			
+			# Update UI - switch to Layers tab and rebuild
+			self.right_sidebar.tab_widget.setCurrentIndex(1)
+			self.right_sidebar._rebuild_layer_list()
+			if len(self.right_sidebar.layers) > 0:
+				self.right_sidebar._select_layer(0)
+			
+			# Update canvas
+			self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+			
+			# OLD CODE (will remove in Step 10):
+			# coa_data = load_coa_from_file(filepath)
+			# self._apply_coa_data(coa_data)
 			
 			# Set current file path and mark as saved
 			self.current_file_path = filepath
@@ -780,9 +826,55 @@ class CoatOfArmsEditor(QMainWindow):
 						coa_text = f.read()
 					self.coa = CoA.from_string(coa_text)
 					
-					# Load autosave (OLD CODE: still needed for UI until Step 3-6)
-					coa_data = load_coa_from_file(self.autosave_file)
-					self._apply_coa_data(coa_data)
+					# Apply to UI - update from model
+					# Set base texture and colors
+					self.canvas_area.canvas_widget.set_base_texture(self.coa.pattern)
+					self.canvas_area.canvas_widget.set_base_colors([self.coa.color1, self.coa.color2, self.coa.color3])
+					self.canvas_area.canvas_widget.base_color1_name = self.coa.color1_name
+					self.canvas_area.canvas_widget.base_color2_name = self.coa.color2_name
+					self.canvas_area.canvas_widget.base_color3_name = self.coa.color3_name
+					
+					base_color_names = [self.coa.color1_name, self.coa.color2_name, self.coa.color3_name]
+					self.right_sidebar.set_base_colors([self.coa.color1, self.coa.color2, self.coa.color3], base_color_names)
+					
+					# Convert Layer objects to dicts for old UI code (temporary until Step 10)
+					self.right_sidebar.layers = []
+					for i in range(self.coa.get_layer_count()):
+						layer = self.coa._layers[i]
+						layer_dict = {
+							'uuid': layer.uuid,
+							'filename': layer.filename,
+							'pos_x': layer.pos_x,
+							'pos_y': layer.pos_y,
+							'scale_x': layer.scale_x,
+							'scale_y': layer.scale_y,
+							'rotation': layer.rotation,
+							'depth': layer.depth,
+							'color1': layer.color1,
+							'color2': layer.color2,
+							'color3': layer.color3,
+							'color1_name': layer.color1_name,
+							'color2_name': layer.color2_name,
+							'color3_name': layer.color3_name,
+							'mask': layer.mask,
+							'flip_x': layer.flip_x,
+							'flip_y': layer.flip_y,
+							'instance_count': layer.instance_count,
+						}
+						self.right_sidebar.layers.append(layer_dict)
+					
+					# Update UI
+					self.right_sidebar.tab_widget.setCurrentIndex(1)
+					self.right_sidebar._rebuild_layer_list()
+					if len(self.right_sidebar.layers) > 0:
+						self.right_sidebar._select_layer(0)
+					
+					# Update canvas
+					self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
+					
+					# OLD CODE (will remove in Step 10):
+					# coa_data = load_coa_from_file(self.autosave_file)
+					# self._apply_coa_data(coa_data)
 					
 					# Mark as unsaved (since it's recovered from autosave)
 					self.current_file_path = None
