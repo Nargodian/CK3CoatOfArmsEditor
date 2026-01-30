@@ -493,18 +493,14 @@ class LayerListWidget(QWidget):
 			# Get the UUID at the target position (if exists)
 			if target_index == 0:
 				# Drop at bottom - move all dragged layers to bottom
-				for uuid in dragged_uuids:
-					self.coa.move_layer_to_bottom(uuid)
+				self.coa.move_layer_to_bottom(dragged_uuids)
 			elif target_index >= self.coa.get_layer_count():
 				# Drop at top - move all dragged layers to top
-				for uuid in reversed(dragged_uuids):  # Reverse to maintain order
-					self.coa.move_layer_to_top(uuid)
+				self.coa.move_layer_to_top(dragged_uuids)
 			else:
 				# Drop between layers - get target UUID and move above it
 				target_uuid = self.coa.get_layer_uuid_by_index(target_index)
-				# Move in reverse order to maintain relative positioning
-				for uuid in reversed(dragged_uuids):
-					self.coa.move_layer_below(uuid, target_uuid)
+				self.coa.move_layer_above(dragged_uuids, target_uuid)
 			
 			# Update selection to new UUIDs (keep same UUIDs selected)
 			self.selected_layer_uuids = set(dragged_uuids)

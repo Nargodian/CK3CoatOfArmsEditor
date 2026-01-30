@@ -754,7 +754,18 @@ class PropertySidebar(QFrame):
 		
 		# Create Layer object from data
 		layer = Layer(layer_data, caller='property_sidebar._add_layer')
-		self.coa.add_layer_object(layer)
+		
+		# Check for selection to add above
+		selected_uuids = self.get_selected_uuids()
+		target_uuid = selected_uuids[0] if selected_uuids else None
+		
+		if target_uuid:
+			# Add below selected layer (in front of it)
+			self.coa.add_layer_object(layer, target_uuid=target_uuid)
+		else:
+			# No selection, add at front
+			self.coa.add_layer_object(layer)
+		
 		self._rebuild_layer_list()
 		
 		# Auto-select the newly added layer using UUID from CoA

@@ -823,7 +823,7 @@ class CoA(CoAQueryMixin):
     # ========================================
     
     def add_layer(self, emblem_path: str = "", pos_x: float = DEFAULT_POSITION_X,
-                  pos_y: float = DEFAULT_POSITION_Y, colors: int = 3) -> str:
+                  pos_y: float = DEFAULT_POSITION_Y, colors: int = 3, target_uuid: Optional[str] = None) -> str:
         """Add new layer
         
         Args:
@@ -831,6 +831,7 @@ class CoA(CoAQueryMixin):
             pos_x: Initial X position (0.0-1.0)
             pos_y: Initial Y position (0.0-1.0)
             colors: Number of colors (1, 2, or 3)
+            target_uuid: If provided, insert layer below this target (in front of it, higher index)
             
         Returns:
             UUID of the new layer
@@ -861,7 +862,13 @@ class CoA(CoAQueryMixin):
         }
         
         layer = Layer(data, caller='CoA')
-        self._layers.append(layer, caller='CoA')
+        
+        if target_uuid:
+            # Insert below target (higher index = in front)
+            target_index = self._layers.get_index_by_uuid(target_uuid)
+            self._layers.insert(target_index + 1, layer, caller='CoA')
+        else:
+            self._layers.append(layer, caller='CoA')
         
         # Track for auto-selection
         self._last_added_uuid = layer.uuid
@@ -919,11 +926,11 @@ class CoA(CoAQueryMixin):
         return new_layer.uuid
     
     def duplicate_layer_below(self, uuid: str, target_uuid: str) -> str:
-        """Duplicate layer and place above target layer (in front, higher index)
+        """Duplicate layer and place below target in visual layer list (back of render order, lower index)
         
         Args:
             uuid: Layer UUID to duplicate
-            target_uuid: UUID of layer to place duplicate above (in front of)
+            target_uuid: UUID of layer to place duplicate below in the visual list (renders behind)
             
         Returns:
             UUID of the new layer
@@ -947,18 +954,18 @@ class CoA(CoAQueryMixin):
         # Create new layer
         new_layer = Layer(data, caller='CoA')
         
-        # Insert above target (higher index = in front)
+        # Insert below in visual list (higher index = renders in front)
         self._layers.insert(target_index + 1, new_layer, caller='CoA')
         
-        self._logger.debug(f"Duplicated layer {uuid} -> {new_layer.uuid} above {target_uuid}")
+        self._logger.debug(f"Duplicated layer {uuid} -> {new_layer.uuid} below (visual) {target_uuid}")
         return new_layer.uuid
     
     def duplicate_layer_above(self, uuid: str, target_uuid: str) -> str:
-        """Duplicate layer and place below target layer (behind, lower index)
+        """Duplicate layer and place above target in visual layer list (front of render order, higher index)
         
         Args:
             uuid: Layer UUID to duplicate
-            target_uuid: UUID of layer to place duplicate below (behind)
+            target_uuid: UUID of layer to place duplicate above in the visual list (renders in front)
             
         Returns:
             UUID of the new layer
@@ -982,10 +989,10 @@ class CoA(CoAQueryMixin):
         # Create new layer
         new_layer = Layer(data, caller='CoA')
         
-        # Insert below target (lower index = behind)
+        # Insert above in visual list (lower index = renders behind)
         self._layers.insert(target_index, new_layer, caller='CoA')
         
-        self._logger.debug(f"Duplicated layer {uuid} -> {new_layer.uuid} below {target_uuid}")
+        self._logger.debug(f"Duplicated layer {uuid} -> {new_layer.uuid} above (visual) {target_uuid}")
         return new_layer.uuid
     
     def copy_layers_from_coa(self, source_coa: 'CoA', at_front: bool = True, apply_offset: bool = False, target_uuid: Optional[str] = None) -> List[str]:
@@ -1046,14 +1053,14 @@ class CoA(CoAQueryMixin):
         return new_uuids
     
     def move_layer_below(self, uuids: Union[str, List[str]], target_uuid: str):
-        """Move layer(s) above target layer (in front, higher index)
+        """Move layer(s) below target in visual layer list (back of render order, lower index)
         
         When moving multiple layers, they are moved as a contiguous group
         maintaining the order specified in the list.
         
         Args:
             uuids: Layer UUID to move, or list of UUIDs (list order = final stacking order)
-            target_uuid: UUID of layer to move above (in front of)
+            target_uuid: UUID of layer to move below in the visual list (renders behind)
             
         Raises:
             ValueError: If any UUID not found
@@ -1084,22 +1091,22 @@ class CoA(CoAQueryMixin):
             if from_index < target_index:
                 target_index -= 1
         
-        # Insert all layers above target (higher index = in front)
+        # Insert below in visual list (higher index = renders in front)
         # Insert in order: first UUID in list goes at target+1, second at target+2, etc.
         for i, layer in enumerate(layers_to_move):
             self._layers.insert(target_index + 1 + i, layer, caller='CoA')
         
-        self._logger.debug(f"Moved {len(layers_to_move)} layer(s) above {target_uuid}")
+        self._logger.debug(f"Moved {len(layers_to_move)} layer(s) below (visual) {target_uuid}")
     
     def move_layer_above(self, uuids: Union[str, List[str]], target_uuid: str):
-        """Move layer(s) below target layer (behind, lower index)
+        """Move layer(s) above target in visual layer list (front of render order, higher index)
         
         When moving multiple layers, they are moved as a contiguous group
         maintaining the order specified in the list.
         
         Args:
             uuids: Layer UUID to move, or list of UUIDs (list order = final stacking order)
-            target_uuid: UUID of layer to move below (behind)
+            target_uuid: UUID of layer to move above in the visual list (renders in front)
             
         Raises:
             ValueError: If any UUID not found
@@ -1130,15 +1137,15 @@ class CoA(CoAQueryMixin):
             if from_index < target_index:
                 target_index -= 1
         
-        # Insert all layers below target (lower index = behind)
+        # Insert above in visual list (lower index = renders behind)
         # Insert in order: first UUID in list goes at target, second at target+1, etc.
         for i, layer in enumerate(layers_to_move):
             self._layers.insert(target_index + i, layer, caller='CoA')
         
-        self._logger.debug(f"Moved {len(layers_to_move)} layer(s) below {target_uuid}")
+        self._logger.debug(f"Moved {len(layers_to_move)} layer(s) above (visual) {target_uuid}")
     
     def move_layer_to_bottom(self, uuids: Union[str, List[str]]):
-        """Move layer(s) to top (front of rendering order)
+        """Move layer(s) to bottom of visual layer list (back of render order, lowest index)
         
         When moving multiple layers, they are moved as a contiguous group
         maintaining the order specified in the list.
@@ -1163,43 +1170,43 @@ class CoA(CoAQueryMixin):
             layer = self._layers.pop(from_index, caller='CoA')
             layers_to_move.append(layer)
         
-        # Append all layers to top (in order)
-        for layer in layers_to_move:
-            self._layers.append(layer, caller='CoA')
-        
-        self._logger.debug(f"Moved {len(layers_to_move)} layer(s) to top")
-    
-    def move_layer_to_top(self, uuids: Union[str, List[str]]):
-        """Move layer(s) to bottom (back of rendering order)
-        
-        When moving multiple layers, they are moved as a contiguous group
-        maintaining the order specified in the list.
-        
-        Args:
-            uuids: Layer UUID to move, or list of UUIDs (list order = final stacking order)
-            
-        Raises:
-            ValueError: If any UUID not found
-        """
-        # Normalize to list
-        if isinstance(uuids, str):
-            uuids = [uuids]
-        
-        if not uuids:
-            return
-        
-        # Remove all layers (collect them in order)
-        layers_to_move = []
-        for uuid in uuids:
-            from_index = self._layers.get_index_by_uuid(uuid)
-            layer = self._layers.pop(from_index, caller='CoA')
-            layers_to_move.append(layer)
-        
-        # Insert all layers at bottom (in order)
+        # Insert all layers at start (lowest index = bottom visual = back render)
         for i, layer in enumerate(layers_to_move):
             self._layers.insert(i, layer, caller='CoA')
         
-        self._logger.debug(f"Moved {len(layers_to_move)} layer(s) to bottom")
+        self._logger.debug(f"Moved {len(layers_to_move)} layer(s) to bottom (visual)")
+    
+    def move_layer_to_top(self, uuids: Union[str, List[str]]):
+        """Move layer(s) to top of visual layer list (front of render order, highest index)
+        
+        When moving multiple layers, they are moved as a contiguous group
+        maintaining the order specified in the list.
+        
+        Args:
+            uuids: Layer UUID to move, or list of UUIDs (list order = final stacking order)
+            
+        Raises:
+            ValueError: If any UUID not found
+        """
+        # Normalize to list
+        if isinstance(uuids, str):
+            uuids = [uuids]
+        
+        if not uuids:
+            return
+        
+        # Remove all layers (collect them in order)
+        layers_to_move = []
+        for uuid in uuids:
+            from_index = self._layers.get_index_by_uuid(uuid)
+            layer = self._layers.pop(from_index, caller='CoA')
+            layers_to_move.append(layer)
+        
+        # Append all layers to end (highest index = top visual = front render)
+        for layer in layers_to_move:
+            self._layers.append(layer, caller='CoA')
+        
+        self._logger.debug(f"Moved {len(layers_to_move)} layer(s) to top (visual)")
     
     def review_merge(self, uuids: List[str]) -> Dict[str, Any]:
         """Review merge operation before performing it (validation and warnings)
@@ -2571,17 +2578,23 @@ class CoA(CoAQueryMixin):
         layer = self.get_layer_by_index(index)
         return layer.uuid if layer else None
     
-    def add_layer_object(self, layer: Layer, at_front: bool = False) -> str:
+    def add_layer_object(self, layer: Layer, at_front: bool = False, target_uuid: Optional[str] = None) -> str:
         """Add an existing Layer object to the CoA
         
         Args:
             layer: Layer object to add
             at_front: If True, insert at front (top) of layer stack
+                     Ignored if target_uuid is provided.
+            target_uuid: If provided, insert layer below this target (in front of it, higher index)
             
         Returns:
             UUID of the added layer
         """
-        if at_front:
+        if target_uuid:
+            # Insert below target (higher index = in front)
+            target_index = self._layers.get_index_by_uuid(target_uuid)
+            self._layers.insert(target_index + 1, layer, caller='CoA')
+        elif at_front:
             self._layers.insert(len(self._layers), layer, caller='CoA')
         else:
             self._layers.append(layer, caller='CoA')

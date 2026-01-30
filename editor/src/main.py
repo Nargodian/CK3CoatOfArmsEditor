@@ -946,14 +946,29 @@ class CoatOfArmsEditor(QMainWindow):
 			self._save_state("Change layer texture")
 	
 	def _create_layer_with_texture(self, dds_filename, color_count):
-		"""Create new layer with selected texture at top of stack"""
+		"""Create new layer with selected texture"""
+		# Check for selection to add above
+		selected_uuids = self.right_sidebar.get_selected_uuids()
+		target_uuid = selected_uuids[0] if selected_uuids else None
+		
 		# Use CoA model to add layer
-		layer_uuid = self.coa.add_layer(
-			emblem_path=dds_filename,
-			pos_x=0.5,
-			pos_y=0.5,
-			colors=color_count
-		)
+		if target_uuid:
+			# Add below selected layer (in front of it)
+			layer_uuid = self.coa.add_layer(
+				emblem_path=dds_filename,
+				pos_x=0.5,
+				pos_y=0.5,
+				colors=color_count,
+				target_uuid=target_uuid
+			)
+		else:
+			# No selection, add at front
+			layer_uuid = self.coa.add_layer(
+				emblem_path=dds_filename,
+				pos_x=0.5,
+				pos_y=0.5,
+				colors=color_count
+			)
 		
 		# Auto-select the newly added layer using UUID from CoA
 		new_uuid = self.coa.get_last_added_uuid()

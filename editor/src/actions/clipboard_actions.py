@@ -72,7 +72,7 @@ class ClipboardActions:
 				self.main_window.right_sidebar._select_layer(0)
 			
 			# Update canvas
-			self.main_window.canvas_area.canvas_widget.set_layers(self.main_window.right_sidebar.layers)
+			self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
 			
 			# OLD CODE (will remove in Step 10):
 			# from utils.coa_parser import parse_coa_string
