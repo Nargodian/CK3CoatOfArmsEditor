@@ -89,6 +89,7 @@ class CanvasArea(QFrame):
 		frame_options = ["None", "Dynasty", "House", "House China", "House Japan"] + \
 		                [f"House Frame {i:02d}" for i in range(2, 31)]
 		self.frame_combo = self._create_combo_box(frame_options)
+		self.frame_combo.setFixedWidth(120)  # Narrower width
 		self.frame_combo.setCurrentIndex(2)  # Default to House
 		self.frame_combo.currentTextChanged.connect(self._on_frame_changed)
 		bottom_layout.addWidget(self.frame_combo)
@@ -114,6 +115,36 @@ class CanvasArea(QFrame):
 		
 		bottom_layout.addSpacing(20)
 		
+		# Rotation mode dropdown
+		rotation_label = QLabel("Rotation:")
+		rotation_label.setStyleSheet("font-size: 11px; border: none;")
+		bottom_layout.addWidget(rotation_label)
+		
+		self.rotation_mode_combo = self._create_combo_box([
+			"Auto",
+			"Rotate Only",
+			"Orbit Only",
+			"Both",
+			"Rotate Deep",
+			"Orbit Deep",
+			"Both Deep"
+		])
+		self.rotation_mode_combo.setFixedWidth(120)  # Narrower width
+		self.rotation_mode_combo.setToolTip(
+			"Rotation Mode:\n"
+			"Auto - Intelligent routing (legacy)\n"
+			"Rotate Only - Spin in place (shallow)\n"
+			"Orbit Only - Orbit around center (shallow)\n"
+			"Both - Orbit + Rotate (shallow)\n"
+			"Rotate Deep - Spin instances in place\n"
+			"Orbit Deep - Orbit instances around center\n"
+			"Both Deep - Orbit + Rotate instances"
+		)
+		self.rotation_mode_combo.setCurrentIndex(0)  # Default to Auto
+		bottom_layout.addWidget(self.rotation_mode_combo)
+		
+		bottom_layout.addSpacing(20)
+		
 		# Add minimal transform widget toggle button
 		from PyQt5.QtWidgets import QPushButton
 		self.minimal_transform_btn = QPushButton("▭")
@@ -128,6 +159,26 @@ class CanvasArea(QFrame):
 		
 		return bottom_bar
 	
+	def get_rotation_mode(self):
+		"""Get current rotation mode from dropdown
+		
+		Returns:
+			String mode name for CoA.rotate_selection()
+		"""
+		mode_map = {
+			"Auto": "auto",
+			"Rotate Only": "rotate_only",
+			"Orbit Only": "orbit_only",
+			"Both": "both",
+			"Rotate Deep": "rotate_only_deep",
+			"Orbit Deep": "orbit_only_deep",
+			"Both Deep": "both_deep"
+		}
+		if not hasattr(self, 'rotation_mode_combo'):
+			return "auto"
+		current_text = self.rotation_mode_combo.currentText()
+		return mode_map.get(current_text, "auto")
+	
 	def _create_combo_box(self, items):
 		"""Create a styled combo box"""
 		combo = QComboBox()
@@ -136,7 +187,6 @@ class CanvasArea(QFrame):
 			QComboBox {
 				padding: 5px 10px;
 				border-radius: 3px;
-				min-width: 150px;
 				border: none;
 			}
 			QComboBox::drop-down {
@@ -189,7 +239,7 @@ class CanvasArea(QFrame):
 				self.transform_widget.set_visible(False)
 				return
 		
-		# SINGLE SELECTION: Show layer transform directly
+		# SINGLE SELECTION
 		if len(selected_uuids) == 1:
 			uuid = list(selected_uuids)[0]
 			# Read from CoA model for transform widget positioning
@@ -197,19 +247,41 @@ class CanvasArea(QFrame):
 				self.transform_widget.set_visible(False)
 				return
 			
-			pos_x = self.main_window.coa.get_layer_pos_x(uuid)
-			pos_y = self.main_window.coa.get_layer_pos_y(uuid)
-			scale_x = self.main_window.coa.get_layer_scale_x(uuid)
-			scale_y = self.main_window.coa.get_layer_scale_y(uuid)
-			rotation = self.main_window.coa.get_layer_rotation(uuid)
+			# Check if layer has multiple instances - treat as group transform
+			instance_count = self.main_window.coa.get_layer_instance_count(uuid)
 			
-			if pos_x is None or pos_y is None:
-				self.transform_widget.set_visible(False)
+			if instance_count > 1:
+				# Multi-instance layer: use AABB of all instances (group transform)
+				try:
+					bounds = self.main_window.coa.get_layer_bounds(uuid)
+					group_pos_x = bounds['center_x']
+					group_pos_y = bounds['center_y']
+					group_scale_x = bounds['width']
+					group_scale_y = bounds['height']
+					group_rotation = 0
+					
+					# Pass is_multi_selection=True for group behavior
+					self.transform_widget.set_transform(group_pos_x, group_pos_y, group_scale_x, group_scale_y, group_rotation, is_multi_selection=True)
+					self.transform_widget.set_visible(True)
+					return
+				except ValueError:
+					self.transform_widget.set_visible(False)
+					return
+			else:
+				# Single instance: show layer transform directly
+				pos_x = self.main_window.coa.get_layer_pos_x(uuid)
+				pos_y = self.main_window.coa.get_layer_pos_y(uuid)
+				scale_x = self.main_window.coa.get_layer_scale_x(uuid)
+				scale_y = self.main_window.coa.get_layer_scale_y(uuid)
+				rotation = self.main_window.coa.get_layer_rotation(uuid)
+				
+				if pos_x is None or pos_y is None:
+					self.transform_widget.set_visible(False)
+					return
+				
+				self.transform_widget.set_transform(pos_x, pos_y, scale_x, scale_y, rotation)
+				self.transform_widget.set_visible(True)
 				return
-			
-			self.transform_widget.set_transform(pos_x, pos_y, scale_x, scale_y, rotation)
-			self.transform_widget.set_visible(True)
-			return
 		
 		# MULTI-SELECTION: Calculate screen-space AABB using CoA
 		# If we have a drag_start_aabb (during active transform), use that to prevent scale compounding
@@ -251,21 +323,58 @@ class CanvasArea(QFrame):
 		self.transform_widget.set_visible(True)
 	def _on_transform_changed(self, pos_x, pos_y, scale_x, scale_y, rotation):
 		"""Handle transform changes from the widget		
-		For single selection: updates layer directly
+		For single selection with multiple instances: group transform around AABB center
+		For single selection with one instance: direct transform
 		For multi-selection: applies group transform to all selected layers
 		"""
 		selected_uuids = self.property_sidebar.get_selected_uuids() if self.property_sidebar else []
 		if not selected_uuids:
 			return
 		
-		# SINGLE SELECTION: Direct update using CoA API
+		# SINGLE SELECTION
 		if len(selected_uuids) == 1:
 			uuid = list(selected_uuids)[0]
+			instance_count = self.main_window.coa.get_layer_instance_count(uuid)
 			
-			# Clamp position to valid range [0, 1] and update
-			self.main_window.coa.set_layer_position(uuid, max(0.0, min(1.0, pos_x)), max(0.0, min(1.0, pos_y)))
-			self.main_window.coa.set_layer_scale(uuid, scale_x, scale_y)
-			self.main_window.coa.set_layer_rotation(uuid, rotation)
+			# MULTI-INSTANCE: Use group transform relative to AABB center
+			if instance_count > 1:
+				# Cache initial AABB at drag start
+				if not hasattr(self, '_single_layer_aabb') or self._single_layer_aabb is None:
+					# Begin caching in CoA
+					self.main_window.coa.begin_instance_group_transform(uuid)
+					
+					bounds = self.main_window.coa.get_layer_bounds(uuid)
+					self._single_layer_aabb = {
+						'center_x': bounds['center_x'],
+						'center_y': bounds['center_y'],
+						'width': bounds['width'],
+						'height': bounds['height']
+					}
+					self._initial_instance_rotation = 0  # Widget starts at 0 for group
+				
+				# Calculate transform relative to CACHED original AABB (doesn't change)
+				original_center_x = self._single_layer_aabb['center_x']
+				original_center_y = self._single_layer_aabb['center_y']
+				original_width = self._single_layer_aabb['width']
+				original_height = self._single_layer_aabb['height']
+				
+				# Calculate scale factors
+				scale_factor_x = scale_x / original_width if original_width > 0.001 else 1.0
+				scale_factor_y = scale_y / original_height if original_height > 0.001 else 1.0
+				
+				# Calculate rotation delta
+				rotation_delta = rotation - self._initial_instance_rotation
+				
+				# Apply group transform using CoA method (uses cached original positions)
+				self.main_window.coa.transform_instances_as_group(
+					uuid, pos_x, pos_y, scale_factor_x, scale_factor_y, rotation_delta
+				)
+			
+			else:
+				# SINGLE INSTANCE: Direct transform (no group behavior needed)
+				self.main_window.coa.set_layer_position(uuid, pos_x, pos_y)
+				self.main_window.coa.set_layer_scale(uuid, scale_x, scale_y)
+				self.main_window.coa.set_layer_rotation(uuid, rotation)
 			
 			self.canvas_widget.set_coa(self.main_window.coa)
 			# Don't reload properties during drag - causes feedback loop that resets flip state
@@ -406,9 +515,15 @@ class CanvasArea(QFrame):
 	
 	def _on_transform_ended(self):
 		"""Handle transform widget drag end"""
-		# Clear CoA transform cache
+		# Clear CoA transform caches
 		if self.main_window and self.main_window.coa:
 			self.main_window.coa.end_transform_group()
+			self.main_window.coa.end_instance_group_transform()
+		
+		# Clear single layer state caches
+		self._single_layer_initial_state = None
+		self._single_layer_aabb = None
+		self._initial_instance_rotation = 0
 		
 		# Update canvas
 		self.canvas_widget.set_coa(self.main_window.coa)

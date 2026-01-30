@@ -53,8 +53,8 @@ class LayerTracker:
     All layer operations are logged with caller information.
     """
     
-    # Registered component keys
-    _registered_keys = set()
+    # Registered component keys (pre-register common internal callers)
+    _registered_keys = {'CoA', 'Layer', 'Layers', 'query_mixin', 'CoA.merge'}
     
     # Call log (limited size to prevent memory issues)
     _call_log = []

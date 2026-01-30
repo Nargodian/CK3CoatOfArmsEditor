@@ -1012,6 +1012,63 @@ class CoA(CoAQueryMixin):
         self._logger.debug(f"Duplicated layer {uuid} -> {new_layer.uuid} above (visual) {target_uuid}")
         return new_layer.uuid
     
+    def merge_layers_into_first(self, uuids: List[str]) -> str:
+        """Merge multiple layers into the first one by adding instances
+        
+        The first layer keeps its UUID and position. Instances from other layers
+        are added to it, then the other layers are removed.
+        
+        Args:
+            uuids: List of layer UUIDs to merge (first one is kept)
+            
+        Returns:
+            UUID of the merged layer (same as first UUID in list)
+            
+        Raises:
+            ValueError: If list empty, has only one UUID, or contains invalid UUIDs
+        """
+        if not uuids:
+            raise ValueError("UUID list cannot be empty")
+        if len(uuids) < 2:
+            raise ValueError("Need at least 2 layers to merge")
+        
+        # Get all layer objects
+        layers = []
+        for uuid in uuids:
+            layer = self._layers.get_by_uuid(uuid)
+            if not layer:
+                raise ValueError(f"Layer with UUID '{uuid}' not found")
+            layers.append(layer)
+        
+        # First layer receives all instances
+        first_uuid = uuids[0]
+        first_layer = layers[0]
+        
+        # Add instances from other layers to the first layer
+        for other_layer in layers[1:]:
+            for instance_idx in range(other_layer.instance_count):
+                instance = other_layer.get_instance(instance_idx, caller='CoA.merge')
+                # Add instance with all its properties
+                new_idx = self.add_instance(
+                    first_uuid,
+                    pos_x=instance['pos_x'],
+                    pos_y=instance['pos_y']
+                )
+                # Copy remaining instance properties (if they exist)
+                new_instance = first_layer.get_instance(new_idx, caller='CoA.merge')
+                new_instance['scale_x'] = instance.get('scale_x', 1.0)
+                new_instance['scale_y'] = instance.get('scale_y', 1.0)
+                new_instance['rotation'] = instance.get('rotation', 0.0)
+                if 'depth' in instance:
+                    new_instance['depth'] = instance['depth']
+        
+        # Remove the other layers (not the first one)
+        for uuid in uuids[1:]:
+            self.remove_layer(uuid)
+        
+        self._logger.debug(f"Merged {len(uuids)} layers into {first_uuid} ({first_layer.instance_count} instances)")
+        return first_uuid
+    
     def copy_layers_from_coa(self, source_coa: 'CoA', at_front: bool = True, apply_offset: bool = False, target_uuid: Optional[str] = None) -> List[str]:
         """Copy all layers from another CoA into this one
         
@@ -1614,6 +1671,191 @@ class CoA(CoAQueryMixin):
         
         layer.visible = visible
         self._logger.debug(f"Set layer {uuid} visibility: {visible}")
+    
+    def translate_all_instances(self, uuid: str, dx: float, dy: float):
+        """Translate ALL instances of a layer by offset
+        
+        Args:
+            uuid: Layer UUID
+            dx: X offset
+            dy: Y offset
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        instances = layer._data.get('instances', [])
+        for inst in instances:
+            inst['pos_x'] = max(0.0, min(1.0, inst['pos_x'] + dx))
+            inst['pos_y'] = max(0.0, min(1.0, inst['pos_y'] + dy))
+        
+        self._logger.debug(f"Translated all {len(instances)} instances of layer {uuid}: ({dx:.4f}, {dy:.4f})")
+    
+    def scale_all_instances(self, uuid: str, scale_factor_x: float, scale_factor_y: float):
+        """Scale ALL instances of a layer by factor
+        
+        Args:
+            uuid: Layer UUID
+            scale_factor_x: X scale multiplier
+            scale_factor_y: Y scale multiplier
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        instances = layer._data.get('instances', [])
+        for inst in instances:
+            inst['scale_x'] *= scale_factor_x
+            inst['scale_y'] *= scale_factor_y
+        
+        self._logger.debug(f"Scaled all {len(instances)} instances of layer {uuid}: ({scale_factor_x:.4f}, {scale_factor_y:.4f})")
+    
+    def rotate_all_instances(self, uuid: str, delta_degrees: float):
+        """Rotate ALL instances of a layer by delta
+        
+        Args:
+            uuid: Layer UUID
+            delta_degrees: Rotation delta in degrees
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        instances = layer._data.get('instances', [])
+        for inst in instances:
+            inst['rotation'] = (inst['rotation'] + delta_degrees) % 360
+        
+        self._logger.debug(f"Rotated all {len(instances)} instances of layer {uuid}: +{delta_degrees:.2f}°")
+    
+    def begin_instance_group_transform(self, uuid: str):
+        """Cache original instance positions for group transform
+        
+        Call this at the START of a transform operation, then call
+        transform_instances_as_group repeatedly during the drag.
+        
+        Args:
+            uuid: Layer UUID
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        # Cache original instance states
+        instances = layer._data.get('instances', [])
+        self._cached_instance_transforms = []
+        for inst in instances:
+            self._cached_instance_transforms.append({
+                'pos_x': inst['pos_x'],
+                'pos_y': inst['pos_y'],
+                'scale_x': inst['scale_x'],
+                'scale_y': inst['scale_y']
+            })
+        
+        # Cache original AABB center
+        bounds = self.get_layer_bounds(uuid)
+        self._cached_instance_center = (bounds['center_x'], bounds['center_y'])
+        
+        self._logger.debug(f"Cached {len(instances)} instance transforms for layer {uuid}")
+    
+    def end_instance_group_transform(self):
+        """Clear cached instance transform state"""
+        self._cached_instance_transforms = None
+        self._cached_instance_center = None
+    
+    def transform_instances_as_group(self, uuid: str, new_center_x: float, new_center_y: float, 
+                                     scale_factor_x: float, scale_factor_y: float, rotation_delta: float = 0.0):
+        """Transform all instances of a layer as a unified group (like multi-selection)
+        
+        IMPORTANT: Call begin_instance_group_transform() once at drag start, then call
+        this method repeatedly during drag with updated transform values.
+        
+        This performs a group transform relative to the ORIGINAL AABB center:
+        - Scales instance positions and scales relative to group center
+        - Rotates instance positions around group center (ferris wheel)
+        - Translates entire group
+        
+        Args:
+            uuid: Layer UUID
+            new_center_x: New X position for group center
+            new_center_y: New Y position for group center
+            scale_factor_x: X scale factor for group (affects positions and scales)
+            scale_factor_y: Y scale factor for group (affects positions and scales)
+            rotation_delta: Rotation delta in degrees (rotates positions, not individual rotations)
+            
+        Raises:
+            ValueError: If UUID not found or begin_instance_group_transform not called
+        """
+        import math
+        
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        if not hasattr(self, '_cached_instance_transforms') or self._cached_instance_transforms is None:
+            raise ValueError("Must call begin_instance_group_transform() before transform_instances_as_group()")
+        
+        # Use CACHED original center (doesn't change during transform)
+        original_center_x, original_center_y = self._cached_instance_center
+        
+        # Calculate position delta for group translation
+        position_delta_x = new_center_x - original_center_x
+        position_delta_y = new_center_y - original_center_y
+        
+        # Transform each instance using CACHED original values
+        instances = layer._data.get('instances', [])
+        for i, inst in enumerate(instances):
+            cached = self._cached_instance_transforms[i]
+            pos_x_orig = cached['pos_x']
+            pos_y_orig = cached['pos_y']
+            scale_x_orig = cached['scale_x']
+            scale_y_orig = cached['scale_y']
+            
+            # Calculate offset from ORIGINAL group center
+            offset_x = pos_x_orig - original_center_x
+            offset_y = pos_y_orig - original_center_y
+            
+            # Apply rotation to offset if rotating
+            if rotation_delta != 0:
+                rotation_rad = math.radians(rotation_delta)
+                cos_r = math.cos(rotation_rad)
+                sin_r = math.sin(rotation_rad)
+                new_offset_x = offset_x * cos_r - offset_y * sin_r
+                new_offset_y = offset_x * sin_r + offset_y * cos_r
+            else:
+                new_offset_x = offset_x
+                new_offset_y = offset_y
+            
+            # Apply scale to offset
+            new_offset_x *= scale_factor_x
+            new_offset_y *= scale_factor_y
+            
+            # Calculate new position with translation
+            new_pos_x = original_center_x + new_offset_x + position_delta_x
+            new_pos_y = original_center_y + new_offset_y + position_delta_y
+            
+            # Apply scale to ORIGINAL instance scale (not compounding)
+            new_scale_x = scale_x_orig * scale_factor_x
+            new_scale_y = scale_y_orig * scale_factor_y
+            
+            # Clamp positions to valid range
+            inst['pos_x'] = max(0.0, min(1.0, new_pos_x))
+            inst['pos_y'] = max(0.0, min(1.0, new_pos_y))
+            
+            # Clamp scales to valid range
+            inst['scale_x'] = max(0.01, min(1.0, new_scale_x))
+            inst['scale_y'] = max(0.01, min(1.0, new_scale_y))
     
     def rotate_layer(self, uuid: str, delta_degrees: float):
         """Rotate layer by delta
@@ -2710,6 +2952,73 @@ class CoA(CoAQueryMixin):
         self._layers = Layers.from_dict_list(snapshot['layers'], caller='CoA')
         
         self._logger.debug("Restored from snapshot")
+    
+    def check_merge_compatibility(self, uuids: List[str]) -> Tuple[bool, Dict[str, List[int]]]:
+        """Check if layers can be merged as instances
+        
+        Layers can be merged if they share:
+        - Same texture (filename)
+        - Same mask
+        - Same colors (color1, color2, color3)
+        - Same flip settings
+        
+        Args:
+            uuids: List of layer UUIDs to check
+            
+        Returns:
+            Tuple of (compatible: bool, differences: dict)
+            differences maps property name to list of layer indices that differ
+            
+        Raises:
+            ValueError: If UUID list empty or contains invalid UUIDs
+        """
+        if not uuids:
+            raise ValueError("UUID list cannot be empty")
+        
+        if len(uuids) < 2:
+            return True, {}
+        
+        # Get all layer objects
+        layer_objs = []
+        for uuid in uuids:
+            layer = self._layers.get_by_uuid(uuid)
+            if not layer:
+                raise ValueError(f"Layer with UUID '{uuid}' not found")
+            layer_objs.append(layer)
+        
+        # Reference layer (first one)
+        ref = layer_objs[0]
+        ref_filename = ref.filename
+        ref_mask = ref.mask
+        ref_color1 = ref.color1
+        ref_color2 = ref.color2
+        ref_color3 = ref.color3
+        ref_flip_x = ref.flip_x
+        ref_flip_y = ref.flip_y
+        
+        # Track differences
+        differences = {}
+        
+        # Check each layer against reference
+        for idx, layer in enumerate(layer_objs[1:], start=1):
+            if layer.filename != ref_filename:
+                differences.setdefault('filename', []).append(idx)
+            if layer.mask != ref_mask:
+                differences.setdefault('mask', []).append(idx)
+            # Compare colors as lists (element-wise)
+            if list(layer.color1) != list(ref_color1):
+                differences.setdefault('color1', []).append(idx)
+            if list(layer.color2) != list(ref_color2):
+                differences.setdefault('color2', []).append(idx)
+            if list(layer.color3) != list(ref_color3):
+                differences.setdefault('color3', []).append(idx)
+            if layer.flip_x != ref_flip_x:
+                differences.setdefault('flip_x', []).append(idx)
+            if layer.flip_y != ref_flip_y:
+                differences.setdefault('flip_y', []).append(idx)
+        
+        compatible = len(differences) == 0
+        return compatible, differences
     
     # ========================================
     # Helper Methods (Internal)

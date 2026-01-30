@@ -1389,6 +1389,21 @@ class PropertySidebar(QFrame):
 		# NOTE: Don't sync to layer_list_widget here - it manages its own UUID-based selection
 		# The layer_list_widget.selected_layer_uuids is the source of truth
 		
+		# Validate and clean up selection - remove any UUIDs that no longer exist
+		if hasattr(self, 'layer_list_widget') and self.layer_list_widget.selected_layer_uuids:
+			valid_uuids = set()
+			for uuid in self.layer_list_widget.selected_layer_uuids:
+				# Check if UUID still exists in CoA
+				try:
+					if self.main_window.coa.get_layer_by_uuid(uuid) is not None:
+						valid_uuids.add(uuid)
+				except (ValueError, AttributeError):
+					# UUID doesn't exist anymore, skip it
+					pass
+			
+			# Update selection to only valid UUIDs
+			self.layer_list_widget.selected_layer_uuids = valid_uuids
+		
 		# Get current selection from layer_list_widget (UUID-based)
 		selected_uuids = self.get_selected_uuids()
 		selected_count = len(selected_uuids)

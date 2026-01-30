@@ -161,10 +161,10 @@ class LayerListWidget(QWidget):
 				}
 			""")
 			badge.setAlignment(Qt.AlignCenter)
-			badge.setMinimumSize(18, 16)
+			badge.setFixedSize(18, 16)  # Fixed size to prevent stretching
 			# Position badge in top-right corner
 			badge.setParent(icon_container)
-			badge.move(32, 0)
+			badge.move(28, 2)  # Adjusted position to be in corner
 			badge.raise_()
 		
 		btn_layout.addWidget(icon_container)
@@ -834,9 +834,9 @@ class LayerListWidget(QWidget):
 						}
 					""")
 					badge.setAlignment(Qt.AlignCenter)
-					badge.setMinimumSize(18, 16)
+					badge.setFixedSize(18, 16)  # Fixed size to prevent stretching
 					badge.setParent(icon_container)
-					badge.move(32, 0)
+					badge.move(28, 2)  # Adjusted position to be in corner
 					badge.raise_()
 		
 		# Update name label (component 1)

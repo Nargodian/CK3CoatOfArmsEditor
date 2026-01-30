@@ -395,66 +395,6 @@ def split_layer_instances(layer):
     return new_layers
 
 
-def check_layers_compatible_for_merge(layers):
-    """Check if layers can be merged (same texture, colors, mask)
-    
-    Args:
-        layers: List of Layer objects
-        
-    Returns:
-        Tuple of (is_compatible, differences_dict)
-        - is_compatible: True if all layers have same texture/colors/mask
-        - differences_dict: Dict describing what differs (empty if compatible)
-    """
-    if not layers or len(layers) < 2:
-        return True, {}
-    
-    from models.coa import Layer
-    
-    # Ensure all are Layer objects
-    layer_objs = []
-    for layer in layers:
-        if isinstance(layer, Layer):
-            layer_objs.append(layer)
-        else:
-            layer_objs.append(Layer(layer, caller='check_layers_compatible_for_merge'))
-    
-    # Get reference properties from first layer
-    first = layer_objs[0]
-    ref_filename = first.filename
-    ref_colors = first.colors
-    ref_mask = first.mask
-    ref_flip_x = first.flip_x
-    ref_flip_y = first.flip_y
-    ref_color1 = first.color1
-    ref_color2 = first.color2
-    ref_color3 = first.color3
-    
-    differences = {}
-    
-    # Check each layer against reference
-    for idx, layer in enumerate(layer_objs[1:], start=1):
-        if layer.filename != ref_filename:
-            differences.setdefault('filename', []).append(idx)
-        if layer.colors != ref_colors:
-            differences.setdefault('colors', []).append(idx)
-        if layer.mask != ref_mask:
-            differences.setdefault('mask', []).append(idx)
-        if layer.flip_x != ref_flip_x:
-            differences.setdefault('flip_x', []).append(idx)
-        if layer.flip_y != ref_flip_y:
-            differences.setdefault('flip_y', []).append(idx)
-        if layer.color1 != ref_color1:
-            differences.setdefault('color1', []).append(idx)
-        if layer.color2 != ref_color2:
-            differences.setdefault('color2', []).append(idx)
-        if layer.color3 != ref_color3:
-            differences.setdefault('color3', []).append(idx)
-    
-    is_compatible = len(differences) == 0
-    return is_compatible, differences
-
-
 def merge_layers_as_instances(layers, use_topmost_properties=False):
     """Merge multiple layers into one multi-instance layer
     
@@ -485,13 +425,6 @@ def merge_layers_as_instances(layers, use_topmost_properties=False):
     
     if len(layer_objs) == 1:
         return duplicate_layer(layer_objs[0])
-    
-    # Check compatibility
-    is_compatible, differences = check_layers_compatible_for_merge(layer_objs)
-    
-    if not is_compatible and not use_topmost_properties:
-        diff_props = ', '.join(differences.keys())
-        raise ValueError(f"Layers have incompatible properties: {diff_props}")
     
     # Use topmost layer (index 0) as base
     base = layer_objs[0]

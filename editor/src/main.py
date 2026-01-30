@@ -507,6 +507,26 @@ class CoatOfArmsEditor(QMainWindow):
 		self._update_alignment_actions()
 		self._update_transform_actions()
 		self._update_move_to_actions()
+		self._update_instance_actions()
+	
+	def _update_instance_actions(self):
+		"""Enable or disable instance menu actions based on selection"""
+		if not hasattr(self, 'right_sidebar'):
+			self.merge_as_instances_action.setEnabled(False)
+			self.split_instances_action.setEnabled(False)
+			return
+		
+		selected_uuids = self.right_sidebar.get_selected_uuids()
+		
+		# Merge: enabled for 2+ selections
+		self.merge_as_instances_action.setEnabled(len(selected_uuids) >= 2)
+		
+		# Split: enabled for single selection with 2+ instances
+		if len(selected_uuids) == 1:
+			instance_count = self.coa.get_layer_instance_count(selected_uuids[0])
+			self.split_instances_action.setEnabled(instance_count >= 2)
+		else:
+			self.split_instances_action.setEnabled(False)
 	
 	def _update_alignment_actions(self):
 		"""Enable or disable alignment actions based on selection count"""
@@ -1608,22 +1628,18 @@ class CoatOfArmsEditor(QMainWindow):
 	def _merge_selected_layers(self):
 		"""Merge selected layers as instances into one layer"""
 		try:
-			from services.layer_operations import merge_layers_as_instances, check_layers_compatible_for_merge
+			from services.layer_operations import merge_layers_as_instances
 			from PyQt5.QtWidgets import QMessageBox
 			
 			# Require multi-selection
-			selected_indices = self.right_sidebar.get_selected_indices()
-			if not selected_indices or len(selected_indices) < 2:
+			selected_uuids = list(self.right_sidebar.get_selected_uuids())
+			if not selected_uuids or len(selected_uuids) < 2:
 				QMessageBox.information(self, "Merge as Instances", 
 					"Please select multiple layers to merge.")
 				return
 			
-			# Get layers in order (topmost first)
-			layers_to_merge = [self.coa.get_layer_by_index(idx) for idx in selected_indices]
-			
-			# Check compatibility
-			is_compatible, differences = check_layers_compatible_for_merge(layers_to_merge)
-			
+			# Check compatibility using CoA method
+			is_compatible, differences = self.coa.check_merge_compatibility(selected_uuids)
 			use_topmost = False
 			if not is_compatible:
 				# Show warning dialog
@@ -1645,61 +1661,38 @@ class CoatOfArmsEditor(QMainWindow):
 					return
 				use_topmost = True
 			
-			# Merge layers
-			merged_layer = merge_layers_as_instances(layers_to_merge, use_topmost_properties=use_topmost)
+			# Merge layers (get Layer objects for merge function)
+			layers_to_merge = [self.coa.get_layer_by_uuid(uuid) for uuid in selected_uuids]
+		
+			# Merge all layers into the first one (it keeps its UUID and position)
+			merged_uuid = self.coa.merge_layers_into_first(selected_uuids)
 			
-			# Remove old layers using CoA model
-			for layer in layers_to_merge:
-				self.coa.remove_layer(layer.uuid)
+			# Update selection to the merged layer
+			self.right_sidebar.layer_list_widget.selected_layer_uuids = {merged_uuid}
+			self.right_sidebar.layer_list_widget.clear_thumbnail_cache()
 			
-			# Insert merged layer at position of topmost selected
-			insert_pos = min(selected_indices)
-			self.coa.insert_layer_at_index(insert_pos, merged_layer)
-			# Clear thumbnail cache
-			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
-				self.right_sidebar.layer_list_widget.clear_thumbnail_cache()
-				
-				# Rebuild UI
-				self.right_sidebar._rebuild_layer_list()
-				self.right_sidebar._update_layer_selection()  # Update selection state properly
-				self.canvas_area.canvas_widget.set_coa(self.coa)
-				self.canvas_area.update_transform_widget_for_layer()
-				
-				# Load properties to show instance selector
-				if hasattr(self.right_sidebar, '_load_layer_properties'):
-					self.right_sidebar._load_layer_properties()
-				
-				# Force repaint
-				self.canvas_area.canvas_widget.repaint()
-				self.repaint()
-				
-				# Save to history
-				instance_count = merged_layer.instance_count
-				self._save_state(f"Merge {len(layers_to_merge)} layers ({instance_count} instances)")
+			# Rebuild UI
+			self.right_sidebar._rebuild_layer_list()
+			self.right_sidebar._update_layer_selection()  # Update selection state properly
+			self.canvas_area.canvas_widget.set_coa(self.coa)
+			self.canvas_area.update_transform_widget_for_layer()
+			
+			# Load properties to show instance selector
+			if hasattr(self.right_sidebar, '_load_layer_properties'):
+				self.right_sidebar._load_layer_properties()
+			
+			# Force repaint
+			self.canvas_area.canvas_widget.repaint()
+			self.repaint()
+			
+			# Save to history
+			merged_layer = self.coa.get_layer_by_uuid(merged_uuid)
+			instance_count = merged_layer.instance_count
+			self._save_state(f"Merge {len(layers_to_merge)} layers ({instance_count} instances)")
 		except Exception as e:
 			loggerRaise(e, "Failed to merge layers")
-			return
-		
-		layer_count = self.coa.get_layer_count()
-		selected_uuids = self.right_sidebar.get_selected_uuids()
-		has_selection = len(selected_uuids) > 0
-		is_single = len(selected_uuids) == 1
-		is_multi = len(selected_uuids) >= 2
-		
-		# Split: enabled only for single-selection multi-instance layers
-		if is_single and has_selection:
-			instance_count = self.coa.get_layer_instance_count(selected_uuids[0])
-			is_multi_instance = instance_count > 1
-			self.split_instances_action.setEnabled(is_multi_instance)
-		else:
-			self.split_instances_action.setEnabled(False)
-		
-		# Merge: enabled for 2 or more layers selected
-		self.merge_as_instances_action.setEnabled(is_multi)
-	
-	def paste_layer(self):
-		"""Paste layers from clipboard - delegates to clipboard_actions"""
-		self.clipboard_actions.paste_layer()
+
+def paste_layer(self):
 	
 	def paste_layer_smart(self):
 		"""Smart paste - delegates to clipboard_actions"""

@@ -70,8 +70,8 @@ class FileActions:
 	
 	def save_coa(self):
 		"""Save the current coat of arms"""
-		if self.main_window.current_file:
-			self._save_to_file(self.main_window.current_file)
+		if self.main_window.current_file_path:
+			self._save_to_file(self.main_window.current_file_path)
 		else:
 			self.save_coa_as()
 	
