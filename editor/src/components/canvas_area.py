@@ -17,7 +17,7 @@ class CanvasArea(QFrame):
 		self.coa = None  # Reference to CoA model (will be set externally)
 		self.property_sidebar = None  # Will be set by main window
 		self.main_window = None  # Will be set by main window
-		
+	
 		# Cache for multi-layer transform (prevents cumulative transforms)
 		self._drag_start_layers = None
 		
@@ -26,7 +26,7 @@ class CanvasArea(QFrame):
 	def mousePressEvent(self, event):
 		"""Handle clicks on canvas background to deselect layers"""
 		# If clicking outside the canvas widget itself, deselect layer
-		if self.property_sidebar and self.property_sidebar.get_selected_indices():
+		if self.property_sidebar and self.property_sidebar.get_selected_uuids():
 			# Check if click is on the canvas widget
 			canvas_geometry = self.canvas_widget.geometry()
 			if not canvas_geometry.contains(event.pos()):
@@ -176,15 +176,12 @@ class CanvasArea(QFrame):
 		self._initial_group_center = None
 		self._initial_group_rotation = 0
 		
-		# Clear cached AABB when selection changes to recalculate from new selection
-		self.transform_widget.cached_aabb = None
-		
 		if not self.property_sidebar:
 			self.transform_widget.set_visible(False)
 			return
 		
-		# Get selected indices
-		selected_indices = self.property_sidebar.get_selected_indices()
+		# Get selected UUIDs
+		selected_uuids = self.property_sidebar.get_selected_uuids()
 		
 		# Use layer_index parameter if provided (backward compatibility)
 		if layer_index is not None:
@@ -193,17 +190,18 @@ class CanvasArea(QFrame):
 				return
 		
 		# SINGLE SELECTION: Show layer transform directly
-		if len(selected_indices) == 1:
-			idx = selected_indices[0]
+		if len(selected_uuids) == 1:
+			uuid = list(selected_uuids)[0]
 			# Read from CoA model for transform widget positioning
 			if not self.main_window or not self.main_window.coa:
 				self.transform_widget.set_visible(False)
 				return
-			if idx < 0 or idx >= self.main_window.coa.get_layer_count():
+			
+			layer = self.main_window.coa.get_layer_by_uuid(uuid)
+			if not layer:
 				self.transform_widget.set_visible(False)
 				return
 			
-			layer = self.main_window.coa.get_layer_by_index(idx)
 			pos_x = layer.pos_x
 			pos_y = layer.pos_y
 			scale_x = layer.scale_x
@@ -215,23 +213,22 @@ class CanvasArea(QFrame):
 			return
 		
 		# MULTI-SELECTION: Calculate screen-space AABB using CoA
-		# Use cached AABB if it exists (persists after rotation to prevent inflation)
-		if self.transform_widget.cached_aabb is not None:
-			# Use cached values to maintain baseline scale
-			group_pos_x, group_pos_y, group_scale_x, group_scale_y = self.transform_widget.cached_aabb
+		# If we have a drag_start_aabb (during active transform), use that to prevent scale compounding
+		if hasattr(self, '_drag_start_aabb') and self._drag_start_aabb is not None:
+			# Use cached original AABB from transform cache
+			group_pos_x = self._drag_start_aabb['center_x']
+			group_pos_y = self._drag_start_aabb['center_y']
+			group_scale_x = self._drag_start_aabb['scale_x']
+			group_scale_y = self._drag_start_aabb['scale_y']
 		else:
-			# Get UUIDs for selected layers
-			selected_uuids = []
-			for idx in selected_indices:
-				uuid = self.main_window.coa.get_layer_uuid_by_index(idx)
-				if uuid:
-					selected_uuids.append(uuid)
+			# Get UUIDs for selected layers directly
+			selected_uuids = self.property_sidebar.get_selected_uuids()
 			
 			if not selected_uuids:
 				self.transform_widget.set_visible(False)
 				return
 			
-			# Use CoA's AABB calculation
+			# Use CoA's AABB calculation (only when not actively transforming)
 			try:
 				bounds = self.main_window.coa.get_layers_bounds(selected_uuids)
 				group_pos_x = bounds['center_x']
@@ -241,11 +238,6 @@ class CanvasArea(QFrame):
 			except ValueError:
 				self.transform_widget.set_visible(False)
 				return
-		
-		# Don't cache AABB if we just rotated - keep the pre-rotation cache
-		# Only cache when starting fresh (no existing cache)
-		if not self.transform_widget.is_rotating and self.transform_widget.cached_aabb is None:
-			self.transform_widget.cached_aabb = (group_pos_x, group_pos_y, group_scale_x, group_scale_y)
 	
 		# Store initial group state for rotation calculations (Task 3.6)
 		if not hasattr(self, '_initial_group_center'):
@@ -263,17 +255,17 @@ class CanvasArea(QFrame):
 		For single selection: updates layer directly
 		For multi-selection: applies group transform to all selected layers
 		"""
-		selected_indices = self.property_sidebar.get_selected_indices() if self.property_sidebar else []
-		if not selected_indices:
+		selected_uuids = self.property_sidebar.get_selected_uuids() if self.property_sidebar else []
+		if not selected_uuids:
 			return
 		
 		# SINGLE SELECTION: Direct update
-		if len(selected_indices) == 1:
-			idx = selected_indices[0]
-			if idx < 0 or idx >= self.property_sidebar.get_layer_count():
+		if len(selected_uuids) == 1:
+			uuid = list(selected_uuids)[0]
+			layer = self.main_window.coa.get_layer_by_uuid(uuid)
+			if not layer:
 				return
 			
-			layer = self.property_sidebar.get_layer_by_index(idx)
 			# Clamp position to valid range [0, 1]
 			layer.pos_x = max(0.0, min(1.0, pos_x))
 			layer.pos_y = max(0.0, min(1.0, pos_y))
@@ -287,21 +279,26 @@ class CanvasArea(QFrame):
 			return
 		
 		# MULTI-SELECTION: Group transform
-		# Cache original layer states at drag start to prevent cumulative transforms
+		# Cache original layer states at drag start using CoA's transform cache
 		if self._drag_start_layers is None:
+			# Get selected UUIDs (already a list)
+			selected_uuids = list(selected_uuids)
+			
+			# Begin transform group in CoA (caches original states)
+			self.main_window.coa.begin_transform_group(selected_uuids)
+			
 			self._drag_start_layers = []
 			self._aabb_synced = False  # Track if we've synced AABB this drag
-			for idx in selected_indices:
-				if idx < 0 or idx >= self.property_sidebar.get_layer_count():
-					continue
-				layer = self.property_sidebar.get_layer_by_index(idx)
-				self._drag_start_layers.append({
-					'index': idx,
-					'pos_x': layer.pos_x,
-					'pos_y': layer.pos_y,
-					'scale_x': layer.scale_x,
-					'scale_y': layer.scale_y
-				})
+			for uuid in selected_uuids:
+				cached = self.main_window.coa.get_cached_transform(uuid)
+				if cached:
+					self._drag_start_layers.append({
+						'uuid': uuid,
+						'pos_x': cached['pos_x'],
+						'pos_y': cached['pos_y'],
+						'scale_x': cached['scale_x'],
+						'scale_y': cached['scale_y']
+					})
 			
 			# Calculate and cache the original group AABB (only once at drag start)
 			original_min_x = float('inf')
@@ -340,13 +337,6 @@ class CanvasArea(QFrame):
 		original_scale_x = self._drag_start_aabb['scale_x']
 		original_scale_y = self._drag_start_aabb['scale_y']
 		
-		# Sync cache if widget scale changed (e.g., rotation reset recalculated AABB)
-		# Only sync once per drag to avoid constantly resetting the baseline
-		if not self._aabb_synced and (abs(scale_x - original_scale_x) > 0.001 or abs(scale_y - original_scale_y) > 0.001):
-			self._drag_start_aabb = {'center_x': pos_x, 'center_y': pos_y, 'scale_x': scale_x, 'scale_y': scale_y}
-			original_center_x, original_center_y, original_scale_x, original_scale_y = pos_x, pos_y, scale_x, scale_y
-			self._aabb_synced = True
-		
 		# Calculate transform deltas
 		position_delta_x = pos_x - original_center_x
 		position_delta_y = pos_y - original_center_y
@@ -357,9 +347,7 @@ class CanvasArea(QFrame):
 		# Apply transforms to all selected layers using cached states
 		import math
 		for layer_state in self._drag_start_layers:
-			idx = layer_state['index']
-			if idx < 0 or idx >= self.property_sidebar.get_layer_count():
-				continue
+			uuid = layer_state['uuid']
 			
 			# Get original positions from cache
 			pos_x_orig = layer_state['pos_x']
@@ -415,15 +403,24 @@ class CanvasArea(QFrame):
 				new_scale_y = max(0.01, min(1.0, new_scale_y))
 			
 			# Update actual layer (flip_x and flip_y are preserved automatically)
-			layer = self.property_sidebar.get_layer_by_index(idx)
+			layer = self.main_window.coa.get_layer_by_uuid(uuid)
+			if not layer:
+				continue
 			layer.pos_x = new_pos_x
 			layer.pos_y = new_pos_y
 			layer.scale_x = new_scale_x
 			layer.scale_y = new_scale_y
 			# Task 3.6: Individual layer rotations are preserved (NOT modified)
+		
+		# Update canvas during drag for real-time feedback
+		self.canvas_widget.set_coa(self.main_window.coa)
 	
 	def _on_transform_ended(self):
 		"""Handle transform widget drag end"""
+		# Clear CoA transform cache
+		if self.main_window and self.main_window.coa:
+			self.main_window.coa.end_transform_group()
+		
 		# Update canvas
 		self.canvas_widget.set_coa(self.main_window.coa)
 		self._drag_start_layers = None

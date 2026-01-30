@@ -100,6 +100,13 @@ class CoA:
         # Access ONLY through the _layers property which validates the caller
         self.__layers = Layers(caller='CoA')
         
+        # Transform cache for group operations (prevents cumulative error)
+        self._transform_cache = None  # Dict: {uuid: {pos_x, pos_y, scale_x, scale_y, rotation}}
+        
+        # Track last added layer UUID for auto-selection
+        self._last_added_uuid = None
+        self._last_added_uuids = []  # List of UUIDs from last add operation (for multi-paste)
+        
         self._logger.debug("Created new CoA")
     
     # ========================================
@@ -453,9 +460,144 @@ class CoA:
             
             # Create Layer and add to collection
             layer = Layer(layer_data, caller='CoA')
-            coa._layers.insert(0, layer, caller='CoA')  # Insert at front (reversed order)
+            coa.insert_layer_at_index(0, layer)  # Insert at front (reversed order)
         
-        coa._logger.debug(f"Parsed CoA with {len(coa._layers)} layers")
+        coa._logger.debug(f"Parsed CoA with {coa.get_layer_count()} layers")
+        return coa
+    
+    @classmethod
+    def from_layers_string(cls, ck3_text: str) -> 'CoA':
+        """Parse colored_emblem blocks into a new CoA with default pattern/colors
+        
+        This is for clipboard operations where only layer data is copied,
+        not the full CoA structure.
+        
+        Args:
+            ck3_text: CK3 colored_emblem blocks
+            
+        Returns:
+            New CoA instance with default pattern and parsed layers
+        """
+        from utils.coa_parser import CoAParser
+        from utils.color_utils import color_name_to_rgb
+        import uuid as uuid_module
+        
+        coa = cls()
+        
+        # Wrap the layers in a minimal CoA structure for parsing
+        wrapped_text = f"coa_export = {{\n\tpattern = \"{DEFAULT_PATTERN_TEXTURE}\"\n\tcolor1 = \"{DEFAULT_BASE_COLOR1}\"\n\tcolor2 = \"{DEFAULT_BASE_COLOR2}\"\n\tcolor3 = \"{DEFAULT_BASE_COLOR3}\"\n\t{ck3_text}\n}}"
+        
+        # Parse using the standard parser
+        parser = CoAParser()
+        try:
+            parsed = parser.parse_string(wrapped_text)
+        except Exception as e:
+            coa._logger.error(f"Failed to parse layers: {e}")
+            return coa  # Return empty CoA
+        
+        # Extract colored_emblem blocks
+        if not parsed:
+            return coa
+        
+        coa_key = list(parsed.keys())[0]
+        coa_obj = parsed[coa_key]
+        emblems = coa_obj.get('colored_emblem', [])
+        
+        # Collect all layers with depth for sorting
+        layers_with_depth = []
+        
+        for emblem in emblems:
+            filename = emblem.get('texture', '')
+            
+            # Parse colors
+            color1_raw = emblem.get('color1', DEFAULT_EMBLEM_COLOR1)
+            color2_raw = emblem.get('color2', DEFAULT_EMBLEM_COLOR2)
+            color3_raw = emblem.get('color3', DEFAULT_EMBLEM_COLOR3)
+            
+            # Helper to parse color
+            def parse_color(color_raw, default_name):
+                if isinstance(color_raw, str):
+                    if color_raw.startswith('rgb'):
+                        rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color_raw)
+                        if rgb_match:
+                            return ([int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))], None)
+                    return (color_name_to_rgb(color_raw), color_raw)
+                return (color_name_to_rgb(default_name), default_name)
+            
+            color1, color1_name = parse_color(color1_raw, DEFAULT_EMBLEM_COLOR1)
+            color2, color2_name = parse_color(color2_raw, DEFAULT_EMBLEM_COLOR2)
+            color3, color3_name = parse_color(color3_raw, DEFAULT_EMBLEM_COLOR3)
+            
+            # Parse mask
+            mask_raw = emblem.get('mask')
+            mask = None
+            if mask_raw:
+                if isinstance(mask_raw, list) and len(mask_raw) == 3:
+                    mask = mask_raw
+            
+            # Parse instances
+            instances = emblem.get('instance', [])
+            if not instances:
+                instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0, 'depth': 0}]
+            
+            # Create layer data
+            layer_data = {
+                'filename': filename,
+                'colors': 3,
+                'color1': color1,
+                'color2': color2,
+                'color3': color3,
+                'color1_name': color1_name,
+                'color2_name': color2_name,
+                'color3_name': color3_name,
+                'mask': mask,
+                'instances': [],
+                'selected_instance': 0,
+                'flip_x': False,
+                'flip_y': False,
+                'uuid': str(uuid_module.uuid4())
+            }
+            
+            # Parse instances
+            for inst in instances:
+                position = inst.get('position', [0.5, 0.5])
+                scale = inst.get('scale', [1.0, 1.0])
+                rotation = inst.get('rotation', 0)
+                depth = inst.get('depth', 0)
+                
+                pos_x = float(position[0]) if len(position) > 0 else 0.5
+                pos_y = float(position[1]) if len(position) > 1 else 0.5
+                scale_x = float(scale[0]) if len(scale) > 0 else 1.0
+                scale_y = float(scale[1]) if len(scale) > 1 else 1.0
+                
+                instance_data = {
+                    'pos_x': pos_x,
+                    'pos_y': pos_y,
+                    'scale_x': scale_x,
+                    'scale_y': scale_y,
+                    'rotation': float(rotation),
+                    'depth': float(depth)
+                }
+                layer_data['instances'].append(instance_data)
+            
+            # Store layer with depth for sorting
+            max_depth = max(inst['depth'] for inst in layer_data['instances'])
+            layers_with_depth.append((max_depth, layer_data))
+        
+        # Sort by depth (higher depth = further back = first in list)
+        layers_with_depth.sort(key=lambda x: x[0], reverse=True)
+        
+        # Add layers to model (back to front)
+        for _, layer_data in layers_with_depth:
+            # Remove depth from instances
+            for inst in layer_data['instances']:
+                del inst['depth']
+            
+            # Create Layer and add to collection
+            layer = Layer(layer_data, caller='CoA')
+            coa.insert_layer_at_index(0, layer)
+        
+        coa._logger.debug(f"Parsed {coa.get_layer_count()} layers from colored_emblem blocks")
         return coa
     
     def to_string(self) -> str:
@@ -595,6 +737,10 @@ class CoA:
         
         layer = Layer(data, caller='CoA')
         self._layers.append(layer, caller='CoA')
+        
+        # Track for auto-selection
+        self._last_added_uuid = layer.uuid
+        self._last_added_uuids = [layer.uuid]
         
         self._logger.debug(f"Added layer: {layer.uuid}")
         return layer.uuid
@@ -1592,6 +1738,81 @@ class CoA:
         self.rotate_selection(uuids, delta_degrees)
     
     # ========================================
+    # Transform Cache (Group Operations)
+    # ========================================
+    
+    def begin_transform_group(self, uuids: List[str]):
+        """Cache current transform state for group operations
+        
+        Call this before starting a series of transform operations on a group
+        to cache the original state. Use apply_transform_group() to apply
+        transforms relative to the cached state.
+        
+        Args:
+            uuids: List of layer UUIDs to cache
+        """
+        self._transform_cache = {}
+        for uuid in uuids:
+            layer = self._layers.get_by_uuid(uuid)
+            if layer:
+                self._transform_cache[uuid] = {
+                    'pos_x': layer.pos_x,
+                    'pos_y': layer.pos_y,
+                    'scale_x': layer.scale_x,
+                    'scale_y': layer.scale_y,
+                    'rotation': layer.rotation
+                }
+    
+    def end_transform_group(self):
+        """Clear transform cache after group operation completes"""
+        self._transform_cache = None
+    
+    def apply_transform_group(self, uuid: str, pos_x: float = None, pos_y: float = None, 
+                             scale_x: float = None, scale_y: float = None, 
+                             rotation: float = None):
+        """Apply transform to a layer using cached baseline
+        
+        If transform cache exists, applies transform relative to cached state.
+        Otherwise applies directly. This prevents cumulative error during drag operations.
+        
+        Args:
+            uuid: Layer UUID
+            pos_x: New position X (absolute, in 0-1 range)
+            pos_y: New position Y (absolute, in 0-1 range)
+            scale_x: New scale X (absolute)
+            scale_y: New scale Y (absolute)
+            rotation: New rotation (absolute, degrees)
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        # Apply transforms (use cached values if available as baseline)
+        if pos_x is not None:
+            layer.pos_x = pos_x
+        if pos_y is not None:
+            layer.pos_y = pos_y
+        if scale_x is not None:
+            layer.scale_x = scale_x
+        if scale_y is not None:
+            layer.scale_y = scale_y
+        if rotation is not None:
+            layer.rotation = rotation
+    
+    def get_cached_transform(self, uuid: str) -> Optional[Dict[str, float]]:
+        """Get cached transform state for a layer
+        
+        Returns:
+            Dict with pos_x, pos_y, scale_x, scale_y, rotation or None if not cached
+        """
+        if self._transform_cache is None:
+            return None
+        return self._transform_cache.get(uuid)
+    
+    # ========================================
     # Color Operations
     # ========================================
     
@@ -1797,6 +2018,32 @@ class CoA:
             return None
         return self._layers[0].uuid
     
+    def get_last_added_uuid(self) -> Optional[str]:
+        """Get UUID of the last layer that was added
+        
+        Returns:
+            UUID string or None if no layers have been added yet
+        """
+        return self._last_added_uuid
+    
+    def get_last_added_uuids(self) -> List[str]:
+        """Get list of UUIDs from last add operation (useful for multi-paste)
+        
+        Returns:
+            List of UUID strings
+        """
+        return self._last_added_uuids.copy()
+    
+    def set_last_added_uuids(self, uuids: List[str]):
+        """Set the list of last added UUIDs (for batch operations like paste)
+        
+        Args:
+            uuids: List of UUIDs that were just added
+        """
+        self._last_added_uuids = uuids.copy()
+        if uuids:
+            self._last_added_uuid = uuids[-1]  # Keep last one as single UUID
+    
     def get_layer_above(self, uuid: str) -> Optional[str]:
         """Get UUID of layer above given layer
         
@@ -1883,13 +2130,26 @@ class CoA:
         layer = self.get_layer_by_index(index)
         return layer.uuid if layer else None
     
-    def add_layer_object(self, layer: Layer):
+    def add_layer_object(self, layer: Layer, at_front: bool = False) -> str:
         """Add an existing Layer object to the CoA
         
         Args:
             layer: Layer object to add
+            at_front: If True, insert at front (top) of layer stack
+            
+        Returns:
+            UUID of the added layer
         """
-        self._layers.append(layer, caller='CoA')
+        if at_front:
+            self._layers.insert(len(self._layers), layer, caller='CoA')
+        else:
+            self._layers.append(layer, caller='CoA')
+        
+        # Track for auto-selection (single add)
+        self._last_added_uuid = layer.uuid
+        # Don't overwrite _last_added_uuids here - it's managed by batch operations
+        
+        return layer.uuid
     
     def insert_layer_at_index(self, index: int, layer: Layer):
         """Insert a layer at a specific index

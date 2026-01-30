@@ -103,13 +103,15 @@ class TransformWidget(QWidget):
 	
 	def _get_canvas_rect(self):
 		"""Get canvas widget's geometry (position and size within parent container).
+		Also retrieve current zoom level for coordinate calculations.
 		
 		Returns:
-			tuple: (x, y, width, height, size, offset_x, offset_y)
+			tuple: (x, y, width, height, size, offset_x, offset_y, zoom_level)
 				- x, y: canvas position in container
 				- width, height: canvas dimensions
 				- size: square viewport size (min of width/height)
 				- offset_x, offset_y: position of square viewport center
+				- zoom_level: current canvas zoom (default 1.0 if not available)
 		"""
 		geom = self.canvas_widget.geometry()
 		x, y = geom.x(), geom.y()
@@ -117,7 +119,9 @@ class TransformWidget(QWidget):
 		size = min(width, height)
 		offset_x = x + (width - size) / 2
 		offset_y = y + (height - size) / 2
-		return x, y, width, height, size, offset_x, offset_y
+		# Get zoom level from canvas widget if available
+		zoom_level = getattr(self.canvas_widget, 'zoom_level', 1.0)
+		return x, y, width, height, size, offset_x, offset_y, zoom_level
 		
 	def set_transform(self, pos_x, pos_y, scale_x, scale_y, rotation, is_multi_selection=False):
 		"""Set the transform values
@@ -158,16 +162,16 @@ class TransformWidget(QWidget):
 		painter = QPainter(self)
 		painter.setRenderHint(QPainter.Antialiasing)
 		
-		# Get canvas position and size within parent container
-		_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
+		# Get canvas position, size and zoom level within parent container
+		_, _, _, _, size, offset_x, offset_y, zoom_level = self._get_canvas_rect()
 		
-		# Convert layer position to Qt pixel coordinates using shared function
-		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
+		# Convert layer position to Qt pixel coordinates using shared function with zoom
+		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level)
 		
-		# Widget box shows fixed size based on scale values only
-		# Must match emblem rendering: multiply by VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
-		scale_w = abs(self.scale_x) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
-		scale_h = abs(self.scale_y) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+		# Widget box shows fixed size based on scale values and zoom
+		# Must match emblem rendering: multiply by VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom
+		scale_w = abs(self.scale_x) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
+		scale_h = abs(self.scale_y) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 		
 		# Minimal mode: only draw faint bounding box
 		if self.minimal_mode:
@@ -290,14 +294,14 @@ class TransformWidget(QWidget):
 		if not self.visible:
 			return self.HANDLE_NONE
 		
-		# Get canvas position and size
-		_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
+		# Get canvas position, size and zoom level
+		_, _, _, _, size, offset_x, offset_y, zoom_level = self._get_canvas_rect()
 		
-		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
+		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level)
 		
-		# Must match paintEvent scaling: multiply by VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
-		scaled_w = abs(self.scale_x) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
-		scaled_h = abs(self.scale_y) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+		# Must match paintEvent scaling: multiply by VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom
+		scaled_w = abs(self.scale_x) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
+		scaled_h = abs(self.scale_y) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 		
 		handles = self._get_handle_positions(center_x, center_y, scaled_w, scaled_h)
 		
@@ -451,81 +455,96 @@ class TransformWidget(QWidget):
 			super().wheelEvent(event)
 			return
 		
-		# Get wheel delta (check both angleDelta and pixelDelta for different input devices)
-		angle_delta = event.angleDelta()
-		pixel_delta = event.pixelDelta()
+		try:
+			# Get wheel delta (check both angleDelta and pixelDelta for different input devices)
+			angle_delta = event.angleDelta()
+			pixel_delta = event.pixelDelta()
+			
+			# Try angleDelta first (traditional mouse wheel), then pixelDelta (touchpad/trackpad)
+			delta = 0
+			if angle_delta.y() != 0:
+				delta = angle_delta.y()
+			elif angle_delta.x() != 0:
+				delta = angle_delta.x()
+			elif pixel_delta.y() != 0:
+				delta = pixel_delta.y()
+			elif pixel_delta.x() != 0:
+				delta = pixel_delta.x()
+			
+			if delta == 0:
+				return
 		
-		# Try angleDelta first (traditional mouse wheel), then pixelDelta (touchpad/trackpad)
-		delta = 0
-		if angle_delta.y() != 0:
-			delta = angle_delta.y()
-		elif angle_delta.x() != 0:
-			delta = angle_delta.x()
-		elif pixel_delta.y() != 0:
-			delta = pixel_delta.y()
-		elif pixel_delta.x() != 0:
-			delta = pixel_delta.x()
-		
-		if delta == 0:
-			return
-		
-		# Normalize delta to a small increment
-		increment = 0.02 if delta > 0 else -0.02
-		
-		modifiers = event.modifiers()
-		
-		if modifiers & Qt.AltModifier:
-			# Alt + wheel: Rotate
-			rotation_increment = 5.0 if delta > 0 else -5.0
-			self.rotation += rotation_increment
-			# Normalize to 0-360 range
-			self.rotation = self.rotation % 360
-			# Set rotation flag for multi-selection group rotation
-			if not self.is_rotating:
-				self.is_rotating = True
-				self.cached_aabb = (self.pos_x, self.pos_y, self.scale_x, self.scale_y)
-		elif modifiers & Qt.ControlModifier:
-			# Ctrl + wheel: Scale X only
-			sign_x = 1 if self.scale_x >= 0 else -1
-			new_scale_x = abs(self.scale_x) + increment
-			# Only clamp max for single selection (groups can exceed 1.0)
-			if self.is_multi_selection:
-				new_scale_x = max(0.01, new_scale_x)
+			# Normalize delta to a small increment
+			increment = 0.02 if delta > 0 else -0.02
+			
+			modifiers = event.modifiers()
+			
+			if modifiers & Qt.AltModifier:
+				# Alt + wheel: Rotate
+				rotation_increment = 5.0 if delta > 0 else -5.0
+				self.rotation += rotation_increment
+				# Normalize to 0-360 range
+				self.rotation = self.rotation % 360
+				# Set rotation flag for multi-selection group rotation
+				if not self.is_rotating:
+					self.is_rotating = True
+					self.cached_aabb = (self.pos_x, self.pos_y, self.scale_x, self.scale_y)
+			elif modifiers & Qt.ControlModifier:
+				# Ctrl + wheel: Scale X only
+				sign_x = 1 if self.scale_x >= 0 else -1
+				new_scale_x = abs(self.scale_x) + increment
+				# Only clamp max for single selection (groups can exceed 1.0)
+				if self.is_multi_selection:
+					new_scale_x = max(0.01, new_scale_x)
+				else:
+					new_scale_x = max(0.01, min(1.0, new_scale_x))
+				self.scale_x = sign_x * new_scale_x
+				self.nonUniformScaleUsed.emit()
+			elif modifiers & Qt.ShiftModifier:
+				# Shift + wheel: Scale Y only
+				sign_y = 1 if self.scale_y >= 0 else -1
+				new_scale_y = abs(self.scale_y) + increment
+				# Only clamp max for single selection (groups can exceed 1.0)
+				if self.is_multi_selection:
+					new_scale_y = max(0.01, new_scale_y)
+				else:
+					new_scale_y = max(0.01, min(1.0, new_scale_y))
+				self.scale_y = sign_y * new_scale_y
+				self.nonUniformScaleUsed.emit()
 			else:
-				new_scale_x = max(0.01, min(1.0, new_scale_x))
-			self.scale_x = sign_x * new_scale_x
-			self.nonUniformScaleUsed.emit()
-		elif modifiers & Qt.ShiftModifier:
-			# Shift + wheel: Scale Y only
-			sign_y = 1 if self.scale_y >= 0 else -1
-			new_scale_y = abs(self.scale_y) + increment
-			# Only clamp max for single selection (groups can exceed 1.0)
-			if self.is_multi_selection:
-				new_scale_y = max(0.01, new_scale_y)
-			else:
-				new_scale_y = max(0.01, min(1.0, new_scale_y))
-			self.scale_y = sign_y * new_scale_y
-			self.nonUniformScaleUsed.emit()
-		else:
-			# No modifier: Scale both X and Y uniformly
-			sign_x = 1 if self.scale_x >= 0 else -1
-			sign_y = 1 if self.scale_y >= 0 else -1
-			new_scale_x = abs(self.scale_x) + increment
-			new_scale_y = abs(self.scale_y) + increment
-			# Only clamp max for single selection (groups can exceed 1.0)
-			if self.is_multi_selection:
-				new_scale_x = max(0.01, new_scale_x)
-				new_scale_y = max(0.01, new_scale_y)
-			else:
-				new_scale_x = max(0.01, min(1.0, new_scale_x))
-				new_scale_y = max(0.01, min(1.0, new_scale_y))
-			self.scale_x = sign_x * new_scale_x
-			self.scale_y = sign_y * new_scale_y
+				# No modifier: Scale both X and Y uniformly
+				sign_x = 1 if self.scale_x >= 0 else -1
+				sign_y = 1 if self.scale_y >= 0 else -1
+				new_scale_x = abs(self.scale_x) + increment
+				new_scale_y = abs(self.scale_y) + increment
+				# Only clamp max for single selection (groups can exceed 1.0)
+				if self.is_multi_selection:
+					new_scale_x = max(0.01, new_scale_x)
+					new_scale_y = max(0.01, new_scale_y)
+				else:
+					new_scale_x = max(0.01, min(1.0, new_scale_x))
+					new_scale_y = max(0.01, min(1.0, new_scale_y))
+				self.scale_x = sign_x * new_scale_x
+				self.scale_y = sign_y * new_scale_y
 		
-		# Emit signal and update
-		self.transformChanged.emit(self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
-		self.update()
-		event.accept()
+			# Update drag_start_transform to new values to prevent jump on release
+			if self.drag_start_transform:
+				self.drag_start_transform = (self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
+			
+			# CRITICAL: Update drag_start_pos to current mouse position to prevent jump
+			# When wheel scaling during drag, the mouse hasn't moved but the transform has changed
+			# We need to reset the drag start position so continuing the drag doesn't apply old deltas
+			if self.drag_start_pos:
+				self.drag_start_pos = event.pos()
+		
+			# Emit signal and update
+			self.transformChanged.emit(self.pos_x, self.pos_y, self.scale_x, self.scale_y, self.rotation)
+			self.update()
+			event.accept()
+		except Exception as e:
+			# If error occurs (e.g., during drag state changes), just ignore
+			print(f"wheelEvent error: {e}")
+			event.accept()
 	
 	def _handle_drag(self, current_pos, modifiers=None):
 		"""Handle dragging based on active handle"""
@@ -541,23 +560,23 @@ class TransformWidget(QWidget):
 		start_x, start_y, start_sx, start_sy, start_rot = self.drag_start_transform
 		
 		# Get canvas size for coordinate conversion
-		_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
+		_, _, _, _, size, offset_x, offset_y, zoom_level = self._get_canvas_rect()
 		
 		if self.active_handle == self.HANDLE_CENTER:
 			# Move - apply pixel delta to starting position
 			# Convert start position to pixels
-			start_x_px, start_y_px = layer_pos_to_qt_pixels(start_x, start_y, size, offset_x, offset_y)
+			start_x_px, start_y_px = layer_pos_to_qt_pixels(start_x, start_y, size, offset_x, offset_y, zoom_level)
 			# Apply pixel delta
 			new_x_px = start_x_px + dx
 			new_y_px = start_y_px + dy
-			# Convert back to layer coords
-			new_pos_x, new_pos_y = qt_pixels_to_layer_pos(new_x_px, new_y_px, size, offset_x, offset_y)
+			# Convert back to layer coords with zoom
+			new_pos_x, new_pos_y = qt_pixels_to_layer_pos(new_x_px, new_y_px, size, offset_x, offset_y, zoom_level)
 			self.pos_x = new_pos_x
 			self.pos_y = new_pos_y
 			
 		elif self.active_handle == self.HANDLE_AXIS_X:
 			# X-axis constrained movement (only horizontal)
-			canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+			canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 			delta_x = dx / canvas_scale
 			self.pos_x = start_x + delta_x
 			# Y position stays locked
@@ -565,7 +584,7 @@ class TransformWidget(QWidget):
 		
 		elif self.active_handle == self.HANDLE_AXIS_Y:
 			# Y-axis constrained movement (only vertical)
-			canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+			canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 			delta_y = dy / canvas_scale
 			self.pos_y = start_y + delta_y
 			# X position stays locked
@@ -574,8 +593,8 @@ class TransformWidget(QWidget):
 		elif self.active_handle == self.HANDLE_ROTATE:
 			# Rotate - calculate delta angle from start position
 			# Get center in screen coords
-			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
-			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
+			_, _, _, _, size, offset_x, offset_y, zoom_level = self._get_canvas_rect()
+			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level)
 			
 			# Calculate angle from center to start position
 			start_angle = math.degrees(math.atan2(self.drag_start_pos.y() - center_y, self.drag_start_pos.x() - center_x))
@@ -601,8 +620,8 @@ class TransformWidget(QWidget):
 					anchor_x, anchor_y = start_x - start_sx * 0.5, start_y - start_sy * 0.5  # TL
 				
 				# Convert anchor to screen coords
-				_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
-				anchor_x_px, anchor_y_px = layer_pos_to_qt_pixels(anchor_x, anchor_y, size, offset_x, offset_y)
+				_, _, _, _, size, offset_x, offset_y, zoom_level = self._get_canvas_rect()
+				anchor_x_px, anchor_y_px = layer_pos_to_qt_pixels(anchor_x, anchor_y, size, offset_x, offset_y, zoom_level)
 				
 				# Calculate distance from anchor to current mouse position
 				curr_vec_x = current_pos.x() - anchor_x_px
@@ -634,8 +653,8 @@ class TransformWidget(QWidget):
 				scale_delta = distance / (size * base_scale)
 				
 				# Determine if moving away or towards center
-				_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
-				center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
+				_, _, _, _, size, offset_x, offset_y, zoom_level = self._get_canvas_rect()
+				center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level)
 				
 				# Vector from center to drag start
 				start_vec_x = self.drag_start_pos.x() - center_x
@@ -659,8 +678,8 @@ class TransformWidget(QWidget):
 			
 		elif self.active_handle in [self.HANDLE_L, self.HANDLE_R]:
 			# Horizontal scale
-			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
-			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
+			_, _, _, _, size, offset_x, offset_y, zoom_level = self._get_canvas_rect()
+			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level)
 			
 			if alt_pressed:
 				# Alt+drag: Anchor opposite edge
@@ -672,13 +691,13 @@ class TransformWidget(QWidget):
 					anchor_x = start_x - start_sx * 0.5
 				
 				# Convert anchor to screen coords
-				anchor_x_px, _ = layer_pos_to_qt_pixels(anchor_x, start_y, size, offset_x, offset_y)
+				anchor_x_px, _ = layer_pos_to_qt_pixels(anchor_x, start_y, size, offset_x, offset_y, zoom_level)
 				
 				# Calculate new scale based on distance from anchor to mouse
 				# Distance is full width (anchor is at opposite edge)
 				# Scale value IS the full width in layer coordinates
 				new_width_px = abs(current_pos.x() - anchor_x_px)
-				canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+				canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 				new_scale_x = new_width_px / canvas_scale
 				
 				# Preserve sign
@@ -705,8 +724,8 @@ class TransformWidget(QWidget):
 		
 		elif self.active_handle in [self.HANDLE_T, self.HANDLE_B]:
 			# Vertical scale
-			_, _, _, _, size, offset_x, offset_y = self._get_canvas_rect()
-			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y)
+			_, _, _, _, size, offset_x, offset_y, zoom_level = self._get_canvas_rect()
+			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level)
 			
 			if alt_pressed:
 				# Alt+drag: Anchor opposite edge
@@ -718,13 +737,13 @@ class TransformWidget(QWidget):
 					anchor_y = start_y - start_sy * 0.5
 				
 				# Convert anchor to screen coords
-				_, anchor_y_px = layer_pos_to_qt_pixels(start_x, anchor_y, size, offset_x, offset_y)
+				_, anchor_y_px = layer_pos_to_qt_pixels(start_x, anchor_y, size, offset_x, offset_y, zoom_level)
 				
 				# Calculate new scale based on distance from anchor to mouse
 				# Distance is full height (anchor is at opposite edge)
 				# Scale value IS the full height in layer coordinates
 				new_height_px = abs(current_pos.y() - anchor_y_px)
-				canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+				canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 				new_scale_y = new_height_px / canvas_scale
 				
 				# Preserve sign

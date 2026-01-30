@@ -242,7 +242,8 @@ class LayerListWidget(QWidget):
 		inline_layout.setSpacing(2)
 		
 		# Color buttons container (stacked vertically like traffic lights)
-		num_colors = 3  # Layer objects always have 3 colors
+		# Get actual number of colors from layer data
+		num_colors = self.coa.get_layer_property(uuid, 'colors') or 3
 		
 		color_container = QWidget()
 		color_container.setStyleSheet("border: none;")
@@ -487,12 +488,18 @@ class LayerListWidget(QWidget):
 			# Get the target index from the drop zone
 			target_index = closest_zone.property('drop_index')
 			
-			# Use CoA method to move layers by UUID
-			# For now, move layers one at a time (CoA.move_layer handles reordering)
-			# Note: This is a simplification - proper multi-move would need a CoA method
-			for i, uuid in enumerate(dragged_uuids):
-				# Move each layer to target_index + i
-				self.coa.move_layer(uuid, target_index + i)
+			# Move layers one at a time to target index
+			# Move in reverse order if going down (higher index) to preserve relative positions
+			# Get original indices to determine direction
+			original_indices = [self.coa.get_layer_index(uuid) for uuid in dragged_uuids]
+			if original_indices and target_index > min(original_indices):
+				# Moving down - move in reverse so they stack correctly
+				for uuid in reversed(dragged_uuids):
+					self.coa.move_layer(uuid, min(target_index, self.coa.get_layer_count() - 1))
+			else:
+				# Moving up - move in forward order
+				for uuid in dragged_uuids:
+					self.coa.move_layer(uuid, target_index)
 			
 			# Update selection to new UUIDs (keep same UUIDs selected)
 			self.selected_layer_uuids = set(dragged_uuids)
@@ -750,3 +757,202 @@ class LayerListWidget(QWidget):
 	def clear_thumbnail_cache(self):
 		"""Clear all cached thumbnails"""
 		self.thumbnail_cache.clear()
+	
+	def update_layer_button(self, uuid):
+		"""Update a single layer button's display by querying all data from UUID
+		
+		This method is called when external property changes occur (color, visibility, etc.)
+		It queries fresh data from CoA and metadata, then updates the UI.
+		
+		Args:
+			uuid: UUID of the layer to update
+		"""
+		if not self.coa:
+			return
+		
+		# Find the button for this UUID
+		button = None
+		for btn_uuid, btn in self.layer_buttons:
+			if btn_uuid == uuid:
+				button = btn
+				break
+		
+		if not button:
+			return
+		
+		# Query fresh properties from CoA
+		filename = self.coa.get_layer_property(uuid, 'filename')
+		instance_count = self.coa.get_layer_property(uuid, 'instance_count')
+		num_colors = self.coa.get_layer_property(uuid, 'colors') or 3
+		visible = self.coa.get_layer_property(uuid, 'visible')
+		if visible is None:
+			visible = True
+		
+		# Find the UI components within the button
+		layout = button.layout()
+		if not layout:
+			return
+		
+		# Update icon/thumbnail (component 0 = icon_container)
+		if layout.count() > 0:
+			icon_container = layout.itemAt(0).widget()
+			if icon_container:
+				# Find the icon label
+				icon_layout = icon_container.layout()
+				if icon_layout and icon_layout.count() > 0:
+					icon_label = icon_layout.itemAt(0).widget()
+					if isinstance(icon_label, QLabel):
+						# Invalidate and regenerate thumbnail
+						self.invalidate_thumbnail(uuid)
+						thumbnail = self._generate_layer_thumbnail(uuid, size=48)
+						if thumbnail and not thumbnail.isNull():
+							icon_label.setPixmap(thumbnail)
+				
+				# Update instance count badge
+				# Remove old badge if it exists
+				for child in icon_container.children():
+					if isinstance(child, QLabel) and child != icon_layout.itemAt(0).widget():
+						child.deleteLater()
+				
+				# Add new badge if needed
+				if instance_count > 1:
+					badge = QLabel(str(instance_count))
+					badge.setStyleSheet("""
+						QLabel {
+							background-color: #5a8dbf;
+							color: white;
+							border: 1px solid rgba(255, 255, 255, 60);
+							border-radius: 3px;
+							font-size: 9px;
+							font-weight: bold;
+							padding: 2px 4px;
+						}
+					""")
+					badge.setAlignment(Qt.AlignCenter)
+					badge.setMinimumSize(18, 16)
+					badge.setParent(icon_container)
+					badge.move(32, 0)
+					badge.raise_()
+		
+		# Update name label (component 1)
+		if layout.count() > 1:
+			name_label = layout.itemAt(1).widget()
+			if isinstance(name_label, QLabel):
+				layer_name = filename or 'Empty Layer'
+				if layer_name.lower().endswith('.dds'):
+					layer_name = layer_name[:-4]
+				name_label.setText(layer_name)
+				
+				# Update tooltip
+				if instance_count > 1:
+					instance_word = "instances" if instance_count > 1 else "instance"
+					name_label.setToolTip(f"Multi-instance layer ({instance_count} {instance_word})")
+				else:
+					name_label.setToolTip("")
+		
+		# Update inline buttons (component 2 = button_container)
+		if layout.count() > 2:
+			button_container = layout.itemAt(2).widget()
+			if button_container:
+				inline_layout = button_container.layout()
+				if inline_layout:
+					# Find color_container (first widget)
+					if inline_layout.count() > 0:
+						color_container = inline_layout.itemAt(0).widget()
+						if color_container:
+							color_layout = color_container.layout()
+							if color_layout:
+								# Remove all existing color buttons
+								while color_layout.count():
+									item = color_layout.takeAt(0)
+									if item.widget():
+										item.widget().deleteLater()
+								
+								# Create new color buttons based on current color count
+								for color_idx in range(1, num_colors + 1):
+									color_btn = QPushButton()
+									color_btn.setFixedSize(16, 16)
+									color_btn.setToolTip(f"Color {color_idx}")
+									
+									# Get current color from CoA by UUID
+									color_key = f'color{color_idx}'
+									color_rgb = self.coa.get_layer_property(uuid, color_key) or [1.0, 1.0, 1.0]
+									r, g, b = int(color_rgb[0] * 255), int(color_rgb[1] * 255), int(color_rgb[2] * 255)
+									
+									color_btn.setStyleSheet(f"""
+										QPushButton {{
+											border: 1px solid rgba(255, 255, 255, 80);
+											border-radius: 2px;
+											background-color: rgb({r}, {g}, {b});
+											padding: 0px;
+										}}
+										QPushButton:hover {{
+											border: 2px solid rgba(255, 255, 255, 150);
+										}}
+									""")
+									color_btn.clicked.connect(lambda checked, u=uuid, c_idx=color_idx: self._handle_color_pick(u, c_idx))
+									color_layout.addWidget(color_btn)
+								
+								# Add stretch if less than 3 colors
+								if num_colors < 3:
+									color_layout.addStretch()
+					
+					# Find action_container (after spacer at index 1, so index 2)
+					if inline_layout.count() > 2:
+						# The spacer is at index 1, so action_container should be at index 2
+						action_item = inline_layout.itemAt(2)
+						if action_item:
+							action_container = action_item.widget()
+							if action_container:
+								action_layout = action_container.layout()
+								if action_layout and action_layout.count() > 0:
+									# Update visibility button (first in action layout)
+									visibility_btn = action_layout.itemAt(0).widget()
+									if isinstance(visibility_btn, QPushButton):
+										visibility_btn.setText("👁" if visible else "🚫")
+		
+		# Update button style based on instance count
+		is_multi_instance = instance_count > 1
+		if is_multi_instance:
+			button.setStyleSheet("""
+				QPushButton {
+					text-align: left;
+					border: 1px solid rgba(90, 141, 191, 60);
+					border-radius: 4px;
+					background-color: rgba(90, 141, 191, 20);
+				}
+				QPushButton:hover {
+					background-color: rgba(90, 141, 191, 35);
+					border: 1px solid rgba(90, 141, 191, 80);
+				}
+				QPushButton:checked {
+					border: 2px solid #5a8dbf;
+					background-color: rgba(90, 141, 191, 45);
+				}
+			""")
+		else:
+			button.setStyleSheet("""
+				QPushButton {
+					text-align: left;
+					border: 1px solid rgba(255, 255, 255, 40);
+					border-radius: 4px;
+					background-color: rgba(255, 255, 255, 10);
+				}
+				QPushButton:hover {
+					background-color: rgba(255, 255, 255, 20);
+					border: 1px solid rgba(255, 255, 255, 60);
+				}
+				QPushButton:checked {
+					border: 2px solid #5a8dbf;
+					background-color: rgba(90, 141, 191, 30);
+				}
+			""")
+	
+	def update_all_buttons(self):
+		"""Update all layer buttons by querying fresh data from CoA
+		
+		This method is called when external bulk property changes occur.
+		It updates all visible buttons without full rebuild.
+		"""
+		for uuid, _ in self.layer_buttons:
+			self.update_layer_button(uuid)

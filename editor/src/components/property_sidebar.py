@@ -107,15 +107,15 @@ class PropertySidebar(QFrame):
 			- 'Mixed' string if values differ
 			- None if no layers selected
 		"""
-		selected_indices = self.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.get_selected_uuids()
+		if not selected_uuids:
 			return None
 		
 		# Collect values from all selected layers
 		values = []
-		for idx in selected_indices:
-			if idx < self.get_layer_count():
-				layer = self.get_layer_by_index(idx)
+		for uuid in selected_uuids:
+			layer = self.main_window.coa.get_layer_by_uuid(uuid)
+			if layer:
 				# Layer objects have properties - just access them
 				val = getattr(layer, property_name, None)
 				if val is not None:
@@ -587,25 +587,20 @@ class PropertySidebar(QFrame):
 					self.main_window._save_state("Change base color")
 		elif button in self.emblem_color_buttons:
 			# Emblem color changed - apply to ALL selected layers
-			selected_indices = self.get_selected_indices()
-			if selected_indices and self.canvas_widget:
+			selected_uuids = self.get_selected_uuids()
+			if selected_uuids and self.canvas_widget:
 				color_idx = self.emblem_color_buttons.index(button)
 				color = QColor(color_hex)
 				color_rgb = [color.redF(), color.greenF(), color.blueF()]
 				
 				# Apply to all selected layers
-				for idx in selected_indices:
-					if 0 <= idx < self.get_layer_count():
-						layer = self.get_layer_by_index(idx)
+				for uuid in selected_uuids:
+					layer = self.main_window.coa.get_layer_by_uuid(uuid)
+					if layer:
 						setattr(layer, f'color{color_idx+1}', color_rgb)
 						setattr(layer, f'color{color_idx+1}_name', color_name)
-						# Invalidate thumbnail cache for this layer (need UUID)
-						if layer:
-							self.layer_list_widget.invalidate_thumbnail(layer.uuid)
-				
-				self.canvas_widget.set_coa(self.main_window.coa)
-				
-				# Update asset sidebar previews with new colors
+						# Invalidate thumbnail cache for this layer
+						self.layer_list_widget.invalidate_thumbnail(layer.uuid)
 				if self.main_window and hasattr(self.main_window, 'left_sidebar'):
 					self.main_window.left_sidebar.update_asset_colors()
 				
@@ -735,10 +730,14 @@ class PropertySidebar(QFrame):
 		layer = Layer(layer_data, caller='property_sidebar._add_layer')
 		self.coa.add_layer_object(layer)
 		self._rebuild_layer_list()
-		new_index = self.get_layer_count() - 1
-		self.selected_layer_indices = {new_index}
-		self.last_selected_index = new_index  # Set for shift+click range selection
-		self._update_layer_selection()
+		
+		# Auto-select the newly added layer using UUID from CoA
+		new_uuid = self.coa.get_last_added_uuid()
+		if new_uuid:
+			self.layer_list_widget.selected_layer_uuids = {new_uuid}
+			self.layer_list_widget.last_selected_uuid = new_uuid
+			self.layer_list_widget.update_selection_visuals()
+		
 		if self.canvas_widget:
 			self.canvas_widget.set_coa(self.main_window.coa)
 		
@@ -747,15 +746,14 @@ class PropertySidebar(QFrame):
 	
 	def _prev_instance(self):
 		"""Switch to previous instance in multi-instance layer"""
-		selected_indices = self.get_selected_indices()
-		if len(selected_indices) != 1:
+		selected_uuids = self.get_selected_uuids()
+		if len(selected_uuids) != 1:
 			return
 		
-		idx = selected_indices[0]
-		if idx >= self.get_layer_count():
+		layer = self.main_window.coa.get_layer_by_uuid(selected_uuids[0])
+		if not layer:
 			return
 		
-		layer = self.get_layer_by_index(idx)
 		instances = getattr(layer, 'instances', [])
 		if len(instances) <= 1:
 			return
@@ -771,15 +769,14 @@ class PropertySidebar(QFrame):
 	
 	def _next_instance(self):
 		"""Switch to next instance in multi-instance layer"""
-		selected_indices = self.get_selected_indices()
-		if len(selected_indices) != 1:
+		selected_uuids = self.get_selected_uuids()
+		if len(selected_uuids) != 1:
 			return
 		
-		idx = selected_indices[0]
-		if idx >= self.get_layer_count():
+		layer = self.main_window.coa.get_layer_by_uuid(selected_uuids[0])
+		if not layer:
 			return
 		
-		layer = self.get_layer_by_index(idx)
 		instances = getattr(layer, 'instances', [])
 		if len(instances) <= 1:
 			return
@@ -795,38 +792,21 @@ class PropertySidebar(QFrame):
 	
 	def _delete_layer(self):
 		"""Delete all selected layers"""
-		selected_indices = self.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.get_selected_uuids()
+		if not selected_uuids:
 			return
 		
-		# Validate all indices are in range
-		valid_indices = [idx for idx in selected_indices if 0 <= idx < self.get_layer_count()]
-		if not valid_indices:
-			return
+		# Delete layers by UUID (order doesn't matter)
+		for uuid in selected_uuids:
+			self.coa.remove_layer(uuid)
 		
-		# Get top-most deleted position for later selection (before deletion)
-		top_most_index = min(valid_indices)
-		
-		# Delete layers from highest index to lowest to avoid index shifting issues
-		for idx in sorted(valid_indices, reverse=True):
-			layer_uuid = self.coa.get_layer_uuid_by_index(idx)
-			self.coa.remove_layer(layer_uuid)
-		
-		# Clear thumbnail cache since layer indices have shifted
+		# Clear thumbnail cache
 		if hasattr(self, 'layer_list_widget'):
 			self.layer_list_widget.clear_thumbnail_cache()
 		
-		# Select layer at top-most deleted position if exists, otherwise clear
-		if self.get_layer_count() > 0:
-			# If top-most deleted was beyond the end, select last layer
-			if top_most_index >= self.get_layer_count():
-				self.selected_layer_indices = {self.get_layer_count() - 1}
-			else:
-				self.selected_layer_indices = {top_most_index}
-			self.last_selected_index = list(self.selected_layer_indices)[0]
-		else:
-			self.clear_selection()
-			self.last_selected_index = None
+		# Clear selection
+		self.clear_selection()
+		self.last_selected_index = None
 		
 		self._rebuild_layer_list()
 		self._update_layer_selection()
@@ -918,37 +898,33 @@ class PropertySidebar(QFrame):
 	
 	def _duplicate_layer(self):
 		"""Duplicate all selected layers with offset"""
-		selected_indices = self.get_selected_indices()
-		if not selected_indices:
-			return
-		
-		# Validate all indices are in range
-		valid_indices = [idx for idx in selected_indices if 0 <= idx < self.get_layer_count()]
-		if not valid_indices:
+		selected_uuids = self.get_selected_uuids()
+		if not selected_uuids:
 			return
 		
 		# Duplicate using CoA model
 		new_uuids = []
-		for idx in valid_indices:
-			layer = self.get_layer_by_index(idx)
-			new_uuid = self.main_window.coa.duplicate_layer(layer.uuid)
+		for uuid in selected_uuids:
+			new_uuid = self.main_window.coa.duplicate_layer(uuid)
 			new_uuids.append(new_uuid)
 			# Apply offset after duplication
-			new_layer = self.main_window.coa.get_layer(new_uuid)
+			new_layer = self.main_window.coa.get_layer_by_uuid(new_uuid)
 			if new_layer:
 				new_layer.pos_x = min(1.0, new_layer.pos_x + 0.02)
 				new_layer.pos_y = min(1.0, new_layer.pos_y + 0.02)
 		
-		# Find new indices and select them
-		new_indices = []
-		for uuid in new_uuids:
-			idx = self.main_window.coa.get_layer_index(uuid)
-			if idx is not None:
-				new_indices.append(idx)
-		
-		if new_indices:
-			self.selected_layer_indices = set(new_indices)
-			self.last_selected_index = new_indices[-1]
+		# Select the new layers by UUID
+		if new_uuids:
+			self.layer_list_widget.selected_layer_uuids = set(new_uuids)
+			# Update indices for compatibility
+			new_indices = []
+			for uuid in new_uuids:
+				idx = self.main_window.coa.get_layer_index(uuid)
+				if idx is not None:
+					new_indices.append(idx)
+			if new_indices:
+				self.selected_layer_indices = set(new_indices)
+				self.last_selected_index = new_indices[-1]
 		
 		self._rebuild_layer_list()
 		self._update_layer_selection()
@@ -1048,8 +1024,8 @@ class PropertySidebar(QFrame):
 				# Invalidate thumbnail cache for this layer (by UUID)
 				self.layer_list_widget.invalidate_thumbnail(layer.uuid)
 				
-				# Rebuild layer list to update color button display and thumbnail
-				self._rebuild_layer_list()
+				# Update only this layer button (no full rebuild needed)
+				self.layer_list_widget.update_layer_button(layer.uuid)
 				
 				# Update canvas
 				if self.canvas_widget:
@@ -1074,8 +1050,8 @@ class PropertySidebar(QFrame):
 			# Invalidate thumbnail cache for this layer (by UUID)
 			self.layer_list_widget.invalidate_thumbnail(uuid)
 			
-			# Rebuild layer list to update visibility button
-			self._rebuild_layer_list()
+			# Update only this layer button (no full rebuild needed)
+			self.layer_list_widget.update_layer_button(uuid)
 			
 			# Update canvas to hide/show layer
 			if self.canvas_widget:
@@ -1117,6 +1093,7 @@ class PropertySidebar(QFrame):
 		selected_uuids = self.get_selected_uuids()
 		if selected_uuids:
 			self.tab_widget.setTabEnabled(2, True)
+			# Always load properties (including color count) when selection changes
 			self._load_layer_properties()
 			if self.canvas_area:
 				self.canvas_area.update_transform_widget_for_layer()
@@ -1165,10 +1142,7 @@ class PropertySidebar(QFrame):
 				layers = [self.coa.get_layer_by_index(i) for i in range(self.coa.get_layer_count())]
 			self.layer_list_widget.set_layers(layers)
 			self.layer_list_widget.rebuild()
-			# Sync selection state
-			self.layer_list_widget.selected_layer_indices = self.selected_layer_indices
-			self.layer_list_widget.last_selected_index = self.last_selected_index
-			self.layer_list_widget.update_selection_visuals()
+			# Selection state is managed by layer_list_widget itself (UUID-based)
 	
 	def _update_layer_property(self, prop_name, value):
 		"""Update a property of all selected layers
@@ -1176,18 +1150,17 @@ class PropertySidebar(QFrame):
 		For instance properties (pos_x, pos_y, scale_x, scale_y, rotation), updates
 		the selected instance within each layer.
 		"""
-		selected_indices = self.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.get_selected_uuids()
+		if not selected_uuids:
 			return
 		
 		# Instance properties are stored within instances list
 		instance_properties = ['pos_x', 'pos_y', 'scale_x', 'scale_y', 'rotation', 'depth']
 		
 		# Apply to ALL selected layers
-		for idx in selected_indices:
-			if 0 <= idx < self.get_layer_count():
-				layer = self.get_layer_by_index(idx)
-				
+		for uuid in selected_uuids:
+			layer = self.main_window.coa.get_layer_by_uuid(uuid)
+			if layer:
 				# Layer objects automatically handle instance properties
 				# Just use setattr for all properties
 				if hasattr(layer, prop_name):
@@ -1213,17 +1186,17 @@ class PropertySidebar(QFrame):
 	
 	def _update_layer_scale_and_widget(self):
 		"""Update layer scale with flip multipliers applied to all selected layers"""
-		selected_indices = self.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.get_selected_uuids()
+		if not selected_uuids:
 			return
 		
 		# Get scale values and flip states separately
 		scale_x, scale_y, flip_x, flip_y = self.scale_editor.get_scale_values()
 		
 		# Apply to ALL selected layers
-		for idx in selected_indices:
-			if 0 <= idx < self.get_layer_count():
-				layer = self.get_layer_by_index(idx)
+		for uuid in selected_uuids:
+			layer = self.main_window.coa.get_layer_by_uuid(uuid)
+			if layer:
 				
 				# Layer objects handle properties automatically
 				layer.scale_x = scale_x
@@ -1250,16 +1223,16 @@ class PropertySidebar(QFrame):
 	
 	def _load_layer_properties(self):
 		"""Load the selected layer's properties into the UI controls"""
-		selected_indices = self.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.get_selected_uuids()
+		if not selected_uuids:
 			return
 		
 		# Update emblem color count based on layer's texture
 		# For multi-select, use the maximum color count across all selected layers
 		color_counts = []
-		for idx in selected_indices:
-			if 0 <= idx < self.get_layer_count():
-				layer = self.get_layer_by_index(idx)
+		for uuid in selected_uuids:
+			layer = self.main_window.coa.get_layer_by_uuid(uuid)
+			if layer:
 				color_counts.append(getattr(layer, 'colors', 3))
 		
 		if color_counts:
@@ -1337,15 +1310,13 @@ class PropertySidebar(QFrame):
 		self.rotation_editor.blockSignals(False)
 		
 		# Update instance selector for single-selection multi-instance layers
-		if len(selected_indices) == 1:
-			idx = selected_indices[0]
-			if idx < self.get_layer_count():
-				layer = self.get_layer_by_index(idx)
-				if layer.instance_count > 1:
-					selected_inst = layer.selected_instance
-					self.instance_display.setText(f"{selected_inst + 1} of {layer.instance_count}")
-					self.instance_selector_widget.setVisible(True)
-				else:
+		if len(selected_uuids) == 1:
+			layer = self.main_window.coa.get_layer_by_uuid(selected_uuids[0])
+			if layer and layer.instance_count > 1:
+				selected_inst = layer.selected_instance
+				self.instance_display.setText(f"{selected_inst + 1} of {layer.instance_count}")
+				self.instance_selector_widget.setVisible(True)
+			else:
 					self.instance_selector_widget.setVisible(False)
 		else:
 			self.instance_selector_widget.setVisible(False)
@@ -1458,11 +1429,13 @@ class PropertySidebar(QFrame):
 				self.single_layer_label.setVisible(False)
 			elif selected_count == 1:
 				# Show single layer name
-				idx = list(self.selected_layer_indices)[0]
-				if 0 <= idx < self.get_layer_count():
-					layer_name = getattr(self.get_layer_by_index(idx), 'filename', 'Unknown Layer')
-					self.single_layer_label.setText(f"Layer: {layer_name}")
-					self.single_layer_label.setVisible(True)
+				selected_uuids = self.get_selected_uuids()
+				if selected_uuids:
+					layer = self.main_window.coa.get_layer_by_uuid(selected_uuids[0])
+					if layer:
+						layer_name = getattr(layer, 'filename', 'Unknown Layer')
+						self.single_layer_label.setText(f"Layer: {layer_name}")
+						self.single_layer_label.setVisible(True)
 				self.multi_select_label.setVisible(False)
 			else:
 				# No selection
@@ -1478,8 +1451,8 @@ class PropertySidebar(QFrame):
 	
 	def _update_mask_from_ui(self):
 		"""Update mask field in selected layers based on checkbox states"""
-		selected_indices = self.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.get_selected_uuids()
+		if not selected_uuids:
 			return
 		
 		# Build mask list from checkbox states [ch1, ch2, ch3]
@@ -1495,22 +1468,18 @@ class PropertySidebar(QFrame):
 			mask = None
 		
 		# Apply to all selected layers
-		for idx in selected_indices:
-			if 0 <= idx < self.get_layer_count():
-				self.get_layer_by_index(idx).mask = mask
-		
-		# Update canvas
-		if self.canvas_widget:
-			self.canvas_widget.set_coa(self.main_window.coa)
-		
+		for uuid in selected_uuids:
+			layer = self.main_window.coa.get_layer_by_uuid(uuid)
+			if layer:
+				layer.mask = mask
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):
 			self.main_window._save_state("Change pattern mask")
 	
 	def _update_mask_ui(self):
 		"""Update mask checkboxes based on selected layer's mask value"""
-		selected_indices = self.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.get_selected_uuids()
+		if not selected_uuids:
 			# No selection - uncheck all
 			for mask_item in self.mask_checkboxes:
 				mask_item['checkbox'].blockSignals(True)
@@ -1519,11 +1488,11 @@ class PropertySidebar(QFrame):
 			return
 		
 		# Get mask value from first selected layer
-		idx = selected_indices[0]
-		if idx >= self.get_layer_count():
+		layer = self.main_window.coa.get_layer_by_uuid(selected_uuids[0])
+		if not layer:
 			return
 		
-		mask = getattr(self.get_layer_by_index(idx), 'mask', None)
+		mask = getattr(layer, 'mask', None)
 		
 		# Update checkboxes based on mask value
 		if mask is None:

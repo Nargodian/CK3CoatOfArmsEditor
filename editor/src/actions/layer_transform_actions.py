@@ -20,8 +20,8 @@ class LayerTransformActions:
 			alignment: One of 'left', 'center', 'right', 'top', 'middle', 'bottom'
 		"""
 		#COA INTEGRATION ACTION: Step 6 - Use CoA model for alignment
-		selected_indices = self.main_window.right_sidebar.get_selected_indices()
-		if len(selected_indices) < 2:
+		selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
+		if len(selected_uuids) < 2:
 			QMessageBox.information(
 				self.main_window, 
 				"Align Layers", 
@@ -29,11 +29,8 @@ class LayerTransformActions:
 			)
 			return
 		
-		# Convert indices to UUIDs
-		uuids = self.main_window.coa.get_uuids_from_indices(selected_indices)
-		
-		# Use model method
-		self.main_window.coa.align_layers(uuids, alignment)
+		# Use model method directly with UUIDs
+		self.main_window.coa.align_layers(selected_uuids, alignment)
 		
 		# OLD CODE (will remove in Step 9):
 		# layers = [self.main_window.right_sidebar.layers[i] for i in selected_indices]
@@ -69,15 +66,12 @@ class LayerTransformActions:
 	def flip_x(self):
 		"""Flip selected layers horizontally"""
 		#COA INTEGRATION ACTION: Step 6 - Use CoA model for flip operations
-		selected_indices = self.main_window.right_sidebar.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
+		if not selected_uuids:
 			return
 		
-		# Convert indices to UUIDs
-		uuids = self.main_window.coa.get_uuids_from_indices(selected_indices)
-		
 		# Use model method for each layer
-		for uuid in uuids:
+		for uuid in selected_uuids:
 			self.main_window.coa.flip_layer(uuid, flip_x=True, flip_y=None)
 		
 		# OLD CODE (will remove in Step 9):
@@ -97,15 +91,12 @@ class LayerTransformActions:
 	def flip_y(self):
 		"""Flip selected layers vertically"""
 		#COA INTEGRATION ACTION: Step 6 - Use CoA model for flip operations
-		selected_indices = self.main_window.right_sidebar.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
+		if not selected_uuids:
 			return
 		
-		# Convert indices to UUIDs
-		uuids = self.main_window.coa.get_uuids_from_indices(selected_indices)
-		
 		# Use model method for each layer
-		for uuid in uuids:
+		for uuid in selected_uuids:
 			self.main_window.coa.flip_layer(uuid, flip_x=None, flip_y=True)
 		
 		# OLD CODE (will remove in Step 9):
@@ -129,15 +120,12 @@ class LayerTransformActions:
 			degrees: Rotation amount in degrees (90, 180, or -90)
 		"""
 		#COA INTEGRATION ACTION: Step 6 - Use CoA model for rotation operations
-		selected_indices = self.main_window.right_sidebar.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
+		if not selected_uuids:
 			return
 		
-		# Convert indices to UUIDs
-		uuids = self.main_window.coa.get_uuids_from_indices(selected_indices)
-		
 		# Use model method for each layer
-		for uuid in uuids:
+		for uuid in selected_uuids:
 			self.main_window.coa.rotate_layer(uuid, degrees)
 		
 		# OLD CODE (will remove in Step 9):
@@ -162,15 +150,12 @@ class LayerTransformActions:
 			position: One of 'left', 'center', 'right', 'top', 'middle', 'bottom'
 		"""
 		#COA INTEGRATION ACTION: Step 6 - Use CoA model for move_to operations
-		selected_indices = self.main_window.right_sidebar.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
+		if not selected_uuids:
 			return
 		
-		# Convert indices to UUIDs
-		uuids = self.main_window.coa.get_uuids_from_indices(selected_indices)
-		
 		# Use model method
-		self.main_window.coa.move_layers_to(uuids, position)
+		self.main_window.coa.move_layers_to(selected_uuids, position)
 		
 		# OLD CODE (will remove in Step 9):
 		# fixed_positions = {

@@ -472,12 +472,12 @@ class AssetSidebar(QFrame):
 		background2 = tuple(base_colors[1]) if len(base_colors) > 1 else tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb'])
 		background3 = tuple(base_colors[2]) if len(base_colors) > 2 else tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'])
 		
-		# Get selected layer indices
-		selected_indices = self.right_sidebar.get_selected_indices()
-		if not selected_indices:
+		# Get selected layer UUIDs
+		selected_uuids = self.right_sidebar.get_selected_uuids()
+		if not selected_uuids:
 			# Use first layer or defaults
-			if self.right_sidebar.layers:
-				layer = self.right_sidebar.layers[0]
+			if self.right_sidebar.coa and self.right_sidebar.coa.get_layer_count() > 0:
+				layer = self.right_sidebar.coa.get_layer_by_index(0)
 				return {
 					'color1': layer.color1 or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb']),
 					'color2': layer.color2 or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb']),
@@ -496,7 +496,7 @@ class AssetSidebar(QFrame):
 					'background3': background3
 				}
 		else:
-			layer = self.right_sidebar.layers[selected_indices[0]]
+			layer = self.right_sidebar.coa.get_layer_by_uuid(list(selected_uuids)[0])
 		
 		# Extract colors from layer (stored as 0-1 range floats)
 		return {

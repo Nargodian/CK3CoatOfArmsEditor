@@ -8,37 +8,7 @@ Works with coa_parser.py for parsing and provides high-level operations for the 
 import json
 from utils.color_utils import color_name_to_rgb
 from utils.path_resolver import get_emblem_metadata_path
-
-# Cache for texture metadata (color counts)
-_TEXTURE_METADATA_CACHE = None
-
-def _get_texture_color_count(filename):
-    """Get the number of colors for a texture from JSON metadata
-    
-    Args:
-        filename: Texture filename (e.g., 'ce_lion.dds')
-        
-    Returns:
-        Number of colors (1, 2, or 3), defaults to 3 if not found
-    """
-    global _TEXTURE_METADATA_CACHE
-    
-    # Load cache on first use
-    if _TEXTURE_METADATA_CACHE is None:
-        _TEXTURE_METADATA_CACHE = {}
-        json_path = get_emblem_metadata_path()
-        if json_path.exists():
-            try:
-                with open(json_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    for tex_filename, properties in data.items():
-                        if properties and isinstance(properties, dict):
-                            _TEXTURE_METADATA_CACHE[tex_filename] = properties.get('colors', 3)
-            except Exception as e:
-                print(f"Warning: Could not load texture metadata: {e}")
-    
-    # Look up color count
-    return _TEXTURE_METADATA_CACHE.get(filename, 3)
+from utils.metadata_cache import get_texture_color_count
 
 
 def extract_coa_structure(coa_data):
@@ -116,7 +86,7 @@ def extract_emblem_layers(coa):
             color3_name = emblem.get('color3', 'red')
             
             # Look up actual color count from texture metadata
-            color_count = _get_texture_color_count(filename)
+            color_count = get_texture_color_count(filename)
             
             # Split scale into magnitude and flip state
             scale_x_raw = instance.get('scale', [1.0, 1.0])[0]

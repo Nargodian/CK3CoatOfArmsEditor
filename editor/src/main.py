@@ -39,13 +39,12 @@ from constants import DEFAULT_BASE_CATEGORY
 # Service imports
 from services.file_operations import (
     save_coa_to_file, load_coa_from_file, 
-    build_coa_for_save, coa_to_clipboard_text, is_layer_subblock
+    coa_to_clipboard_text, is_layer_subblock
 )
 from services.layer_operations import (
     serialize_layer_to_text, parse_layer_from_text,
     parse_multiple_layers_from_text
 )
-from services.coa_serializer import parse_coa_for_editor
 from constants import (
     DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
     DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
@@ -466,16 +465,25 @@ class CoatOfArmsEditor(QMainWindow):
 		"""Zoom in on canvas"""
 		if hasattr(self.canvas_area, 'canvas_widget'):
 			self.canvas_area.canvas_widget.zoom_in()
+			# Update transform widget position after zoom change
+			if hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
+				self.canvas_area.update_transform_widget_for_layer()
 	
 	def _zoom_out(self):
 		"""Zoom out on canvas"""
 		if hasattr(self.canvas_area, 'canvas_widget'):
 			self.canvas_area.canvas_widget.zoom_out()
+			# Update transform widget position after zoom change
+			if hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
+				self.canvas_area.update_transform_widget_for_layer()
 	
 	def _zoom_reset(self):
 		"""Reset canvas zoom to 100%"""
 		if hasattr(self.canvas_area, 'canvas_widget'):
 			self.canvas_area.canvas_widget.zoom_reset()
+			# Update transform widget position after zoom change
+			if hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
+				self.canvas_area.update_transform_widget_for_layer()
 	
 	def _set_grid_size(self, divisions):
 		"""Set grid size (0 = off, 2/4/8/16 = grid divisions)"""
@@ -717,6 +725,12 @@ class CoatOfArmsEditor(QMainWindow):
 			# Parse into model
 			self.coa = CoA.from_string(coa_text)
 			
+			# Update CoA references in all UI components
+			self.canvas_area.coa = self.coa
+			self.canvas_area.canvas_widget.coa = self.coa
+			self.right_sidebar.coa = self.coa
+			self.right_sidebar.layer_list_widget.coa = self.coa
+			
 			# Apply to UI - update from model
 			# Set base texture and colors
 			self.canvas_area.canvas_widget.set_base_texture(self.coa.pattern)
@@ -927,12 +941,12 @@ class CoatOfArmsEditor(QMainWindow):
 			layer.path = dds_filename
 			layer.colors = color_count
 			
-			# Invalidate thumbnail cache for this layer since texture changed
+			# Invalidate thumbnail cache and update button for this layer (by UUID)
 			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
-				self.right_sidebar.layer_list_widget.invalidate_thumbnail(idx)
+				self.right_sidebar.layer_list_widget.invalidate_thumbnail(layer.uuid)
+				self.right_sidebar.layer_list_widget.update_layer_button(layer.uuid)
 			
-			# Update UI and canvas
-			self.right_sidebar._rebuild_layer_list()
+			# Update UI and canvas (no full rebuild needed)
 			self.right_sidebar._update_layer_selection()
 			self.canvas_area.canvas_widget.set_coa(self.coa)
 			self._save_state("Change layer texture")
@@ -947,14 +961,15 @@ class CoatOfArmsEditor(QMainWindow):
 			colors=color_count
 		)
 		
-		# Find new layer's index (CoA appends to end, which displays at top)
-		new_index = self.coa.get_layer_count() - 1
-		self.right_sidebar.selected_layer_indices = {new_index}
-		self.right_sidebar.last_selected_index = new_index
+		# Auto-select the newly added layer using UUID from CoA
+		new_uuid = self.coa.get_last_added_uuid()
+		if new_uuid:
+			self.right_sidebar.layer_list_widget.selected_layer_uuids = {new_uuid}
+			self.right_sidebar.layer_list_widget.last_selected_uuid = new_uuid
+			self.right_sidebar.layer_list_widget.update_selection_visuals()
 		
 		# Update UI
 		self.right_sidebar._rebuild_layer_list()
-		self.right_sidebar._update_layer_selection()
 		
 		# Update canvas
 		self.canvas_area.canvas_widget.set_coa(self.coa)
@@ -1426,13 +1441,8 @@ class CoatOfArmsEditor(QMainWindow):
 				getattr(canvas, 'base_color3_name', 'black')
 			]
 			
-			# Build clipboard text using service
-			coa_text = coa_to_clipboard_text(
-				base_colors,
-				canvas.base_texture,
-				self.right_sidebar.layers,
-				base_color_names
-			)
+			# Build clipboard text using CoA model's to_string method
+			coa_text = self.coa.to_string()
 			
 			# Copy to clipboard
 			QApplication.clipboard().setText(coa_text)
@@ -1749,14 +1759,14 @@ class CoatOfArmsEditor(QMainWindow):
 			return
 		
 		layer_count = self.coa.get_layer_count()
-		selected_indices = self.right_sidebar.get_selected_indices()
-		has_selection = len(selected_indices) > 0
-		is_single = len(selected_indices) == 1
-		is_multi = len(selected_indices) >= 2
+		selected_uuids = self.right_sidebar.get_selected_uuids()
+		has_selection = len(selected_uuids) > 0
+		is_single = len(selected_uuids) == 1
+		is_multi = len(selected_uuids) >= 2
 		
 		# Split: enabled only for single-selection multi-instance layers
-		if is_single and has_selection and selected_indices[0] < layer_count and layer_count > 0:
-			layer = self.coa.get_layer_by_index(selected_indices[0])
+		if is_single and has_selection:
+			layer = self.coa.get_layer_by_uuid(selected_uuids[0])
 			is_multi_instance = layer.instance_count > 1 if layer else False
 			self.split_instances_action.setEnabled(is_multi_instance)
 		else:
@@ -1848,14 +1858,19 @@ class CoatOfArmsEditor(QMainWindow):
 			if not layer_text.strip():
 				return
 			
-			# Parse layers from clipboard using service (returns dicts)
-			layers_data_dicts = parse_multiple_layers_from_text(layer_text)
-			if not layers_data_dicts:
+			# Parse as a CoA and extract layers
+			# Try full CoA first, then colored_emblem blocks only
+			from models.coa import CoA
+			try:
+				temp_coa = CoA.from_string(layer_text)
+			except:
+				temp_coa = CoA.from_layers_string(layer_text)
+			
+			if not temp_coa or temp_coa.get_layer_count() == 0:
 				raise ValueError("Clipboard does not contain valid layer data")
 			
-			# Convert dicts to Layer objects
-			from models.layer import Layer
-			layers_data = [Layer(layer_dict, caller='paste_layer_at_position') for layer_dict in layers_data_dicts]
+			# Get all layers from the temporary CoA
+			layers_data = [temp_coa.get_layer_by_index(i) for i in range(temp_coa.get_layer_count())]
 			
 			# Convert mouse position to normalized coordinates [0-1]
 			# Canvas uses 0.5 as center, so we need to map from widget coords
@@ -1945,28 +1960,12 @@ class CoatOfArmsEditor(QMainWindow):
 			QMessageBox.warning(self, "Paste Error", f"Failed to paste layers: {str(e)}")
 	
 	def _apply_coa_data(self, coa_data):
-		"""Apply parsed CoA data to editor"""
-		# Parse CoA using service
-		parsed = parse_coa_for_editor(coa_data)
-		base_data = parsed['base']
-		layers = parsed['layers']
+		"""Apply parsed CoA data to editor
 		
-		# Apply base pattern and colors
-		self.canvas_area.canvas_widget.set_base_texture(base_data['pattern'])
-		self.canvas_area.canvas_widget.set_base_colors(base_data['colors'])
-		self.right_sidebar.set_base_colors(base_data['colors'], base_data['color_names'])
-		
-		# Clear existing layers and add parsed layers
-		self.right_sidebar.layers = list(layers)
-		
-		# Update UI - switch to Layers tab and rebuild
-		self.right_sidebar.tab_widget.setCurrentIndex(1)
-		self.right_sidebar._rebuild_layer_list()
-		if len(self.right_sidebar.layers) > 0:
-			self.right_sidebar._select_layer(0)
-		
-		# Update canvas
-		self.canvas_area.canvas_widget.set_coa(self.coa)
+		DEPRECATED: This function is legacy code from the dict-based system.
+		Use CoA.from_string() directly instead to parse into the CoA model.
+		"""
+		raise NotImplementedError("_apply_coa_data is deprecated. Use CoA.from_string() instead.")
 
 	def _find_asset_path(self, filename):
 		"""Find the display path for an asset by filename"""

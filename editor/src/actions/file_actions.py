@@ -86,14 +86,11 @@ class FileActions:
 		Args:
 			filename: Path to save file to
 		"""
-		from services.file_operations import save_coa_to_file, build_coa_for_save
+		from services.file_operations import save_coa_to_file
 		
 		try:
-			# Build CoA data structure from current layers
-			coa_data = build_coa_for_save(self.main_window.right_sidebar.layers)
-			
-			# Save to file
-			save_coa_to_file(coa_data, filename)
+			# Save CoA model directly using its to_string serialization
+			save_coa_to_file(self.main_window.coa, filename)
 			
 			# Update current file and title
 			self.main_window.current_file = filename
@@ -150,40 +147,19 @@ class FileActions:
 				base_color_names = [self.main_window.coa.pattern_color1_name, self.main_window.coa.pattern_color2_name, self.main_window.coa.pattern_color3_name]
 				self.main_window.right_sidebar.set_base_colors([self.main_window.coa.pattern_color1, self.main_window.coa.pattern_color2, self.main_window.coa.pattern_color3], base_color_names)
 				
-				# Convert Layer objects to dicts for old UI code (temporary until Step 10)
-				self.main_window.right_sidebar.layers = []
-				for i in range(self.main_window.coa.get_layer_count()):
-					layer = self.main_window.coa.get_layer_by_index(i)
-					layer_dict = {
-						'uuid': layer.uuid,
-						'filename': layer.filename,
-						'pos_x': layer.pos_x,
-						'pos_y': layer.pos_y,
-						'scale_x': layer.scale_x,
-						'scale_y': layer.scale_y,
-						'rotation': layer.rotation,
-						'depth': i,
-						'color1': layer.color1,
-						'color2': layer.color2,
-						'color3': layer.color3,
-						'color1_name': layer.color1_name,
-						'color2_name': layer.color2_name,
-						'color3_name': layer.color3_name,
-						'mask': layer.mask,
-						'flip_x': layer.flip_x,
-						'flip_y': layer.flip_y,
-						'instance_count': layer.instance_count,
-					}
-					self.main_window.right_sidebar.layers.append(layer_dict)
-				
-				# Update UI
+				# Update UI - layers are accessed through CoA model now
 				self.main_window.right_sidebar.tab_widget.setCurrentIndex(1)
 				self.main_window.right_sidebar._rebuild_layer_list()
-				if len(self.main_window.right_sidebar.layers) > 0:
-					self.main_window.right_sidebar._select_layer(0)
+				if self.main_window.coa.get_layer_count() > 0:
+					# Select first layer by getting its UUID
+					first_uuid = self.main_window.coa.get_uuid_at_index(0)
+					if first_uuid:
+						self.main_window.right_sidebar.layer_list_widget.selected_layer_uuids = {first_uuid}
+						self.main_window.right_sidebar.layer_list_widget.last_selected_uuid = first_uuid
+						self.main_window.right_sidebar.layer_list_widget.update_selection_visuals()
 				
-				# Update canvas
-				self.main_window.canvas_area.canvas_widget.set_layers(self.main_window.right_sidebar.layers)
+				# Update canvas with CoA model
+				self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
 				
 				# Update file tracking
 				self.main_window.current_file_path = filename
