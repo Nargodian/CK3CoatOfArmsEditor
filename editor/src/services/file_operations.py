@@ -5,7 +5,6 @@ This module handles file I/O operations for CoA data.
 Separates file operations from UI logic.
 """
 
-from utils.coa_parser import parse_coa_string
 from models.coa import CoA
 
 

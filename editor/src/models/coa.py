@@ -52,7 +52,8 @@ from copy import deepcopy
 import math
 import inspect
 
-from models.layer import Layer, Layers
+from ._coa_internal.layer import Layer, Layers, LayerTracker
+from ._coa_internal.query_mixin import CoAQueryMixin
 from constants import (
     DEFAULT_POSITION_X, DEFAULT_POSITION_Y,
     DEFAULT_SCALE_X, DEFAULT_SCALE_Y,
@@ -64,7 +65,7 @@ from constants import (
 )
 
 
-class CoA:
+class CoA(CoAQueryMixin):
     """Coat of Arms data model with full operation API
     
     Manages all CoA data and operations. This is THE MODEL in MVC.
@@ -84,7 +85,7 @@ class CoA:
         self._logger = logging.getLogger('CoA')
         
         # Register as a LayerTracker caller
-        from models.layer import LayerTracker
+        from ._coa_internal.layer import LayerTracker
         LayerTracker.register('CoA')
         
         # Base pattern and colors
@@ -137,6 +138,7 @@ class CoA:
                 raise AttributeError(
                     f"Direct access to CoA._layers is forbidden! "
                     f"Attempted from {caller_filename}:{caller_lineno} in {caller_function}(). "
+                    f"Use CoA's public methods instead (get_layer_by_uuid, get_layer_count, etc.)"
                 )
         finally:
             del frame  # Avoid reference cycles
@@ -692,6 +694,90 @@ class CoA:
         lines.append("}")
         return '\n'.join(lines)
     
+    def serialize_layers_to_string(self, uuids: list) -> str:
+        """Export specific layers to CK3 format string
+        
+        Serializes only the layers with the given UUIDs. Useful for clipboard operations.
+        
+        Args:
+            uuids: List of layer UUIDs to serialize
+            
+        Returns:
+            CK3 format string containing only the specified layers
+        """
+        from utils.color_utils import rgb_to_color_name
+        
+        # Helper to normalize RGB [0-255] to [0-1] range expected by rgb_to_color_name
+        def normalize_rgb(rgb):
+            """Convert [0-255] range to [0-1] range"""
+            if not rgb:
+                return [1.0, 1.0, 1.0]
+            return [rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0]
+        
+        # Helper to format color (add quotes if it's a named color)
+        def format_color(rgb, color_name):
+            normalized = normalize_rgb(rgb)
+            color_str = rgb_to_color_name(normalized, color_name)
+            if color_str.startswith('rgb'):
+                return color_str  # Already formatted as "rgb { R G B }"
+            else:
+                return f'"{color_str}"'  # Named color, add quotes
+        
+        lines = []
+        lines.append("layers_export = {")
+        
+        # Filter and serialize only specified layers
+        for layer_uuid in uuids:
+            layer = self._get_layer_by_uuid(layer_uuid)
+            if not layer:
+                continue
+                
+            lines.append("\tcolored_emblem = {")
+            lines.append(f'\t\ttexture = "{layer.filename}"')
+            
+            # Layer colors
+            lines.append(f'\t\tcolor1 = {format_color(layer.color1, layer.color1_name)}')
+            if layer.colors >= 2:
+                lines.append(f'\t\tcolor2 = {format_color(layer.color2, layer.color2_name)}')
+            if layer.colors >= 3:
+                lines.append(f'\t\tcolor3 = {format_color(layer.color3, layer.color3_name)}')
+            
+            # Mask (only if set)
+            if layer.mask is not None:
+                mask_values = ' '.join(str(v) for v in layer.mask)
+                lines.append(f'\t\tmask = {{ {mask_values} }}')
+            
+            # Instances
+            for instance in range(layer.instance_count):
+                inst = layer.get_instance(instance, caller='CoA')
+                lines.append("\t\tinstance = {")
+                
+                # Position
+                lines.append(f"\t\t\tposition = {{ {inst['pos_x']:.4f} {inst['pos_y']:.4f} }}")
+                
+                # Scale (combine with flip)
+                scale_x = inst['scale_x']
+                scale_y = inst['scale_y']
+                if layer.flip_x:
+                    scale_x = -scale_x
+                if layer.flip_y:
+                    scale_y = -scale_y
+                lines.append(f"\t\t\tscale = {{ {scale_x:.4f} {scale_y:.4f} }}")
+                
+                # Rotation (only if non-zero)
+                if inst['rotation'] != 0.0:
+                    lines.append(f"\t\t\trotation = {inst['rotation']:.2f}")
+                
+                # Depth (preserve original depth value)
+                lines.append(f"\t\t\tdepth = {inst['depth']:.2f}")
+                
+                lines.append("\t\t}")
+            
+            lines.append("\t}")
+        
+        lines.append("}")
+        return '\n'.join(lines)
+    
     # ========================================
     # Layer Management
     # ========================================
@@ -809,38 +895,6 @@ class CoA:
         self._layers.insert(index + 1, new_layer, caller='CoA')
         
         self._logger.debug(f"Duplicated layer {uuid} -> {new_layer.uuid}")
-        return new_layer.uuid
-    
-    def duplicate_layer_at_index(self, uuid: str, target_index: int) -> str:
-        """Duplicate layer and insert at specific index
-        
-        Args:
-            uuid: Layer UUID to duplicate
-            target_index: Index to insert the duplicate
-            
-        Returns:
-            UUID of the new layer
-            
-        Raises:
-            ValueError: If UUID not found
-        """
-        layer = self._layers.get_by_uuid(uuid)
-        if not layer:
-            raise ValueError(f"Layer with UUID '{uuid}' not found")
-        
-        # Deep copy layer data
-        data = deepcopy(layer.to_dict(caller='CoA'))
-        
-        # Generate new UUID
-        data['uuid'] = str(uuid_module.uuid4())
-        
-        # Create new layer
-        new_layer = Layer(data, caller='CoA')
-        
-        # Insert at specified index
-        self._layers.insert(target_index, new_layer, caller='CoA')
-        
-        self._logger.debug(f"Duplicated layer {uuid} at index {target_index} -> {new_layer.uuid}")
         return new_layer.uuid
     
     def review_merge(self, uuids: List[str]) -> Dict[str, Any]:
@@ -1906,101 +1960,9 @@ class CoA:
         
         self._logger.debug(f"Set base color{color_index}: {rgb}")
     
-    def set_layer_visibility(self, uuid: str, visible: bool):
-        """Set layer visibility
-        
-        Args:
-            uuid: Layer UUID
-            visible: True to show, False to hide
-            
-        Raises:
-            ValueError: If UUID not found
-        """
-        layer = self._layers.get_by_uuid(uuid)
-        if not layer:
-            raise ValueError(f"Layer with UUID '{uuid}' not found")
-        
-        layer.visible = visible
-        self._logger.debug(f"Set visibility for layer {uuid}: {visible}")
-    
-    def set_layer_selected_instance(self, uuid: str, instance_index: int):
-        """Set which instance is selected for editing in a multi-instance layer
-        
-        Args:
-            uuid: Layer UUID
-            instance_index: Instance index (0-based)
-            
-        Raises:
-            ValueError: If UUID not found or instance_index out of range
-        """
-        layer = self._layers.get_by_uuid(uuid)
-        if not layer:
-            raise ValueError(f"Layer with UUID '{uuid}' not found")
-        
-        if instance_index < 0 or instance_index >= layer.instance_count:
-            raise ValueError(f"Instance index {instance_index} out of range (0-{layer.instance_count-1})")
-        
-        layer.selected_instance = instance_index
-        self._logger.debug(f"Set selected instance for layer {uuid}: {instance_index}")
-    
-    def set_layer_mask(self, uuid: str, mask: Optional[List[int]]):
-        """Set pattern mask for layer
-        
-        Args:
-            uuid: Layer UUID
-            mask: Mask list [ch1, ch2, ch3] where 0=disabled, 1-3=channel number
-                  or None to render everywhere
-            
-        Raises:
-            ValueError: If UUID not found
-        """
-        layer = self._layers.get_by_uuid(uuid)
-        if not layer:
-            raise ValueError(f"Layer with UUID '{uuid}' not found")
-        
-        layer.mask = mask
-        self._logger.debug(f"Set mask for layer {uuid}: {mask}")
-    
-    def set_layer_flip(self, uuid: str, flip_x: bool, flip_y: bool):
-        """Set layer flip state
-        
-        Args:
-            uuid: Layer UUID
-            flip_x: True to flip horizontally
-            flip_y: True to flip vertically
-            
-        Raises:
-            ValueError: If UUID not found
-        """
-        layer = self._layers.get_by_uuid(uuid)
-        if not layer:
-            raise ValueError(f"Layer with UUID '{uuid}' not found")
-        
-        layer.flip_x = flip_x
-        layer.flip_y = flip_y
-        self._logger.debug(f"Set flip for layer {uuid}: flip_x={flip_x}, flip_y={flip_y}")
-    
     # ========================================
     # Query API (for UI to retrieve data)
     # ========================================
-    
-    def get_layer_as_dict(self, uuid: str) -> Dict:
-        """Get layer data as dictionary for serialization
-        
-        Args:
-            uuid: Layer UUID
-            
-        Returns:
-            Layer data dictionary
-            
-        Raises:
-            ValueError: If UUID not found
-        """
-        layer = self._layers.get_by_uuid(uuid)
-        if not layer:
-            raise ValueError(f"Layer with UUID '{uuid}' not found")
-        
-        return layer.to_dict(caller='CoA')
     
     def get_layer_property(self, uuid: str, property_name: str) -> Any:
         """Get layer property value
@@ -2217,7 +2179,16 @@ class CoA:
         """
         return [layer.uuid for layer in self._layers]
     
-
+    def get_layer_by_uuid(self, uuid: str) -> Optional[Layer]:
+        """Get layer object by UUID
+        
+        Args:
+            uuid: Layer UUID
+            
+        Returns:
+            Layer object or None if not found
+        """
+        return self._layers.get_by_uuid(uuid)
     
     def get_layer_by_index(self, index: int) -> Optional[Layer]:
         """Get layer object by index

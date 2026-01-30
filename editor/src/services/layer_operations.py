@@ -7,7 +7,6 @@ These functions provide layer manipulation logic independent of the UI.
 
 import os
 import json
-from utils.coa_parser import parse_coa_string, serialize_coa_to_string
 from utils.color_utils import color_name_to_rgb, rgb_to_color_name
 from utils.path_resolver import get_emblem_metadata_path
 from utils.metadata_cache import get_texture_color_count
@@ -18,6 +17,12 @@ from constants import (
     DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
     CK3_NAMED_COLORS
 )
+
+# Register this module as a caller for Layer tracking
+from models.coa import LayerTracker
+LayerTracker.register('serialize_layer_to_text')
+LayerTracker.register('split_layer_instances')
+LayerTracker.register('merge_layers_as_instances')
 
 
 def create_default_layer(filename, colors=None, **overrides):
@@ -31,7 +36,7 @@ def create_default_layer(filename, colors=None, **overrides):
     Returns:
         Layer object
     """
-    from models.layer import Layer
+    from models.coa import Layer
     
     # Auto-detect color count from metadata if not provided
     if colors is None:
@@ -85,7 +90,7 @@ def duplicate_layer(layer, offset_x=0.0, offset_y=0.0):
     Returns:
         New Layer object (deep copy)
     """
-    from models.layer import Layer
+    from models.coa import Layer
     import uuid as uuid_module
     from copy import deepcopy
     
@@ -115,15 +120,23 @@ def duplicate_layer(layer, offset_x=0.0, offset_y=0.0):
 
 
 def serialize_layer_to_text(layer):
-    """Serialize a single layer to colored_emblem block format
+    """Serialize layer(s) to colored_emblem block format
     
     Args:
-        layer: Layer object
+        layer: Layer object, dict, or list of layers
         
     Returns:
         String in CoA colored_emblem format
     """
-    from models.layer import Layer
+    from models.coa import Layer
+    
+    # Handle list of layers
+    if isinstance(layer, list):
+        if not layer:
+            return ""
+        # Serialize each layer and join with double newline
+        serialized = [serialize_layer_to_text(l) for l in layer]
+        return "\n\n".join(serialized)
     
     # Ensure we have a Layer object
     if not isinstance(layer, Layer):
@@ -189,7 +202,7 @@ def _emblem_to_layer_data(emblem):
     Returns:
         Layer object, or None if invalid
     """
-    from models.layer import Layer
+    from models.coa import Layer
     import uuid as uuid_module
     # Get emblem properties
     filename = emblem.get('texture', '')
@@ -344,7 +357,7 @@ def split_layer_instances(layer):
     Returns:
         List of new Layer objects, one per instance
     """
-    from models.layer import Layer
+    from models.coa import Layer
     import uuid as uuid_module
     
     # Ensure we have a Layer object
@@ -396,7 +409,7 @@ def check_layers_compatible_for_merge(layers):
     if not layers or len(layers) < 2:
         return True, {}
     
-    from models.layer import Layer
+    from models.coa import Layer
     
     # Ensure all are Layer objects
     layer_objs = []
@@ -459,7 +472,7 @@ def merge_layers_as_instances(layers, use_topmost_properties=False):
     if not layers:
         return None
     
-    from models.layer import Layer
+    from models.coa import Layer
     import uuid as uuid_module
     
     # Ensure all are Layer objects

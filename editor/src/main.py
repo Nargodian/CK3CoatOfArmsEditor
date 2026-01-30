@@ -25,13 +25,12 @@ from components.canvas_area import CanvasArea
 from components.property_sidebar import PropertySidebar
 
 #COA INTEGRATION ACTION: Import CoA model for integration Step 1
-from models.coa import CoA
-from models.layer import Layer
+from models.coa import CoA, Layer
 
 # Utility imports
-from utils.coa_parser import parse_coa_string, serialize_coa_to_string
 from utils.history_manager import HistoryManager
 from utils.color_utils import color_name_to_rgb, rgb_to_color_name
+from utils.logger import loggerRaise
 
 # Constants
 from constants import DEFAULT_BASE_CATEGORY
@@ -69,6 +68,9 @@ class CoatOfArmsEditor(QMainWindow):
 		# This is the single source of truth for all CoA data going forward
 		self.coa = CoA()
 		
+		# UI state tracking: which instance is selected per layer (not persisted in CoA data)
+		self.selected_instance_per_layer: dict = {}  # uuid -> instance_index
+		
 		# Initialize history manager
 		self.history_manager = HistoryManager(max_history=MAX_HISTORY_ENTRIES)
 		self.history_manager.add_listener(self._on_history_changed)
@@ -102,6 +104,10 @@ class CoatOfArmsEditor(QMainWindow):
 		# Install event filter on application to catch arrow keys globally
 		QApplication.instance().installEventFilter(self)
 		
+		# Initialize global logger with main window reference
+		from utils.logger import set_main_window
+		set_main_window(self)
+		
 		# Initialize action handlers (composition pattern)
 		self.file_actions = FileActions(self)
 		self.clipboard_actions = ClipboardActions(self)
@@ -113,7 +119,7 @@ class CoatOfArmsEditor(QMainWindow):
 		QTimer.singleShot(100, self._update_menu_actions)
 		
 		# Check for autosave recovery after UI is set up
-		QTimer.singleShot(500, self._check_autosave_recovery)
+		# QTimer.singleShot(500, self._check_autosave_recovery)  # TODO: Fix autosave recovery
 	
 	def setup_ui(self):
 		# Create menu bar
@@ -193,11 +199,11 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		new_action = file_menu.addAction("&New")
 		new_action.setShortcut("Ctrl+N")
-		new_action.triggered.connect(self.new_coa)
+		new_action.triggered.connect(self.file_actions.new_coa)
 		
 		open_action = file_menu.addAction("&Open...")
 		open_action.setShortcut("Ctrl+O")
-		open_action.triggered.connect(self.load_coa)
+		open_action.triggered.connect(self.file_actions.load_coa)
 		
 		# Recent Files submenu
 		self.recent_menu = file_menu.addMenu("Recent Files")
@@ -207,27 +213,27 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		save_action = file_menu.addAction("&Save")
 		save_action.setShortcut("Ctrl+S")
-		save_action.triggered.connect(self.save_coa)
+		save_action.triggered.connect(self.file_actions.save_coa)
 		
 		save_as_action = file_menu.addAction("Save &As...")
 		save_as_action.setShortcut("Ctrl+Shift+S")
-		save_as_action.triggered.connect(self.save_coa_as)
+		save_as_action.triggered.connect(self.file_actions.save_coa_as)
 		
 		file_menu.addSeparator()
 		
 		export_png_action = file_menu.addAction("Export as &PNG...")
 		export_png_action.setShortcut("Ctrl+E")
-		export_png_action.triggered.connect(self.export_png)
+		export_png_action.triggered.connect(self.file_actions.export_png)
 		
 		file_menu.addSeparator()
 		
 		copy_coa_action = file_menu.addAction("&Copy CoA to Clipboard")
 		copy_coa_action.setShortcut("Ctrl+Shift+C")
-		copy_coa_action.triggered.connect(self.copy_coa)
+		copy_coa_action.triggered.connect(self.clipboard_actions.copy_coa)
 		
 		paste_coa_action = file_menu.addAction("&Paste CoA from Clipboard")
 		paste_coa_action.setShortcut("Ctrl+Shift+V")
-		paste_coa_action.triggered.connect(self.paste_coa)
+		paste_coa_action.triggered.connect(self.clipboard_actions.paste_coa)
 		
 		file_menu.addSeparator()
 		
@@ -369,15 +375,15 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		copy_layer_action = layers_menu.addAction("&Copy Layer")
 		copy_layer_action.setShortcut("Ctrl+C")
-		copy_layer_action.triggered.connect(self.copy_layer)
+		copy_layer_action.triggered.connect(self.clipboard_actions.copy_layer)
 		
 		paste_layer_action = layers_menu.addAction("&Paste Layer")
 		paste_layer_action.setShortcut("Ctrl+V")
-		paste_layer_action.triggered.connect(self.paste_layer_smart)
+		paste_layer_action.triggered.connect(self.clipboard_actions.paste_layer_smart)
 		
 		duplicate_layer_action = layers_menu.addAction("&Duplicate Layer")
 		duplicate_layer_action.setShortcut("Ctrl+D")
-		duplicate_layer_action.triggered.connect(self.duplicate_selected_layer)
+		duplicate_layer_action.triggered.connect(self.clipboard_actions.duplicate_selected_layer)
 		
 		layers_menu.addSeparator()
 		
@@ -494,6 +500,12 @@ class CoatOfArmsEditor(QMainWindow):
 				self.canvas_area.canvas_widget.set_show_grid(True)
 				self.canvas_area.canvas_widget.set_grid_divisions(divisions)
 	
+	def _update_menu_actions(self):
+		"""Update menu action states based on current selections"""
+		self._update_alignment_actions()
+		self._update_transform_actions()
+		self._update_move_to_actions()
+	
 	def _update_alignment_actions(self):
 		"""Enable or disable alignment actions based on selection count"""
 		if not hasattr(self, 'right_sidebar'):
@@ -582,9 +594,7 @@ class CoatOfArmsEditor(QMainWindow):
 				else:
 					QMessageBox.warning(self, "Export Failed", "Failed to export PNG.")
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.critical(self, "Export Error", f"Failed to export PNG:\n{str(e)}")
+			loggerRaise(e, "Failed to export PNG")
 	
 	def _update_window_title(self):
 		"""Update window title with current file name"""
@@ -641,10 +651,7 @@ class CoatOfArmsEditor(QMainWindow):
 					# Filter out files that no longer exist
 					self.recent_files = [f for f in self.recent_files if os.path.exists(f)]
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			print(f"Error loading config: {e}")
-			self.recent_files = []
+			loggerRaise(e, "Error loading config")
 	
 	def _save_config(self):
 		"""Save recent files and settings to config file"""
@@ -659,9 +666,7 @@ class CoatOfArmsEditor(QMainWindow):
 			with open(self.config_file, 'w', encoding='utf-8') as f:
 				json.dump(config, f, indent=2)
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			print(f"Error saving config: {e}")
+			loggerRaise(e, "Error saving config")
 	
 	def _add_to_recent_files(self, filepath):
 		"""Add a file to the recent files list"""
@@ -701,6 +706,12 @@ class CoatOfArmsEditor(QMainWindow):
 			self.recent_menu.addSeparator()
 			clear_action = self.recent_menu.addAction("Clear Recent Files")
 			clear_action.triggered.connect(self._clear_recent_files)
+	
+	def _clear_recent_files(self):
+		"""Clear the recent files list"""
+		self.recent_files = []
+		self._update_recent_files_menu()
+		self._save_config()
 	
 	def _open_recent_file(self, filepath):
 		"""Open a file from the recent files list"""
@@ -767,13 +778,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.history_manager.clear()
 			self._save_state("Load CoA")
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.critical(self, "Load Error", f"Failed to load coat of arms:\n{str(e)}")
-	
-	def _clear_recent_files(self):
-		"""Clear the recent files list"""
-		self.recent_files = []
+			loggerRaise(e, "Failed to load coat of arms")
 		self._update_recent_files_menu()
 		self._save_config()
 	
@@ -809,13 +814,7 @@ class CoatOfArmsEditor(QMainWindow):
 				
 				print("Autosaved")
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			print(f"Autosave failed: {e}")
-	
-	def _check_autosave_recovery(self):
-		"""Check if autosave file exists and offer to recover"""
-		try:
+			loggerRaise(e, "Autosave failed")
 			if os.path.exists(self.autosave_file):
 				reply = QMessageBox.question(
 					self,
@@ -861,15 +860,8 @@ class CoatOfArmsEditor(QMainWindow):
 				# Remove autosave file after prompt
 				os.remove(self.autosave_file)
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			print(f"Error checking autosave: {e}")
-			# Try to remove corrupted autosave file
-			try:
-				if os.path.exists(self.autosave_file):
-					os.remove(self.autosave_file)
-			except:
-				pass
+			loggerRaise(e, "Error checking autosave")
+			pass
 
 
 		self.statusBar().setStyleSheet("QStatusBar { border-top: 1px solid rgba(255, 255, 255, 40); padding: 4px; }")
@@ -1043,7 +1035,7 @@ class CoatOfArmsEditor(QMainWindow):
 		# Ctrl+D for duplicate layer
 		elif event.key() == Qt.Key_D and event.modifiers() == Qt.ControlModifier:
 			if self.right_sidebar.get_selected_indices():
-				self.duplicate_selected_layer()
+				self.clipboard_actions.duplicate_selected_layer()
 				event.accept()
 			else:
 				super().keyPressEvent(event)
@@ -1058,7 +1050,7 @@ class CoatOfArmsEditor(QMainWindow):
 		# Ctrl+C for copy layer
 		elif event.key() == Qt.Key_C and event.modifiers() == Qt.ControlModifier:
 			if self.right_sidebar.get_selected_indices():
-				self.copy_layer()
+				self.clipboard_actions.copy_layer()
 				event.accept()
 			else:
 				super().keyPressEvent(event)
@@ -1070,11 +1062,11 @@ class CoatOfArmsEditor(QMainWindow):
 				canvas_geometry = self.canvas_area.canvas_widget.geometry()
 				if canvas_geometry.contains(mouse_pos):
 					# Mouse is over canvas, paste at mouse position
-					self.paste_layer_at_position(mouse_pos, canvas_geometry)
+					self.clipboard_actions.paste_layer_at_position(mouse_pos, canvas_geometry)
 					event.accept()
 					return
 			# Otherwise, paste at center
-			self.paste_layer()
+			self.clipboard_actions.paste_layer()
 			event.accept()
 		# Delete key for delete layer
 		elif event.key() == Qt.Key_Delete:
@@ -1146,20 +1138,8 @@ class CoatOfArmsEditor(QMainWindow):
 		# NEW CODE: Use model's snapshot for CoA data
 		state = {
 			'coa_snapshot': self.coa.get_snapshot(),
-			'selected_layer_indices': set(self.right_sidebar.selected_layer_indices),  # UI state
+			'selected_layer_uuids': set(self.right_sidebar.get_selected_uuids()),  # UI state
 		}
-		
-		# OLD CODE: Deep copy of dicts
-		# canvas = self.canvas_area.canvas_widget
-		# state = {
-		# 	'layers': [dict(layer) for layer in self.right_sidebar.layers],  # Deep copy
-		# 	'selected_layer_indices': set(self.right_sidebar.selected_layer_indices),  # Copy set
-		# 	'base_texture': canvas.base_texture,
-		# 	'base_colors': canvas.base_colors[:],  # Copy list
-		# 	'base_color1_name': getattr(canvas, 'base_color1_name', None),
-		# 	'base_color2_name': getattr(canvas, 'base_color2_name', None),
-		# 	'base_color3_name': getattr(canvas, 'base_color3_name', None),
-		# }
 		
 		return state
 	
@@ -1174,17 +1154,17 @@ class CoatOfArmsEditor(QMainWindow):
 			# NEW CODE: Restore CoA from snapshot
 			self.coa.set_snapshot(state['coa_snapshot'])
 			
-			# Restore UI selection state
-			self.right_sidebar.selected_layer_indices = set(state.get('selected_layer_indices', set()))
-			
-			# Update all UI components to reflect restored CoA state
-			# Right sidebar needs to rebuild layer list from CoA
+			# Rebuild layer list from restored CoA
 			self.right_sidebar._rebuild_layer_list()
-			self.right_sidebar._update_layer_selection()
 			
-			# Restore base texture and colors
-			self.canvas_area.canvas_widget.set_base_texture(self.coa.pattern)
-			self.canvas_area.canvas_widget.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3])
+			# Restore UI selection state (filter out UUIDs that no longer exist)
+			saved_selection = set(state.get('selected_layer_uuids', set()))
+			valid_uuids = {uuid for uuid in saved_selection if self.coa.has_layer_uuid(uuid)}
+			self.right_sidebar.layer_list_widget.selected_layer_uuids = valid_uuids
+			if valid_uuids:
+				self.right_sidebar.layer_list_widget.last_selected_uuid = next(iter(valid_uuids))
+			
+			# Always update canvas and base colors (regardless of selection)
 			self.canvas_area.canvas_widget.base_color1_name = self.coa.pattern_color1_name
 			self.canvas_area.canvas_widget.base_color2_name = self.coa.pattern_color2_name
 			self.canvas_area.canvas_widget.base_color3_name = self.coa.pattern_color3_name
@@ -1193,37 +1173,19 @@ class CoatOfArmsEditor(QMainWindow):
 			base_color_names = [self.coa.pattern_color1_name, self.coa.pattern_color2_name, self.coa.pattern_color3_name]
 			self.right_sidebar.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3], base_color_names)
 			
-			# Restore canvas layers
+			# Restore canvas layers - ALWAYS update, not just when selection exists
 			self.canvas_area.canvas_widget.set_coa(self.coa)
 			
 			# Update layer properties and transform widget if layers are selected
-			selected_indices = list(state.get('selected_layer_indices', set()))
-			if selected_indices:
+			if valid_uuids:
 				self.right_sidebar._load_layer_properties()
 				self.canvas_area.update_transform_widget_for_layer()
 				self.right_sidebar.tab_widget.setTabEnabled(2, True)
 			else:
 				self.right_sidebar.tab_widget.setTabEnabled(2, False)
 				self.canvas_area.transform_widget.set_visible(False)
-			
-			# OLD CODE: Dict-based restore
-			# self.right_sidebar.layers = [dict(layer) for layer in state['layers']]
-			# self.right_sidebar.selected_layer_indices = set(state.get('selected_layer_indices', set()))
-			# self.right_sidebar._rebuild_layer_list()
-			# self.right_sidebar._update_layer_selection()
-			# self.canvas_area.canvas_widget.set_base_texture(state['base_texture'])
-			# self.canvas_area.canvas_widget.set_base_colors(state['base_colors'])
-			# self.canvas_area.canvas_widget.base_color1_name = state.get('base_color1_name')
-			# self.canvas_area.canvas_widget.base_color2_name = state.get('base_color2_name')
-			# self.canvas_area.canvas_widget.base_color3_name = state.get('base_color3_name')
-			# base_color_names = [
-			# 	state.get('base_color1_name'),
-			# 	state.get('base_color2_name'),
-			# 	state.get('base_color3_name')
-			# ]
-			# self.right_sidebar.set_base_colors(state['base_colors'], base_color_names)
-			# self.canvas_area.canvas_widget.set_layers(self.right_sidebar.layers)
-			
+		except Exception as e:
+			loggerRaise(e, "Error restoring history state")
 		finally:
 			self._is_applying_history = False
 			# Update status bar after state is fully restored
@@ -1350,13 +1312,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.history_manager.clear()
 			self._save_state("New CoA")
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.critical(self, "Error", f"Error creating new CoA: {e}")
-	
-	def save_coa(self):
-		"""Save current CoA - if no file path, prompts for location"""
-		if self.current_file_path:
+			loggerRaise(e, "Error creating new CoA")
 			# Save to existing file
 			self._save_to_file(self.current_file_path)
 		else:
@@ -1377,12 +1333,7 @@ class CoatOfArmsEditor(QMainWindow):
 			if filename:
 				self._save_to_file(filename)
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.critical(self, "Save Error", f"Failed to save coat of arms:\n{str(e)}")
-	
-	def _save_to_file(self, filename):
-		"""Internal method to save CoA data to a file"""
+			loggerRaise(e, "Failed to save coat of arms")
 		try:
 			#COA INTEGRATION ACTION: Step 2 - Use CoA.to_string() for save operations
 			# New model-based save path
@@ -1421,13 +1372,7 @@ class CoatOfArmsEditor(QMainWindow):
 			if os.path.exists(self.autosave_file):
 				os.remove(self.autosave_file)
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.critical(self, "Save Error", f"Failed to save coat of arms:\n{str(e)}")
-	
-	def load_coa(self):
-		"""Load a coat of arms from file"""
-		self.file_actions.load_coa()
+			loggerRaise(e, "Failed to save coat of arms")
 	
 	def copy_coa(self):
 		"""Copy current CoA to clipboard as text"""
@@ -1447,12 +1392,7 @@ class CoatOfArmsEditor(QMainWindow):
 			# Copy to clipboard
 			QApplication.clipboard().setText(coa_text)
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.warning(self, "Copy Error", f"Failed to copy coat of arms: {str(e)}")
-	
-	def paste_coa(self):
-		"""Paste CoA from clipboard and apply to editor"""
+			loggerRaise(e, "Failed to copy coat of arms")
 		try:
 			# Get clipboard text
 			coa_text = QApplication.clipboard().text()
@@ -1463,7 +1403,7 @@ class CoatOfArmsEditor(QMainWindow):
 			# Smart detection: check if this is a layer sub-block or full CoA
 			if is_layer_subblock(coa_text):
 				# This is a layer, paste as layer instead
-				self.paste_layer()
+				self.clipboard_actions.paste_layer()
 				return
 			
 			# Parse using CoA model
@@ -1491,12 +1431,7 @@ class CoatOfArmsEditor(QMainWindow):
 			# Save to history after pasting
 			self._save_state("Paste CoA")
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.critical(self, "Paste Error", f"Failed to paste coat of arms:\n{str(e)}\n\nThe clipboard may not contain valid coat of arms data.")
-	
-	def copy_layer(self):
-		"""Copy all selected layers to clipboard as CoA sub-blocks"""
+			loggerRaise(e, "Failed to paste coat of arms - clipboard may not contain valid data")
 		try:
 			# Check if layers are selected
 			selected_indices = self.right_sidebar.get_selected_indices()
@@ -1515,13 +1450,7 @@ class CoatOfArmsEditor(QMainWindow):
 				full_text = '\n\n'.join(layer_texts)
 				QApplication.clipboard().setText(full_text)
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.warning(self, "Copy Error", f"Failed to copy layer: {str(e)}")
-	
-	def duplicate_selected_layer(self):
-		"""Duplicate the currently selected layers"""
-		try:
+			loggerRaise(e, "Failed to copy layer")
 			# Check if layers are selected
 			selected_indices = self.right_sidebar.get_selected_indices()
 			if not selected_indices:
@@ -1573,13 +1502,7 @@ class CoatOfArmsEditor(QMainWindow):
 			layer_word = "layers" if len(new_uuids) > 1 else "layer"
 			self._save_state(f"Duplicate {len(new_uuids)} {layer_word}")
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.warning(self, "Duplicate Error", f"Failed to duplicate layer: {str(e)}")
-	
-	def duplicate_selected_layer_below(self):
-		"""Duplicate the currently selected layer BELOW the original (for Ctrl+drag)"""
-		try:
+			loggerRaise(e, "Failed to duplicate layer")
 			# Check if a single layer is selected (multi-layer ctrl+drag not supported)
 			selected_indices = self.right_sidebar.get_selected_indices()
 			if not selected_indices or len(selected_indices) != 1:
@@ -1618,12 +1541,10 @@ class CoatOfArmsEditor(QMainWindow):
 			# Save to history
 			self._save_state("Duplicate layer below")
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			print(f"Error duplicating layer below: {e}")
+			loggerRaise(e, "Error duplicating layer below")
 	
 	def _split_selected_layer(self):
-		"""Split a multi-instance layer into separate single-instance layers"""
+		"""Split selected layer's instances into separate layers"""
 		try:
 			from services.layer_operations import split_layer_instances
 			
@@ -1673,12 +1594,10 @@ class CoatOfArmsEditor(QMainWindow):
 				# Save to history
 				self._save_state(f"Split {len(new_layers)} instances")
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.warning(self, "Split Error", f"Failed to split layer: {str(e)}")
+			loggerRaise(e, "Failed to split layer")
 	
 	def _merge_selected_layers(self):
-		"""Merge multiple layers into one multi-instance layer"""
+		"""Merge selected layers as instances into one layer"""
 		try:
 			from services.layer_operations import merge_layers_as_instances, check_layers_compatible_for_merge
 			from PyQt5.QtWidgets import QMessageBox
@@ -1749,13 +1668,7 @@ class CoatOfArmsEditor(QMainWindow):
 				instance_count = merged_layer.instance_count
 				self._save_state(f"Merge {len(layers_to_merge)} layers ({instance_count} instances)")
 		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.warning(self, "Merge Error", f"Failed to merge layers: {str(e)}")
-	
-	def _update_menu_actions(self):
-		"""Update menu action enabled states based on current selection"""
-		if not hasattr(self.right_sidebar, 'layers'):
+			loggerRaise(e, "Failed to merge layers")
 			return
 		
 		layer_count = self.coa.get_layer_count()
@@ -1766,7 +1679,7 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# Split: enabled only for single-selection multi-instance layers
 		if is_single and has_selection:
-			instance_count = self.coa.get_layer_property(selected_uuids[0], 'instance_count') or 1
+			instance_count = self.coa.get_layer_instance_count(selected_uuids[0])
 			is_multi_instance = instance_count > 1
 			self.split_instances_action.setEnabled(is_multi_instance)
 		else:
@@ -1776,188 +1689,16 @@ class CoatOfArmsEditor(QMainWindow):
 		self.merge_as_instances_action.setEnabled(is_multi)
 	
 	def paste_layer(self):
-		"""Paste layers from clipboard (as CoA sub-blocks) and add to layers"""
-		try:
-			# Get clipboard text
-			layer_text = QApplication.clipboard().text()
-			if not layer_text.strip():
-				return
-			
-			# Parse layers from clipboard using service (returns dicts)
-			layers_data_dicts = parse_multiple_layers_from_text(layer_text)
-			
-			if not layers_data_dicts:
-				raise ValueError("Clipboard does not contain valid layer data")
-			
-			# Convert dicts to Layer objects
-			from models.layer import Layer
-			layers_data = [Layer(layer_dict) for layer_dict in layers_data_dicts]
-			
-			# Apply small offset to pasted layers (0.02 as per design decision)
-			for layer in layers_data:
-				layer.pos_x = min(1.0, layer.pos_x + 0.02)
-				layer.pos_y = min(1.0, layer.pos_y + 0.02)
-			
-			# Add all layers at the end (front-most)
-			start_index = self.coa.get_layer_count()
-			for layer in layers_data:
-				self.coa.add_layer_object(layer)
-			
-			# Select all newly pasted layers
-			new_indices = list(range(start_index, self.coa.get_layer_count()))
-			self.right_sidebar.selected_layer_indices = set(new_indices)
-			self.right_sidebar.last_selected_index = new_indices[-1] if new_indices else None
-			
-			# Switch to Layers tab if currently on Base tab
-			if self.right_sidebar.tab_widget.currentIndex() == 0:
-				self.right_sidebar.tab_widget.setCurrentIndex(1)
-			
-			# Update UI
-			self.right_sidebar._rebuild_layer_list()
-			self.right_sidebar._update_layer_selection()
-			self.right_sidebar._load_layer_properties()
-			self.right_sidebar.tab_widget.setTabEnabled(2, True)
-			
-			# Update canvas and transform widget
-			self.canvas_area.canvas_widget.set_coa(self.coa)
-			
-			# Use timer to ensure transform widget updates after UI settles
-			if self.canvas_area:
-				QTimer.singleShot(0, self.canvas_area.update_transform_widget_for_layer)
-			
-			# Save to history
-			layer_word = "layers" if len(layers_data) > 1 else "layer"
-			self._save_state(f"Paste {len(layers_data)} {layer_word}")
-		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.warning(self, "Paste Error", f"Failed to paste layer: {str(e)}")
+		"""Paste layers from clipboard - delegates to clipboard_actions"""
+		self.clipboard_actions.paste_layer()
 	
 	def paste_layer_smart(self):
-		"""Smart paste - pastes at mouse position if over canvas, otherwise at offset position"""
-		if hasattr(self, 'canvas_area'):
-			mouse_pos = self.canvas_area.mapFromGlobal(self.cursor().pos())
-			# Get canvas_widget position relative to canvas_area (accounting for container margins)
-			from PyQt5.QtCore import QRect
-			canvas_widget_pos = self.canvas_area.canvas_widget.mapTo(self.canvas_area, QPoint(0, 0))
-			canvas_geometry = QRect(canvas_widget_pos, self.canvas_area.canvas_widget.size())
-			
-			if canvas_geometry.contains(mouse_pos):
-				# Mouse is over canvas, paste at mouse position
-				self.paste_layer_at_position(mouse_pos, canvas_geometry)
-				return
-		
-		# Otherwise, paste at offset position
-		self.paste_layer()
+		"""Smart paste - delegates to clipboard_actions"""
+		self.clipboard_actions.paste_layer_smart()
 	
 	def paste_layer_at_position(self, mouse_pos, canvas_geometry):
-		"""Paste layers at mouse position on canvas with clamping to legal positions"""
-		try:
-			# Get clipboard text
-			layer_text = QApplication.clipboard().text()
-			if not layer_text.strip():
-				return
-			
-			# Parse as a CoA and extract layers
-			# Try full CoA first, then colored_emblem blocks only
-			from models.coa import CoA
-			try:
-				temp_coa = CoA.from_string(layer_text)
-			except:
-				temp_coa = CoA.from_layers_string(layer_text)
-			
-			if not temp_coa or temp_coa.get_layer_count() == 0:
-				raise ValueError("Clipboard does not contain valid layer data")
-			
-			# Get all layers from the temporary CoA
-			layers_data = [temp_coa.get_layer_by_index(i) for i in range(temp_coa.get_layer_count())]
-			
-			# Convert mouse position to normalized coordinates [0-1]
-			# Canvas uses 0.5 as center, so we need to map from widget coords
-			canvas_size = min(canvas_geometry.width(), canvas_geometry.height())
-			canvas_offset_x = (canvas_geometry.width() - canvas_size) / 2
-			canvas_offset_y = (canvas_geometry.height() - canvas_size) / 2
-			
-			# Get mouse position relative to canvas widget
-			local_x = mouse_pos.x() - canvas_geometry.x()
-			local_y = mouse_pos.y() - canvas_geometry.y()
-			
-			# Convert to canvas center coords [-size/2, size/2]
-			canvas_x = local_x - canvas_offset_x - canvas_size / 2
-			canvas_y = local_y - canvas_offset_y - canvas_size / 2
-			
-			# Get zoom level from canvas widget
-			zoom_level = self.canvas_area.canvas_widget.zoom_level
-		
-			print(f"DEBUG PASTE: canvas_size={canvas_size}, offset=({canvas_offset_x}, {canvas_offset_y})")
-			print(f"DEBUG PASTE: canvas_x={canvas_x}, canvas_y={canvas_y}")
-			print(f"DEBUG PASTE: zoom_level={zoom_level}")
-			
-			# Convert to normalized coords [0-1]
-			# Canvas rendering uses: center = (pos - 0.5) * 1.1 * zoom_level
-			# So reverse: pos = (center / (1.1 * zoom_level)) + 0.5
-			norm_x = (canvas_x / (canvas_size / 2) / 1.1 / zoom_level) + 0.5
-			norm_y = (canvas_y / (canvas_size / 2) / 1.1 / zoom_level) + 0.5
-			
-			print(f"DEBUG PASTE: norm_x={norm_x}, norm_y={norm_y}")
-			
-			# Clamp to legal positions [0-1]
-			norm_x = max(0.0, min(1.0, norm_x))
-			norm_y = max(0.0, min(1.0, norm_y))
-			
-			# Calculate centroid of pasted layers to preserve relative positions
-			if len(layers_data) > 1:
-				centroid_x = sum(layer.pos_x for layer in layers_data) / len(layers_data)
-				centroid_y = sum(layer.pos_y for layer in layers_data) / len(layers_data)
-				
-				# Calculate offset from centroid to click position
-				offset_x = norm_x - centroid_x
-				offset_y = norm_y - centroid_y
-				
-				# Apply offset to all layers (preserves relative positions)
-				for layer in layers_data:
-					layer.pos_x = max(0.0, min(1.0, layer.pos_x + offset_x))
-					layer.pos_y = max(0.0, min(1.0, layer.pos_y + offset_y))
-			else:
-				# Single layer - just set to click position
-				layers_data[0].pos_x = norm_x
-				layers_data[0].pos_y = norm_y
-			
-			start_index = self.coa.get_layer_count()
-			for layer in layers_data:
-				self.coa.add_layer_object(layer)
-			
-			# Select all newly pasted layers
-			new_indices = list(range(start_index, self.coa.get_layer_count()))
-			self.right_sidebar.selected_layer_indices = set(new_indices)
-			self.right_sidebar.last_selected_index = new_indices[-1] if new_indices else None
-			
-			# Switch to Layers tab if currently on Base tab
-			if self.right_sidebar.tab_widget.currentIndex() == 0:
-				self.right_sidebar.tab_widget.setCurrentIndex(1)
-			
-			# Update UI
-			self.right_sidebar._rebuild_layer_list()
-			self.right_sidebar._update_layer_selection()
-			self.right_sidebar._load_layer_properties()
-			
-			# Enable Properties tab
-			self.right_sidebar.tab_widget.setTabEnabled(2, True)
-			
-			# Update canvas and transform widget
-			self.canvas_area.canvas_widget.set_coa(self.coa)
-			
-			# Use timer to ensure transform widget updates after UI settles
-			if self.canvas_area:
-				QTimer.singleShot(0, self.canvas_area.update_transform_widget_for_layer)
-			
-			# Save to history
-			layer_word = "layers" if len(layers_data) > 1 else "layer"
-			self._save_state(f"Paste {len(layers_data)} {layer_word} at position")
-		except Exception as e:
-			if DEBUG_MODE:
-				raise e
-			QMessageBox.warning(self, "Paste Error", f"Failed to paste layers: {str(e)}")
+		"""Paste layers at mouse position - delegates to clipboard_actions"""
+		self.clipboard_actions.paste_layer_at_position(mouse_pos, canvas_geometry)
 	
 	def _apply_coa_data(self, coa_data):
 		"""Apply parsed CoA data to editor

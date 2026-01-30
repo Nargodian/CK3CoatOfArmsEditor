@@ -15,7 +15,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'editor', 'src'))
 
 import unittest
-from models.layer import Layer, Layers, LayerTracker
+from models.coa import Layer, Layers, LayerTracker
 
 
 class TestLayerTracker(unittest.TestCase):

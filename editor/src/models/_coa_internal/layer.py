@@ -31,6 +31,12 @@ Usage:
 import logging
 import uuid as uuid_module
 from typing import Dict, List, Optional, Any
+import sys
+import os
+
+# Add parent directory to path for constants import
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
+
 from constants import (
     DEFAULT_POSITION_X, DEFAULT_POSITION_Y,
     DEFAULT_SCALE_X, DEFAULT_SCALE_Y,

@@ -107,12 +107,48 @@ class PropertySidebar(QFrame):
 		if not selected_uuids:
 			return None
 		
-		# Collect values from all selected layers
-		values = []
-		for uuid in selected_uuids:
-			val = self.main_window.coa.get_layer_property(uuid, property_name)
-			if val is not None:
-				values.append(val)
+		# Map property names to CoA getter methods
+		property_getters = {
+			'pos_x': 'get_layer_pos_x',
+			'pos_y': 'get_layer_pos_y',
+			'scale_x': 'get_layer_scale_x',
+			'scale_y': 'get_layer_scale_y',
+			'rotation': 'get_layer_rotation',
+			'flip_x': 'get_layer_flip_x',
+			'flip_y': 'get_layer_flip_y',
+		}
+		
+		# Handle color properties with index parameter
+		if property_name.startswith('color') and property_name[5:6].isdigit():
+			color_index = int(property_name[5])
+			if property_name.endswith('_name'):
+				# color1_name, color2_name, color3_name
+				values = []
+				for uuid in selected_uuids:
+					val = self.main_window.coa.get_layer_color_name(uuid, color_index)
+					if val is not None:
+						values.append(val)
+			else:
+				# color1, color2, color3
+				values = []
+				for uuid in selected_uuids:
+					val = self.main_window.coa.get_layer_color(uuid, color_index)
+					if val is not None:
+						values.append(val)
+		else:
+			# Standard properties
+			getter_method_name = property_getters.get(property_name)
+			if not getter_method_name:
+				raise ValueError(f"No getter method for property '{property_name}'")
+			
+			getter_method = getattr(self.main_window.coa, getter_method_name)
+			
+			# Collect values from all selected layers
+			values = []
+			for uuid in selected_uuids:
+				val = getter_method(uuid)
+				if val is not None:
+					values.append(val)
 		
 		if not values:
 			return None
@@ -690,7 +726,7 @@ class PropertySidebar(QFrame):
 			DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
 			CK3_NAMED_COLORS
 		)
-		from models.layer import Layer
+		from models.coa import Layer
 		
 		# Create layer data dict
 		layer_data = {
@@ -741,13 +777,13 @@ class PropertySidebar(QFrame):
 			return
 		
 		uuid = selected_uuids[0]
-		instances = self.main_window.coa.get_layer_property(uuid, 'instances')
-		if not instances or len(instances) <= 1:
+		instance_count = self.main_window.coa.get_layer_instance_count(uuid)
+		if instance_count <= 1:
 			return
 		
-		selected_inst = self.main_window.coa.get_layer_property(uuid, 'selected_instance') or 0
-		new_inst = (selected_inst - 1) % len(instances)
-		self.main_window.coa.set_layer_selected_instance(uuid, new_inst)
+		selected_inst = self.main_window.selected_instance_per_layer.get(uuid, 0)
+		new_inst = (selected_inst - 1) % instance_count
+		self.main_window.selected_instance_per_layer[uuid] = new_inst
 		
 		# Reload properties and update transform widget
 		self._load_layer_properties()
@@ -761,13 +797,13 @@ class PropertySidebar(QFrame):
 			return
 		
 		uuid = selected_uuids[0]
-		instances = self.main_window.coa.get_layer_property(uuid, 'instances')
-		if not instances or len(instances) <= 1:
+		instance_count = self.main_window.coa.get_layer_instance_count(uuid)
+		if instance_count <= 1:
 			return
 		
-		selected_inst = self.main_window.coa.get_layer_property(uuid, 'selected_instance') or 0
-		new_inst = (selected_inst + 1) % len(instances)
-		self.main_window.coa.set_layer_selected_instance(uuid, new_inst)
+		selected_inst = self.main_window.selected_instance_per_layer.get(uuid, 0)
+		new_inst = (selected_inst + 1) % instance_count
+		self.main_window.selected_instance_per_layer[uuid] = new_inst
 		
 		# Reload properties and update transform widget
 		self._load_layer_properties()
@@ -892,8 +928,8 @@ class PropertySidebar(QFrame):
 			new_uuid = self.main_window.coa.duplicate_layer(uuid)
 			new_uuids.append(new_uuid)
 			# Apply offset after duplication using CoA API
-			pos_x = self.main_window.coa.get_layer_property(new_uuid, 'pos_x')
-			pos_y = self.main_window.coa.get_layer_property(new_uuid, 'pos_y')
+			pos_x = self.main_window.coa.get_layer_pos_x(new_uuid)
+			pos_y = self.main_window.coa.get_layer_pos_y(new_uuid)
 			self.main_window.coa.set_layer_position(new_uuid, min(1.0, pos_x + 0.02), min(1.0, pos_y + 0.02))
 		
 		# Select the new layers by UUID
@@ -982,8 +1018,8 @@ class PropertySidebar(QFrame):
 		color_key = f'color{color_index}'
 		color_name_key = f'color{color_index}_name'
 		
-		# Get current color using CoA API
-		current_color_rgb = self.coa.get_layer_property(uuid, color_key)
+		# Get current color using CoA API with parameterized method
+		current_color_rgb = self.coa.get_layer_color(uuid, color_index)
 		if not current_color_rgb:
 			current_color_rgb = [1.0, 1.0, 1.0]
 		r, g, b = int(current_color_rgb[0] * 255), int(current_color_rgb[1] * 255), int(current_color_rgb[2] * 255)
@@ -1022,7 +1058,7 @@ class PropertySidebar(QFrame):
 				self.main_window._save_state(f"Change layer color {color_index}")
 	
 	def _on_layer_visibility_toggle(self, uuid):
-		current_visibility = self.coa.get_layer_property(uuid, 'visible')
+		current_visibility = self.coa.get_layer_visible(uuid)
 		if current_visibility is None:
 			current_visibility = True
 		self.coa.set_layer_visibility(uuid, not current_visibility)
@@ -1035,7 +1071,7 @@ class PropertySidebar(QFrame):
 		
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):
-			current_visibility = self.coa.get_layer_property(uuid, 'visible') or False
+			current_visibility = self.coa.get_layer_visible(uuid) or False
 			visibility_state = "visible" if current_visibility else "hidden"
 			self.main_window._save_state(f"Toggle layer visibility to {visibility_state}")
 	
@@ -1139,15 +1175,15 @@ class PropertySidebar(QFrame):
 		for uuid in selected_uuids:
 			# Route to appropriate CoA setter based on property name
 			if prop_name in ('pos_x', 'pos_y'):
-				current_x = self.main_window.coa.get_layer_property(uuid, 'pos_x') or 0.0
-				current_y = self.main_window.coa.get_layer_property(uuid, 'pos_y') or 0.0
+				current_x = self.main_window.coa.get_layer_pos_x(uuid) or 0.0
+				current_y = self.main_window.coa.get_layer_pos_y(uuid) or 0.0
 				if prop_name == 'pos_x':
 					self.main_window.coa.set_layer_position(uuid, value, current_y)
 				else:
 					self.main_window.coa.set_layer_position(uuid, current_x, value)
 			elif prop_name in ('scale_x', 'scale_y'):
-				current_sx = self.main_window.coa.get_layer_property(uuid, 'scale_x') or 1.0
-				current_sy = self.main_window.coa.get_layer_property(uuid, 'scale_y') or 1.0
+				current_sx = self.main_window.coa.get_layer_scale_x(uuid) or 1.0
+				current_sy = self.main_window.coa.get_layer_scale_y(uuid) or 1.0
 				if prop_name == 'scale_x':
 					self.main_window.coa.set_layer_scale(uuid, value, current_sy)
 				else:
@@ -1206,22 +1242,21 @@ class PropertySidebar(QFrame):
 	
 	def _load_layer_properties(self):
 		"""Load the selected layer's properties into the UI controls"""
+		from utils.metadata_cache import get_texture_color_count
+		
 		selected_uuids = self.get_selected_uuids()
 		if not selected_uuids:
 			return
 		
-		# Update emblem color count based on layer's texture
+		# Query metadata for color count based on layer's texture filename
 		# For multi-select, use the maximum color count across all selected layers
 		color_counts = []
 		for uuid in selected_uuids:
-			colors = self.main_window.coa.get_layer_property(uuid, 'colors')
-			if colors:
-				color_counts.append(colors)
-			else:
-				color_counts.append(3)
+			filename = self.main_window.coa.get_layer_filename(uuid)
+			color_count = get_texture_color_count(filename)
+			color_counts.append(color_count)
 		
 		if color_counts:
-			# Use max color count so all relevant colors are shown
 			max_color_count = max(color_counts)
 			self.set_emblem_color_count(max_color_count)
 		
@@ -1296,9 +1331,9 @@ class PropertySidebar(QFrame):
 		
 		# Update instance selector for single-selection multi-instance layers
 		if len(selected_uuids) == 1:
-			instance_count = self.main_window.coa.get_layer_property(selected_uuids[0], 'instance_count') or 1
+			instance_count = self.main_window.coa.get_layer_instance_count(selected_uuids[0])
 			if instance_count > 1:
-				selected_inst = self.main_window.coa.get_layer_property(selected_uuids[0], 'selected_instance') or 0
+				selected_inst = self.main_window.selected_instance_per_layer.get(selected_uuids[0], 0)
 				self.instance_display.setText(f"{selected_inst + 1} of {instance_count}")
 				self.instance_selector_widget.setVisible(True)
 			else:
@@ -1415,7 +1450,7 @@ class PropertySidebar(QFrame):
 			elif selected_count == 1:
 				# Show single layer name
 				if selected_uuids:
-					layer_name = self.main_window.coa.get_layer_property(selected_uuids[0], 'filename') or 'Unknown Layer'
+					layer_name = self.main_window.coa.get_layer_filename(selected_uuids[0]) or 'Unknown Layer'
 					self.single_layer_label.setText(f"Layer: {layer_name}")
 					self.single_layer_label.setVisible(True)
 				self.multi_select_label.setVisible(False)
@@ -1471,7 +1506,7 @@ class PropertySidebar(QFrame):
 			return
 		
 		# Get mask value from first selected layer using CoA API
-		mask = self.main_window.coa.get_layer_property(selected_uuids[0], 'mask')
+		mask = self.main_window.coa.get_layer_mask(selected_uuids[0])
 		
 		# Update checkboxes based on mask value
 		if mask is None:

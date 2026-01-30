@@ -1,6 +1,7 @@
 """Clipboard operations - copy/paste CoA and layers"""
 from PyQt5.QtWidgets import QMessageBox, QApplication
-from models.layer import Layer
+from models.coa import Layer
+from utils.logger import loggerRaise
 
 
 class ClipboardActions:
@@ -33,11 +34,7 @@ class ClipboardActions:
 			self.main_window.status_left.setText("CoA copied to clipboard")
 			
 		except Exception as e:
-			QMessageBox.critical(
-				self.main_window,
-				"Error",
-				f"Failed to copy CoA: {str(e)}"
-			)
+			loggerRaise(e, f"Failed to copy CoA: {str(e)}")
 	
 	def paste_coa(self):
 		"""Paste CoA from clipboard"""
@@ -86,16 +83,9 @@ class ClipboardActions:
 			self.main_window.status_left.setText("CoA pasted from clipboard")
 			
 		except Exception as e:
-			QMessageBox.critical(
-				self.main_window,
-				"Error",
-				f"Failed to paste CoA: {str(e)}"
-			)
-	
+			loggerRaise(e, f"Failed to paste CoA: {str(e)}")
 	def copy_layer(self):
 		"""Copy selected layer(s) to clipboard"""
-		from services.layer_operations import serialize_layer_to_text
-		
 		selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
 		
 		if not selected_uuids:
@@ -106,11 +96,8 @@ class ClipboardActions:
 			)
 			return
 		
-		# Get selected layer data from CoA model as dicts
-		layer_dicts = [self.main_window.coa.get_layer_as_dict(uuid) for uuid in selected_uuids]
-		
-		# Serialize to text
-		clipboard_text = serialize_layer_to_text(layer_dicts)
+		# Serialize selected layers using CoA method
+		clipboard_text = self.main_window.coa.serialize_layers_to_string(selected_uuids)
 		
 		# Copy to clipboard
 		clipboard = QApplication.clipboard()
@@ -142,9 +129,7 @@ class ClipboardActions:
 			except:
 				temp_coa = CoA.from_layers_string(text)
 			
-			new_layers = [temp_coa.get_layer_by_index(i) for i in range(temp_coa.get_layer_count())] if temp_coa else []
-			
-			if not new_layers:
+			if not temp_coa or temp_coa.get_layer_count() == 0:
 				QMessageBox.information(
 					self.main_window,
 					"Paste Layer",
@@ -152,17 +137,23 @@ class ClipboardActions:
 				)
 				return
 			
-			# Add small offset to distinguish from original
-			offset = 0.02
-			for layer in new_layers:
-				layer.pos_x = min(1.0, layer.pos_x + offset)
-				layer.pos_y = min(1.0, layer.pos_y + offset)
+			# Extract layer data as dicts (not Layer objects)
+			layer_dicts = []
+			for i in range(temp_coa.get_layer_count()):
+				uuid = temp_coa.get_layer_uuid_by_index(i)
+				if uuid:
+					layer_dicts.append(temp_coa.get_layer_as_dict(uuid))
 			
-			# Add layers to CoA model (insert at front)
-			new_uuids = []
-			for layer in reversed(new_layers):
-				uuid = self.main_window.coa.add_layer_object(layer, at_front=True)
-				new_uuids.append(uuid)
+			if temp_coa.get_layer_count() == 0:
+				QMessageBox.information(
+					self.main_window,
+					"Paste Layer",
+					"No valid layer data in clipboard"
+				)
+				return
+			
+			# Copy layers from temp CoA to main CoA (insert at front) with offset
+			new_uuids = self.main_window.coa.copy_layers_from_coa(temp_coa, at_front=True, apply_offset=True)
 			
 			# Track all pasted UUIDs in CoA model for potential future use
 			self.main_window.coa.set_last_added_uuids(new_uuids)
@@ -176,33 +167,19 @@ class ClipboardActions:
 				self.main_window.right_sidebar.layer_list_widget.selected_layer_uuids = set(new_uuids)
 				self.main_window.right_sidebar.layer_list_widget.last_selected_uuid = new_uuids[0]
 				self.main_window.right_sidebar.layer_list_widget.update_selection_visuals()
-				# Trigger selection change callback to update property sidebar and transform widget
-				if self.main_window.right_sidebar.layer_list_widget.on_selection_changed:
-					self.main_window.right_sidebar.layer_list_widget.on_selection_changed()
 			
 			# Save to history
-			count = len(new_layers)
+			count = temp_coa.get_layer_count()
 			self.main_window._save_state(f"Paste {count} layer(s)")
 			
 			self.main_window.status_left.setText(f"{count} layer(s) pasted")
 			
 		except Exception as e:
-			QMessageBox.critical(
-				self.main_window,
-				"Error",
-				f"Failed to paste layer: {str(e)}"
-			)
+			loggerRaise(e, f"Failed to paste layer: {str(e)}")
 	
 	def paste_layer_smart(self):
-		"""Smart paste that checks if mouse is over canvas"""
-		from PyQt5.QtCore import QPoint
-		
-		# Get mouse position in canvas_area coordinates
-		mouse_pos = self.main_window.canvas_area.mapFromGlobal(
-			self.main_window.canvas_area.cursor().pos()
-		)
-		
-		# Get canvas widget geometry within canvas_area
+		"""Smart paste - pastes at mouse position if over canvas, otherwise at offset position"""
+		mouse_pos = self.main_window.canvas_area.mapFromGlobal(self.main_window.cursor().pos())
 		canvas_geometry = self.main_window.canvas_area.canvas_widget.geometry()
 		
 		# If mouse is over canvas, paste at position
@@ -236,9 +213,7 @@ class ClipboardActions:
 			except:
 				temp_coa = CoA.from_layers_string(text)
 			
-			new_layers = [temp_coa.get_layer_by_index(i) for i in range(temp_coa.get_layer_count())] if temp_coa else []
-			
-			if not new_layers:
+			if not temp_coa or temp_coa.get_layer_count() == 0:
 				return
 			
 			# Convert canvas_area coordinates to canvas_widget coordinates
@@ -263,32 +238,25 @@ class ClipboardActions:
 			norm_x = ((canvas_x - center) / (canvas_size / 2) / 1.1) + 0.5
 			norm_y = ((canvas_y - center) / (canvas_size / 2) / 1.1) + 0.5
 			
-			# If multiple layers, calculate centroid
-			if len(new_layers) > 1:
-				centroid_x = sum(layer.pos_x for layer in new_layers) / len(new_layers)
-				centroid_y = sum(layer.pos_y for layer in new_layers) / len(new_layers)
+			# Get all UUIDs from temp CoA
+			temp_uuids = [temp_coa.get_layer_uuid_by_index(i) for i in range(temp_coa.get_layer_count())]
+			
+			# Calculate centroid of temp layers
+			if len(temp_uuids) > 1:
+				centroid_x, centroid_y = temp_coa.get_layer_centroid(temp_uuids)
 				
 				# Calculate offset from centroid to mouse position
 				offset_x = norm_x - centroid_x
 				offset_y = norm_y - centroid_y
 				
-				# Apply offset to all layers
-				for layer in new_layers:
-					layer.pos_x = min(1.0, max(0.0, layer.pos_x + offset_x))
-					layer.pos_y = min(1.0, max(0.0, layer.pos_y + offset_y))
+				# Apply offset to temp CoA layers
+				temp_coa.adjust_layer_positions(temp_uuids, offset_x, offset_y)
 			else:
 				# Single layer - place directly at mouse position
-				new_layers[0].pos_x = norm_x
-				new_layers[0].pos_y = norm_y
+				temp_coa.set_layer_position(temp_uuids[0], norm_x, norm_y)
 			
-			# Add layers to CoA model (insert at front)
-			new_uuids = []
-			for layer in reversed(new_layers):
-				uuid = self.main_window.coa.add_layer_object(layer, at_front=True)
-				new_uuids.append(uuid)
-			
-			# Track all pasted UUIDs in CoA model for potential future use
-			self.main_window.coa.set_last_added_uuids(new_uuids)
+			# Copy adjusted layers to main CoA
+			new_uuids = self.main_window.coa.copy_layers_from_coa(temp_coa, at_front=True, apply_offset=False)
 			
 			# Update UI
 			self.main_window.right_sidebar._rebuild_layer_list()
@@ -300,21 +268,15 @@ class ClipboardActions:
 				self.main_window.right_sidebar.layer_list_widget.last_selected_uuid = new_uuids[0]
 				self.main_window.right_sidebar.layer_list_widget.update_selection_visuals()
 				# Trigger selection change callback to update property sidebar and transform widget
-				if self.main_window.right_sidebar.layer_list_widget.on_selection_changed:
-					self.main_window.right_sidebar.layer_list_widget.on_selection_changed()
+				self.main_window.right_sidebar._on_layer_selection_changed()
 			
 			# Save to history
-			count = len(new_layers)
-			self.main_window._save_state(f"Paste {count} layer(s) at position")
-			
-			self.main_window.status_left.setText(f"{count} layer(s) pasted at position")
+			count = len(new_uuids)
+			description = f"Paste {count} layer{'s' if count > 1 else ''} at position"
+			self.main_window._save_state(description)
 			
 		except Exception as e:
-			QMessageBox.critical(
-				self.main_window,
-				"Error",
-				f"Failed to paste layer: {str(e)}"
-			)
+			loggerRaise(e, f"Failed to paste layer: {str(e)}")
 	
 	def duplicate_selected_layer(self):
 		"""Duplicate selected layer(s) and place above"""
@@ -377,5 +339,38 @@ class ClipboardActions:
 			self.main_window.right_sidebar.layer_list_widget.update_selection_visuals()
 		
 		# Save to history
-		count = len(selected_indices)
+		count = len(selected_uuids)
 		self.main_window._save_state(f"Duplicate {count} layer(s) below")
+	
+	def duplicate_selected_layer(self):
+		"""Duplicate selected layer(s) and place above"""
+		selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
+		
+		if not selected_uuids:
+			QMessageBox.information(
+				self.main_window,
+				"Duplicate Layer",
+				"No layer selected"
+			)
+			return
+		
+		# Duplicate using CoA model
+		new_uuids = []
+		for uuid in selected_uuids:
+			new_uuid = self.main_window.coa.duplicate_layer(uuid)
+			new_uuids.append(new_uuid)
+		
+		# Update UI
+		self.main_window.right_sidebar._rebuild_layer_list()
+		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
+		
+		# Select the new duplicated layers
+		if new_uuids:
+			self.main_window.right_sidebar.layer_list_widget.selected_layer_uuids = set(new_uuids)
+			self.main_window.right_sidebar.layer_list_widget.last_selected_uuid = new_uuids[0]
+			self.main_window.right_sidebar.layer_list_widget.update_selection_visuals()
+		
+		# Save to history
+		count = len(selected_uuids)
+		self.main_window._save_state(f"Duplicate {count} layer(s)")
+

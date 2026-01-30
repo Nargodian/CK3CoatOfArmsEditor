@@ -18,3 +18,20 @@ second question to ask yourself is
 "can I add a coa method to do what I want to do?"
 METHODS THAT RETURN THE INDVIDUAL LAYER OBJECTS ARE BANNED
 PLEASE USE UUIDS TO IDENTIFY LAYERS
+please avoid try except blocks that don't "raise e" we want to see errors in the logs
+while refactoring if you need to use a "except Exception as e"
+please use "loggerRaise(e, 'message')" to log the error with context
+this will help us debug issues in the field
+if you find except Exception as e blocks that just use a message box
+please refactor them to use loggerRaise instead
+we do not use generic getters or setters like "get_layer_property" or "set_layer_property"
+please use specific methods like "get_layer_name" or "set_layer_opacity"
+if you find code that is using index based layer access
+please refactor it to use UUID based access instead
+if you find code that is building dicts manually
+please refactor it to use the coa.to_string() method instead
+if you lack coa method to get the particular data you need
+please add a new coa method to get that data
+same for setting data
+do not manipulate coa._layers directly
+selection is not handled inside the coa model

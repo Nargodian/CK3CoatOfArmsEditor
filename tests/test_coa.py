@@ -18,8 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'editor', 'src'
 
 import unittest
 import math
-from models.coa import CoA
-from models.layer import LayerTracker
+from models.coa import CoA, LayerTracker
 
 
 class TestCoAProperties(unittest.TestCase):

@@ -53,7 +53,7 @@ def get_texture_color_count(filename: str) -> int:
 	
 	# Check patterns
 	if filename in _PATTERN_METADATA:
-		return _PATTERN_METADATA[filename].get('colors', 1)
+		return _PATTERN_METADATA[filename].get('colors', 3)
 	
 	# Default to 3 colors for unknown emblems
 	return 3

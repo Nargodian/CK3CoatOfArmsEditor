@@ -110,8 +110,8 @@ class LayerListWidget(QWidget):
 			return QPushButton()
 		
 		# Query properties from CoA using UUID
-		filename = self.coa.get_layer_property(uuid, 'filename')
-		instance_count = self.coa.get_layer_property(uuid, 'instance_count')
+		filename = self.coa.get_layer_filename(uuid)
+		instance_count = self.coa.get_layer_instance_count(uuid)
 		
 		layer_btn = QPushButton()
 		layer_btn.setCheckable(True)
@@ -243,7 +243,7 @@ class LayerListWidget(QWidget):
 		
 		# Color buttons container (stacked vertically like traffic lights)
 		# Get actual number of colors from layer data
-		num_colors = self.coa.get_layer_property(uuid, 'colors') or 3
+		num_colors = self.coa.get_layer_colors(uuid) or 3
 		
 		color_container = QWidget()
 		color_container.setStyleSheet("border: none;")
@@ -258,8 +258,7 @@ class LayerListWidget(QWidget):
 			color_btn.setToolTip(f"Color {color_idx}")
 			
 			# Get current color from CoA by UUID
-			color_key = f'color{color_idx}'
-			color_rgb = self.coa.get_layer_property(uuid, color_key) or [1.0, 1.0, 1.0]
+			color_rgb = self.coa.get_layer_color(uuid, color_idx) or [1.0, 1.0, 1.0]
 			r, g, b = int(color_rgb[0] * 255), int(color_rgb[1] * 255), int(color_rgb[2] * 255)
 			
 			color_btn.setStyleSheet(f"""
@@ -293,7 +292,7 @@ class LayerListWidget(QWidget):
 		action_layout.setSpacing(2)
 		
 		# Visibility toggle button - query from CoA by UUID
-		visible = self.coa.get_layer_property(uuid, 'visible')
+		visible = self.coa.get_layer_visible(uuid)
 		if visible is None:
 			visible = True
 		visibility_btn = QPushButton("👁" if visible else "🚫")
@@ -606,9 +605,11 @@ class LayerListWidget(QWidget):
 			self._select_layer_by_uuid(uuid)
 	
 	def update_selection_visuals(self):
-		"""Update which layer buttons are checked"""
+		"""Update which layer buttons are checked and trigger selection callback"""
 		for uuid, btn in self.layer_buttons:
 			btn.setChecked(uuid in self.selected_layer_uuids)
+		if self.on_selection_changed:
+			self.on_selection_changed()
 	
 	def get_selected_uuids(self):
 		"""Get list of selected layer UUIDs (primary selection API)"""
@@ -697,7 +698,7 @@ class LayerListWidget(QWidget):
 			return self.thumbnail_cache[cache_key]
 		
 		# Query layer properties from CoA by UUID
-		filename = self.coa.get_layer_property(uuid, 'filename')
+		filename = self.coa.get_layer_filename(uuid)
 		
 		if not filename:
 			return None
@@ -705,7 +706,7 @@ class LayerListWidget(QWidget):
 		from utils.color_utils import get_contrasting_background
 		
 		# Get actual layer colors (in 0-1 range) - query from CoA
-		emblem_color1 = self.coa.get_layer_property(uuid, 'color1') or [0.75, 0.525, 0.188]
+		emblem_color1 = self.coa.get_layer_color(uuid, 1) or [0.75, 0.525, 0.188]
 		
 		# Get base background color from property sidebar (not from layer data)
 		if self.property_sidebar and hasattr(self.property_sidebar, 'get_base_colors'):
@@ -719,9 +720,9 @@ class LayerListWidget(QWidget):
 		
 		# Extract colors from CoA (already in 0-1 range)
 		colors = {
-			'color1': tuple(self.coa.get_layer_property(uuid, 'color1') or [0.75, 0.525, 0.188]),
-			'color2': tuple(self.coa.get_layer_property(uuid, 'color2') or [0.45, 0.133, 0.090]),
-			'color3': tuple(self.coa.get_layer_property(uuid, 'color3') or [0.45, 0.133, 0.090]),
+			'color1': tuple(self.coa.get_layer_color(uuid, 1) or [0.75, 0.525, 0.188]),
+			'color2': tuple(self.coa.get_layer_color(uuid, 2) or [0.45, 0.133, 0.090]),
+			'color3': tuple(self.coa.get_layer_color(uuid, 3) or [0.45, 0.133, 0.090]),
 			'background1': background_color
 		}
 		
@@ -781,10 +782,10 @@ class LayerListWidget(QWidget):
 			return
 		
 		# Query fresh properties from CoA
-		filename = self.coa.get_layer_property(uuid, 'filename')
-		instance_count = self.coa.get_layer_property(uuid, 'instance_count')
-		num_colors = self.coa.get_layer_property(uuid, 'colors') or 3
-		visible = self.coa.get_layer_property(uuid, 'visible')
+		filename = self.coa.get_layer_filename(uuid)
+		instance_count = self.coa.get_layer_instance_count(uuid)
+		num_colors = self.coa.get_layer_colors(uuid) or 3
+		visible = self.coa.get_layer_visible(uuid)
 		if visible is None:
 			visible = True
 		
@@ -875,42 +876,22 @@ class LayerListWidget(QWidget):
 									color_btn.setToolTip(f"Color {color_idx}")
 									
 									# Get current color from CoA by UUID
-									color_key = f'color{color_idx}'
-									color_rgb = self.coa.get_layer_property(uuid, color_key) or [1.0, 1.0, 1.0]
-									r, g, b = int(color_rgb[0] * 255), int(color_rgb[1] * 255), int(color_rgb[2] * 255)
-									
-									color_btn.setStyleSheet(f"""
-										QPushButton {{
-											border: 1px solid rgba(255, 255, 255, 80);
-											border-radius: 2px;
-											background-color: rgb({r}, {g}, {b});
-											padding: 0px;
-										}}
-										QPushButton:hover {{
-											border: 2px solid rgba(255, 255, 255, 150);
-										}}
-									""")
-									color_btn.clicked.connect(lambda checked, u=uuid, c_idx=color_idx: self._handle_color_pick(u, c_idx))
-									color_layout.addWidget(color_btn)
+								color_rgb = self.coa.get_layer_color(uuid, color_idx) or [1.0, 1.0, 1.0]
+								r, g, b = int(color_rgb[0] * 255), int(color_rgb[1] * 255), int(color_rgb[2] * 255)
 								
-								# Add stretch if less than 3 colors
-								if num_colors < 3:
-									color_layout.addStretch()
-					
-					# Find action_container (after spacer at index 1, so index 2)
-					if inline_layout.count() > 2:
-						# The spacer is at index 1, so action_container should be at index 2
-						action_item = inline_layout.itemAt(2)
-						if action_item:
-							action_container = action_item.widget()
-							if action_container:
-								action_layout = action_container.layout()
-								if action_layout and action_layout.count() > 0:
-									# Update visibility button (first in action layout)
-									visibility_btn = action_layout.itemAt(0).widget()
-									if isinstance(visibility_btn, QPushButton):
-										visibility_btn.setText("👁" if visible else "🚫")
-		
+								color_btn.setStyleSheet(f"""
+									QPushButton {{
+										border: 1px solid rgba(255, 255, 255, 80);
+										border-radius: 2px;
+										background-color: rgb({r}, {g}, {b});
+									padding: 0px;
+								}}
+								QPushButton:hover {{
+									border: 2px solid rgba(255, 255, 255, 150);
+								}}
+							""")
+							color_btn.clicked.connect(lambda checked, u=uuid, c_idx=color_idx: self._handle_color_pick(u, c_idx))
+							color_layout.addWidget(color_btn)
 		# Update button style based on instance count
 		is_multi_instance = instance_count > 1
 		if is_multi_instance:

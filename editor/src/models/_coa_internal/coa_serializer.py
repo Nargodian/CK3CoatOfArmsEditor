@@ -1,8 +1,20 @@
 """
-CK3 Coat of Arms Editor - CoA Serialization Service
+CK3 Coat of Arms Serializer - INTERNAL IMPLEMENTATION ONLY
 
-This module handles serialization and deserialization of complete CoA data structures.
-Works with coa_parser.py for parsing and provides high-level operations for the UI.
+⚠️ WARNING: DO NOT ACCESS THIS MODULE DIRECTLY ⚠️
+
+This is an internal implementation detail of the CoA model.
+External code should ONLY use CoA methods for serialization.
+
+This module works with dictionaries and Layer objects as an intermediate
+representation. Direct usage violates the CoA encapsulation model.
+
+Use CoA methods instead:
+- To serialize full CoA: coa.to_string()
+- To serialize specific layers: coa.serialize_layers_to_string(uuids)
+- To parse: CoA.from_string(text)
+
+Direct access to this module is FORBIDDEN by the refactoring rules.
 """
 
 import json

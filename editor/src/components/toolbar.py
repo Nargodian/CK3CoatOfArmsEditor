@@ -23,7 +23,7 @@ def create_toolbar(parent):
 	
 	# Connect buttons to parent methods
 	new_btn.clicked.connect(parent.new_coa)
-	open_btn.clicked.connect(parent.load_coa)
+	open_btn.clicked.connect(parent.file_actions.load_coa)
 	save_btn.clicked.connect(parent.save_coa)
 	undo_btn.clicked.connect(parent.undo)
 	redo_btn.clicked.connect(parent.redo)

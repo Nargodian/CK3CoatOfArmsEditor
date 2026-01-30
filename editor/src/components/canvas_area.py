@@ -197,11 +197,11 @@ class CanvasArea(QFrame):
 				self.transform_widget.set_visible(False)
 				return
 			
-			pos_x = self.main_window.coa.get_layer_property(uuid, 'pos_x')
-			pos_y = self.main_window.coa.get_layer_property(uuid, 'pos_y')
-			scale_x = self.main_window.coa.get_layer_property(uuid, 'scale_x')
-			scale_y = self.main_window.coa.get_layer_property(uuid, 'scale_y')
-			rotation = self.main_window.coa.get_layer_property(uuid, 'rotation')
+			pos_x = self.main_window.coa.get_layer_pos_x(uuid)
+			pos_y = self.main_window.coa.get_layer_pos_y(uuid)
+			scale_x = self.main_window.coa.get_layer_scale_x(uuid)
+			scale_y = self.main_window.coa.get_layer_scale_y(uuid)
+			rotation = self.main_window.coa.get_layer_rotation(uuid)
 			
 			if pos_x is None or pos_y is None:
 				self.transform_widget.set_visible(False)

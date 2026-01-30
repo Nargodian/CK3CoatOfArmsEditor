@@ -4,8 +4,7 @@ from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader, QOpenGLVertexArrayObject, QOpenGLBuffer, QVector2D, QVector3D, QVector4D
 
 #COA INTEGRATION ACTION: Step 5 - Import Layer and CoA models for type hints and future use
-from models.coa import CoA
-from models.layer import Layer
+from models.coa import CoA, Layer
 
 # External library imports
 import OpenGL.GL as gl
@@ -389,11 +388,11 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			# Iterate through layers using UUIDs
 			for layer_uuid in self.coa.get_all_layer_uuids():
 				# Get layer properties via UUID-based queries
-				visible = self.coa.get_layer_property(layer_uuid, 'visible')
+				visible = self.coa.get_layer_visible(layer_uuid)
 				if not visible:
 					continue
 				
-				filename = self.coa.get_layer_property(layer_uuid, 'filename')
+				filename = self.coa.get_layer_filename(layer_uuid)
 				if not filename or filename not in self.texture_uv_map:
 					continue
 				
@@ -407,15 +406,15 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				self.design_shader.setUniformValue("emblemMaskSampler", 0)
 				
 				# Set emblem colors via CoA queries
-				color1 = self.coa.get_layer_property(layer_uuid, 'color1')
-				color2 = self.coa.get_layer_property(layer_uuid, 'color2')
-				color3 = self.coa.get_layer_property(layer_uuid, 'color3')
+				color1 = self.coa.get_layer_color(layer_uuid, 1)
+				color2 = self.coa.get_layer_color(layer_uuid, 2)
+				color3 = self.coa.get_layer_color(layer_uuid, 3)
 				self.design_shader.setUniformValue("primaryColor", color1[0], color1[1], color1[2])
 				self.design_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
 				self.design_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
 				
 				# Set pattern mask flag
-				mask = self.coa.get_layer_property(layer_uuid, 'mask')
+				mask = self.coa.get_layer_mask(layer_uuid)
 				if mask is None:
 					pattern_flag = 0
 				else:
@@ -429,13 +428,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				self.design_shader.setUniformValue("patternFlag", pattern_flag)
 				
 				# Apply transforms via CoA queries (no zoom in canonical space)
-				pos_x = self.coa.get_layer_property(layer_uuid, 'pos_x')
-				pos_y = self.coa.get_layer_property(layer_uuid, 'pos_y')
-				scale_x = self.coa.get_layer_property(layer_uuid, 'scale_x')
-				scale_y = self.coa.get_layer_property(layer_uuid, 'scale_y')
-				flip_x = self.coa.get_layer_property(layer_uuid, 'flip_x')
-				flip_y = self.coa.get_layer_property(layer_uuid, 'flip_y')
-				rotation = self.coa.get_layer_property(layer_uuid, 'rotation')
+				pos_x = self.coa.get_layer_pos_x(layer_uuid)
+				pos_y = self.coa.get_layer_pos_y(layer_uuid)
+				scale_x = self.coa.get_layer_scale_x(layer_uuid)
+				scale_y = self.coa.get_layer_scale_y(layer_uuid)
+				flip_x = self.coa.get_layer_flip_x(layer_uuid)
+				flip_y = self.coa.get_layer_flip_y(layer_uuid)
+				rotation = self.coa.get_layer_rotation(layer_uuid)
 				
 				# Convert layer position to OpenGL coordinates
 				center_x, center_y = layer_pos_to_opengl_coords(pos_x, pos_y)

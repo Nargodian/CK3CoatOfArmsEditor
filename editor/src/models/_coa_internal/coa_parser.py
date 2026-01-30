@@ -1,8 +1,23 @@
 """
-CK3 Coat of Arms Parser/Serializer
+CK3 Coat of Arms Parser - INTERNAL IMPLEMENTATION ONLY
+
+⚠️ WARNING: DO NOT ACCESS THIS MODULE DIRECTLY ⚠️
+
+This is an internal implementation detail of the CoA model.
+External code should ONLY use CoA.from_string() and CoA.to_string().
+
+This parser produces dictionary structures as an intermediate representation
+during parsing. These dicts are NEVER exposed to external code - they are
+immediately converted to Layer objects with UUIDs inside CoA.from_string().
 
 Parses and serializes CK3 coat of arms definitions in the Clausewitz format.
 Supports the simplified CoA structure with pattern, colors, and colored_emblem blocks.
+
+Direct usage of this module violates the CoA encapsulation model and is forbidden.
+Use CoA methods instead:
+- To parse: CoA.from_string(text)
+- To serialize: coa.to_string()
+- To copy layers: coa.copy_layers_from_coa(source_coa)
 """
 
 import re
