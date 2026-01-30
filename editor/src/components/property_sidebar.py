@@ -837,8 +837,8 @@ class PropertySidebar(QFrame):
 			self.canvas_widget.set_coa(self.main_window.coa)
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):
-			layer_word = "layers" if len(valid_indices) > 1 else "layer"
-			self.main_window._save_state(f"Delete {len(valid_indices)} {layer_word}")
+			layer_word = "layers" if len(selected_uuids) > 1 else "layer"
+			self.main_window._save_state(f"Delete {len(selected_uuids)} {layer_word}")
 	
 	def _move_layer_up(self):
 		"""Move all selected layers up in the list as a group"""
@@ -935,15 +935,7 @@ class PropertySidebar(QFrame):
 		# Select the new layers by UUID
 		if new_uuids:
 			self.layer_list_widget.selected_layer_uuids = set(new_uuids)
-			# Update indices for compatibility
-			new_indices = []
-			for uuid in new_uuids:
-				idx = self.main_window.coa.get_layer_index(uuid)
-				if idx is not None:
-					new_indices.append(idx)
-			if new_indices:
-				self.selected_layer_indices = set(new_indices)
-				self.last_selected_index = new_indices[-1]
+			# Note: No need to track indices anymore, selection is UUID-based
 		
 		self._rebuild_layer_list()
 		self._update_layer_selection()
@@ -957,57 +949,8 @@ class PropertySidebar(QFrame):
 			self.canvas_area.update_transform_widget_for_layer()
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):
-			layer_word = "layers" if len(valid_indices) > 1 else "layer"
-			self.main_window._save_state(f"Duplicate {len(valid_indices)} {layer_word}")
-	
-	def _delete_layer(self, uuid):
-		"""Delete a specific layer by UUID"""
-		self.coa.remove_layer(uuid)
-		
-		# Clear thumbnail cache since layer indices have shifted
-		if hasattr(self, 'layer_list_widget'):
-			self.layer_list_widget.clear_thumbnail_cache()
-		
-		# Adjust selected UUIDs - remove the deleted one
-		self.layer_list_widget.selected_layer_uuids.discard(uuid)
-		if self.layer_list_widget.last_selected_uuid == uuid:
-			self.layer_list_widget.last_selected_uuid = None
-		
-		self._rebuild_layer_list()
-		self.layer_list_widget.update_selection_visuals()
-		# Update transform widget
-		if self.canvas_area:
-			self.canvas_area.update_transform_widget_for_layer()
-		if self.canvas_widget:
-			self.canvas_widget.set_coa(self.main_window.coa)
-	
-	def _duplicate_layer(self, uuid):
-		"""Duplicate a specific layer by UUID"""
-		# Find the layer's index in CoA
-		index = None
-		for idx in range(self.coa.get_layer_count()):
-			if self.coa.get_layer_uuid_by_index(idx) == uuid:
-				index = idx
-				break
-		
-		if index is None:
-			return
-		
-		# Duplicate using CoA API at specific index
-		new_uuid = self.coa.duplicate_layer_at_index(uuid, index + 1)
-		
-		# Select the new duplicate by UUID
-		self.layer_list_widget.selected_layer_uuids = {new_uuid}
-		self.layer_list_widget.last_selected_uuid = new_uuid
-		self._rebuild_layer_list()
-		self.layer_list_widget.update_selection_visuals()
-		self._load_layer_properties()
-		# Enable properties tab but don't switch to it
-		self.tab_widget.setTabEnabled(2, True)
-		if self.canvas_area:
-			self.canvas_area.update_transform_widget_for_layer()
-		if self.canvas_widget:
-				self.canvas_widget.set_coa(self.main_window.coa)
+			layer_word = "layers" if len(selected_uuids) > 1 else "layer"
+			self.main_window._save_state(f"Duplicate {len(selected_uuids)} {layer_word}")
 	
 	# ========================================
 	# Layer List Widget Callbacks

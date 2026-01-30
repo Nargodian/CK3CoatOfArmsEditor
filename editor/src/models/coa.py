@@ -46,7 +46,7 @@ Usage:
 
 import re
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Union
 import uuid as uuid_module
 from copy import deepcopy
 import math
@@ -71,6 +71,11 @@ class CoA(CoAQueryMixin):
     Manages all CoA data and operations. This is THE MODEL in MVC.
     All data manipulation goes through this class.
     
+    Active Instance Pattern:
+        CoA.set_active(coa_instance) - Set the active CoA
+        CoA.get_active() - Get the active CoA instance
+        CoA.has_active() - Check if active instance exists
+    
     Properties:
         pattern: Base pattern filename
         pattern_color1: RGB list for pattern color 1
@@ -79,6 +84,40 @@ class CoA(CoAQueryMixin):
         pattern_color2_name: CK3 color name for pattern color 2
         layers: Layers collection (UUID-based access)
     """
+    
+    _active_instance = None  # Class variable for active CoA instance
+    
+    @classmethod
+    def set_active(cls, instance: 'CoA'):
+        """Set the active CoA instance
+        
+        Args:
+            instance: CoA instance to set as active
+        """
+        cls._active_instance = instance
+    
+    @classmethod
+    def get_active(cls) -> 'CoA':
+        """Get the active CoA instance
+        
+        Returns:
+            Active CoA instance
+            
+        Raises:
+            RuntimeError: If no active instance set
+        """
+        if cls._active_instance is None:
+            raise RuntimeError("No active CoA instance set. Call CoA.set_active() first.")
+        return cls._active_instance
+    
+    @classmethod
+    def has_active(cls) -> bool:
+        """Check if an active CoA instance exists
+        
+        Returns:
+            True if active instance set, False otherwise
+        """
+        return cls._active_instance is not None
     
     def __init__(self):
         """Create new CoA with defaults"""
@@ -297,7 +336,7 @@ class CoA(CoAQueryMixin):
             }
         """
         # Import parser (lazy to avoid circular dependencies)
-        from utils.coa_parser import CoAParser
+        from ._coa_internal.coa_parser import CoAParser
         from utils.color_utils import color_name_to_rgb
         
         coa = cls()
@@ -479,7 +518,7 @@ class CoA(CoAQueryMixin):
         Returns:
             New CoA instance with default pattern and parsed layers
         """
-        from utils.coa_parser import CoAParser
+        from ._coa_internal.coa_parser import CoAParser
         from utils.color_utils import color_name_to_rgb
         import uuid as uuid_module
         
@@ -728,7 +767,7 @@ class CoA(CoAQueryMixin):
         
         # Filter and serialize only specified layers
         for layer_uuid in uuids:
-            layer = self._get_layer_by_uuid(layer_uuid)
+            layer = self.get_layer_by_uuid(layer_uuid)
             if not layer:
                 continue
                 
@@ -768,8 +807,9 @@ class CoA(CoAQueryMixin):
                 if inst['rotation'] != 0.0:
                     lines.append(f"\t\t\trotation = {inst['rotation']:.2f}")
                 
-                # Depth (preserve original depth value)
-                lines.append(f"\t\t\tdepth = {inst['depth']:.2f}")
+                # Depth (preserve original depth value if present)
+                if 'depth' in inst:
+                    lines.append(f"\t\t\tdepth = {inst['depth']:.2f}")
                 
                 lines.append("\t\t}")
             
@@ -846,25 +886,6 @@ class CoA(CoAQueryMixin):
         self._layers.remove(layer, caller='CoA')
         self._logger.debug(f"Removed layer: {uuid}")
     
-    def move_layer(self, uuid: str, to_index: int):
-        """Move layer to new position
-        
-        Args:
-            uuid: Layer UUID
-            to_index: Target index in layer stack
-            
-        Raises:
-            ValueError: If UUID not found
-            IndexError: If to_index out of range
-        """
-        from_index = self._layers.get_index_by_uuid(uuid)
-        
-        if not (0 <= to_index < len(self._layers)):
-            raise IndexError(f"Index {to_index} out of range [0, {len(self._layers)})")
-        
-        self._layers.move(from_index, to_index, caller='CoA')
-        self._logger.debug(f"Moved layer {uuid}: {from_index} -> {to_index}")
-    
     def duplicate_layer(self, uuid: str) -> str:
         """Duplicate layer (creates new UUID)
         
@@ -896,6 +917,289 @@ class CoA(CoAQueryMixin):
         
         self._logger.debug(f"Duplicated layer {uuid} -> {new_layer.uuid}")
         return new_layer.uuid
+    
+    def duplicate_layer_below(self, uuid: str, target_uuid: str) -> str:
+        """Duplicate layer and place above target layer (in front, higher index)
+        
+        Args:
+            uuid: Layer UUID to duplicate
+            target_uuid: UUID of layer to place duplicate above (in front of)
+            
+        Returns:
+            UUID of the new layer
+            
+        Raises:
+            ValueError: If either UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        # Get target layer position
+        target_index = self._layers.get_index_by_uuid(target_uuid)
+        
+        # Deep copy layer data
+        data = deepcopy(layer.to_dict(caller='CoA'))
+        
+        # Generate new UUID
+        data['uuid'] = str(uuid_module.uuid4())
+        
+        # Create new layer
+        new_layer = Layer(data, caller='CoA')
+        
+        # Insert above target (higher index = in front)
+        self._layers.insert(target_index + 1, new_layer, caller='CoA')
+        
+        self._logger.debug(f"Duplicated layer {uuid} -> {new_layer.uuid} above {target_uuid}")
+        return new_layer.uuid
+    
+    def duplicate_layer_above(self, uuid: str, target_uuid: str) -> str:
+        """Duplicate layer and place below target layer (behind, lower index)
+        
+        Args:
+            uuid: Layer UUID to duplicate
+            target_uuid: UUID of layer to place duplicate below (behind)
+            
+        Returns:
+            UUID of the new layer
+            
+        Raises:
+            ValueError: If either UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        # Get target layer position
+        target_index = self._layers.get_index_by_uuid(target_uuid)
+        
+        # Deep copy layer data
+        data = deepcopy(layer.to_dict(caller='CoA'))
+        
+        # Generate new UUID
+        data['uuid'] = str(uuid_module.uuid4())
+        
+        # Create new layer
+        new_layer = Layer(data, caller='CoA')
+        
+        # Insert below target (lower index = behind)
+        self._layers.insert(target_index, new_layer, caller='CoA')
+        
+        self._logger.debug(f"Duplicated layer {uuid} -> {new_layer.uuid} below {target_uuid}")
+        return new_layer.uuid
+    
+    def copy_layers_from_coa(self, source_coa: 'CoA', at_front: bool = True, apply_offset: bool = False, target_uuid: Optional[str] = None) -> List[str]:
+        """Copy all layers from another CoA into this one
+        
+        Args:
+            source_coa: Source CoA to copy layers from
+            at_front: If True, insert at front (highest index/top of render), else insert at back (index 0/bottom)
+                     Ignored if target_uuid is provided.
+            apply_offset: If True, apply paste offset to positions
+            target_uuid: If provided, insert layers below this target (in front of it, higher index)
+            
+        Returns:
+            List of new UUIDs for copied layers
+        """
+        new_uuids = []
+        layer_count = source_coa.get_layer_count()
+        
+        # If target_uuid provided, get its position for insertion
+        target_index = None
+        if target_uuid:
+            target_index = self._layers.get_index_by_uuid(target_uuid)
+        
+        for i in range(layer_count):
+            source_uuid = source_coa.get_layer_uuid_by_index(i)
+            source_layer = source_coa._layers.get_by_uuid(source_uuid)
+            
+            if not source_layer:
+                continue
+            
+            # Deep copy layer data
+            data = deepcopy(source_layer.to_dict(caller='CoA'))
+            
+            # Generate new UUID
+            data['uuid'] = str(uuid_module.uuid4())
+            
+            # Apply offset if requested
+            if apply_offset:
+                for inst in data.get('instances', []):
+                    inst['pos_x'] = inst.get('pos_x', 0.5) + PASTE_OFFSET_X
+                    inst['pos_y'] = inst.get('pos_y', 0.5) + PASTE_OFFSET_Y
+            
+            # Create new layer
+            new_layer = Layer(data, caller='CoA')
+            
+            # Insert at appropriate position
+            if target_uuid and target_index is not None:
+                # Insert below target (higher index = in front)
+                self._layers.insert(target_index + 1 + i, new_layer, caller='CoA')
+            elif at_front:
+                self._layers.append(new_layer, caller='CoA')
+            else:
+                self._layers.insert(i, new_layer, caller='CoA')
+            
+            new_uuids.append(new_layer.uuid)
+        
+        self._logger.debug(f"Copied {len(new_uuids)} layers from source CoA")
+        return new_uuids
+    
+    def move_layer_below(self, uuids: Union[str, List[str]], target_uuid: str):
+        """Move layer(s) above target layer (in front, higher index)
+        
+        When moving multiple layers, they are moved as a contiguous group
+        maintaining the order specified in the list.
+        
+        Args:
+            uuids: Layer UUID to move, or list of UUIDs (list order = final stacking order)
+            target_uuid: UUID of layer to move above (in front of)
+            
+        Raises:
+            ValueError: If any UUID not found
+        """
+        # Normalize to list
+        if isinstance(uuids, str):
+            uuids = [uuids]
+        
+        if not uuids:
+            return
+        
+        # Filter out target UUID if present
+        uuids = [uuid for uuid in uuids if uuid != target_uuid]
+        if not uuids:
+            return  # Nothing to move
+        
+        # Get target position
+        target_index = self._layers.get_index_by_uuid(target_uuid)
+        
+        # Remove all layers (collect them in order)
+        layers_to_move = []
+        for uuid in uuids:
+            from_index = self._layers.get_index_by_uuid(uuid)
+            layer = self._layers.pop(from_index, caller='CoA')
+            layers_to_move.append(layer)
+            
+            # Adjust target index if we removed something before it
+            if from_index < target_index:
+                target_index -= 1
+        
+        # Insert all layers above target (higher index = in front)
+        # Insert in order: first UUID in list goes at target+1, second at target+2, etc.
+        for i, layer in enumerate(layers_to_move):
+            self._layers.insert(target_index + 1 + i, layer, caller='CoA')
+        
+        self._logger.debug(f"Moved {len(layers_to_move)} layer(s) above {target_uuid}")
+    
+    def move_layer_above(self, uuids: Union[str, List[str]], target_uuid: str):
+        """Move layer(s) below target layer (behind, lower index)
+        
+        When moving multiple layers, they are moved as a contiguous group
+        maintaining the order specified in the list.
+        
+        Args:
+            uuids: Layer UUID to move, or list of UUIDs (list order = final stacking order)
+            target_uuid: UUID of layer to move below (behind)
+            
+        Raises:
+            ValueError: If any UUID not found
+        """
+        # Normalize to list
+        if isinstance(uuids, str):
+            uuids = [uuids]
+        
+        if not uuids:
+            return
+        
+        # Filter out target UUID if present
+        uuids = [uuid for uuid in uuids if uuid != target_uuid]
+        if not uuids:
+            return  # Nothing to move
+        
+        # Get target position
+        target_index = self._layers.get_index_by_uuid(target_uuid)
+        
+        # Remove all layers (collect them in order)
+        layers_to_move = []
+        for uuid in uuids:
+            from_index = self._layers.get_index_by_uuid(uuid)
+            layer = self._layers.pop(from_index, caller='CoA')
+            layers_to_move.append(layer)
+            
+            # Adjust target index if we removed something before it
+            if from_index < target_index:
+                target_index -= 1
+        
+        # Insert all layers below target (lower index = behind)
+        # Insert in order: first UUID in list goes at target, second at target+1, etc.
+        for i, layer in enumerate(layers_to_move):
+            self._layers.insert(target_index + i, layer, caller='CoA')
+        
+        self._logger.debug(f"Moved {len(layers_to_move)} layer(s) below {target_uuid}")
+    
+    def move_layer_to_bottom(self, uuids: Union[str, List[str]]):
+        """Move layer(s) to top (front of rendering order)
+        
+        When moving multiple layers, they are moved as a contiguous group
+        maintaining the order specified in the list.
+        
+        Args:
+            uuids: Layer UUID to move, or list of UUIDs (list order = final stacking order)
+            
+        Raises:
+            ValueError: If any UUID not found
+        """
+        # Normalize to list
+        if isinstance(uuids, str):
+            uuids = [uuids]
+        
+        if not uuids:
+            return
+        
+        # Remove all layers (collect them in order)
+        layers_to_move = []
+        for uuid in uuids:
+            from_index = self._layers.get_index_by_uuid(uuid)
+            layer = self._layers.pop(from_index, caller='CoA')
+            layers_to_move.append(layer)
+        
+        # Append all layers to top (in order)
+        for layer in layers_to_move:
+            self._layers.append(layer, caller='CoA')
+        
+        self._logger.debug(f"Moved {len(layers_to_move)} layer(s) to top")
+    
+    def move_layer_to_top(self, uuids: Union[str, List[str]]):
+        """Move layer(s) to bottom (back of rendering order)
+        
+        When moving multiple layers, they are moved as a contiguous group
+        maintaining the order specified in the list.
+        
+        Args:
+            uuids: Layer UUID to move, or list of UUIDs (list order = final stacking order)
+            
+        Raises:
+            ValueError: If any UUID not found
+        """
+        # Normalize to list
+        if isinstance(uuids, str):
+            uuids = [uuids]
+        
+        if not uuids:
+            return
+        
+        # Remove all layers (collect them in order)
+        layers_to_move = []
+        for uuid in uuids:
+            from_index = self._layers.get_index_by_uuid(uuid)
+            layer = self._layers.pop(from_index, caller='CoA')
+            layers_to_move.append(layer)
+        
+        # Insert all layers at bottom (in order)
+        for i, layer in enumerate(layers_to_move):
+            self._layers.insert(i, layer, caller='CoA')
+        
+        self._logger.debug(f"Moved {len(layers_to_move)} layer(s) to bottom")
     
     def review_merge(self, uuids: List[str]) -> Dict[str, Any]:
         """Review merge operation before performing it (validation and warnings)
@@ -1162,6 +1466,58 @@ class CoA(CoAQueryMixin):
         layer.pos_x += dx
         layer.pos_y += dy
         self._logger.debug(f"Translated layer {uuid}: ({dx:.4f}, {dy:.4f})")
+    
+    def adjust_layer_positions(self, uuids: List[str], dx: float, dy: float):
+        """Adjust positions of multiple layers by offset
+        
+        Args:
+            uuids: List of layer UUIDs to adjust
+            dx: X offset to apply
+            dy: Y offset to apply
+            
+        Raises:
+            ValueError: If any UUID not found
+        """
+        for uuid in uuids:
+            layer = self._layers.get_by_uuid(uuid)
+            if not layer:
+                raise ValueError(f"Layer with UUID '{uuid}' not found")
+            
+            layer.pos_x += dx
+            layer.pos_y += dy
+        
+        self._logger.debug(f"Adjusted {len(uuids)} layer positions by ({dx:.4f}, {dy:.4f})")
+    
+    def get_layer_centroid(self, uuids: List[str]) -> tuple:
+        """Calculate centroid (average position) of multiple layers
+        
+        Args:
+            uuids: List of layer UUIDs
+            
+        Returns:
+            Tuple of (x, y) representing centroid position
+            
+        Raises:
+            ValueError: If list is empty or any UUID not found
+        """
+        if not uuids:
+            raise ValueError("Need at least one layer UUID")
+        
+        total_x = 0.0
+        total_y = 0.0
+        
+        for uuid in uuids:
+            layer = self._layers.get_by_uuid(uuid)
+            if not layer:
+                raise ValueError(f"Layer with UUID '{uuid}' not found")
+            
+            total_x += layer.pos_x
+            total_y += layer.pos_y
+        
+        centroid_x = total_x / len(uuids)
+        centroid_y = total_y / len(uuids)
+        
+        return (centroid_x, centroid_y)
     
     def set_layer_scale(self, uuid: str, scale_x: float, scale_y: float):
         """Set layer scale (affects selected instance)

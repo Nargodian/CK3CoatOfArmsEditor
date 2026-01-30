@@ -242,8 +242,10 @@ class LayerListWidget(QWidget):
 		inline_layout.setSpacing(2)
 		
 		# Color buttons container (stacked vertically like traffic lights)
-		# Get actual number of colors from layer data
-		num_colors = self.coa.get_layer_colors(uuid) or 3
+		# Query metadata for color count based on texture filename
+		from utils.metadata_cache import get_texture_color_count
+		filename = self.coa.get_layer_filename(uuid)
+		num_colors = get_texture_color_count(filename)
 		
 		color_container = QWidget()
 		color_container.setStyleSheet("border: none;")
@@ -487,18 +489,22 @@ class LayerListWidget(QWidget):
 			# Get the target index from the drop zone
 			target_index = closest_zone.property('drop_index')
 			
-			# Move layers one at a time to target index
-			# Move in reverse order if going down (higher index) to preserve relative positions
-			# Get original indices to determine direction
-			original_indices = [self.coa.get_layer_index(uuid) for uuid in dragged_uuids]
-			if original_indices and target_index > min(original_indices):
-				# Moving down - move in reverse so they stack correctly
-				for uuid in reversed(dragged_uuids):
-					self.coa.move_layer(uuid, min(target_index, self.coa.get_layer_count() - 1))
-			else:
-				# Moving up - move in forward order
+			# UUID-based drag-drop reordering
+			# Get the UUID at the target position (if exists)
+			if target_index == 0:
+				# Drop at bottom - move all dragged layers to bottom
 				for uuid in dragged_uuids:
-					self.coa.move_layer(uuid, target_index)
+					self.coa.move_layer_to_bottom(uuid)
+			elif target_index >= self.coa.get_layer_count():
+				# Drop at top - move all dragged layers to top
+				for uuid in reversed(dragged_uuids):  # Reverse to maintain order
+					self.coa.move_layer_to_top(uuid)
+			else:
+				# Drop between layers - get target UUID and move above it
+				target_uuid = self.coa.get_layer_uuid_by_index(target_index)
+				# Move in reverse order to maintain relative positioning
+				for uuid in reversed(dragged_uuids):
+					self.coa.move_layer_below(uuid, target_uuid)
 			
 			# Update selection to new UUIDs (keep same UUIDs selected)
 			self.selected_layer_uuids = set(dragged_uuids)
@@ -784,7 +790,9 @@ class LayerListWidget(QWidget):
 		# Query fresh properties from CoA
 		filename = self.coa.get_layer_filename(uuid)
 		instance_count = self.coa.get_layer_instance_count(uuid)
-		num_colors = self.coa.get_layer_colors(uuid) or 3
+		# Query metadata for color count based on texture filename
+		from utils.metadata_cache import get_texture_color_count
+		num_colors = get_texture_color_count(filename)
 		visible = self.coa.get_layer_visible(uuid)
 		if visible is None:
 			visible = True

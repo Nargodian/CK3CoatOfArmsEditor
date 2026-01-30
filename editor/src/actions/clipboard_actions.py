@@ -152,8 +152,17 @@ class ClipboardActions:
 				)
 				return
 			
-			# Copy layers from temp CoA to main CoA (insert at front) with offset
-			new_uuids = self.main_window.coa.copy_layers_from_coa(temp_coa, at_front=True, apply_offset=True)
+			# Check for selection to paste above
+			selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
+			target_uuid = selected_uuids[0] if selected_uuids else None
+			
+			# Copy layers from temp CoA to main CoA with offset
+			if target_uuid:
+				# Paste below selected layer (in front of it)
+				new_uuids = self.main_window.coa.copy_layers_from_coa(temp_coa, apply_offset=True, target_uuid=target_uuid)
+			else:
+				# No selection, paste at front
+				new_uuids = self.main_window.coa.copy_layers_from_coa(temp_coa, at_front=True, apply_offset=True)
 			
 			# Track all pasted UUIDs in CoA model for potential future use
 			self.main_window.coa.set_last_added_uuids(new_uuids)
@@ -317,15 +326,11 @@ class ClipboardActions:
 		if not selected_uuids:
 			return
 		
-		# Duplicate using CoA model and move below
+		# Duplicate using pure UUID-based positioning
 		new_uuids = []
 		for uuid in selected_uuids:
-			# Get original layer's index
-			idx = self.main_window.coa.get_layer_index(uuid)
-			# Duplicate (will be added after)
-			new_uuid = self.main_window.coa.duplicate_layer(uuid)
-			# Move to same position (pushing original up)
-			self.main_window.coa.move_layer(new_uuid, idx)
+			# Duplicate and place below original (pushes original forward/above)
+			new_uuid = self.main_window.coa.duplicate_layer_below(uuid, uuid)
 			new_uuids.append(new_uuid)
 		
 		# Update UI

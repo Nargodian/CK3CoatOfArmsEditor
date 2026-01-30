@@ -67,6 +67,8 @@ class CoatOfArmsEditor(QMainWindow):
 		#COA INTEGRATION ACTION: Initialize CoA model instance (Step 1 - MainWindow initialization)
 		# This is the single source of truth for all CoA data going forward
 		self.coa = CoA()
+		# Set as active instance for global access
+		CoA.set_active(self.coa)
 		
 		# UI state tracking: which instance is selected per layer (not persisted in CoA data)
 		self.selected_instance_per_layer: dict = {}  # uuid -> instance_index
@@ -1470,17 +1472,9 @@ class CoatOfArmsEditor(QMainWindow):
 			if not new_uuids:
 				return
 			
-			# Find indices of new layers
-			new_indices = set()
-			for uuid in new_uuids:
-				idx = self.coa.get_layer_index(uuid)
-				if idx is not None:
-					new_indices.add(idx)
-			
-			# Select the newly duplicated layers
-			if new_indices:
-				self.right_sidebar.selected_layer_indices = new_indices
-				self.right_sidebar.last_selected_index = max(new_indices)
+			# Select the newly duplicated layers by UUID
+			self.right_sidebar.layer_list_widget.selected_layer_uuids = set(new_uuids)
+			self.right_sidebar.layer_list_widget.last_selected_uuid = new_uuids[-1] if new_uuids else None
 			
 			# Clear layer thumbnail cache since indices have shifted
 			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:

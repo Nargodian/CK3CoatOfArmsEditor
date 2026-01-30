@@ -35,3 +35,11 @@ please add a new coa method to get that data
 same for setting data
 do not manipulate coa._layers directly
 selection is not handled inside the coa model
+
+when wanting to use the coa use COA.get_active() to get the active instance
+this allows us to have a single source of truth for the coa data
+please avoid adding new global variables to track coa state
+if you find code that is using global variables to track coa state
+please refactor it to use the coa model instead
+self.coa = CoA.get_active() is acceptable in classes that need to access the coa to avoid heavy refactoring
+but avoid setting self.coa = CoA() directly
