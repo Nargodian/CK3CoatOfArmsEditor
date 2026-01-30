@@ -137,7 +137,6 @@ class CoA:
                 raise AttributeError(
                     f"Direct access to CoA._layers is forbidden! "
                     f"Attempted from {caller_filename}:{caller_lineno} in {caller_function}(). "
-                    f"Use CoA's public methods instead (get_layer_by_uuid, get_layer_count, etc.)"
                 )
         finally:
             del frame  # Avoid reference cycles
@@ -810,6 +809,38 @@ class CoA:
         self._layers.insert(index + 1, new_layer, caller='CoA')
         
         self._logger.debug(f"Duplicated layer {uuid} -> {new_layer.uuid}")
+        return new_layer.uuid
+    
+    def duplicate_layer_at_index(self, uuid: str, target_index: int) -> str:
+        """Duplicate layer and insert at specific index
+        
+        Args:
+            uuid: Layer UUID to duplicate
+            target_index: Index to insert the duplicate
+            
+        Returns:
+            UUID of the new layer
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        # Deep copy layer data
+        data = deepcopy(layer.to_dict(caller='CoA'))
+        
+        # Generate new UUID
+        data['uuid'] = str(uuid_module.uuid4())
+        
+        # Create new layer
+        new_layer = Layer(data, caller='CoA')
+        
+        # Insert at specified index
+        self._layers.insert(target_index, new_layer, caller='CoA')
+        
+        self._logger.debug(f"Duplicated layer {uuid} at index {target_index} -> {new_layer.uuid}")
         return new_layer.uuid
     
     def review_merge(self, uuids: List[str]) -> Dict[str, Any]:
@@ -1875,9 +1906,101 @@ class CoA:
         
         self._logger.debug(f"Set base color{color_index}: {rgb}")
     
+    def set_layer_visibility(self, uuid: str, visible: bool):
+        """Set layer visibility
+        
+        Args:
+            uuid: Layer UUID
+            visible: True to show, False to hide
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        layer.visible = visible
+        self._logger.debug(f"Set visibility for layer {uuid}: {visible}")
+    
+    def set_layer_selected_instance(self, uuid: str, instance_index: int):
+        """Set which instance is selected for editing in a multi-instance layer
+        
+        Args:
+            uuid: Layer UUID
+            instance_index: Instance index (0-based)
+            
+        Raises:
+            ValueError: If UUID not found or instance_index out of range
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        if instance_index < 0 or instance_index >= layer.instance_count:
+            raise ValueError(f"Instance index {instance_index} out of range (0-{layer.instance_count-1})")
+        
+        layer.selected_instance = instance_index
+        self._logger.debug(f"Set selected instance for layer {uuid}: {instance_index}")
+    
+    def set_layer_mask(self, uuid: str, mask: Optional[List[int]]):
+        """Set pattern mask for layer
+        
+        Args:
+            uuid: Layer UUID
+            mask: Mask list [ch1, ch2, ch3] where 0=disabled, 1-3=channel number
+                  or None to render everywhere
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        layer.mask = mask
+        self._logger.debug(f"Set mask for layer {uuid}: {mask}")
+    
+    def set_layer_flip(self, uuid: str, flip_x: bool, flip_y: bool):
+        """Set layer flip state
+        
+        Args:
+            uuid: Layer UUID
+            flip_x: True to flip horizontally
+            flip_y: True to flip vertically
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        layer.flip_x = flip_x
+        layer.flip_y = flip_y
+        self._logger.debug(f"Set flip for layer {uuid}: flip_x={flip_x}, flip_y={flip_y}")
+    
     # ========================================
     # Query API (for UI to retrieve data)
     # ========================================
+    
+    def get_layer_as_dict(self, uuid: str) -> Dict:
+        """Get layer data as dictionary for serialization
+        
+        Args:
+            uuid: Layer UUID
+            
+        Returns:
+            Layer data dictionary
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        return layer.to_dict(caller='CoA')
     
     def get_layer_property(self, uuid: str, property_name: str) -> Any:
         """Get layer property value
@@ -2094,16 +2217,7 @@ class CoA:
         """
         return [layer.uuid for layer in self._layers]
     
-    def get_layer_by_uuid(self, uuid: str) -> Optional[Layer]:
-        """Get layer object by UUID
-        
-        Args:
-            uuid: Layer UUID
-            
-        Returns:
-            Layer object or None if not found
-        """
-        return self._layers.get_by_uuid(uuid)
+
     
     def get_layer_by_index(self, index: int) -> Optional[Layer]:
         """Get layer object by index

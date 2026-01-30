@@ -1766,8 +1766,8 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# Split: enabled only for single-selection multi-instance layers
 		if is_single and has_selection:
-			layer = self.coa.get_layer_by_uuid(selected_uuids[0])
-			is_multi_instance = layer.instance_count > 1 if layer else False
+			instance_count = self.coa.get_layer_property(selected_uuids[0], 'instance_count') or 1
+			is_multi_instance = instance_count > 1
 			self.split_instances_action.setEnabled(is_multi_instance)
 		else:
 			self.split_instances_action.setEnabled(False)

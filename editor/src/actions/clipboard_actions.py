@@ -106,11 +106,11 @@ class ClipboardActions:
 			)
 			return
 		
-		# Get selected layers from CoA model
-		layers = [self.main_window.coa.get_layer_by_uuid(uuid) for uuid in selected_uuids]
+		# Get selected layer data from CoA model as dicts
+		layer_dicts = [self.main_window.coa.get_layer_as_dict(uuid) for uuid in selected_uuids]
 		
 		# Serialize to text
-		clipboard_text = serialize_layer_to_text(layers)
+		clipboard_text = serialize_layer_to_text(layer_dicts)
 		
 		# Copy to clipboard
 		clipboard = QApplication.clipboard()

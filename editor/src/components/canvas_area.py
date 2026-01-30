@@ -197,16 +197,15 @@ class CanvasArea(QFrame):
 				self.transform_widget.set_visible(False)
 				return
 			
-			layer = self.main_window.coa.get_layer_by_uuid(uuid)
-			if not layer:
+			pos_x = self.main_window.coa.get_layer_property(uuid, 'pos_x')
+			pos_y = self.main_window.coa.get_layer_property(uuid, 'pos_y')
+			scale_x = self.main_window.coa.get_layer_property(uuid, 'scale_x')
+			scale_y = self.main_window.coa.get_layer_property(uuid, 'scale_y')
+			rotation = self.main_window.coa.get_layer_property(uuid, 'rotation')
+			
+			if pos_x is None or pos_y is None:
 				self.transform_widget.set_visible(False)
 				return
-			
-			pos_x = layer.pos_x
-			pos_y = layer.pos_y
-			scale_x = layer.scale_x
-			scale_y = layer.scale_y
-			rotation = layer.rotation
 			
 			self.transform_widget.set_transform(pos_x, pos_y, scale_x, scale_y, rotation)
 			self.transform_widget.set_visible(True)
@@ -259,19 +258,14 @@ class CanvasArea(QFrame):
 		if not selected_uuids:
 			return
 		
-		# SINGLE SELECTION: Direct update
+		# SINGLE SELECTION: Direct update using CoA API
 		if len(selected_uuids) == 1:
 			uuid = list(selected_uuids)[0]
-			layer = self.main_window.coa.get_layer_by_uuid(uuid)
-			if not layer:
-				return
 			
-			# Clamp position to valid range [0, 1]
-			layer.pos_x = max(0.0, min(1.0, pos_x))
-			layer.pos_y = max(0.0, min(1.0, pos_y))
-			layer.scale_x = scale_x
-			layer.scale_y = scale_y
-			layer.rotation = rotation
+			# Clamp position to valid range [0, 1] and update
+			self.main_window.coa.set_layer_position(uuid, max(0.0, min(1.0, pos_x)), max(0.0, min(1.0, pos_y)))
+			self.main_window.coa.set_layer_scale(uuid, scale_x, scale_y)
+			self.main_window.coa.set_layer_rotation(uuid, rotation)
 			
 			self.canvas_widget.set_coa(self.main_window.coa)
 			# Don't reload properties during drag - causes feedback loop that resets flip state
@@ -402,14 +396,9 @@ class CanvasArea(QFrame):
 				new_scale_x = max(0.01, min(1.0, new_scale_x))
 				new_scale_y = max(0.01, min(1.0, new_scale_y))
 			
-			# Update actual layer (flip_x and flip_y are preserved automatically)
-			layer = self.main_window.coa.get_layer_by_uuid(uuid)
-			if not layer:
-				continue
-			layer.pos_x = new_pos_x
-			layer.pos_y = new_pos_y
-			layer.scale_x = new_scale_x
-			layer.scale_y = new_scale_y
+			# Update actual layer using CoA API (flip_x and flip_y are preserved automatically)
+			self.main_window.coa.set_layer_position(uuid, new_pos_x, new_pos_y)
+			self.main_window.coa.set_layer_scale(uuid, new_scale_x, new_scale_y)
 			# Task 3.6: Individual layer rotations are preserved (NOT modified)
 		
 		# Update canvas during drag for real-time feedback

@@ -1,0 +1,3 @@
+We will go through chunk 
+by chunk and ask should this be using the coa model
+and if it should we must explain why
