@@ -918,18 +918,18 @@ class CoatOfArmsEditor(QMainWindow):
 	def _apply_emblem_texture(self, dds_filename, color_count):
 		"""Apply texture to selected layer or create new layer"""
 		self.right_sidebar.set_emblem_color_count(color_count)
-		selected_indices = self.right_sidebar.get_selected_indices()
+		selected_uuids = self.right_sidebar.get_selected_uuids()
 		
-		if selected_indices:
-			self._update_layer_texture(selected_indices[0], dds_filename, color_count)
+		if selected_uuids:
+			# Update the last selected layer (the one user is viewing)
+			self._update_layer_texture(self.right_sidebar.layer_list_widget.last_selected_uuid, dds_filename, color_count)
 		else:
 			self._create_layer_with_texture(dds_filename, color_count)
 	
-	def _update_layer_texture(self, idx, dds_filename, color_count):
+	def _update_layer_texture(self, uuid, dds_filename, color_count):
 		"""Update existing layer's texture while preserving other properties"""
-		if 0 <= idx < self.coa.get_layer_count():
-			layer = self.coa.get_layer_by_index(idx)
-			
+		layer = self.coa.get_layer_by_uuid(uuid)
+		if layer:
 			# Update Layer object attributes
 			layer.filename = dds_filename
 			layer.path = dds_filename

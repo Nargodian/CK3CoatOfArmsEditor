@@ -457,7 +457,9 @@ class CoA(CoAQueryMixin):
                 'uuid': str(uuid_module.uuid4())
             }
             
-            # Parse instances
+            # Parse instances and group by depth
+            # If instances have different depths, split into separate layers
+            instances_by_depth = {}
             for inst in instances:
                 pos = inst.get('position', [0.5, 0.5])
                 scale = inst.get('scale', [1.0, 1.0])
@@ -470,37 +472,52 @@ class CoA(CoAQueryMixin):
                 flip_x = scale[0] < 0
                 flip_y = scale[1] < 0
                 
-                # Store flip at layer level if first instance (for backwards compat)
-                if len(layer_data['instances']) == 0:
-                    layer_data['flip_x'] = flip_x
-                    layer_data['flip_y'] = flip_y
-                
                 instance_data = {
                     'pos_x': pos[0],
                     'pos_y': pos[1],
                     'scale_x': scale_x,
                     'scale_y': scale_y,
                     'rotation': float(rotation),
-                    'depth': float(depth)
+                    'flip_x': flip_x,
+                    'flip_y': flip_y
                 }
-                layer_data['instances'].append(instance_data)
+                
+                # Group instances by depth
+                if depth not in instances_by_depth:
+                    instances_by_depth[depth] = []
+                instances_by_depth[depth].append(instance_data)
             
-            # Store layer with depth for sorting
-            max_depth = max(inst['depth'] for inst in layer_data['instances'])
-            layers_with_depth.append((max_depth, layer_data))
+            # Create separate layers for each depth level
+            for depth, depth_instances in instances_by_depth.items():
+                split_layer_data = {
+                    'filename': filename,
+                    'colors': 3,
+                    'color1': color1,
+                    'color2': color2,
+                    'color3': color3,
+                    'color1_name': color1_name,
+                    'color2_name': color2_name,
+                    'color3_name': color3_name,
+                    'mask': mask,
+                    'instances': depth_instances,
+                    'selected_instance': 0,
+                    'flip_x': depth_instances[0]['flip_x'],
+                    'flip_y': depth_instances[0]['flip_y'],
+                    'uuid': str(uuid_module.uuid4())
+                }
+                
+                layers_with_depth.append((depth, split_layer_data))
         
         # Sort by depth (higher depth = further back = first in list)
         layers_with_depth.sort(key=lambda x: x[0], reverse=True)
         
         # Add layers to model (back to front)
+        # Higher depth goes to index 0 (bottom visual, back render)
+        # Lower depth goes to end (top visual, front render)
         for _, layer_data in layers_with_depth:
-            # Remove depth from instances (only used for sorting)
-            for inst in layer_data['instances']:
-                del inst['depth']
-            
             # Create Layer and add to collection
             layer = Layer(layer_data, caller='CoA')
-            coa.insert_layer_at_index(0, layer)  # Insert at front (reversed order)
+            coa.add_layer_object(layer, at_front=False)  # Append to end (maintains sorted order)
         
         coa._logger.debug(f"Parsed CoA with {coa.get_layer_count()} layers")
         return coa
@@ -1580,6 +1597,23 @@ class CoA(CoAQueryMixin):
         
         layer.rotation = degrees
         self._logger.debug(f"Set rotation for layer {uuid}: {degrees:.2f}°")
+    
+    def set_layer_visible(self, uuid: str, visible: bool):
+        """Set layer visibility
+        
+        Args:
+            uuid: Layer UUID
+            visible: True to show, False to hide
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        layer.visible = visible
+        self._logger.debug(f"Set layer {uuid} visibility: {visible}")
     
     def rotate_layer(self, uuid: str, delta_degrees: float):
         """Rotate layer by delta

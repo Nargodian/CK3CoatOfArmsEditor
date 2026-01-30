@@ -296,6 +296,30 @@ class CoAQueryMixin:
         
         return layer.instance_count
     
+    def get_layer_instance(self, uuid: str, instance_index: int) -> Dict:
+        """Get instance data for a layer by index
+        
+        Args:
+            uuid: Layer UUID
+            instance_index: Instance index
+            
+        Returns:
+            Dictionary containing instance properties:
+                - pos_x, pos_y: Position
+                - scale_x, scale_y: Scale
+                - rotation: Rotation in degrees
+                - depth: Depth value
+            
+        Raises:
+            ValueError: If UUID not found
+            IndexError: If instance_index out of range
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        return layer.get_instance(instance_index, caller='query_mixin')
+    
     # ========================================
     # Layer Basic Property Queries
     # ========================================

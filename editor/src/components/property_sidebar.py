@@ -927,9 +927,12 @@ class PropertySidebar(QFrame):
 			layer_word = "layers" if len(selected_indices) > 1 else "layer"
 			self.main_window._save_state(f"Move {len(selected_indices)} {layer_word} down")
 	
-	def _duplicate_layer(self):
-		"""Duplicate all selected layers with offset"""
-		selected_uuids = self.get_selected_uuids()
+	def _duplicate_layer(self, uuid=None):
+		"""Duplicate specific layer or all selected layers with offset"""
+		if uuid:
+			selected_uuids = [uuid]
+		else:
+			selected_uuids = self.get_selected_uuids()
 		if not selected_uuids:
 			return
 		
@@ -938,10 +941,6 @@ class PropertySidebar(QFrame):
 		for uuid in selected_uuids:
 			new_uuid = self.main_window.coa.duplicate_layer(uuid)
 			new_uuids.append(new_uuid)
-			# Apply offset after duplication using CoA API
-			pos_x = self.main_window.coa.get_layer_pos_x(new_uuid)
-			pos_y = self.main_window.coa.get_layer_pos_y(new_uuid)
-			self.main_window.coa.set_layer_position(new_uuid, min(1.0, pos_x + 0.02), min(1.0, pos_y + 0.02))
 		
 		# Select the new layers by UUID
 		if new_uuids:
@@ -1015,7 +1014,7 @@ class PropertySidebar(QFrame):
 		current_visibility = self.coa.get_layer_visible(uuid)
 		if current_visibility is None:
 			current_visibility = True
-		self.coa.set_layer_visibility(uuid, not current_visibility)
+		self.coa.set_layer_visible(uuid, not current_visibility)
 		
 		# Invalidate thumbnail cache for this layer (by UUID)
 		

@@ -40,15 +40,23 @@ class FileActions:
 		self.main_window.is_modified = False
 		self.main_window._update_window_title()
 		
-		# Get starting layers from _default_layers
-		default_layers = self.main_window._default_layers
+		# Create a new CoA with defaults
+		from models.coa import CoA
+		self.main_window.coa = CoA()
+		CoA.set_active(self.main_window.coa)
+		
+		# Pass new CoA reference to all components
+		self.main_window.right_sidebar.coa = self.main_window.coa
+		self.main_window.right_sidebar.layer_list_widget.coa = self.main_window.coa
+		self.main_window.canvas_area.coa = self.main_window.coa
+		self.main_window.canvas_area.canvas_widget.coa = self.main_window.coa
 		
 		# Clear history before loading (to avoid storing default state)
 		self.main_window.history_manager.clear()
 		
-		# Set layers in both property sidebar and canvas
-		self.main_window.right_sidebar.set_layers(default_layers)
-		self.main_window.canvas_area.canvas_widget.set_layers(default_layers)
+		# Rebuild UI to reflect new empty CoA
+		self.main_window.right_sidebar._rebuild_layer_list()
+		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
 		
 		# Create initial history entry
 		self.main_window._save_state("New CoA")

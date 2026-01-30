@@ -405,7 +405,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
 				self.design_shader.setUniformValue("emblemMaskSampler", 0)
 				
-				# Set emblem colors via CoA queries
+				# Set emblem colors via CoA queries (shared by all instances)
 				color1 = self.coa.get_layer_color(layer_uuid, 1)
 				color2 = self.coa.get_layer_color(layer_uuid, 2)
 				color3 = self.coa.get_layer_color(layer_uuid, 3)
@@ -413,7 +413,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				self.design_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
 				self.design_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
 				
-				# Set pattern mask flag
+				# Set pattern mask flag (shared by all instances)
 				mask = self.coa.get_layer_mask(layer_uuid)
 				if mask is None:
 					pattern_flag = 0
@@ -427,55 +427,61 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 						pattern_flag |= 4
 				self.design_shader.setUniformValue("patternFlag", pattern_flag)
 				
-				# Apply transforms via CoA queries (no zoom in canonical space)
-				pos_x = self.coa.get_layer_pos_x(layer_uuid)
-				pos_y = self.coa.get_layer_pos_y(layer_uuid)
-				scale_x = self.coa.get_layer_scale_x(layer_uuid)
-				scale_y = self.coa.get_layer_scale_y(layer_uuid)
+				# Get shared flip properties (shared by all instances)
 				flip_x = self.coa.get_layer_flip_x(layer_uuid)
 				flip_y = self.coa.get_layer_flip_y(layer_uuid)
-				rotation = self.coa.get_layer_rotation(layer_uuid)
-				
-				# Convert layer position to OpenGL coordinates
-				center_x, center_y = layer_pos_to_opengl_coords(pos_x, pos_y)
-				
-				angle_rad = math.radians(-rotation)
-				cos_a = math.cos(angle_rad)
-				sin_a = math.sin(angle_rad)
-				
 				scale_sign_x = -1 if flip_x else 1
 				scale_sign_y = -1 if flip_y else 1
-				half_width = scale_x
-				half_height = scale_y
 				
-				unit_corners = [
-					(-1.0, -1.0),
-					( 1.0, -1.0),
-					( 1.0,  1.0),
-					(-1.0,  1.0),
-				]
-				
-				transformed = []
-				for ux, uy in unit_corners:
-					fx = ux * scale_sign_x
-					fy = uy * scale_sign_y
-					rx = fx * cos_a - fy * sin_a
-					ry = fx * sin_a + fy * cos_a
-					sx = rx * half_width
-					sy = ry * half_height
-					transformed.append((sx + center_x, sy + center_y))
-				
-				vertices = np.array([
-					transformed[0][0], transformed[0][1], 0.0,  u0, v1,
-					transformed[1][0], transformed[1][1], 0.0,  u1, v1,
-					transformed[2][0], transformed[2][1], 0.0,  u1, v0,
-					transformed[3][0], transformed[3][1], 0.0,  u0, v0,
-				], dtype=np.float32)
-				
-				# Update VBO (VAO already bound)
-				self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
-				
-				gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+				# Render all instances of this layer
+				instance_count = self.coa.get_layer_instance_count(layer_uuid)
+				for instance_idx in range(instance_count):
+					# Get instance-specific transform data
+					instance = self.coa.get_layer_instance(layer_uuid, instance_idx)
+					pos_x = instance['pos_x']
+					pos_y = instance['pos_y']
+					scale_x = instance['scale_x']
+					scale_y = instance['scale_y']
+					rotation = instance['rotation']
+					
+					# Convert layer position to OpenGL coordinates
+					center_x, center_y = layer_pos_to_opengl_coords(pos_x, pos_y)
+					
+					angle_rad = math.radians(-rotation)
+					cos_a = math.cos(angle_rad)
+					sin_a = math.sin(angle_rad)
+					
+					half_width = scale_x
+					half_height = scale_y
+					
+					unit_corners = [
+						(-1.0, -1.0),
+						( 1.0, -1.0),
+						( 1.0,  1.0),
+						(-1.0,  1.0),
+					]
+					
+					transformed = []
+					for ux, uy in unit_corners:
+						fx = ux * scale_sign_x
+						fy = uy * scale_sign_y
+						rx = fx * cos_a - fy * sin_a
+						ry = fx * sin_a + fy * cos_a
+						sx = rx * half_width
+						sy = ry * half_height
+						transformed.append((sx + center_x, sy + center_y))
+					
+					vertices = np.array([
+						transformed[0][0], transformed[0][1], 0.0,  u0, v1,
+						transformed[1][0], transformed[1][1], 0.0,  u1, v1,
+						transformed[2][0], transformed[2][1], 0.0,  u1, v0,
+						transformed[3][0], transformed[3][1], 0.0,  u0, v0,
+					], dtype=np.float32)
+					
+					# Update VBO (VAO already bound)
+					self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+					
+					gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 			
 			self.design_shader.release()
 			self.vao.release()
