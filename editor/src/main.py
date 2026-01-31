@@ -845,10 +845,11 @@ class CoatOfArmsEditor(QMainWindow):
 				
 				if reply == QMessageBox.Yes:
 					#COA INTEGRATION ACTION: Step 2 - Use CoA model for autosave recovery
-					# Read and parse into model
+					# Read and parse into existing CoA instance
 					with open(self.autosave_file, 'r', encoding='utf-8') as f:
 						coa_text = f.read()
-					self.coa = CoA.from_string(coa_text)
+					self.coa.clear()
+					self.coa.parse(coa_text)
 					
 					# Apply to UI - update from model
 					# Set base texture and colors
@@ -1479,7 +1480,8 @@ class CoatOfArmsEditor(QMainWindow):
 				return
 			
 			# Parse using CoA model
-			self.coa = CoA.from_string(coa_text)
+			self.coa.clear()
+			self.coa.parse(coa_text)
 			
 			# Update UI from CoA model
 			self.canvas_area.canvas_widget.set_base_texture(self.coa.pattern)
