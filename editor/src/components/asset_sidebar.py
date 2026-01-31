@@ -1,7 +1,7 @@
 # PyQt5 imports
 from PyQt5.QtWidgets import (
     QFrame, QVBoxLayout, QHBoxLayout, QLabel, 
-    QScrollArea, QPushButton, QWidget, QGridLayout, QComboBox
+    QScrollArea, QPushButton, QWidget, QGridLayout, QComboBox, QMenu
 )
 from PyQt5.QtCore import Qt, QTimer, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
@@ -317,6 +317,11 @@ class AssetSidebar(QFrame):
 			item.setToolTip(asset.get("display_name", asset["filename"]))
 			item.setProperty("asset_data", asset)  # Store asset data with button
 			item.clicked.connect(lambda checked, b=item: self._select_asset(b))
+			
+			# Enable context menu
+			item.setContextMenuPolicy(Qt.CustomContextMenu)
+			item.customContextMenuRequested.connect(lambda pos, b=item: self._show_asset_context_menu(b, pos))
+			
 			item.setStyleSheet("""
 				QPushButton {
 					border: 1px solid rgba(255, 255, 255, 40);
@@ -411,6 +416,29 @@ class AssetSidebar(QFrame):
 		asset_data = selected_button.property("asset_data")
 		if asset_data:
 			self.asset_selected.emit(asset_data)
+	
+	def _show_asset_context_menu(self, button, pos):
+		"""Show context menu for asset button with 'Generate with this' option."""
+		asset_data = button.property("asset_data")
+		if not asset_data:
+			return
+		
+		# Create context menu
+		menu = QMenu(self)
+		
+		# Add "Generate with this" action
+		generate_action = menu.addAction("Generate with this")
+		generate_action.triggered.connect(lambda: self._open_generator_with_asset(asset_data))
+		
+		# Show menu at button position
+		menu.exec_(button.mapToGlobal(pos))
+	
+	def _open_generator_with_asset(self, asset_data):
+		"""Open generator popup with pre-selected asset."""
+		if self.parent_window and hasattr(self.parent_window, '_open_generator_with_asset'):
+			# Get the .dds filename for texture
+			texture = asset_data.get('dds_filename', asset_data.get('filename', ''))
+			self.parent_window._open_generator_with_asset(texture)
 	
 	def switch_mode(self, mode):
 		"""Switch between showing emblems or base patterns"""

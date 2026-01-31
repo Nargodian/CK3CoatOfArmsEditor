@@ -1903,17 +1903,47 @@ class CoatOfArmsEditor(QMainWindow):
 			if generated_instances is not None and len(generated_instances) > 0:
 				self._create_generated_layer(generated_instances)
 	
-	def _create_generated_layer(self, instances: 'np.ndarray'):
+	def _open_generator_with_asset(self, asset_texture: str):
+		"""Open generator popup with pre-selected asset.
+		
+		Shows a submenu to choose generator type, then opens popup with asset pre-selected.
+		
+		Args:
+			asset_texture: Texture filename (.dds) of the asset to use
+		"""
+		# For now, just open circular generator as default
+		# TODO: Show submenu to let user choose generator type
+		# For simplicity, default to circular pattern
+		generator = CircularGenerator()
+		
+		# Create popup if it doesn't exist
+		if not self.generator_popup:
+			self.generator_popup = GeneratorPopup(self)
+		
+		# Load generator into popup
+		self.generator_popup.load_generator(generator)
+		
+		# Show popup
+		result = self.generator_popup.exec_()
+		
+		# If user clicked Generate, create the layer with selected asset
+		if result == self.generator_popup.Accepted:
+			generated_instances = self.generator_popup.get_generated_instances()
+			if generated_instances is not None and len(generated_instances) > 0:
+				self._create_generated_layer(generated_instances, emblem_texture=asset_texture)
+	
+	def _create_generated_layer(self, instances: 'np.ndarray', emblem_texture: str = None):
 		"""Create a layer from generated instance transforms.
 		
 		Uses paste infrastructure to create multi-instance layer with undo/redo support.
 		
 		Args:
 			instances: 5xN numpy array [[x, y, scale_x, scale_y, rotation], ...]
+			emblem_texture: Optional custom emblem texture (.dds filename)
 		"""
 		try:
 			# Build CK3 format string directly from instance array
-			default_emblem = "ce_fleur.dds"
+			default_emblem = emblem_texture if emblem_texture else "ce_fleur.dds"
 			
 			lines = []
 			lines.append("layers_export = {")
