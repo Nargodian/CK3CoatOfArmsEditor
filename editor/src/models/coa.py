@@ -1240,8 +1240,11 @@ class CoA(CoAQueryMixin):
             # Build detailed message showing which colors differ
             color_details = []
             for i, layer in enumerate(layers):
+                c1 = tuple(layer.color1)
+                c2 = tuple(layer.color2)
+                c3 = tuple(layer.color3)
                 color_details.append(
-                    f"Layer {i+1}: c1={layer.color1_name}, c2={layer.color2_name}, c3={layer.color3_name}"
+                    f"Layer {i+1}: c1={layer.color1_name}{c1}, c2={layer.color2_name}{c2}, c3={layer.color3_name}{c3}"
                 )
             
             result['warnings'].append(
@@ -1718,6 +1721,23 @@ class CoA(CoAQueryMixin):
         
         layer.visible = visible
         self._logger.debug(f"Set layer {uuid} visibility: {visible}")
+    
+    def set_layer_mask(self, uuid: str, mask: List[int]):
+        """Set layer mask channels
+        
+        Args:
+            uuid: Layer UUID
+            mask: Mask channels [r, g, b] where each is 0 or 1
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        layer.mask = mask
+        self._logger.debug(f"Set layer {uuid} mask: {mask}")
     
     def translate_all_instances(self, uuid: str, dx: float, dy: float):
         """Translate ALL instances of a layer by offset
