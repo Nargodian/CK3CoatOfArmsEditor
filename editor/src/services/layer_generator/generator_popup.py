@@ -43,13 +43,17 @@ class PreviewWidget(QWidget):
         painter.fillRect(self.rect(), QColor(0, 0, 0))
         
         # Draw each instance
-        for instance in self.instances:
+        for i, instance in enumerate(self.instances):
             # Check if we have 6 columns (with label code) or just 5
             if len(instance) >= 6:
                 x_coa, y_coa, scale_x, scale_y, rotation, label_code = instance[:6]
+                if i == 0:  # Debug first instance
+                    print(f"DEBUG: Instance has 6 cols, label_code={label_code}")
             else:
                 x_coa, y_coa, scale_x, scale_y, rotation = instance[:5]
                 label_code = 0  # Default: no label
+                if i == 0:  # Debug first instance
+                    print(f"DEBUG: Instance has 5 cols, defaulting to label_code=0")
             
             # Convert CoA coordinates (0-1) to preview pixels (0-300)
             x_px = x_coa * self.PREVIEW_SIZE

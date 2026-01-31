@@ -144,7 +144,7 @@ def char_to_label_code(char: str) -> int:
 def text_to_label_codes(text: str) -> 'np.ndarray':
     """Convert text string to numpy array of label codes for preview.
     
-    Includes spaces (as -1) and skips invalid characters.
+    Skips spaces and invalid characters (matches text_to_emblems behavior).
     
     Args:
         text: Input text string
@@ -156,8 +156,10 @@ def text_to_label_codes(text: str) -> 'np.ndarray':
     
     codes = []
     for char in filter_text(text):
+        if char == ' ':
+            continue  # Skip spaces (no position generated for them)
         code = char_to_label_code(char)
-        if code != 0:  # Skip invalid characters
+        if code > 0:  # Only include valid characters
             codes.append(code)
     
     return np.array(codes, dtype=int)
