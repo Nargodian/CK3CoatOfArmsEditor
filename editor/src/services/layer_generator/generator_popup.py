@@ -51,8 +51,12 @@ class PreviewWidget(QWidget):
             y_px = y_coa * self.PREVIEW_SIZE
             
             # Calculate instance size with scale (scale is percentage of preview area)
-            width = scale_x * self.PREVIEW_SIZE
-            height = scale_y * self.PREVIEW_SIZE
+            width_full = scale_x * self.PREVIEW_SIZE
+            height_full = scale_y * self.PREVIEW_SIZE
+            
+            # Emblem drawn at 50% scale
+            width_emblem = width_full * 0.5
+            height_emblem = height_full * 0.5
             
             # Save painter state
             painter.save()
@@ -61,17 +65,22 @@ class PreviewWidget(QWidget):
             painter.translate(float(x_px), float(y_px))
             painter.rotate(float(rotation))
             
-            # Draw white square centered at origin
+            # Draw bounding box outline at 100% scale (40% opacity white stroke)
+            painter.setBrush(Qt.NoBrush)
+            painter.setPen(QPen(QColor(255, 255, 255, 102), 1))  # 40% opacity = 102/255
+            painter.drawRect(int(-width_full/2), int(-height_full/2), int(width_full), int(height_full))
+            
+            # Draw white square at 50% scale centered at origin
             painter.setBrush(QBrush(QColor(255, 255, 255)))
             painter.setPen(QPen(QColor(255, 255, 255), 1))
-            painter.drawRect(int(-width/2), int(-height/2), int(width), int(height))
+            painter.drawRect(int(-width_emblem/2), int(-height_emblem/2), int(width_emblem), int(height_emblem))
             
-            # Draw red triangle corner (top corner - north quadrant)
+            # Draw red triangle corner at 50% scale (top corner - north quadrant)
             # Triangle fills the top quadrant when square is divided by diagonals
             triangle = QPolygonF([
-                QPointF(float(-width/2), float(-height/2)),  # Top-left
-                QPointF(float(width/2), float(-height/2)),   # Top-right
-                QPointF(0, 0)                                 # Center
+                QPointF(float(-width_emblem/2), float(-height_emblem/2)),  # Top-left
+                QPointF(float(width_emblem/2), float(-height_emblem/2)),   # Top-right
+                QPointF(0, 0)                                                # Center
             ])
             painter.setBrush(QBrush(QColor(255, 0, 0)))
             painter.setPen(Qt.NoPen)

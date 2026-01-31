@@ -45,13 +45,13 @@ Text mode creates MULTIPLE LAYERS, not a multi-instance layer!
 - Warning displayed to user before generation
 
 Text Emblem Mapping:
-- Grep for available text emblems (ce_text_*.dds pattern)
+- Available letter emblems: ce_letter_[a-z].dds (a-z lowercase)
+- Also: ce_letter_alpha.dds, ce_letter_omega.dds, ce_letter_beta.dds
+- Uppercase maps to lowercase (A → ce_letter_a.dds)
 - Create whitelist of available characters for textbox validation
-- Lookup table: character → ce_text_[char] (e.g., A → ce_text_a)
+- Lookup table in text_emblem_mapper.py
 - Spaces are skipped (no layer created)
 - If character has no emblem, skip it
-- Invalid characters silently ignored (as if key never pressed)
-- 100 character limit enforced
 - Invalid characters silently ignored (as if key never pressed)
 - 100 character limit enforced
 
@@ -472,10 +472,14 @@ Popup Layout:
 
 Preview Visual Design:
 - Background: Black (#000000)
-- Instance representation: White square with red triangle quarter
-- Red triangle: Corner fold (like envelope flap) at top-left corner
-- Triangle acts as directional indicator showing orientation/rotation
+- Instance representation: 
+  - White stroked outline box at 100% scale (40% opacity) - shows bounding box
+  - White filled square at 50% scale - represents the emblem
+  - Red filled triangle at 50% scale - corner fold at top-left corner
+- Red triangle: Corner fold (like envelope flap) acts as directional indicator
 - Each instance applies position, scale, and rotation transforms
+- 50% scale for emblem better represents typical emblem appearance
+- 100% bounding box shows full allocated space
 
 
 IMPLEMENTATION PHASES
@@ -516,6 +520,12 @@ NOTES
 - Diamond grid stagger offset is fixed constant
 - Vanilla and Shape popups include dropdown to switch variants
 - Asset selection for right-click: TBD during implementation
+- Preview emblem at 50% scale, bounding box at 100% with 40% opacity
+- Text mode: NOT YET IMPLEMENTED (future enhancement)
+  - Requires multi-layer creation (one layer per character)
+  - Needs warning dialog before generation
+  - Character mapping via text_emblem_mapper.py module
+  - Complex workflow - deferred to Phase 3
 
 OPEN QUESTIONS
 --------------
