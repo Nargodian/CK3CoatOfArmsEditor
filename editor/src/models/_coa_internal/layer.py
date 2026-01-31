@@ -658,9 +658,9 @@ class Layer:
         lines.append('\t}')
         return '\n'.join(lines)
     
-    @staticmethod
-    def parse(data: Dict[str, Any], caller: str = 'unknown') -> 'Layer':
-        \"\"\"Parse layer from Clausewitz parser output
+    @classmethod
+    def parse(cls, data: Dict[str, Any], caller: str = 'unknown') -> 'Layer':
+        """Parse layer from Clausewitz parser output
         
         Args:
             data: Dict from parser with texture, colors, instances, etc
@@ -668,7 +668,7 @@ class Layer:
             
         Returns:
             New Layer object
-        \"\"\"
+        """
         from utils.color_utils import color_name_to_rgb
         from utils.metadata_cache import get_texture_color_count
         
