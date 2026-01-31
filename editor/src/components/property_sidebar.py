@@ -1188,6 +1188,14 @@ class PropertySidebar(QFrame):
 		self.scale_editor.setEnabled(not disable_transform)
 		self.rotation_editor.setEnabled(not disable_transform)
 		
+		# Apply visual disabled state
+		if disable_transform:
+			self.scale_editor.setStyleSheet("QWidget { opacity: 0.4; }")
+			self.rotation_editor.setStyleSheet("QWidget { opacity: 0.4; }")
+		else:
+			self.scale_editor.setStyleSheet("")
+			self.rotation_editor.setStyleSheet("")
+		
 		# Restore signals
 		self.pos_x_editor.blockSignals(False)
 		self.pos_y_editor.blockSignals(False)
