@@ -328,112 +328,113 @@ class CoA(CoAQueryMixin):
     # Serialization (CK3 Format)
     # ========================================
     
-    def parse(self, ck3_text: str) -> None:
-        """Parse and populate CoA from CK3 format string
+    def parse(self, ck3_text: str, target_uuid: Optional[str] = None) -> List[str]:
+        """Parse CK3 format string and insert layers
         
-        Uses the mature CoAParser from utils.coa_parser for parsing.
-        Converts parsed structure into model format with UUIDs.
-        Populates this CoA instance (clears existing data).
+        Intelligently handles two cases:
+        1. Full CoA (has 'pattern' key) → Replaces entire CoA (ignores target_uuid)
+        2. Loose layers (just colored_emblem blocks) → Inserts at target_uuid position
         
         Args:
-            ck3_text: CK3 coat of arms definition
+            ck3_text: CK3 format string (full CoA or loose layers)
+            target_uuid: If provided, insert loose layers below this UUID (in front of it)
+                        Ignored if parsing full CoA.
+        
+        Returns:
+            List of UUIDs for newly created/parsed layers
             
-        Example CK3 format:
+        Example full CoA:
             {
                 pattern = "pattern_solid.dds"
-                color1 = rgb { 255 255 255 }
-                color2 = "red"
-                colored_emblem = {
-                    texture = "emblem_cross.dds"
-                    color1 = "blue"
-                    color2 = "yellow"
-                    mask = { 1 0 0 }
-                    instance = {
-                        position = { 0.5 0.5 }
-                        scale = { 0.8 0.8 }
-                        rotation = 45
-                        depth = 1.0
-                    }
-                }
+                color1 = "white"
+                colored_emblem = { ... }
             }
+            
+        Example loose layers:
+            colored_emblem = { texture = "emblem_cross.dds" ... }
+            colored_emblem = { texture = "emblem_star.dds" ... }
         """
-        # Import parser (lazy to avoid circular dependencies)
         from ._coa_internal.coa_parser import CoAParser
         from utils.color_utils import color_name_to_rgb
         
-        # Clear existing layers
-        self._layers.clear(caller='CoA')
-        
-        # Parse CK3 text
         parser = CoAParser()
         try:
             parsed = parser.parse_string(ck3_text)
         except Exception as e:
-            self._logger.error(f"Failed to parse CoA: {e}")
+            self._logger.error(f"Failed to parse: {e}")
             raise ValueError(f"Invalid CK3 format: {e}")
         
-        # Extract CoA object (first key)
         if not parsed:
-            self._logger.warning("Empty CoA parsed")
-            return
+            self._logger.warning("Empty parse result")
+            return []
         
         coa_key = list(parsed.keys())[0]
         coa_obj = parsed[coa_key]
         
-        # Extract base pattern and colors
-        self._pattern = coa_obj.get('pattern', DEFAULT_PATTERN_TEXTURE)
+        # Detect if this is a full CoA (has pattern) or loose layers (only colored_emblem)
+        is_full_coa = 'pattern' in coa_obj
         
-        # Parse color1
-        color1_raw = coa_obj.get('color1', DEFAULT_BASE_COLOR1)
-        if isinstance(color1_raw, str):
-            if color1_raw.startswith('rgb'):
-                # Parse "rgb { R G B }"
-                rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color1_raw)
-                if rgb_match:
-                    self._pattern_color1 = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
-                    self._pattern_color1_name = None
-            else:
-                # Named color
-                self._pattern_color1 = color_name_to_rgb(color1_raw)
-                self._pattern_color1_name = color1_raw
+        new_uuids = []
         
-        # Parse color2
-        color2_raw = coa_obj.get('color2', DEFAULT_BASE_COLOR2)
-        if isinstance(color2_raw, str):
-            if color2_raw.startswith('rgb'):
-                rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color2_raw)
-                if rgb_match:
-                    self._pattern_color2 = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
-                    self._pattern_color2_name = None
-            else:
-                self._pattern_color2 = color_name_to_rgb(color2_raw)
-                self._pattern_color2_name = color2_raw
+        if is_full_coa:
+            # Full CoA: Replace everything (ignore target_uuid)
+            self._layers.clear(caller='CoA')
+            
+            # Set base pattern and colors
+            self._pattern = coa_obj.get('pattern', DEFAULT_PATTERN_TEXTURE)
+            
+            # Parse colors
+            for color_num in [1, 2, 3]:
+                color_key = f'color{color_num}'
+                color_raw = coa_obj.get(color_key, [DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3][color_num - 1])
+                
+                if isinstance(color_raw, str):
+                    if color_raw.startswith('rgb'):
+                        rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color_raw)
+                        if rgb_match:
+                            rgb = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
+                            setattr(self, f'_pattern_color{color_num}', rgb)
+                            setattr(self, f'_pattern_color{color_num}_name', None)
+                    else:
+                        setattr(self, f'_pattern_color{color_num}', color_name_to_rgb(color_raw))
+                        setattr(self, f'_pattern_color{color_num}_name', color_raw)
+            
+            # Parse layers
+            emblems = coa_obj.get('colored_emblem', [])
+            for emblem in emblems:
+                try:
+                    layer = Layer.parse(emblem, caller='CoA')
+                    self.add_layer_object(layer, at_front=False)
+                    new_uuids.append(layer.uuid)
+                except Exception as e:
+                    self._logger.error(f"Failed to parse layer: {e}")
+                    continue
+            
+            self._logger.debug(f"Parsed full CoA with {len(new_uuids)} layers")
         
-        # Parse color3
-        color3_raw = coa_obj.get('color3', DEFAULT_BASE_COLOR3)
-        if isinstance(color3_raw, str):
-            if color3_raw.startswith('rgb'):
-                rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color3_raw)
-                if rgb_match:
-                    self._pattern_color3 = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
-                    self._pattern_color3_name = None
-            else:
-                self._pattern_color3 = color_name_to_rgb(color3_raw)
-                self._pattern_color3_name = color3_raw
+        else:
+            # Loose layers: Insert at target_uuid position
+            emblems = coa_obj.get('colored_emblem', [])
+            
+            for emblem in emblems:
+                try:
+                    layer = Layer.parse(emblem, caller='CoA')
+                    self.add_layer_object(layer, target_uuid=target_uuid, at_front=(target_uuid is None))
+                    new_uuids.append(layer.uuid)
+                    # Stack subsequent layers on top of each other
+                    target_uuid = layer.uuid
+                except Exception as e:
+                    self._logger.error(f"Failed to parse layer: {e}")
+                    continue
+            
+            self._logger.debug(f"Inserted {len(new_uuids)} loose layers")
         
-        # Parse colored_emblem blocks using Layer.parse()
-        emblems = coa_obj.get('colored_emblem', [])
+        # Track last added for auto-selection
+        if new_uuids:
+            self._last_added_uuid = new_uuids[-1]
+            self._last_added_uuids = new_uuids
         
-        # Parse each emblem as a Layer directly
-        for emblem in emblems:
-            try:
-                layer = Layer.parse(emblem, caller='CoA')
-                self.add_layer_object(layer, at_front=False)
-            except Exception as e:
-                self._logger.error(f"Failed to parse emblem: {e}")
-                continue
-        
-        self._logger.debug(f"Parsed CoA with {self.get_layer_count()} layers")
+        return new_uuids
     
     @classmethod
     def from_string(cls, ck3_text: str) -> 'CoA':
@@ -904,55 +905,6 @@ class CoA(CoAQueryMixin):
         
         self._logger.debug(f"Merged {len(uuids)} layers into {first_uuid} ({first_layer.instance_count} instances)")
         return first_uuid
-    
-    def copy_layers_from_coa(self, source_coa: 'CoA', at_front: bool = True, apply_offset: bool = False, target_uuid: Optional[str] = None) -> List[str]:
-        """Copy all layers from another CoA into this one
-        
-        Args:
-            source_coa: Source CoA to copy layers from
-            at_front: If True, insert at front (highest index/top of render), else insert at back (index 0/bottom)
-                     Ignored if target_uuid is provided.
-            apply_offset: If True, apply paste offset to positions
-            target_uuid: If provided, insert layers below this target (in front of it, higher index)
-            
-        Returns:
-            List of new UUIDs for copied layers
-        """
-        new_uuids = []
-        layer_count = source_coa.get_layer_count()
-        
-        # If target_uuid provided, get its position for insertion
-        target_index = None
-        if target_uuid:
-            target_index = self._layers.get_index_by_uuid(target_uuid)
-        
-        for i in range(layer_count):
-            source_uuid = source_coa.get_layer_uuid_by_index(i)
-            source_layer = source_coa._layers.get_by_uuid(source_uuid)
-            
-            if not source_layer:
-                continue
-            
-            # Duplicate layer using Layer's duplicate method (generates new UUID)
-            new_layer = source_layer.duplicate(
-                offset_x=PASTE_OFFSET_X if apply_offset else 0.0,
-                offset_y=PASTE_OFFSET_Y if apply_offset else 0.0,
-                caller='CoA'
-            )
-            
-            # Insert at appropriate position
-            if target_uuid and target_index is not None:
-                # Insert below target (higher index = in front)
-                self._layers.insert(target_index + 1 + i, new_layer, caller='CoA')
-            elif at_front:
-                self._layers.append(new_layer, caller='CoA')
-            else:
-                self._layers.insert(i, new_layer, caller='CoA')
-            
-            new_uuids.append(new_layer.uuid)
-        
-        self._logger.debug(f"Copied {len(new_uuids)} layers from source CoA")
-        return new_uuids
     
     def move_layer_below(self, uuids: Union[str, List[str]], target_uuid: str):
         """Move layer(s) below target in visual layer list (back of render order, lower index)

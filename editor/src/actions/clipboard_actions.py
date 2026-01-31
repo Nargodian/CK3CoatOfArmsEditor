@@ -134,20 +134,19 @@ class ClipboardActions:
 				)
 				return
 			
+			# Apply paste offset to temp CoA layers
+			temp_uuids = [temp_coa.get_layer_uuid_by_index(i) for i in range(temp_coa.get_layer_count())]
+			temp_coa.adjust_layer_positions(temp_uuids, PASTE_OFFSET_X, PASTE_OFFSET_Y)
+			
+			# Serialize adjusted layers back to string
+			layers_string = temp_coa.to_layers_string()
+			
 			# Check for selection to paste above
 			selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
 			target_uuid = selected_uuids[0] if selected_uuids else None
 			
-			# Copy layers from temp CoA to main CoA with offset
-			if target_uuid:
-				# Paste below selected layer (in front of it)
-				new_uuids = self.main_window.coa.copy_layers_from_coa(temp_coa, apply_offset=True, target_uuid=target_uuid)
-			else:
-				# No selection, paste at front
-				new_uuids = self.main_window.coa.copy_layers_from_coa(temp_coa, at_front=True, apply_offset=True)
-			
-			# Track all pasted UUIDs in CoA model for potential future use
-			self.main_window.coa.set_last_added_uuids(new_uuids)
+			# Parse directly into main CoA
+			new_uuids = self.main_window.coa.parse(layers_string, target_uuid=target_uuid)
 			
 			# Update UI
 			self.main_window.right_sidebar._rebuild_layer_list()
@@ -253,8 +252,11 @@ class ClipboardActions:
 				# Single instance layer: position at cursor directly
 				temp_coa.set_layer_position(temp_uuids[0], norm_x, norm_y)
 			
-			# Copy adjusted layers to main CoA
-			new_uuids = self.main_window.coa.copy_layers_from_coa(temp_coa, at_front=True, apply_offset=False)
+			# Serialize adjusted layers back to string
+			layers_string = temp_coa.to_layers_string()
+			
+			# Parse directly into main CoA (no target_uuid = insert at front)
+			new_uuids = self.main_window.coa.parse(layers_string, target_uuid=None)
 			
 			# Update UI
 			self.main_window.right_sidebar._rebuild_layer_list()

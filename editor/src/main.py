@@ -1899,22 +1899,69 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# If user clicked Generate, create the layer
 		if result == self.generator_popup.Accepted:
-			generated_instances = self.generator_popup.get_generated_instances()
-			if generated_instances is not None and len(generated_instances) > 0:
-				self._create_generated_layer(generated_instances)
+			# Check if text mode is active
+			if self.generator_popup.is_text_mode():
+				# Text mode: will create multiple layers (one per character)
+				text_data = self.generator_popup.get_text_and_positions()
+				if text_data:
+					text, positions = text_data
+					# Show warning dialog
+					from PyQt5.QtWidgets import QMessageBox
+					reply = QMessageBox.question(
+						self,
+						'Text Mode Warning',
+						'Text mode will create multiple layers (one per character), not a single multi-instance layer.\n\nContinue?',
+						QMessageBox.Yes | QMessageBox.No,
+						QMessageBox.No
+					)
+					if reply == QMessageBox.Yes:
+						self._create_text_layers(text, positions)
+			else:
+				# Count mode: create single multi-instance layer
+				generated_instances = self.generator_popup.get_generated_instances()
+				if generated_instances is not None and len(generated_instances) > 0:
+					self._create_generated_layer(generated_instances)
 	
-	def _open_generator_with_asset(self, asset_texture: str):
+	def _open_generator_with_asset(self, asset_texture: str, generator_type: str = 'circular'):
 		"""Open generator popup with pre-selected asset.
-		
-		Shows a submenu to choose generator type, then opens popup with asset pre-selected.
 		
 		Args:
 			asset_texture: Texture filename (.dds) of the asset to use
+			generator_type: Type of generator to open ('circular', 'line', 'spiral', 'grid', 'diamond', 'fibonacci', 'radial', 'star', 'vanilla')
 		"""
-		# For now, just open circular generator as default
-		# TODO: Show submenu to let user choose generator type
-		# For simplicity, default to circular pattern
-		generator = CircularGenerator()
+		# Import and create appropriate generator based on type
+		generator = None
+		
+		if generator_type == 'circular':
+			from services.layer_generator.generators.circular_generator import CircularGenerator
+			generator = CircularGenerator()
+		elif generator_type == 'line':
+			from services.layer_generator.generators.line_generator import LineGenerator
+			generator = LineGenerator()
+		elif generator_type == 'spiral':
+			from services.layer_generator.generators.spiral_generator import SpiralGenerator
+			generator = SpiralGenerator()
+		elif generator_type == 'grid':
+			from services.layer_generator.generators.grid_generator import GridGenerator
+			generator = GridGenerator()
+		elif generator_type == 'diamond':
+			from services.layer_generator.generators.diamond_generator import DiamondGenerator
+			generator = DiamondGenerator()
+		elif generator_type == 'fibonacci':
+			from services.layer_generator.generators.fibonacci_generator import FibonacciGenerator
+			generator = FibonacciGenerator()
+		elif generator_type == 'radial':
+			from services.layer_generator.generators.radial_generator import RadialGenerator
+			generator = RadialGenerator()
+		elif generator_type == 'star':
+			from services.layer_generator.generators.star_generator import StarGenerator
+			generator = StarGenerator()
+		elif generator_type == 'vanilla':
+			from services.layer_generator.generators.vanilla_generator import VanillaGenerator
+			generator = VanillaGenerator()
+		
+		if not generator:
+			return
 		
 		# Create popup if it doesn't exist
 		if not self.generator_popup:
@@ -1928,59 +1975,50 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# If user clicked Generate, create the layer with selected asset
 		if result == self.generator_popup.Accepted:
-			generated_instances = self.generator_popup.get_generated_instances()
-			if generated_instances is not None and len(generated_instances) > 0:
-				self._create_generated_layer(generated_instances, emblem_texture=asset_texture)
+			# Check if text mode is active
+			if self.generator_popup.is_text_mode():
+				# Text mode: will create multiple layers (one per character)
+				text_data = self.generator_popup.get_text_and_positions()
+				if text_data:
+					text, positions = text_data
+					# Show warning dialog
+					from PyQt5.QtWidgets import QMessageBox
+					reply = QMessageBox.question(
+						self,
+						'Text Mode Warning',
+						'Text mode will create multiple layers (one per character), not a single multi-instance layer.\n\nContinue?',
+						QMessageBox.Yes | QMessageBox.No,
+						QMessageBox.No
+					)
+					if reply == QMessageBox.Yes:
+						self._create_text_layers(text, positions, emblem_texture=asset_texture)
+			else:
+				# Count mode: create single multi-instance layer
+				generated_instances = self.generator_popup.get_generated_instances()
+				if generated_instances is not None and len(generated_instances) > 0:
+					self._create_generated_layer(generated_instances, emblem_texture=asset_texture)
 	
 	def _create_generated_layer(self, instances: 'np.ndarray', emblem_texture: str = None):
 		"""Create a layer from generated instance transforms.
-		
-		Uses paste infrastructure to create multi-instance layer with undo/redo support.
 		
 		Args:
 			instances: 5xN numpy array [[x, y, scale_x, scale_y, rotation], ...]
 			emblem_texture: Optional custom emblem texture (.dds filename)
 		"""
 		try:
-			# Build CK3 format string directly from instance array
+			from services.layer_generator.layer_string_builder import build_layer_string
+			
 			default_emblem = emblem_texture if emblem_texture else "ce_fleur.dds"
 			
-			lines = []
-			lines.append("layers_export = {")
-			lines.append("\tcolored_emblem = {")
-			lines.append(f'\t\ttexture = "{default_emblem}"')
-			lines.append('\t\tcolor1 = "white"')
-			
-			# Serialize each instance directly
-			for instance_data in instances:
-				x, y, scale_x, scale_y, rotation = instance_data
-				lines.append('\t\t\tinstance = {')
-				lines.append(f'\t\t\t\tposition = {{ {x} {y} }}')
-				lines.append(f'\t\t\t\tscale = {{ {scale_x} {scale_y} }}')
-				if rotation != 0:
-					lines.append(f'\t\t\t\trotation = {rotation}')
-				lines.append('\t\t\t}')
-			
-			lines.append("\t}")
-			lines.append("}")
-			
-			layer_string = '\n'.join(lines)
-			
-			# Create temp CoA and parse the layer string
-			temp_coa = CoA()
-			temp_coa.parse(layer_string)
+			# Build layer string
+			layer_string = build_layer_string(instances, default_emblem)
 			
 			# Check for selection to insert above
 			selected_uuids = self.right_sidebar.get_selected_uuids()
 			target_uuid = selected_uuids[0] if selected_uuids else None
 			
-			# Copy layer from temp CoA to main CoA
-			if target_uuid:
-				# Insert above selected layer (in front of it)
-				new_uuids = self.coa.copy_layers_from_coa(temp_coa, apply_offset=False, target_uuid=target_uuid)
-			else:
-				# No selection, insert at front
-				new_uuids = self.coa.copy_layers_from_coa(temp_coa, at_front=True, apply_offset=False)
+			# Parse directly into main CoA (parser handles insertion)
+			new_uuids = self.coa.parse(layer_string, target_uuid=target_uuid)
 			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()
@@ -2000,6 +2038,68 @@ class CoatOfArmsEditor(QMainWindow):
 			
 		except Exception as e:
 			loggerRaise(e, f"Failed to create generated layer: {str(e)}")
+	
+	def _create_text_layers(self, text: str, positions: 'np.ndarray', emblem_texture: str = None):
+		"""Create multiple layers for text mode (one layer per character).
+		
+		Args:
+			text: Text string to render
+			positions: 5xN numpy array [[x, y, scale_x, scale_y, rotation], ...]
+			emblem_texture: Optional custom emblem texture (ignored for text - uses letter emblems)
+		"""
+		try:
+			from services.layer_generator.text_emblem_mapper import text_to_emblems
+			from services.layer_generator.layer_string_builder import build_layer_string
+			
+			# Filter text and get emblem list
+			emblems = text_to_emblems(text)
+			
+			# Check if we have enough positions
+			if len(emblems) == 0:
+				print("No valid characters in text")
+				return
+			
+			if len(positions) < len(emblems):
+				print(f"Warning: Not enough positions ({len(positions)}) for text length ({len(emblems)})")
+				emblems = emblems[:len(positions)]
+			
+			# Check for selection to insert above
+			selected_uuids = self.right_sidebar.get_selected_uuids()
+			target_uuid = selected_uuids[0] if selected_uuids else None
+			
+			created_uuids = []
+			
+			# Create one layer per character
+			for i, emblem in enumerate(emblems):
+				# Build layer string (single instance)
+				layer_string = build_layer_string(positions[i], emblem)
+				
+				# Parse directly into main CoA (parser handles insertion)
+				new_uuids = self.coa.parse(layer_string, target_uuid=target_uuid)
+				
+				# Stack subsequent layers on top
+				if new_uuids:
+					target_uuid = new_uuids[0]
+					created_uuids.extend(new_uuids)
+			
+			# Update UI
+			self.right_sidebar._rebuild_layer_list()
+			self.canvas_area.canvas_widget.update()
+			
+			# Select the newly created layers
+			if created_uuids:
+				self.right_sidebar.layer_list_widget.selected_layer_uuids = set(created_uuids)
+				self.right_sidebar.layer_list_widget.last_selected_uuid = created_uuids[-1]
+				self.right_sidebar.layer_list_widget.update_selection_visuals()
+			
+			# Save to history
+			char_count = len(emblems)
+			self._save_state(f"Generate text layers ({char_count} characters)")
+			
+			self.status_left.setText(f"Generated {char_count} text layers")
+			
+		except Exception as e:
+			loggerRaise(e, f"Failed to create text layers: {str(e)}")
 
 
 def main():
