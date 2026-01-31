@@ -1206,9 +1206,9 @@ class CoA(CoAQueryMixin):
             )
         
         # Check colors (warning only, not blocking)
-        first_colors = (layers[0].color1, layers[0].color2, layers[0].color3)
+        first_colors = (tuple(layers[0].color1), tuple(layers[0].color2), tuple(layers[0].color3))
         colors_match = all(
-            (layer.color1, layer.color2, layer.color3) == first_colors
+            (tuple(layer.color1), tuple(layer.color2), tuple(layer.color3)) == first_colors
             for layer in layers[1:]
         )
         result['info']['colors_match'] = colors_match
