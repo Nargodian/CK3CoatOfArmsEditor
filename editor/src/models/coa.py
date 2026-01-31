@@ -3361,6 +3361,8 @@ class CoA(CoAQueryMixin):
     def check_merge_compatibility(self, uuids: List[str]) -> Tuple[bool, Dict[str, List[int]]]:
         """Check if layers can be merged as instances
         
+        This is a wrapper around review_merge() that provides tuple return format.
+        
         Layers can be merged if they share:
         - Same texture (filename)
         - Same mask
@@ -3383,44 +3385,31 @@ class CoA(CoAQueryMixin):
         if len(uuids) < 2:
             return True, {}
         
-        # Get all layer objects
-        layer_objs = []
-        for uuid in uuids:
-            layer = self._layers.get_by_uuid(uuid)
-            if not layer:
-                raise ValueError(f"Layer with UUID '{uuid}' not found")
-            layer_objs.append(layer)
+        # Use review_merge as single source of truth
+        review = self.review_merge(uuids)
         
-        # Reference layer (first one)
-        ref = layer_objs[0]
-        ref_filename = ref.filename
-        ref_mask = ref.mask
-        ref_color1 = ref.color1
-        ref_color2 = ref.color2
-        ref_color3 = ref.color3
-        ref_flip_x = ref.flip_x
-        ref_flip_y = ref.flip_y
+        # Transform to tuple format
+        if not review['valid']:
+            # If not valid due to texture mismatch, mark as texture difference
+            differences = {}
+            if review['info'].get('textures') and len(review['info']['textures']) > 1:
+                # All non-first layers have different textures
+                differences['filename'] = list(range(1, len(uuids)))
+            return False, differences
         
-        # Track differences
+        # Check for color differences (warnings don't block, but we report them)
         differences = {}
-        
-        # Check each layer against reference
-        for idx, layer in enumerate(layer_objs[1:], start=1):
-            if layer.filename != ref_filename:
-                differences.setdefault('filename', []).append(idx)
-            if layer.mask != ref_mask:
-                differences.setdefault('mask', []).append(idx)
-            # Compare colors as lists (element-wise)
-            if list(layer.color1) != list(ref_color1):
-                differences.setdefault('color1', []).append(idx)
-            if list(layer.color2) != list(ref_color2):
-                differences.setdefault('color2', []).append(idx)
-            if list(layer.color3) != list(ref_color3):
-                differences.setdefault('color3', []).append(idx)
-            if layer.flip_x != ref_flip_x:
-                differences.setdefault('flip_x', []).append(idx)
-            if layer.flip_y != ref_flip_y:
-                differences.setdefault('flip_y', []).append(idx)
+        if not review['info'].get('colors_match', True):
+            # Get layers to check which specific colors differ
+            layers = [self._layers.get_by_uuid(uuid) for uuid in uuids]
+            ref = layers[0]
+            for idx, layer in enumerate(layers[1:], start=1):
+                if list(layer.color1) != list(ref.color1):
+                    differences.setdefault('color1', []).append(idx)
+                if list(layer.color2) != list(ref.color2):
+                    differences.setdefault('color2', []).append(idx)
+                if list(layer.color3) != list(ref.color3):
+                    differences.setdefault('color3', []).append(idx)
         
         compatible = len(differences) == 0
         return compatible, differences
