@@ -144,6 +144,7 @@ class FileActions:
 				
 				# Parse into model
 				self.main_window.coa = CoA.from_string(coa_text)
+				CoA.set_active(self.main_window.coa)  # Make it the active instance for rendering
 				
 				# Apply to UI - update from model
 				self.main_window.canvas_area.canvas_widget.set_base_texture(self.main_window.coa.pattern)

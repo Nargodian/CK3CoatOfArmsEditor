@@ -760,6 +760,7 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Parse into model
 			self.coa = CoA.from_string(coa_text)
+			CoA.set_active(self.coa)  # Make it the active instance for rendering
 			
 			# Update CoA references in all UI components
 			self.canvas_area.coa = self.coa

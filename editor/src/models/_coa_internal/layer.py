@@ -545,9 +545,6 @@ class Layer:
             inst = instances[selected]
             if isinstance(inst, Instance):
                 setattr(inst, prop_name, value)
-            else:
-                # Fallback for dict (shouldn't happen after __init__)
-                inst[prop_name] = value
     
     def _create_default(self) -> Dict:
         """Create default layer data"""
