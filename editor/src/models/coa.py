@@ -1287,6 +1287,84 @@ class CoA(CoAQueryMixin):
         
         self._logger.debug(f"Moved {len(layers_to_move)} layer(s) to top (visual)")
     
+    def shift_layer_up(self, uuids: Union[str, List[str]]) -> bool:
+        """Shift layer(s) up one position (toward index 0, visually toward top, renders more in back)
+        
+        Args:
+            uuids: Layer UUID or list of UUIDs to shift up as a group
+            
+        Returns:
+            True if shift was performed, False if already at top or blocked
+            
+        Raises:
+            ValueError: If any UUID not found
+        """
+        # Normalize to list
+        if isinstance(uuids, str):
+            uuids = [uuids]
+        
+        if not uuids:
+            return False
+        
+        # Get all indices, check if any at top (index 0)
+        indices = []
+        for uuid in uuids:
+            idx = self._layers.get_index_by_uuid(uuid)
+            if idx is None:
+                raise ValueError(f"Layer with UUID '{uuid}' not found")
+            indices.append(idx)
+        
+        # Can't shift up if any layer is at index 0
+        if min(indices) == 0:
+            return False
+        
+        # Get target UUID (layer immediately above the topmost selected layer)
+        target_index = min(indices) - 1
+        target_uuid = self.get_layer_uuid_by_index(target_index)
+        
+        # Move selected layers above target
+        self.move_layer_above(uuids, target_uuid)
+        return True
+    
+    def shift_layer_down(self, uuids: Union[str, List[str]]) -> bool:
+        """Shift layer(s) down one position (toward higher index, visually toward bottom, renders more in front)
+        
+        Args:
+            uuids: Layer UUID or list of UUIDs to shift down as a group
+            
+        Returns:
+            True if shift was performed, False if already at bottom or blocked
+            
+        Raises:
+            ValueError: If any UUID not found
+        """
+        # Normalize to list
+        if isinstance(uuids, str):
+            uuids = [uuids]
+        
+        if not uuids:
+            return False
+        
+        # Get all indices, check if any at bottom (last index)
+        indices = []
+        for uuid in uuids:
+            idx = self._layers.get_index_by_uuid(uuid)
+            if idx is None:
+                raise ValueError(f"Layer with UUID '{uuid}' not found")
+            indices.append(idx)
+        
+        # Can't shift down if any layer is at last index
+        if max(indices) >= len(self._layers) - 1:
+            return False
+        
+        # Get target UUID (layer immediately below the bottommost selected layer)
+        target_index = max(indices) + 1
+        target_uuid = self.get_layer_uuid_by_index(target_index)
+        
+        # Move selected layers below target
+        self.move_layer_below(uuids, target_uuid)
+        return True
+    
     def review_merge(self, uuids: List[str]) -> Dict[str, Any]:
         """Review merge operation before performing it (validation and warnings)
         

@@ -853,28 +853,18 @@ class PropertySidebar(QFrame):
 	
 	def _move_layer_up(self):
 		"""Move all selected layers up in the list as a group"""
-		selected_indices = self.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.get_selected_uuids()
+		if not selected_uuids:
 			return
 		
-		# Can't move up if any selected layer is at the top (index 0)
-		if min(selected_indices) == 0:
-			return
-		
-		# Get UUIDs of selected layers in order
-		selected_uuids = [self.coa.get_layer_uuid_by_index(idx) for idx in sorted(selected_indices)]
-		
-		# Get target UUID (the layer above the topmost selected layer)
-		target_index = min(selected_indices) - 1
-		target_uuid = self.coa.get_layer_uuid_by_index(target_index)
-		
-		# Move selected layers above target as a group
-		self.coa.move_layer_above(selected_uuids, target_uuid)
+		# Use CoA's pure UUID-based shift method
+		if not self.coa.shift_layer_up(selected_uuids):
+			return  # Already at top or blocked
 		
 		# Keep same UUIDs selected (layers moved, but UUIDs stay the same)
 		self.layer_list_widget.selected_layer_uuids = set(selected_uuids)
 		if selected_uuids:
-			self.layer_list_widget.last_selected_uuid = selected_uuids[-1]
+			self.layer_list_widget.last_selected_uuid = selected_uuids[0]
 		
 		self._rebuild_layer_list()
 		self.layer_list_widget.update_selection_visuals()
@@ -883,33 +873,23 @@ class PropertySidebar(QFrame):
 			self.canvas_widget.update()
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):
-			layer_word = "layers" if len(selected_indices) > 1 else "layer"
-			self.main_window._save_state(f"Move {len(selected_indices)} {layer_word} up")
+			layer_word = "layers" if len(selected_uuids) > 1 else "layer"
+			self.main_window._save_state(f"Move {len(selected_uuids)} {layer_word} up")
 	
 	def _move_layer_down(self):
 		"""Move all selected layers down in the list as a group"""
-		selected_indices = self.get_selected_indices()
-		if not selected_indices:
+		selected_uuids = self.get_selected_uuids()
+		if not selected_uuids:
 			return
 		
-		# Can't move down if any selected layer is at the bottom (last index)
-		if max(selected_indices) >= self.get_layer_count() - 1:
-			return
-		
-		# Get UUIDs of selected layers in order
-		selected_uuids = [self.coa.get_layer_uuid_by_index(idx) for idx in sorted(selected_indices)]
-		
-		# Get target UUID (the layer below the bottommost selected layer)
-		target_index = max(selected_indices) + 1
-		target_uuid = self.coa.get_layer_uuid_by_index(target_index)
-		
-		# Move selected layers below target as a group
-		self.coa.move_layer_below(selected_uuids, target_uuid)
+		# Use CoA's pure UUID-based shift method
+		if not self.coa.shift_layer_down(selected_uuids):
+			return  # Already at bottom or blocked
 		
 		# Keep same UUIDs selected (layers moved, but UUIDs stay the same)
 		self.layer_list_widget.selected_layer_uuids = set(selected_uuids)
 		if selected_uuids:
-			self.layer_list_widget.last_selected_uuid = selected_uuids[-1]
+			self.layer_list_widget.last_selected_uuid = selected_uuids[0]
 		
 		self._rebuild_layer_list()
 		self.layer_list_widget.update_selection_visuals()
@@ -918,8 +898,8 @@ class PropertySidebar(QFrame):
 			self.canvas_widget.update()
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):
-			layer_word = "layers" if len(selected_indices) > 1 else "layer"
-			self.main_window._save_state(f"Move {len(selected_indices)} {layer_word} down")
+			layer_word = "layers" if len(selected_uuids) > 1 else "layer"
+			self.main_window._save_state(f"Move {len(selected_uuids)} {layer_word} down")
 	
 	def _duplicate_layer(self, uuid=None):
 		"""Duplicate specific layer or all selected layers with offset"""
