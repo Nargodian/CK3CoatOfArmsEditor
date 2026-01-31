@@ -547,7 +547,7 @@ class CoA(CoAQueryMixin):
                 layer_data['instances'].append(instance_obj)
             
             # Store layer with depth for sorting
-            max_depth = max(inst['depth'] for inst in layer_data['instances'])
+            max_depth = max(inst.depth for inst in layer_data['instances'])
             layers_with_depth.append((max_depth, layer_data))
         
         # Sort by depth (higher depth = further back = first in list)
@@ -555,9 +555,9 @@ class CoA(CoAQueryMixin):
         
         # Add layers to model (back to front)
         for _, layer_data in layers_with_depth:
-            # Remove depth from instances
+            # Remove depth from instances (set to 0 since Instance requires it)
             for inst in layer_data['instances']:
-                del inst['depth']
+                inst.depth = 0.0
             
             # Create Layer and add to collection
             layer = Layer(layer_data, caller='CoA')
@@ -2012,7 +2012,7 @@ class CoA(CoAQueryMixin):
                 temp_positions.append((new_x, new_y))
                 
                 # Rotate
-                inst['rotation'] = (inst_cache['rotation'] + total_delta) % 360
+                inst.rotation = (inst_cache['rotation'] + total_delta) % 360
             
             layer_data.append((layer, cached_instances, instances, layer_center_x, layer_center_y, temp_positions))
         
@@ -2375,7 +2375,7 @@ class CoA(CoAQueryMixin):
                     instances = layer._data.get('instances', [])
                     if instances:
                         for inst in instances:
-                            inst['pos_y'] = max(0.0, min(1.0, inst['pos_y'] + dy))
+                            inst.pos_y = inst.pos_y + dy  # setter handles clamping
         
         self._logger.debug(f"Aligned {len(uuids)} layers (shallow): {alignment}")
     
