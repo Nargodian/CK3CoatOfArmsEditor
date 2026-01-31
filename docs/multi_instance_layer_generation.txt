@@ -146,8 +146,6 @@ MISC CATEGORY:
 Note: Radial and Star Path moved to Misc for further design consideration
 
 VANILLA CATEGORY:
-
-VANILLA CATEGORY:
 CK3 OFFICIAL LAYOUTS:
 Extracted from game/gfx/coat_of_arms/emblem_layouts/50_coa_designer_emblem_layouts.txt
 via asset converter tool
@@ -160,16 +158,18 @@ Popup UI:
 - No parameters (just preview and layout selector dropdown)
 
 Process:
-- Game files store layouts as templates with adjustable variables
-- Asset converter extracts these templates (TODO: add this functionality)
-- We process and flatten them into usable static data
-- Extract instance data only (positions, scales, rotations)
-- Store in JSON file as 5xN numpy arrays per layout: [x, y, scale_x, scale_y, rotation]
-- Format: {"layout_name": [[x,y,sx,sy,r], [x,y,sx,sy,r], ...], ...}
+- Asset converter extracts emblem layout files and parses instance templates
+- Instance data (positions, scales, rotations) extracted and flattened
+- Stored in JSON file (ck3_assets/emblem_layouts.json) as 5xN arrays per layout
+- Format: {"layout_name": [[x, y, scale_x, scale_y, rotation], ...], ...}
+- Example: {"single_centre": [[0.5, 0.5, 1.0, 1.0, 0.0]], "diagonal_duo": [[0.3, 0.3, 0.8, 0.8, 0.0], [0.7, 0.7, 0.8, 0.8, 0.0]]}
 - All generator position outputs should use 5xN numpy array format before converting to layers
 
-Note: Asset converter currently handles textures/metadata only.
-Needs extension to parse and process emblem layout files.
+Asset Converter Changes:
+- Added extract_emblem_layouts() method to parse layout files
+- Processes game/gfx/coat_of_arms/emblem_layouts/*.txt from all sources (base + mods)
+- Uses regex to extract position, rotation, and scale from each instance
+- Outputs to ck3_assets/emblem_layouts.json
 
 Layouts include:
 - single_centre: 1 instance at center
@@ -185,7 +185,20 @@ Procedural patterns allow user configuration before generation.
 
 ARCHITECTURE
 ------------
-Location: services/layer_generator.py
+Code Organization:
+- Base infrastructure: services/layer_generator/ (PathSampler, BaseGenerator, GeneratorPopup)
+- Generator implementations: services/layer_generator/generators/ (each pattern in its own file)
+  - circular_generator.py
+  - line_generator.py
+  - spiral_generator.py
+  - shape_generator.py
+  - grid_generator.py
+  - diamond_generator.py
+  - fibonacci_generator.py
+  - radial_generator.py
+  - star_generator.py
+  - vanilla_generator.py
+- Keep generators separate - don't bloat main.py or single monolithic files
 
 Popup Architecture:
 - Single reusable GeneratorPopup dialog (singleton or managed instance)
@@ -374,11 +387,12 @@ Preview Aspect Ratio:
 
 SVG PATH HANDLING (for SHAPES patterns)
 ----------------------------------------
-Custom shapes (shields, box, star, triangle) use SVG path data:
+Custom shapes use SVG path data. SVG is just a convenience format - not an exposed feature.
 
 Storage:
 - SVG files stored in editor/assets/svg/ folder
-- Named by shape: shield_heater.svg, shield_norman.svg, shield_french.svg, etc.
+- Named by shape: shield_heater.svg, shield_norman.svg, circle.svg, etc.
+- Shape name = filename without extension (e.g., test.svg → "test")
 - All paths normalized to -0.5 to 0.5 coordinate square
 - Normalization preserves aspect ratio:
   - Longest dimension (width or height) scaled to fill 1.0 span (-0.5 to 0.5)
@@ -386,7 +400,6 @@ Storage:
   - Shape centered within the square
   - Example: Tall shape → full height, narrower width, horizontally centered
   - Example: Wide shape → full width, shorter height, vertically centered
-- You provide exact SVG files (no guessing at shield shapes)
 
 Preloading Strategy:
 - All SVG files loaded and processed at application startup
@@ -395,13 +408,14 @@ Preloading Strategy:
 - ShapeGenerator instances reference pre-loaded PathSampler objects
 - No runtime SVG parsing overhead
 - Error Handling: If SVG fails to load/parse, skip it entirely
-  - Failed SVGs are not added to menu
+  - Failed SVGs are not added to menu or dropdown
   - Only valid, successfully loaded shapes appear in Generate > Path > Shape
   - Log errors for debugging but don't break application
 
 Path Sampler Service:
-- Loads SVG file and extracts <path d="..."> data
-- Converts ALL paths to simple dot-to-dot polylines (list of (x, y) points)
+- Use third-party SVG parser library (svgpathtools or svg.path recommended)
+- ONLY extract top-level <path> elements - ignore circles, rects, etc.
+- Converts ALL extracted paths to simple dot-to-dot polylines (list of (x, y) points)
 - No curves in final representation - everything is straight line segments
 - Discretizes SVG curves (bezier, arcs, etc.) into line segments during conversion
 - Configurable resolution for curve discretization (higher = smoother approximation)
@@ -410,7 +424,7 @@ Path Sampler Service:
 - Measures total path length for effective sampling
   - Cumulative length at each point (for length-based queries)
   - Total perimeter/length available for percent-based sampling
-  - Consider using numpy for efficient distance calculations between points
+  - Uses numpy for efficient distance calculations between points
 
 Query Methods:
 - sample_points(count, start_percent, end_percent) -> List[(x, y, angle)]
@@ -419,20 +433,18 @@ Query Methods:
 - Uses linear interpolation within segments
 - O(n) lookup time using pre-calculated cumulative lengths
 
-SVG Path Support:
-- M/m (moveto)
-- L/l (lineto)
-- H/h (horizontal lineto)
-- V/v (vertical lineto)
-- C/c (cubic bezier) - discretized into line segments
-- Q/q (quadratic bezier) - discretized into line segments
-- Z/z (closepath)
+Menu/Dropdown Structure:
+- Each loaded SVG creates ONE menu item: Generate > Path > Shape > [filename]
+- Each loaded SVG creates ONE dropdown entry in ShapeGenerator popup
+- All shapes use same ShapeGenerator class with different path data
+- Dropdown allows switching between shapes without closing popup
 
 Workflow for Adding Custom Shapes:
 1. Draw shape in SVG editor (Inkscape, Illustrator)
-2. Normalize to -0.5 to 0.5 coordinate space
-3. Save as .svg file in editor/assets/svg/
-4. Path automatically loaded, discretized and queryable
+2. Convert all shapes to paths (circles, rects → path elements)
+3. Normalize to -0.5 to 0.5 coordinate space
+4. Save as .svg file in editor/assets/svg/
+5. Path automatically loaded, discretized and queryable on next startup
 
 PREVIEW SYSTEM
 --------------

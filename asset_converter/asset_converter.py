@@ -689,6 +689,10 @@ class ConversionWorker(QThread):
             if not self.extract_mask_texture():
                 self.log_error("Mask texture extraction failed (non-critical)")
             
+            # Step 4.6: Extract emblem layouts
+            if not self.extract_emblem_layouts():
+                self.log_error("Emblem layout extraction failed (non-critical)")
+            
             # Step 5: Convert metadata
             current_step += 1
             self.progress.emit("Converting metadata...", current_step, total_steps)
@@ -1094,6 +1098,123 @@ class ConversionWorker(QThread):
         except Exception as e:
             self.log_error(f"Mask texture extraction error: {str(e)}")
             return False
+    
+    def extract_emblem_layouts(self) -> bool:
+        """Extract CK3 emblem layout templates from game files.
+        
+        Parses emblem_layouts/*.txt files and converts instance templates
+        to flattened position arrays stored in JSON format.
+        """
+        try:
+            # Find emblem layout files from all sources
+            layouts_dict = {}
+            
+            for source in self.asset_sources:
+                if source.is_base_game:
+                    layouts_dir = source.path / "game" / "gfx" / "coat_of_arms" / "emblem_layouts"
+                else:
+                    layouts_dir = source.path / "gfx" / "coat_of_arms" / "emblem_layouts"
+                
+                self.progress.emit(f"Checking {layouts_dir}...", 0, 0)
+                self.progress.emit(f"  Directory exists: {layouts_dir.exists()}", 0, 0)
+                self.progress.emit(f"  Directory is_dir: {layouts_dir.is_dir() if layouts_dir.exists() else 'N/A'}", 0, 0)
+                
+                if not layouts_dir.exists():
+                    self.progress.emit(f"  Directory not found: {layouts_dir}", 0, 0)
+                    continue
+                
+                self.progress.emit(f"Extracting emblem layouts from {source.name}...", 0, 0)
+                
+                layout_files = list(layouts_dir.glob("*.txt"))
+                self.progress.emit(f"  Found {len(layout_files)} layout files", 0, 0)
+                
+                # Debug: Show first few files if any exist
+                if layout_files:
+                    for i, f in enumerate(layout_files[:3]):
+                        self.progress.emit(f"    -> {f.name}", 0, 0)
+                    if len(layout_files) > 3:
+                        self.progress.emit(f"    -> ... and {len(layout_files) - 3} more", 0, 0)
+                else:
+                    # Show what IS in the directory
+                    try:
+                        all_files = list(layouts_dir.iterdir())
+                        self.progress.emit(f"  Directory contains {len(all_files)} items total", 0, 0)
+                        for item in list(all_files)[:5]:
+                            self.progress.emit(f"    -> {item.name} ({'dir' if item.is_dir() else 'file'})", 0, 0)
+                    except Exception as e:
+                        self.progress.emit(f"  Error listing directory: {e}", 0, 0)
+                
+                for layout_file in layout_files:
+                    self.progress.emit(f"  Processing {layout_file.name}...", 0, 0)
+                    try:
+                        with open(layout_file, 'r', encoding='utf-8-sig') as f:
+                            content = f.read()
+                        
+                        # Parse layouts from this file
+                        file_layouts = self.parse_emblem_layout_file(content)
+                        
+                        # Merge with existing (later sources override)
+                        for layout_name, instances in file_layouts.items():
+                            layouts_dict[layout_name] = instances
+                            
+                        self.progress.emit(f"  Loaded {len(file_layouts)} layouts from {layout_file.name}", 0, 0)
+                        
+                    except Exception as e:
+                        self.log_error(f"Error parsing layout file {layout_file.name}: {e}")
+            
+            if not layouts_dict:
+                self.log_error("No emblem layouts found")
+                return False
+            
+            # Save to JSON
+            output_path = self.output_dir / "emblem_layouts.json"
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(layouts_dict, f, indent=2)
+            
+            self.progress.emit(f"Emblem layouts: {len(layouts_dict)} layouts extracted", 0, 0)
+            return True
+            
+        except Exception as e:
+            self.log_error(f"Emblem layout extraction error: {str(e)}")
+            return False
+    
+    def parse_emblem_layout_file(self, content: str) -> Dict[str, List[List[float]]]:
+        """Parse emblem layout file and extract instance positions.
+        
+        Args:
+            content: Raw file content
+            
+        Returns:
+            Dict mapping layout_name -> list of [x, y, scale_x, scale_y, rotation]
+        """
+        layouts = {}
+        
+        # CK3 format: layout_name = { ... colored_emblem = { ... instance = { position = {...} scale = {...} } ... } }
+        # Pattern to find layout blocks: layout_name = { ... }
+        layout_pattern = r'(coa_designer_\w+)\s*=\s*\{(.*?)\n\}'
+        
+        for layout_match in re.finditer(layout_pattern, content, re.DOTALL):
+            layout_name = layout_match.group(1)
+            layout_block = layout_match.group(2)
+            
+            # Find all instance lines: instance = { position = { x y } scale = { sx sy } }
+            # Note: rotation is optional and defaults to 0
+            instance_pattern = r'instance\s*=\s*\{\s*position\s*=\s*\{\s*([-\d.]+)\s+([-\d.]+)\s*\}\s*scale\s*=\s*\{\s*([-\d.]+)\s+([-\d.]+)\s*\}(?:\s*rotation\s*=\s*([-\d.]+))?\s*\}'
+            
+            instances = []
+            for inst_match in re.finditer(instance_pattern, layout_block):
+                x = float(inst_match.group(1))
+                y = float(inst_match.group(2))
+                scale_x = float(inst_match.group(3))
+                scale_y = float(inst_match.group(4))
+                rotation = float(inst_match.group(5)) if inst_match.group(5) else 0.0
+                
+                instances.append([x, y, scale_x, scale_y, rotation])
+            
+            if instances:
+                layouts[layout_name] = instances
+        
+        return layouts
     
     def convert_metadata_from_sources(self) -> bool:
         """Convert CK3 .txt metadata files to JSON from all sources."""

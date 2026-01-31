@@ -66,6 +66,14 @@ from actions.file_actions import FileActions
 from actions.clipboard_actions import ClipboardActions
 from actions.layer_transform_actions import LayerTransformActions
 
+# Layer generator imports
+from services.layer_generator import GeneratorPopup
+from services.layer_generator.generators import (
+    CircularGenerator, LineGenerator, SpiralGenerator, ShapeGenerator,
+    GridGenerator, DiamondGenerator, FibonacciGenerator,
+    RadialGenerator, StarGenerator, VanillaGenerator
+)
+
 
 class CoatOfArmsEditor(QMainWindow):
 	def __init__(self):
@@ -121,6 +129,13 @@ class CoatOfArmsEditor(QMainWindow):
 		self.file_actions = FileActions(self)
 		self.clipboard_actions = ClipboardActions(self)
 		self.transform_actions = LayerTransformActions(self)
+		
+		# Initialize layer generator - preload shapes before UI setup
+		self.generator_popup = None  # Created on demand
+		try:
+			self._preload_shapes()
+		except Exception as e:
+			print(f"Warning: Failed to preload shapes: {e}")
 		
 		self.setup_ui()
 		
@@ -407,6 +422,53 @@ class CoatOfArmsEditor(QMainWindow):
 		self.merge_as_instances_action = self.layers_menu.addAction("    Merge")
 		self.merge_as_instances_action.triggered.connect(self._merge_selected_layers)
 		self.merge_as_instances_action.setEnabled(False)  # Enabled only for multi-selection
+		
+		# Generate Menu
+		self.generate_menu = menubar.addMenu("&Generate")
+		
+		# Path submenu
+		path_menu = self.generate_menu.addMenu("&Path")
+		
+		circular_action = path_menu.addAction("&Circular")
+		circular_action.triggered.connect(lambda: self._open_generator('circular'))
+		
+		line_action = path_menu.addAction("&Line")
+		line_action.triggered.connect(lambda: self._open_generator('line'))
+		
+		spiral_action = path_menu.addAction("&Spiral")
+		spiral_action.triggered.connect(lambda: self._open_generator('spiral'))
+		
+		path_menu.addSeparator()
+		
+		# Shape submenu (dynamically populated with loaded SVGs)
+		self.shape_menu = path_menu.addMenu("S&hape")
+		self._populate_shape_menu()
+		
+		# Grid submenu
+		grid_patterns_menu = self.generate_menu.addMenu("&Grid")
+		
+		grid_action = grid_patterns_menu.addAction("&Grid Pattern")
+		grid_action.triggered.connect(lambda: self._open_generator('grid'))
+		
+		diamond_action = grid_patterns_menu.addAction("&Diamond Grid")
+		diamond_action.triggered.connect(lambda: self._open_generator('diamond'))
+		
+		# Misc submenu
+		misc_menu = self.generate_menu.addMenu("&Misc")
+		
+		fibonacci_action = misc_menu.addAction("&Fibonacci Spiral (Sunflower)")
+		fibonacci_action.triggered.connect(lambda: self._open_generator('fibonacci'))
+		
+		radial_action = misc_menu.addAction("&Radial")
+		radial_action.triggered.connect(lambda: self._open_generator('radial'))
+		
+		star_action = misc_menu.addAction("&Star Path")
+		star_action.triggered.connect(lambda: self._open_generator('star'))
+		
+		# Vanilla submenu
+		vanilla_menu = self.generate_menu.addMenu("&Vanilla")
+		vanilla_action = vanilla_menu.addAction("CK3 Official &Layouts")
+		vanilla_action.triggered.connect(lambda: self._open_generator('vanilla'))
 		
 		# View Menu
 		view_menu = menubar.addMenu("&View")
@@ -1476,6 +1538,9 @@ class CoatOfArmsEditor(QMainWindow):
 			QApplication.clipboard().setText(coa_text)
 		except Exception as e:
 			loggerRaise(e, "Failed to copy coat of arms")
+	
+	def paste_coa(self):
+		"""Paste CoA from clipboard as text"""
 		try:
 			# Get clipboard text
 			coa_text = QApplication.clipboard().text()
@@ -1516,6 +1581,9 @@ class CoatOfArmsEditor(QMainWindow):
 			self._save_state("Paste CoA")
 		except Exception as e:
 			loggerRaise(e, "Failed to paste coat of arms - clipboard may not contain valid data")
+	
+	def copy_layer(self):
+		"""Copy selected layer(s) to clipboard"""
 		try:
 			# Check if layers are selected
 			selected_indices = self.right_sidebar.get_selected_indices()
@@ -1535,6 +1603,10 @@ class CoatOfArmsEditor(QMainWindow):
 				QApplication.clipboard().setText(full_text)
 		except Exception as e:
 			loggerRaise(e, "Failed to copy layer")
+	
+	def paste_layer(self):
+		"""Paste layer(s) from clipboard"""
+		try:
 			# Check if layers are selected
 			selected_indices = self.right_sidebar.get_selected_indices()
 			if not selected_indices:
@@ -1724,8 +1796,6 @@ class CoatOfArmsEditor(QMainWindow):
 			self._save_state(f"Merge {len(layers_to_merge)} layers ({instance_count} instances)")
 		except Exception as e:
 			loggerRaise(e, "Failed to merge layers")
-
-def paste_layer(self):
 	
 	def paste_layer_smart(self):
 		"""Smart paste - delegates to clipboard_actions"""
@@ -1753,6 +1823,153 @@ def paste_layer(self):
 				if asset.get('filename') == filename:
 					return asset.get('path', '')
 		return ''
+	
+	# ===========================================
+	# Layer Generator Methods
+	# ===========================================
+	
+	def _preload_shapes(self):
+		"""Preload all SVG shapes at startup."""
+		# Get path to SVG directory
+		editor_dir = os.path.dirname(os.path.abspath(__file__))
+		svg_dir = os.path.join(os.path.dirname(editor_dir), 'assets', 'svg')
+		
+		# Preload shapes into ShapeGenerator
+		ShapeGenerator.preload_shapes(svg_dir)
+	
+	def _populate_shape_menu(self):
+		"""Populate the Shape submenu with loaded SVG shapes."""
+		shape_names = ShapeGenerator.get_shape_names()
+		
+		if not shape_names:
+			# No shapes available
+			no_shapes_action = self.shape_menu.addAction("(No shapes available)")
+			no_shapes_action.setEnabled(False)
+			return
+		
+		# Add menu item for each shape
+		for shape_name in shape_names:
+			action = self.shape_menu.addAction(shape_name)
+			action.triggered.connect(lambda checked, name=shape_name: self._open_generator('shape', name))
+	
+	def _open_generator(self, generator_type: str, shape_name: str = None):
+		"""Open the generator popup with specified generator type.
+		
+		Args:
+			generator_type: Type of generator ('circular', 'line', 'spiral', 'shape', 
+			                'grid', 'diamond', 'fibonacci', 'radial', 'star')
+			shape_name: For 'shape' type, the name of the shape to use
+		"""
+		# Create generator instance based on type
+		generator = None
+		
+		if generator_type == 'circular':
+			generator = CircularGenerator()
+		elif generator_type == 'line':
+			generator = LineGenerator()
+		elif generator_type == 'spiral':
+			generator = SpiralGenerator()
+		elif generator_type == 'shape':
+			generator = ShapeGenerator(initial_shape=shape_name)
+		elif generator_type == 'grid':
+			generator = GridGenerator()
+		elif generator_type == 'diamond':
+			generator = DiamondGenerator()
+		elif generator_type == 'fibonacci':
+			generator = FibonacciGenerator()
+		elif generator_type == 'radial':
+			generator = RadialGenerator()
+		elif generator_type == 'star':
+			generator = StarGenerator()
+		elif generator_type == 'vanilla':
+			generator = VanillaGenerator()
+		else:
+			print(f"Unknown generator type: {generator_type}")
+			return
+		
+		# Create popup if it doesn't exist
+		if not self.generator_popup:
+			self.generator_popup = GeneratorPopup(self)
+		
+		# Load generator into popup
+		self.generator_popup.load_generator(generator)
+		
+		# Show popup
+		result = self.generator_popup.exec_()
+		
+		# If user clicked Generate, create the layer
+		if result == self.generator_popup.Accepted:
+			generated_instances = self.generator_popup.get_generated_instances()
+			if generated_instances is not None and len(generated_instances) > 0:
+				self._create_generated_layer(generated_instances)
+	
+	def _create_generated_layer(self, instances: 'np.ndarray'):
+		"""Create a layer from generated instance transforms.
+		
+		Uses paste infrastructure to create multi-instance layer with undo/redo support.
+		
+		Args:
+			instances: 5xN numpy array [[x, y, scale_x, scale_y, rotation], ...]
+		"""
+		try:
+			# Build CK3 format string directly from instance array
+			default_emblem = "ce_fleur.dds"
+			
+			lines = []
+			lines.append("layers_export = {")
+			lines.append("\tcolored_emblem = {")
+			lines.append(f'\t\ttexture = "{default_emblem}"')
+			lines.append('\t\tcolor1 = "white"')
+			
+			# Serialize each instance directly
+			for instance_data in instances:
+				x, y, scale_x, scale_y, rotation = instance_data
+				lines.append('\t\t\tinstance = {')
+				lines.append(f'\t\t\t\tposition = {{ {x} {y} }}')
+				lines.append(f'\t\t\t\tscale = {{ {scale_x} {scale_y} }}')
+				if rotation != 0:
+					lines.append(f'\t\t\t\trotation = {rotation}')
+				lines.append('\t\t\t}')
+			
+			lines.append("\t}")
+			lines.append("}")
+			
+			layer_string = '\n'.join(lines)
+			
+			# Create temp CoA and parse the layer string
+			temp_coa = CoA()
+			temp_coa.parse(layer_string)
+			
+			# Check for selection to insert above
+			selected_uuids = self.right_sidebar.get_selected_uuids()
+			target_uuid = selected_uuids[0] if selected_uuids else None
+			
+			# Copy layer from temp CoA to main CoA
+			if target_uuid:
+				# Insert above selected layer (in front of it)
+				new_uuids = self.coa.copy_layers_from_coa(temp_coa, apply_offset=False, target_uuid=target_uuid)
+			else:
+				# No selection, insert at front
+				new_uuids = self.coa.copy_layers_from_coa(temp_coa, at_front=True, apply_offset=False)
+			
+			# Update UI
+			self.right_sidebar._rebuild_layer_list()
+			self.canvas_area.canvas_widget.update()
+			
+			# Select the newly created layer
+			if new_uuids:
+				self.right_sidebar.layer_list_widget.selected_layer_uuids = set(new_uuids)
+				self.right_sidebar.layer_list_widget.last_selected_uuid = new_uuids[0]
+				self.right_sidebar.layer_list_widget.update_selection_visuals()
+			
+			# Save to history
+			count = len(instances)
+			self._save_state(f"Generate layer ({count} instances)")
+			
+			self.status_left.setText(f"Generated layer with {count} instances")
+			
+		except Exception as e:
+			loggerRaise(e, f"Failed to create generated layer: {str(e)}")
 
 
 def main():

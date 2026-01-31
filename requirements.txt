@@ -11,6 +11,9 @@ PyOpenGL>=3.1.0
 Pillow>=9.0.0
 numpy>=1.20.0
 
+# SVG Path Processing (for layer generator shapes)
+svgpathtools>=1.4.0
+
 # Asset Conversion (for AssetConverter tool)
 imageio>=2.25.0
 imageio-dds>=0.1.0
