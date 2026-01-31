@@ -57,8 +57,12 @@ class PropertySidebar(QFrame):
 	# ========================================
 	
 	def get_selected_uuids(self) -> list:
-		"""Get list of selected layer UUIDs (primary selection API)"""
-		return list(self.layer_list_widget.selected_layer_uuids)
+		"""Get list of selected layer UUIDs sorted by layer order (bottom to top)"""
+		uuids = list(self.layer_list_widget.selected_layer_uuids)
+		# Sort by layer index to preserve order
+		if uuids and self.coa:
+			uuids.sort(key=lambda uuid: self.coa.get_layer_index_by_uuid(uuid) or 0)
+		return uuids
 	
 	def get_selected_indices(self) -> list:
 		"""Get sorted list of selected layer indices (DEPRECATED - use get_selected_uuids)"""
@@ -292,7 +296,7 @@ class PropertySidebar(QFrame):
 		self.layer_list_widget.on_selection_changed = self._on_layer_selection_changed
 		self.layer_list_widget.on_layers_reordered = self._on_layer_reorder
 		self.layer_list_widget.on_duplicate_layer = self._duplicate_layer
-		self.layer_list_widget.on_delete_layer = lambda uuid: self._delete_layer()
+		self.layer_list_widget.on_delete_layer = lambda uuid: self._delete_specific_layer(uuid)
 		self.layer_list_widget.on_color_changed = self._on_layer_color_changed
 		self.layer_list_widget.on_visibility_toggled = self._on_layer_visibility_toggle
 		
@@ -774,6 +778,33 @@ class PropertySidebar(QFrame):
 		if self.main_window and hasattr(self.main_window, '_save_state'):
 			layer_word = "layers" if len(selected_uuids) > 1 else "layer"
 			self.main_window._save_state(f"Delete {len(selected_uuids)} {layer_word}")
+	
+	def _delete_specific_layer(self, uuid):
+		"""Delete a specific layer by UUID (ignores current selection)"""
+		if not uuid:
+			return
+		
+		# Delete the specific layer
+		self.coa.remove_layer(uuid)
+		
+		# Clear thumbnail cache
+		if hasattr(self, 'layer_list_widget'):
+			self.layer_list_widget.clear_thumbnail_cache()
+		
+		# Remove from selection if it was selected
+		if hasattr(self, 'layer_list_widget') and uuid in self.layer_list_widget.selected_layer_uuids:
+			self.layer_list_widget.selected_layer_uuids.remove(uuid)
+		
+		self._rebuild_layer_list()
+		self._update_layer_selection()
+		# Update transform widget for selection
+		if self.canvas_area:
+			self.canvas_area.update_transform_widget_for_layer()
+		if self.canvas_widget:
+			self.canvas_widget.update()
+		# Save to history
+		if self.main_window and hasattr(self.main_window, '_save_state'):
+			self.main_window._save_state("Delete layer")
 	
 	def _move_layer_up(self):
 		"""Move all selected layers up in the list as a group"""

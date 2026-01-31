@@ -137,6 +137,29 @@ class TransformWidget(QWidget):
 		self.rotation = rotation
 		self.update()
 	
+	def rescale_for_frame_change(self, scale_ratio_x, scale_ratio_y, offset_delta_x, offset_delta_y):
+		"""Rescale widget proportionally when frame changes to prevent false transforms
+		
+		When the frame changes (e.g., from scale 1.0 to 0.9), the widget needs to adjust
+		its displayed size/position to match. Otherwise, the next drag operation will
+		see the frame scale change as a user transform.
+		
+		Args:
+			scale_ratio_x: new_frame_scale_x / old_frame_scale_x
+			scale_ratio_y: new_frame_scale_y / old_frame_scale_y
+			offset_delta_x: new_frame_offset_x - old_frame_offset_x
+			offset_delta_y: new_frame_offset_y - old_frame_offset_y
+		"""
+		# Adjust position by offset delta
+		self.pos_x += offset_delta_x
+		self.pos_y += offset_delta_y
+		
+		# Adjust scale by frame scale ratio
+		self.scale_x *= scale_ratio_x
+		self.scale_y *= scale_ratio_y
+		
+		self.update()
+	
 	def set_visible(self, visible):
 		"""Show/hide the transform widget"""
 		self.visible = visible

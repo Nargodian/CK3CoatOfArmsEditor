@@ -52,6 +52,7 @@ class CanvasArea(QFrame):
 		
 		# OpenGL canvas widget (square aspect)
 		self.canvas_widget = CoatOfArmsCanvas()
+		self.canvas_widget.canvas_area = self  # Give canvas access to canvas_area
 		self.canvas_widget.setMinimumSize(400, 400)
 		self.canvas_widget.setMaximumSize(1000, 1000)
 		
@@ -276,7 +277,15 @@ class CanvasArea(QFrame):
 					self.transform_widget.set_visible(False)
 					return
 				
-				self.transform_widget.set_transform(pos_x, pos_y, scale_x, scale_y, rotation)
+				# Convert CoA space to frame-adjusted visual space
+				frame_x, frame_y = self.canvas_widget.coa_to_frame_space(pos_x, pos_y)
+				
+				# Apply frame scale to the emblem scale as well
+				frame_scale, _ = self.canvas_widget.get_frame_transform()
+				frame_scale_x = scale_x * frame_scale[0]
+				frame_scale_y = scale_y * frame_scale[1]
+				
+				self.transform_widget.set_transform(frame_x, frame_y, frame_scale_x, frame_scale_y, rotation)
 				self.transform_widget.set_visible(True)
 				return
 		
@@ -306,6 +315,12 @@ class CanvasArea(QFrame):
 			except ValueError:
 				self.transform_widget.set_visible(False)
 				return
+		
+		# Convert CoA space group AABB to frame-adjusted visual space
+		frame_x, frame_y = self.canvas_widget.coa_to_frame_space(group_pos_x, group_pos_y)
+		frame_scale, _ = self.canvas_widget.get_frame_transform()
+		frame_scale_x = group_scale_x * frame_scale[0]
+		frame_scale_y = group_scale_y * frame_scale[1]
 	
 		# Store initial group state for rotation calculations (Task 3.6)
 		if not hasattr(self, '_initial_group_center'):
@@ -316,7 +331,7 @@ class CanvasArea(QFrame):
 		group_rotation = 0
 		
 		# Pass is_multi_selection=True to skip scale clamping (AABB can exceed 1.0)
-		self.transform_widget.set_transform(group_pos_x, group_pos_y, group_scale_x, group_scale_y, group_rotation, is_multi_selection=True)
+		self.transform_widget.set_transform(frame_x, frame_y, frame_scale_x, frame_scale_y, group_rotation, is_multi_selection=True)
 		self.transform_widget.set_visible(True)
 	def _on_transform_changed(self, pos_x, pos_y, scale_x, scale_y, rotation):
 		"""Handle transform changes from the widget		
@@ -324,10 +339,21 @@ class CanvasArea(QFrame):
 		For single selection with multiple instances: group transform around AABB center
 		For single selection with one instance: direct transform
 		For multi-selection: applies group transform to all selected layers
+		
+		Note: Widget sends frame-adjusted coordinates, convert back to CoA space
 		"""
 		selected_uuids = self.property_sidebar.get_selected_uuids() if self.property_sidebar else []
 		if not selected_uuids:
 			return
+		
+		# Convert frame-adjusted visual space back to CoA space
+		coa_x, coa_y = self.canvas_widget.frame_to_coa_space(pos_x, pos_y)
+		frame_scale, _ = self.canvas_widget.get_frame_transform()
+		coa_scale_x = scale_x / frame_scale[0]
+		coa_scale_y = scale_y / frame_scale[1]
+		
+		# Use CoA space coordinates for all operations below
+		pos_x, pos_y, scale_x, scale_y = coa_x, coa_y, coa_scale_x, coa_scale_y
 		
 		# Check if we're rotating (using rotation handle)
 		if hasattr(self.transform_widget, 'is_rotating') and self.transform_widget.is_rotating:

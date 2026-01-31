@@ -31,7 +31,7 @@ class LayerTransformActions:
 		
 		# Use model method directly with UUIDs
 		self.main_window.coa.align_layers(selected_uuids, alignment)
-		
+
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
 		self.main_window.canvas_area.canvas_widget.update()
@@ -52,30 +52,15 @@ class LayerTransformActions:
 			if not selected_uuids:
 				return
 			
-			# Get rotation mode to determine if orbit should be applied
-			if not orbit and hasattr(self.main_window, 'canvas_area'):
+			# For flips, mirror positions for groups unless explicitly in rotate_only mode
+			if not orbit and len(selected_uuids) > 1 and hasattr(self.main_window, 'canvas_area'):
 				rotation_mode = self.main_window.canvas_area.get_rotation_mode()
-				# Apply orbit if mode includes orbiting
-				orbit = 'orbit' in rotation_mode.lower()
-		
-			# Flip visual appearance
-			for uuid in selected_uuids:
-				self.main_window.coa.flip_layer(uuid, flip_x=True, flip_y=None)
+				# Mirror positions unless mode is rotate_only (which means no position changes)
+				orbit = 'rotate_only' not in rotation_mode.lower()
 			
-			# Orbit: Mirror position across vertical center axis (x → 1.0 - x)
-			if orbit:
-				for uuid in selected_uuids:
-					current_x = self.main_window.coa.get_layer_pos_x(uuid)
-					current_y = self.main_window.coa.get_layer_pos_y(uuid)
-					new_x = 1.0 - current_x
-					self.main_window.coa.set_layer_position(uuid, new_x, current_y)
+			# Use CoA model method that handles both single and group flips
+			self.main_window.coa.flip_selection(selected_uuids, flip_x=True, flip_y=False, orbit=orbit)
 			
-			# OLD CODE (will remove in Step 9):
-			# for idx in selected_indices:
-			# 	layer = self.main_window.right_sidebar.layers[idx]
-			# 	current_scale_x = layer.get('scale_x', 1.0)
-			# 	layer['scale_x'] = -current_scale_x
-		
 			# Update UI
 			self.main_window.right_sidebar._load_layer_properties()
 			self.main_window.canvas_area.canvas_widget.update()
@@ -99,29 +84,14 @@ class LayerTransformActions:
 			if not selected_uuids:
 				return
 			
-			# Get rotation mode to determine if orbit should be applied
-			if not orbit and hasattr(self.main_window, 'canvas_area'):
+			# For flips, mirror positions for groups unless explicitly in rotate_only mode
+			if not orbit and len(selected_uuids) > 1 and hasattr(self.main_window, 'canvas_area'):
 				rotation_mode = self.main_window.canvas_area.get_rotation_mode()
-				# Apply orbit if mode includes orbiting
-				orbit = 'orbit' in rotation_mode.lower()
+				# Mirror positions unless mode is rotate_only (which means no position changes)
+				orbit = 'rotate_only' not in rotation_mode.lower()
 			
-			# Flip visual appearance
-			for uuid in selected_uuids:
-				self.main_window.coa.flip_layer(uuid, flip_x=None, flip_y=True)
-			
-			# Orbit: Mirror position across horizontal center axis (y → 1.0 - y)
-			if orbit:
-				for uuid in selected_uuids:
-					current_x = self.main_window.coa.get_layer_pos_x(uuid)
-					current_y = self.main_window.coa.get_layer_pos_y(uuid)
-					new_y = 1.0 - current_y
-					self.main_window.coa.set_layer_position(uuid, current_x, new_y)
-			
-			# OLD CODE (will remove in Step 9):
-			# for idx in selected_indices:
-			# 	layer = self.main_window.right_sidebar.layers[idx]
-			# 	current_scale_y = layer.get('scale_y', 1.0)
-			# 	layer['scale_y'] = -current_scale_y
+			# Use CoA model method that handles both single and group flips
+			self.main_window.coa.flip_selection(selected_uuids, flip_x=False, flip_y=True, orbit=orbit)
 			
 			# Update UI
 			self.main_window.right_sidebar._load_layer_properties()
@@ -145,9 +115,13 @@ class LayerTransformActions:
 		if not selected_uuids:
 			return
 		
-		# Use model method for each layer
-		for uuid in selected_uuids:
-			self.main_window.coa.rotate_layer(uuid, degrees)
+		# Get rotation mode from canvas area
+		rotation_mode = 'auto'  # Default
+		if hasattr(self.main_window, 'canvas_area'):
+			rotation_mode = self.main_window.canvas_area.get_rotation_mode()
+		
+		# Use group rotation method that handles both single and multiple layers
+		self.main_window.coa.rotate_selection(selected_uuids, degrees, rotation_mode)
 		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()

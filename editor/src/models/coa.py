@@ -2359,6 +2359,76 @@ class CoA(CoAQueryMixin):
         
         self._logger.debug(f"Flipped layer {uuid}: x={flip_x}, y={flip_y}")
     
+    def flip_selection(self, uuids: List[str], flip_x: bool = False, flip_y: bool = False, 
+                       orbit: bool = False):
+        """Flip selected layers with optional position mirroring
+        
+        Args:
+            uuids: List of layer UUIDs
+            flip_x: If True, toggle horizontal flip
+            flip_y: If True, toggle vertical flip
+            orbit: If True, also mirror positions around group center
+            
+        Raises:
+            ValueError: If any UUID not found or empty list
+        """
+        if not uuids:
+            raise ValueError("No layers selected")
+        
+        # Get all layers and validate
+        layers = []
+        for uuid in uuids:
+            layer = self._layers.get_by_uuid(uuid)
+            if not layer:
+                raise ValueError(f"Layer with UUID '{uuid}' not found")
+            layers.append(layer)
+        
+        # Single layer: flip in place
+        if len(uuids) == 1:
+            layer = layers[0]
+            if flip_x:
+                # Toggle current flip state
+                self.flip_layer(uuids[0], flip_x=not layer.flip_x, flip_y=None)
+            if flip_y:
+                # Toggle current flip state
+                self.flip_layer(uuids[0], flip_x=None, flip_y=not layer.flip_y)
+            
+            if orbit:
+                current_x = self.get_layer_pos_x(uuids[0])
+                current_y = self.get_layer_pos_y(uuids[0])
+                if flip_x:
+                    current_x = 1.0 - current_x
+                if flip_y:
+                    current_y = 1.0 - current_y
+                self.set_layer_position(uuids[0], current_x, current_y)
+        else:
+            # Multiple layers: flip around group center
+            bounds = self.get_layers_bounds(uuids)
+            center_x = (bounds['min_x'] + bounds['max_x']) / 2.0
+            center_y = (bounds['min_y'] + bounds['max_y']) / 2.0
+            
+            for uuid, layer in zip(uuids, layers):
+                # Toggle flip visual appearance
+                if flip_x:
+                    self.flip_layer(uuid, flip_x=not layer.flip_x, flip_y=None)
+                if flip_y:
+                    self.flip_layer(uuid, flip_x=None, flip_y=not layer.flip_y)
+                
+                if orbit:
+                    # Mirror position across group center
+                    current_x = self.get_layer_pos_x(uuid)
+                    current_y = self.get_layer_pos_y(uuid)
+                    
+                    if flip_x:
+                        offset_x = current_x - center_x
+                        current_x = center_x - offset_x
+                    
+                    if flip_y:
+                        offset_y = current_y - center_y
+                        current_y = center_y - offset_y
+                    
+                    self.set_layer_position(uuid, current_x, current_y)
+    
     def align_layers(self, uuids: List[str], alignment: str):
         """Align multiple layers relative to each other (shallow - each layer moves as rigid unit)
         
@@ -2415,8 +2485,6 @@ class CoA(CoAQueryMixin):
             for uuid in uuids:
                 current_x = self.get_layer_pos_x(uuid)
                 self.set_layer_position(uuid, current_x, target)
-        
-        self._logger.debug(f"Aligned {len(uuids)} layers (shallow): {alignment}")
     
     def move_layers_to(self, uuids: List[str], position: str):
         """Move layers to fixed canvas positions (shallow - moves all instances as rigid units)
@@ -3297,6 +3365,17 @@ class CoA(CoAQueryMixin):
         """
         layer = self.get_layer_by_index(index)
         return layer.uuid if layer else None
+    
+    def get_layer_index_by_uuid(self, uuid: str) -> Optional[int]:
+        """Get layer index by UUID
+        
+        Args:
+            uuid: Layer UUID
+            
+        Returns:
+            Layer index (0 = bottom) or None if UUID not found
+        """
+        return self._layers.get_index_by_uuid(uuid)
     
     def add_layer_object(self, layer: Layer, at_front: bool = False, target_uuid: Optional[str] = None) -> str:
         """Add an existing Layer object to the CoA

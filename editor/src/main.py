@@ -1,6 +1,16 @@
 import sys
 import os
 import json
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.WARNING,  # Only show warnings and errors
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)  # Output to console
+    ]
+)
 
 # DEBUG MODE: Set to True to get full tracebacks instead of popup error messages
 DEBUG_MODE = True
@@ -1312,7 +1322,10 @@ class CoatOfArmsEditor(QMainWindow):
 		selected_indices = self.right_sidebar.get_selected_indices() if hasattr(self, 'right_sidebar') else []
 		
 		if selected_indices:
-			right_msg = f"Layers: {layer_count} | Selected: Layer {selected_indices[0] + 1}"
+			if len(selected_indices) == 1:
+				right_msg = f"Layers: {layer_count} | Selected: Layer {selected_indices[0] + 1}"
+			else:
+				right_msg = f"Layers: {layer_count} | Selected: {len(selected_indices)} layers"
 		else:
 			right_msg = f"Layers: {layer_count} | No selection"
 		

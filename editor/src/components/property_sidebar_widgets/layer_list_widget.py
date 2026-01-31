@@ -402,6 +402,10 @@ class LayerListWidget(QWidget):
 		# Start drag with selected UUIDs (convert from indices)
 		selected_uuids = [self.layer_buttons[idx][0] for idx in selected_indices if idx < len(self.layer_buttons)]
 		
+		# Sort UUIDs by CoA layer order (bottom to top) to preserve stacking
+		if selected_uuids and self.coa:
+			selected_uuids.sort(key=lambda uuid: self.coa.get_layer_index_by_uuid(uuid) or 0)
+		
 		drag = QDrag(button)
 		mime_data = QMimeData()
 		mime_data.setData('application/x-layer-uuids', QByteArray(json.dumps(selected_uuids).encode('utf-8')))

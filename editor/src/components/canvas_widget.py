@@ -12,6 +12,7 @@ import OpenGL.GL as gl
 import numpy as np
 import os
 import json
+import logging
 from constants import (
 	DEFAULT_FRAME,
 	DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
@@ -138,6 +139,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		super().__init__(parent)
 		#COA INTEGRATION ACTION: Step 5 - Add CoA model reference (set by CanvasArea/MainWindow)
 		# Note: CoA is accessed via CoA.get_active() in paintGL, not stored as instance variable
+		self.canvas_area = None  # Reference to CanvasArea (set after init)
 		self.base_shader = None  # Shader for base layer
 		self.design_shader = None  # Shader for emblem layers
 		self.basic_shader = None  # Shader for frame rendering
@@ -1057,6 +1059,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	
 	def set_frame(self, frame_name):
 		"""Set the frame by name and update mask accordingly"""
+		# Get old frame scale before changing
+		old_scale, old_offset = self.get_frame_transform()
+		
 		if frame_name in self.frameTextures:
 			self.frameTexture = self.frameTextures[frame_name]
 			self.current_frame_name = frame_name
@@ -1071,6 +1076,63 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.current_frame_name = "None"
 			self.patternMask = self.default_mask_texture
 			self.update()
+		
+		# Get new frame scale after changing
+		new_scale, new_offset = self.get_frame_transform()
+		
+		# Notify transform widget to rescale proportionally
+		if self.canvas_area and hasattr(self.canvas_area, 'transform_widget') and self.canvas_area.transform_widget.visible:
+			scale_ratio_x = new_scale[0] / old_scale[0] if old_scale[0] != 0 else 1.0
+			scale_ratio_y = new_scale[1] / old_scale[1] if old_scale[1] != 0 else 1.0
+			offset_delta_x = new_offset[0] - old_offset[0]
+			offset_delta_y = new_offset[1] - old_offset[1]
+			self.canvas_area.transform_widget.rescale_for_frame_change(scale_ratio_x, scale_ratio_y, offset_delta_x, offset_delta_y)
+	
+	def get_frame_transform(self):
+		"""Get the current frame's scale and offset
+		
+		Returns:
+			tuple: ((scale_x, scale_y), (offset_x, offset_y))
+		"""
+		if self.current_frame_name == "None":
+			return ((1.0, 1.0), (0.0, 0.0))
+		elif self.current_frame_name in self.frame_scales:
+			scale = self.frame_scales[self.current_frame_name]
+			offset = self.frame_offsets.get(self.current_frame_name, (0.0, 0.04))
+			return (scale, offset)
+		else:
+			# Default for unlisted frames
+			return ((0.9, 0.9), (0.0, 0.04))
+	
+	def coa_to_frame_space(self, pos_x, pos_y):
+		"""Convert CoA space coordinates to frame-adjusted visual space
+		
+		Args:
+			pos_x, pos_y: Position in CoA space (0-1 range)
+			
+		Returns:
+			tuple: (frame_x, frame_y) in visual frame space
+		"""
+		scale, offset = self.get_frame_transform()
+		# Apply frame scale and offset
+		frame_x = (pos_x - 0.5) * scale[0] + 0.5 + offset[0]
+		frame_y = (pos_y - 0.5) * scale[1] + 0.5 + offset[1]
+		return (frame_x, frame_y)
+	
+	def frame_to_coa_space(self, frame_x, frame_y):
+		"""Convert frame-adjusted visual space to CoA space coordinates
+		
+		Args:
+			frame_x, frame_y: Position in frame visual space
+			
+		Returns:
+			tuple: (pos_x, pos_y) in CoA space (0-1 range)
+		"""
+		scale, offset = self.get_frame_transform()
+		# Remove frame offset and scale
+		pos_x = (frame_x - 0.5 - offset[0]) / scale[0] + 0.5
+		pos_y = (frame_y - 0.5 - offset[1]) / scale[1] + 0.5
+		return (pos_x, pos_y)
 	
 	def set_prestige(self, level):
 		"""Set the prestige level (0-5)"""
