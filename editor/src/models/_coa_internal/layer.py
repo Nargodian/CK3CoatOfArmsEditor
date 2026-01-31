@@ -299,7 +299,7 @@ class Layer:
     @property
     def color1(self) -> List[int]:
         """Get color1 RGB values"""
-        return self._data.get('color1', CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'])
+        return self._data.get('color1', CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'].copy())
     
     @color1.setter
     def color1(self, value: List[int]):
@@ -309,7 +309,7 @@ class Layer:
     @property
     def color2(self) -> List[int]:
         """Get color2 RGB values"""
-        return self._data.get('color2', CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'])
+        return self._data.get('color2', CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'].copy())
     
     @color2.setter
     def color2(self, value: List[int]):
@@ -319,7 +319,7 @@ class Layer:
     @property
     def color3(self) -> List[int]:
         """Get color3 RGB values"""
-        return self._data.get('color3', CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'])
+        return self._data.get('color3', CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'].copy())
     
     @color3.setter
     def color3(self, value: List[int]):

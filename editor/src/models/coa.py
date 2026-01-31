@@ -1214,8 +1214,16 @@ class CoA(CoAQueryMixin):
         result['info']['colors_match'] = colors_match
         
         if not colors_match:
+            # Build detailed message showing which colors differ
+            color_details = []
+            for i, layer in enumerate(layers):
+                color_details.append(
+                    f"Layer {i+1}: c1={layer.color1_name}, c2={layer.color2_name}, c3={layer.color3_name}"
+                )
+            
             result['warnings'].append(
-                "Layers have different colors. After merge, all instances will use the first layer's colors."
+                f"Layers have different colors. After merge, all instances will use the first layer's colors.\n\n" +
+                "\n".join(color_details)
             )
         
         return result
