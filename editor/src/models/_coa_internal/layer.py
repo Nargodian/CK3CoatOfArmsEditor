@@ -605,6 +605,126 @@ class Layer:
         
         return result
     
+    def serialize(self, caller: str = 'unknown') -> str:
+        """Serialize layer to Clausewitz format
+        
+        Args:
+            caller: Registered key identifying the caller
+            
+        Returns:
+            Clausewitz-formatted colored_emblem block
+        """
+        LayerTracker.log_call(caller, self._id, 'serialize')
+        
+        from utils.color_utils import rgb_to_color_name
+        
+        # Helper to normalize RGB [0-255] to [0-1] range
+        def normalize_rgb(rgb):
+            if not rgb:
+                return [1.0, 1.0, 1.0]
+            return [rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0]
+        
+        # Helper to format color
+        def format_color(rgb, color_name):
+            normalized = normalize_rgb(rgb)
+            color_str = rgb_to_color_name(normalized, color_name)
+            if color_str.startswith('rgb'):
+                return color_str  # Already formatted as "rgb { R G B }"
+            else:
+                return f'"{color_str}"'  # Named color, add quotes
+        
+        lines = []
+        lines.append('\tcolored_emblem = {')
+        lines.append(f'\t\ttexture = "{self.filename}"')
+        
+        # Add colors based on color count
+        lines.append(f'\t\tcolor1 = {format_color(self.color1, self.color1_name)}')
+        if self.colors >= 2:
+            lines.append(f'\t\tcolor2 = {format_color(self.color2, self.color2_name)}')
+        if self.colors >= 3:
+            lines.append(f'\t\tcolor3 = {format_color(self.color3, self.color3_name)}')
+        
+        # Serialize mask if present
+        if self.mask is not None:
+            mask_str = ' '.join(map(str, self.mask))
+            lines.append(f'\t\tmask = {{ {mask_str} }}')
+        
+        # Serialize all instances
+        instances = self._data.get('instances', [])
+        for inst in instances:
+            if isinstance(inst, Instance):
+                lines.append(inst.serialize(flip_x=self.flip_x, flip_y=self.flip_y))
+        
+        lines.append('\t}')
+        return '\n'.join(lines)
+    
+    @staticmethod
+    def parse(data: Dict[str, Any], caller: str = 'unknown') -> 'Layer':
+        \"\"\"Parse layer from Clausewitz parser output
+        
+        Args:
+            data: Dict from parser with texture, colors, instances, etc
+            caller: Registered key identifying the caller
+            
+        Returns:
+            New Layer object
+        \"\"\"
+        from utils.color_utils import color_name_to_rgb
+        from utils.metadata_cache import get_texture_color_count
+        
+        filename = data.get('texture', '')
+        
+        # Get color names and RGB values
+        color1_name = data.get('color1', 'yellow')
+        color2_name = data.get('color2', 'red')
+        color3_name = data.get('color3', 'red')
+        
+        # Look up actual color count from texture metadata
+        color_count = get_texture_color_count(filename)
+        
+        # Parse instances
+        instances_data = data.get('instance', [])
+        if not instances_data:
+            # No instance block means default values
+            instances_data = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0}]
+        
+        # Parse first instance to detect flip from negative scale
+        first_inst_data = instances_data[0]
+        scale = first_inst_data.get('scale', [1.0, 1.0])
+        scale_x_raw = scale[0] if isinstance(scale, list) else 1.0
+        scale_y_raw = scale[1] if isinstance(scale, list) and len(scale) > 1 else 1.0
+        flip_x = scale_x_raw < 0
+        flip_y = scale_y_raw < 0
+        
+        # Convert all instances
+        instances = [Instance.parse(inst_data) for inst_data in instances_data]
+        
+        # Parse mask if present
+        mask = data.get('mask')
+        if isinstance(mask, list):
+            mask = [int(x) for x in mask]
+        
+        layer_data = {
+            'uuid': str(uuid_module.uuid4()),
+            'filename': filename,
+            'path': filename,
+            'colors': color_count,
+            'instances': instances,
+            'selected_instance': 0,
+            'flip_x': flip_x,
+            'flip_y': flip_y,
+            'color1': color_name_to_rgb(color1_name),
+            'color2': color_name_to_rgb(color2_name),
+            'color3': color_name_to_rgb(color3_name),
+            'color1_name': color1_name,
+            'color2_name': color2_name,
+            'color3_name': color3_name,
+            'mask': mask,
+            'visible': True
+        }
+        
+        return Layer(layer_data, caller=caller)
+    
     def duplicate(self, caller: str = 'unknown', offset_x: float = 0.0, offset_y: float = 0.0) -> 'Layer':
         """Create a duplicate of this layer with a new UUID
         

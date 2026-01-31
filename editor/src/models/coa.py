@@ -399,126 +399,17 @@ class CoA(CoAQueryMixin):
                 coa._pattern_color3 = color_name_to_rgb(color3_raw)
                 coa._pattern_color3_name = color3_raw
         
-        # Parse colored_emblem blocks
+        # Parse colored_emblem blocks using Layer.parse()
         emblems = coa_obj.get('colored_emblem', [])
         
-        # Collect all layers with depth for sorting
-        layers_with_depth = []
-        
+        # Parse each emblem as a Layer directly
         for emblem in emblems:
-            filename = emblem.get('texture', '')
-            
-            # Parse colors
-            color1_raw = emblem.get('color1', DEFAULT_EMBLEM_COLOR1)
-            color2_raw = emblem.get('color2', DEFAULT_EMBLEM_COLOR2)
-            color3_raw = emblem.get('color3', DEFAULT_EMBLEM_COLOR3)
-            
-            # Helper to parse color
-            def parse_color(color_raw, default_name):
-                if isinstance(color_raw, str):
-                    if color_raw.startswith('rgb'):
-                        rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color_raw)
-                        if rgb_match:
-                            return ([int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))], None)
-                    return (color_name_to_rgb(color_raw), color_raw)
-                return (color_name_to_rgb(default_name), default_name)
-            
-            color1, color1_name = parse_color(color1_raw, DEFAULT_EMBLEM_COLOR1)
-            color2, color2_name = parse_color(color2_raw, DEFAULT_EMBLEM_COLOR2)
-            color3, color3_name = parse_color(color3_raw, DEFAULT_EMBLEM_COLOR3)
-            
-            # Parse mask
-            mask_raw = emblem.get('mask')
-            mask = None
-            if mask_raw:
-                if isinstance(mask_raw, list) and len(mask_raw) == 3:
-                    mask = mask_raw
-            
-            # Parse instances
-            instances = emblem.get('instance', [])
-            if not instances:
-                # No instance block = default single instance
-                instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0, 'depth': 0}]
-            
-            # Create layer data
-            layer_data = {
-                'filename': filename,
-                'colors': 3,  # Will be auto-detected from texture
-                'color1': color1,
-                'color2': color2,
-                'color3': color3,
-                'color1_name': color1_name,
-                'color2_name': color2_name,
-                'color3_name': color3_name,
-                'mask': mask,
-                'instances': [],
-                'selected_instance': 0,
-                'flip_x': False,  # Will be set per-instance
-                'flip_y': False,
-                'uuid': str(uuid_module.uuid4())
-            }
-            
-            # Parse instances and group by depth
-            # If instances have different depths, split into separate layers
-            instances_by_depth = {}
-            for inst in instances:
-                pos = inst.get('position', [0.5, 0.5])
-                scale = inst.get('scale', [1.0, 1.0])
-                rotation = inst.get('rotation', 0)
-                depth = inst.get('depth', 0.0)
-                
-                # Extract flip from negative scale
-                scale_x = abs(scale[0])
-                scale_y = abs(scale[1])
-                flip_x = scale[0] < 0
-                flip_y = scale[1] < 0
-                
-                instance_data = {
-                    'pos_x': pos[0],
-                    'pos_y': pos[1],
-                    'scale_x': scale_x,
-                    'scale_y': scale_y,
-                    'rotation': float(rotation),
-                    'flip_x': flip_x,
-                    'flip_y': flip_y
-                }
-                
-                # Group instances by depth
-                if depth not in instances_by_depth:
-                    instances_by_depth[depth] = []
-                instances_by_depth[depth].append(instance_data)
-            
-            # Create separate layers for each depth level
-            for depth, depth_instances in instances_by_depth.items():
-                split_layer_data = {
-                    'filename': filename,
-                    'colors': 3,
-                    'color1': color1,
-                    'color2': color2,
-                    'color3': color3,
-                    'color1_name': color1_name,
-                    'color2_name': color2_name,
-                    'color3_name': color3_name,
-                    'mask': mask,
-                    'instances': depth_instances,
-                    'selected_instance': 0,
-                    'flip_x': depth_instances[0]['flip_x'],
-                    'flip_y': depth_instances[0]['flip_y'],
-                    'uuid': str(uuid_module.uuid4())
-                }
-                
-                layers_with_depth.append((depth, split_layer_data))
-        
-        # Sort by depth (higher depth = further back = first in list)
-        layers_with_depth.sort(key=lambda x: x[0], reverse=True)
-        
-        # Add layers to model (back to front)
-        # Higher depth goes to index 0 (bottom visual, back render)
-        # Lower depth goes to end (top visual, front render)
-        for _, layer_data in layers_with_depth:
-            # Create Layer and add to collection
-            layer = Layer(layer_data, caller='CoA')
-            coa.add_layer_object(layer, at_front=False)  # Append to end (maintains sorted order)
+            try:
+                layer = Layer.parse(emblem, caller='CoA')
+                coa.add_layer_object(layer, at_front=False)
+            except Exception as e:
+                coa._logger.error(f"Failed to parse emblem: {e}")
+                continue
         
         coa._logger.debug(f"Parsed CoA with {coa.get_layer_count()} layers")
         return coa
@@ -705,53 +596,9 @@ class CoA(CoAQueryMixin):
         # Pattern color 3
         lines.append(f'\tcolor3 = {format_color(self._pattern_color3, self._pattern_color3_name)}')
         
-        # Colored emblems (layers)
-        for depth_index, layer in enumerate(self._layers):
-            lines.append("\tcolored_emblem = {")
-            lines.append(f'\t\ttexture = "{layer.filename}"')
-            
-            # Layer colors
-            lines.append(f'\t\tcolor1 = {format_color(layer.color1, layer.color1_name)}')
-            if layer.colors >= 2:
-                lines.append(f'\t\tcolor2 = {format_color(layer.color2, layer.color2_name)}')
-            if layer.colors >= 3:
-                lines.append(f'\t\tcolor3 = {format_color(layer.color3, layer.color3_name)}')
-            
-            # Mask (only if set)
-            if layer.mask is not None:
-                mask_values = ' '.join(str(v) for v in layer.mask)
-                lines.append(f'\t\tmask = {{ {mask_values} }}')
-            
-            # Instances
-            for instance in range(layer.instance_count):
-                inst = layer.get_instance(instance, caller='CoA')
-                lines.append("\t\tinstance = {")
-                
-                # Position
-                lines.append(f"\t\t\tposition = {{ {inst.pos_x:.4f} {inst.pos_y:.4f} }}")
-                
-                # Scale (combine with flip)
-                scale_x = inst.scale_x
-                scale_y = inst.scale_y
-                if layer.flip_x:
-                    scale_x = -scale_x
-                if layer.flip_y:
-                    scale_y = -scale_y
-                lines.append(f"\t\t\tscale = {{ {scale_x:.4f} {scale_y:.4f} }}")
-                
-                # Rotation (only if non-zero)
-                if inst.rotation != 0.0:
-                    lines.append(f"\t\t\trotation = {inst.rotation:.2f}")
-                
-                # Depth (higher = further back)
-                # Calculate depth from position in list
-                if depth_index < len(self._layers) - 1:
-                    depth_from_back = len(self._layers) - 1 - depth_index
-                    lines.append(f"\t\t\tdepth = {float(depth_from_back) + 0.01:.2f}")
-                
-                lines.append("\t\t}")
-            
-            lines.append("\t}")
+        # Colored emblems (layers) - use Layer.serialize()
+        for layer in self._layers:
+            lines.append(layer.serialize(caller='CoA'))
         
         lines.append("}")
         return '\n'.join(lines)
@@ -767,76 +614,16 @@ class CoA(CoAQueryMixin):
         Returns:
             CK3 format string containing only the specified layers
         """
-        from utils.color_utils import rgb_to_color_name
-        
-        # Helper to normalize RGB [0-255] to [0-1] range expected by rgb_to_color_name
-        def normalize_rgb(rgb):
-            """Convert [0-255] range to [0-1] range"""
-            if not rgb:
-                return [1.0, 1.0, 1.0]
-            return [rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0]
-        
-        # Helper to format color (add quotes if it's a named color)
-        def format_color(rgb, color_name):
-            normalized = normalize_rgb(rgb)
-            color_str = rgb_to_color_name(normalized, color_name)
-            if color_str.startswith('rgb'):
-                return color_str  # Already formatted as "rgb { R G B }"
-            else:
-                return f'"{color_str}"'  # Named color, add quotes
-        
         lines = []
         lines.append("layers_export = {")
         
-        # Filter and serialize only specified layers
+        # Filter and serialize only specified layers using Layer.serialize()
         for layer_uuid in uuids:
             layer = self.get_layer_by_uuid(layer_uuid)
             if not layer:
                 continue
-                
-            lines.append("\tcolored_emblem = {")
-            lines.append(f'\t\ttexture = "{layer.filename}"')
             
-            # Layer colors
-            lines.append(f'\t\tcolor1 = {format_color(layer.color1, layer.color1_name)}')
-            if layer.colors >= 2:
-                lines.append(f'\t\tcolor2 = {format_color(layer.color2, layer.color2_name)}')
-            if layer.colors >= 3:
-                lines.append(f'\t\tcolor3 = {format_color(layer.color3, layer.color3_name)}')
-            
-            # Mask (only if set)
-            if layer.mask is not None:
-                mask_values = ' '.join(str(v) for v in layer.mask)
-                lines.append(f'\t\tmask = {{ {mask_values} }}')
-            
-            # Instances
-            for instance in range(layer.instance_count):
-                inst = layer.get_instance(instance, caller='CoA')
-                lines.append("\t\tinstance = {")
-                
-                # Position
-                lines.append(f"\t\t\tposition = {{ {inst.pos_x:.4f} {inst.pos_y:.4f} }}")
-                
-                # Scale (combine with flip)
-                scale_x = inst.scale_x
-                scale_y = inst.scale_y
-                if layer.flip_x:
-                    scale_x = -scale_x
-                if layer.flip_y:
-                    scale_y = -scale_y
-                lines.append(f"\t\t\tscale = {{ {scale_x:.4f} {scale_y:.4f} }}")
-                
-                # Rotation (only if non-zero)
-                if inst.rotation != 0.0:
-                    lines.append(f"\t\t\trotation = {inst.rotation:.2f}")
-                
-                # Depth (preserve original depth value if present)
-                if inst.depth is not None:
-                    lines.append(f"\t\t\tdepth = {inst.depth:.2f}")
-                
-                lines.append("\t\t}")
-            
-            lines.append("\t}")
+            lines.append(layer.serialize(caller='CoA'))
         
         lines.append("}")
         return '\n'.join(lines)

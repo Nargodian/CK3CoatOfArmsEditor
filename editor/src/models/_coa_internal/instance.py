@@ -103,6 +103,63 @@ class Instance:
     # Serialization
     # ========================================
     
+    def serialize(self, flip_x: bool = False, flip_y: bool = False) -> str:
+        """Serialize instance to Clausewitz format
+        
+        Args:
+            flip_x: Apply horizontal flip via negative scale
+            flip_y: Apply vertical flip via negative scale
+            
+        Returns:
+            Clausewitz-formatted instance block
+        """
+        # Apply flip to scale (negative scale in CK3 format = flip)
+        scale_x = -self._scale_x if flip_x else self._scale_x
+        scale_y = -self._scale_y if flip_y else self._scale_y
+        
+        lines = []
+        lines.append('\t\t\tinstance = {')
+        lines.append(f'\t\t\t\tposition = {{ {self._pos_x} {self._pos_y} }}')
+        lines.append(f'\t\t\t\tscale = {{ {scale_x} {scale_y} }}')
+        
+        if self._rotation != 0:
+            lines.append(f'\t\t\t\trotation = {self._rotation}')
+        
+        if self._depth != 0:
+            lines.append(f'\t\t\t\tdepth = {self._depth}')
+        
+        lines.append('\t\t\t}')
+        return '\n'.join(lines)
+    
+    @staticmethod
+    def parse(data: Dict[str, Any]) -> 'Instance':
+        """Parse instance from Clausewitz parser output
+        
+        Args:
+            data: Dict from parser with 'position', 'scale', 'rotation', 'depth'
+            
+        Returns:
+            New Instance object
+        """
+        # Parse position
+        position = data.get('position', [0.5, 0.5])
+        pos_x = position[0] if isinstance(position, list) else 0.5
+        pos_y = position[1] if isinstance(position, list) and len(position) > 1 else 0.5
+        
+        # Parse scale (may be negative for flip)
+        scale = data.get('scale', [1.0, 1.0])
+        scale_x_raw = scale[0] if isinstance(scale, list) else 1.0
+        scale_y_raw = scale[1] if isinstance(scale, list) and len(scale) > 1 else 1.0
+        
+        return Instance({
+            'pos_x': pos_x,
+            'pos_y': pos_y,
+            'scale_x': abs(scale_x_raw),  # Store as positive
+            'scale_y': abs(scale_y_raw),  # flip info comes from Layer
+            'rotation': data.get('rotation', 0),
+            'depth': data.get('depth', 0.0)
+        })
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert instance to dictionary for serialization
         
