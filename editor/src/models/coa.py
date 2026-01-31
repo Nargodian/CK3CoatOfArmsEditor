@@ -638,6 +638,14 @@ class CoA(CoAQueryMixin):
         lines.append("}")
         return '\n'.join(lines)
     
+    def to_string(self) -> str:
+        """Alias for serialize() - export CoA to CK3 format string
+        
+        Returns:
+            CK3 coat of arms definition
+        """
+        return self.serialize()
+    
     def serialize_layers_to_string(self, uuids: list) -> str:
         """Export specific layers to CK3 format string
         
