@@ -1516,7 +1516,11 @@ class CoA(CoAQueryMixin):
     # ========================================
     
     def set_layer_position(self, uuid: str, x: float, y: float):
-        """Set layer position (affects selected instance)
+        """Set layer position (shallow - moves all instances as rigid unit)
+        
+        For single-instance layers, sets the instance position directly.
+        For multi-instance layers, calculates AABB center and moves all instances
+        maintaining their relative offsets from the center.
         
         Args:
             uuid: Layer UUID
@@ -1530,12 +1534,47 @@ class CoA(CoAQueryMixin):
         if not layer:
             raise ValueError(f"Layer with UUID '{uuid}' not found")
         
-        layer.pos_x = x
-        layer.pos_y = y
-        self._logger.debug(f"Set position for layer {uuid}: ({x:.4f}, {y:.4f})")
+        instances = layer._data.get('instances', [])
+        
+        if len(instances) == 1:
+            # Single instance: set position directly (avoid accumulation errors)
+            layer.pos_x = x
+            layer.pos_y = y
+            instances[0]['pos_x'] = x
+            instances[0]['pos_y'] = y
+        elif len(instances) > 1:
+            # Multiple instances: calculate AABB center, maintain relative offsets
+            # Get bounding box of all instances
+            min_x = min(inst.get('pos_x', 0.5) for inst in instances)
+            max_x = max(inst.get('pos_x', 0.5) for inst in instances)
+            min_y = min(inst.get('pos_y', 0.5) for inst in instances)
+            max_y = max(inst.get('pos_y', 0.5) for inst in instances)
+            
+            # Calculate AABB center
+            aabb_center_x = (min_x + max_x) / 2.0
+            aabb_center_y = (min_y + max_y) / 2.0
+            
+            # Calculate offset from AABB center to new position
+            dx = x - aabb_center_x
+            dy = y - aabb_center_y
+            
+            # Update layer position
+            layer.pos_x = x
+            layer.pos_y = y
+            
+            # Apply offset to all instances
+            for inst in instances:
+                inst['pos_x'] = max(0.0, min(1.0, inst['pos_x'] + dx))
+                inst['pos_y'] = max(0.0, min(1.0, inst['pos_y'] + dy))
+        else:
+            # No instances: just set layer position
+            layer.pos_x = x
+            layer.pos_y = y
+        
+        self._logger.debug(f"Set position for layer {uuid} (shallow): ({x:.4f}, {y:.4f})")
     
     def translate_layer(self, uuid: str, dx: float, dy: float):
-        """Translate layer by offset (affects selected instance)
+        """Translate layer by offset (shallow - moves all instances as rigid unit)
         
         Args:
             uuid: Layer UUID
@@ -1549,9 +1588,20 @@ class CoA(CoAQueryMixin):
         if not layer:
             raise ValueError(f"Layer with UUID '{uuid}' not found")
         
-        layer.pos_x += dx
-        layer.pos_y += dy
-        self._logger.debug(f"Translated layer {uuid}: ({dx:.4f}, {dy:.4f})")
+        # Translate all instances by same offset (shallow transformation)
+        instances = layer._data.get('instances', [])
+        if instances:
+            for inst in instances:
+                inst['pos_x'] = max(0.0, min(1.0, inst['pos_x'] + dx))
+                inst['pos_y'] = max(0.0, min(1.0, inst['pos_y'] + dy))
+            
+            # Update layer.pos_x/y to match first instance (for backward compatibility)
+            # Use direct assignment to _data to avoid triggering property setter
+            if instances:
+                layer._data['pos_x'] = instances[0]['pos_x']
+                layer._data['pos_y'] = instances[0]['pos_y']
+        
+        self._logger.debug(f"Translated layer {uuid} (shallow): ({dx:.4f}, {dy:.4f})")
     
     def adjust_layer_positions(self, uuids: List[str], dx: float, dy: float):
         """Adjust positions of multiple layers by offset
@@ -1606,7 +1656,7 @@ class CoA(CoAQueryMixin):
         return (centroid_x, centroid_y)
     
     def set_layer_scale(self, uuid: str, scale_x: float, scale_y: float):
-        """Set layer scale (affects selected instance)
+        """Set layer scale (shallow - scales all instances as rigid unit)
         
         Args:
             uuid: Layer UUID
@@ -1620,12 +1670,37 @@ class CoA(CoAQueryMixin):
         if not layer:
             raise ValueError(f"Layer with UUID '{uuid}' not found")
         
-        layer.scale_x = scale_x
-        layer.scale_y = scale_y
-        self._logger.debug(f"Set scale for layer {uuid}: ({scale_x:.4f}, {scale_y:.4f})")
+        # Apply scale to all instances (shallow transformation)
+        instances = layer._data.get('instances', [])
+        if len(instances) == 1:
+            # Single instance: set directly to avoid flicker
+            layer.scale_x = scale_x
+            layer.scale_y = scale_y
+            instances[0]['scale_x'] = scale_x
+            instances[0]['scale_y'] = scale_y
+        elif len(instances) > 1:
+            # Multiple instances: calculate factor change before updating layer
+            old_scale_x = layer.scale_x
+            old_scale_y = layer.scale_y
+            
+            layer.scale_x = scale_x
+            layer.scale_y = scale_y
+            
+            if old_scale_x != 0 and old_scale_y != 0:
+                factor_x = scale_x / old_scale_x
+                factor_y = scale_y / old_scale_y
+                for inst in instances:
+                    inst['scale_x'] = inst.get('scale_x', 1.0) * factor_x
+                    inst['scale_y'] = inst.get('scale_y', 1.0) * factor_y
+        else:
+            # No instances: just set layer scale
+            layer.scale_x = scale_x
+            layer.scale_y = scale_y
+        
+        self._logger.debug(f"Set scale for layer {uuid} (shallow): ({scale_x:.4f}, {scale_y:.4f})")
     
     def scale_layer(self, uuid: str, factor_x: float, factor_y: float):
-        """Scale layer by factor (affects selected instance)
+        """Scale layer by factor (shallow - scales all instances as rigid unit)
         
         Args:
             uuid: Layer UUID
@@ -1639,12 +1714,21 @@ class CoA(CoAQueryMixin):
         if not layer:
             raise ValueError(f"Layer with UUID '{uuid}' not found")
         
+        # Scale layer
         layer.scale_x *= factor_x
         layer.scale_y *= factor_y
-        self._logger.debug(f"Scaled layer {uuid}: ({factor_x:.4f}, {factor_y:.4f})")
+        
+        # Scale all instances (shallow transformation)
+        instances = layer._data.get('instances', [])
+        if instances:
+            for inst in instances:
+                inst['scale_x'] = inst.get('scale_x', 1.0) * factor_x
+                inst['scale_y'] = inst.get('scale_y', 1.0) * factor_y
+        
+        self._logger.debug(f"Scaled layer {uuid} (shallow): ({factor_x:.4f}, {factor_y:.4f})")
     
     def set_layer_rotation(self, uuid: str, degrees: float):
-        """Set layer rotation (affects selected instance)
+        """Set layer rotation (shallow - rotates all instances around layer center)
         
         Args:
             uuid: Layer UUID
@@ -1657,8 +1741,41 @@ class CoA(CoAQueryMixin):
         if not layer:
             raise ValueError(f"Layer with UUID '{uuid}' not found")
         
+        # Calculate rotation change
+        delta_rotation = degrees - layer.rotation
+        
+        # Set layer rotation
         layer.rotation = degrees
-        self._logger.debug(f"Set rotation for layer {uuid}: {degrees:.2f}°")
+        
+        # Rotate all instances around layer center (shallow transformation)
+        instances = layer._data.get('instances', [])
+        if instances and delta_rotation != 0:
+            import math
+            rad = math.radians(delta_rotation)
+            cos_r = math.cos(rad)
+            sin_r = math.sin(rad)
+            
+            center_x = layer.pos_x
+            center_y = layer.pos_y
+            
+            for inst in instances:
+                # Get instance position
+                ix = inst.get('pos_x', 0.5)
+                iy = inst.get('pos_y', 0.5)
+                
+                # Rotate around layer center
+                dx = ix - center_x
+                dy = iy - center_y
+                new_dx = dx * cos_r - dy * sin_r
+                new_dy = dx * sin_r + dy * cos_r
+                
+                inst['pos_x'] = max(0.0, min(1.0, center_x + new_dx))
+                inst['pos_y'] = max(0.0, min(1.0, center_y + new_dy))
+                
+                # Update instance rotation
+                inst['rotation'] = inst.get('rotation', 0.0) + delta_rotation
+        
+        self._logger.debug(f"Set rotation for layer {uuid} (shallow): {degrees:.2f}°")
     
     def set_layer_visible(self, uuid: str, visible: bool):
         """Set layer visibility
@@ -2290,7 +2407,7 @@ class CoA(CoAQueryMixin):
         self._logger.debug(f"Flipped layer {uuid}: x={flip_x}, y={flip_y}")
     
     def align_layers(self, uuids: List[str], alignment: str):
-        """Align multiple layers relative to each other
+        """Align multiple layers relative to each other (shallow - each layer moves as rigid unit)
         
         Args:
             uuids: List of layer UUIDs (must be 2 or more)
@@ -2325,8 +2442,16 @@ class CoA(CoAQueryMixin):
             else:  # center
                 target = sum(positions) / len(positions)
             
+            # Apply to each layer (shallow - translate all instances together)
             for layer in layers:
-                layer.pos_x = target
+                dx = target - layer.pos_x
+                if dx != 0:
+                    layer.pos_x = target
+                    # Move all instances by same offset
+                    instances = layer._data.get('instances', [])
+                    if instances:
+                        for inst in instances:
+                            inst['pos_x'] = max(0.0, min(1.0, inst['pos_x'] + dx))
         
         # Vertical alignments
         else:
@@ -2339,13 +2464,21 @@ class CoA(CoAQueryMixin):
             else:  # middle
                 target = sum(positions) / len(positions)
             
+            # Apply to each layer (shallow - translate all instances together)
             for layer in layers:
-                layer.pos_y = target
+                dy = target - layer.pos_y
+                if dy != 0:
+                    layer.pos_y = target
+                    # Move all instances by same offset
+                    instances = layer._data.get('instances', [])
+                    if instances:
+                        for inst in instances:
+                            inst['pos_y'] = max(0.0, min(1.0, inst['pos_y'] + dy))
         
-        self._logger.debug(f"Aligned {len(uuids)} layers: {alignment}")
+        self._logger.debug(f"Aligned {len(uuids)} layers (shallow): {alignment}")
     
     def move_layers_to(self, uuids: List[str], position: str):
-        """Move layers to fixed canvas positions
+        """Move layers to fixed canvas positions (shallow - moves all instances as rigid units)
         
         Args:
             uuids: List of layer UUIDs
@@ -2370,21 +2503,34 @@ class CoA(CoAQueryMixin):
         
         target = fixed_positions[position]
         
-        # Get all layers
-        layers = []
+        # For each layer: calculate AABB center, get offset to target, translate
         for uuid in uuids:
-            layer = self._layers.get_by_uuid(uuid)
+            layer = self.get_layer_by_uuid(uuid)
             if not layer:
-                raise ValueError(f"Layer with UUID '{uuid}' not found")
-            layers.append(layer)
-        
-        # Apply position
-        if position in ['left', 'center', 'right']:
-            for layer in layers:
-                layer.pos_x = target
-        else:
-            for layer in layers:
-                layer.pos_y = target
+                continue
+            
+            instances = layer._data.get('instances', [])
+            if not instances:
+                continue
+            
+            # Calculate current AABB center
+            min_x = min(inst.get('pos_x', 0.5) for inst in instances)
+            max_x = max(inst.get('pos_x', 0.5) for inst in instances)
+            min_y = min(inst.get('pos_y', 0.5) for inst in instances)
+            max_y = max(inst.get('pos_y', 0.5) for inst in instances)
+            aabb_center_x = (min_x + max_x) / 2.0
+            aabb_center_y = (min_y + max_y) / 2.0
+            
+            # Calculate offset: target - current, zero out axis we're not moving
+            if position in ['left', 'center', 'right']:
+                dx = target - aabb_center_x
+                dy = 0.0  # Don't move vertically
+            else:
+                dx = 0.0  # Don't move horizontally
+                dy = target - aabb_center_y
+            
+            # Translate by the offset (moves all instances together)
+            self.translate_layer(uuid, dx, dy)
         
         self._logger.debug(f"Moved {len(uuids)} layers to {position}")
     
