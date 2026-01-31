@@ -56,3 +56,5 @@ deep transformations
 avoid dictionary based data structures or lookups
 ['pos_x'] is bad
 .pos_x is good
+
+ONLY GIT COMMIT IF THE USER REQUESTS IT

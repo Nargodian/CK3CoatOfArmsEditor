@@ -1188,13 +1188,19 @@ class PropertySidebar(QFrame):
 		self.scale_editor.setEnabled(not disable_transform)
 		self.rotation_editor.setEnabled(not disable_transform)
 		
-		# Apply visual disabled state
+		# Apply visual disabled state using graphical effect
 		if disable_transform:
-			self.scale_editor.setStyleSheet("QWidget { opacity: 0.4; }")
-			self.rotation_editor.setStyleSheet("QWidget { opacity: 0.4; }")
+			from PyQt5.QtWidgets import QGraphicsOpacityEffect
+			opacity_effect_scale = QGraphicsOpacityEffect()
+			opacity_effect_scale.setOpacity(0.3)
+			self.scale_editor.setGraphicsEffect(opacity_effect_scale)
+			
+			opacity_effect_rotation = QGraphicsOpacityEffect()
+			opacity_effect_rotation.setOpacity(0.3)
+			self.rotation_editor.setGraphicsEffect(opacity_effect_rotation)
 		else:
-			self.scale_editor.setStyleSheet("")
-			self.rotation_editor.setStyleSheet("")
+			self.scale_editor.setGraphicsEffect(None)
+			self.rotation_editor.setGraphicsEffect(None)
 		
 		# Restore signals
 		self.pos_x_editor.blockSignals(False)
