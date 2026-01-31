@@ -18,13 +18,16 @@ class SpiralGenerator(BaseGenerator):
     DEFAULT_END_ANGLE = 360.0
     DEFAULT_ROTATION_MODE = 'aligned'
     DEFAULT_BASE_ROTATION = 0.0
+    DEFAULT_MODE = 'count'
     
     def __init__(self):
         super().__init__()
         
         # Initialize default settings
         self.settings = {
+            'mode': self.DEFAULT_MODE,
             'count': self.DEFAULT_COUNT,
+            'text': '',
             'start_radius': self.DEFAULT_START_RADIUS,
             'end_radius': self.DEFAULT_END_RADIUS,
             'turns': self.DEFAULT_TURNS,
@@ -46,19 +49,25 @@ class SpiralGenerator(BaseGenerator):
         """Build parameter controls."""
         layout = QVBoxLayout()
         
-        # Count parameter
-        count_layout = QHBoxLayout()
-        count_label = QLabel("Count:")
-        count_spin = QDoubleSpinBox()
-        count_spin.setRange(1, 100)
-        count_spin.setDecimals(0)
-        count_spin.setValue(self.settings['count'])
-        count_spin.valueChanged.connect(lambda v: self._on_param_changed('count', int(v)))
-        count_layout.addWidget(count_label)
-        count_layout.addWidget(count_spin)
-        layout.addLayout(count_layout)
+        # Count/Text mode radio buttons
+        mode_controls = self.add_count_text_radio(
+            layout,
+            default_mode=self.settings['mode'],
+            default_count=self.settings['count']
+        )
         
-        self._controls['count'] = count_spin
+        # Connect mode switching
+        def on_mode_changed():
+            is_count = mode_controls['count_radio'].isChecked()
+            self._on_param_changed('mode', 'count' if is_count else 'text')
+        
+        mode_controls['count_radio'].toggled.connect(on_mode_changed)
+        mode_controls['count_spin'].valueChanged.connect(
+            lambda v: self._on_param_changed('count', int(v)))
+        mode_controls['text_input'].textChanged.connect(
+            lambda: self._on_param_changed('text', mode_controls['text_input'].toPlainText()))
+        
+        self._controls['mode_controls'] = mode_controls
         
         # Start radius
         start_radius_layout = QHBoxLayout()
@@ -154,7 +163,9 @@ class SpiralGenerator(BaseGenerator):
             5xN numpy array [[x, y, scale_x, scale_y, rotation], ...]
         """
         # Use settings as defaults, override with kwargs
-        count = kwargs.get('count', self.settings['count'])
+        # In text mode, use text length instead of count
+        count = self.get_effective_count()
+        
         start_radius = kwargs.get('start_radius', self.settings['start_radius'])
         end_radius = kwargs.get('end_radius', self.settings['end_radius'])
         turns = kwargs.get('turns', self.settings['turns'])
@@ -222,5 +233,8 @@ class SpiralGenerator(BaseGenerator):
                 rotation = base_rotation
             
             positions[i] = [x, y, scale, scale, rotation]
+        
+        # Add label codes for text mode preview
+        positions = self.add_label_codes(positions)
         
         return positions

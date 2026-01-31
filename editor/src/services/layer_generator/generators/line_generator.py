@@ -11,25 +11,30 @@ class LineGenerator(BaseGenerator):
     # Default parameter values
     DEFAULT_COUNT = 5
     DEFAULT_SCALE = 0.1
-    DEFAULT_START_ANGLE = 0.0
-    DEFAULT_END_ANGLE = 180.0
+    DEFAULT_START_PERCENT = 0.0
+    DEFAULT_END_PERCENT = 100.0
     DEFAULT_ROTATION_MODE = 'global'
     DEFAULT_BASE_ROTATION = 0.0
+    DEFAULT_ARC_BEND = 0.0
+    DEFAULT_MODE = 'count'
     
     def __init__(self):
         super().__init__()
         
         # Initialize default settings
         self.settings = {
+            'mode': self.DEFAULT_MODE,
             'count': self.DEFAULT_COUNT,
-            'start_angle': self.DEFAULT_START_ANGLE,
-            'end_angle': self.DEFAULT_END_ANGLE,
+            'text': '',
+            'start_percent': self.DEFAULT_START_PERCENT,
+            'end_percent': self.DEFAULT_END_PERCENT,
             'gradient_enabled': False,
             'uniform_scale': self.DEFAULT_SCALE,
             'start_scale': self.DEFAULT_SCALE,
             'end_scale': self.DEFAULT_SCALE,
             'rotation_mode': self.DEFAULT_ROTATION_MODE,
             'base_rotation': self.DEFAULT_BASE_ROTATION,
+            'arc_bend': self.DEFAULT_ARC_BEND,
         }
     
     def get_title(self) -> str:
@@ -40,33 +45,54 @@ class LineGenerator(BaseGenerator):
         """Build parameter controls."""
         layout = QVBoxLayout()
         
-        # Count parameter
-        count_layout = QHBoxLayout()
-        count_label = QLabel("Count:")
-        count_spin = QDoubleSpinBox()
-        count_spin.setRange(1, 100)
-        count_spin.setDecimals(0)
-        count_spin.setValue(self.settings['count'])
-        count_spin.valueChanged.connect(lambda v: self._on_param_changed('count', int(v)))
-        count_layout.addWidget(count_label)
-        count_layout.addWidget(count_spin)
-        layout.addLayout(count_layout)
-        
-        self._controls['count'] = count_spin
-        
-        # Angle controls (defines line direction and length)
-        angle_controls = self.add_angle_controls(
+        # Count/Text mode radio buttons
+        mode_controls = self.add_count_text_radio(
             layout,
-            default_start=self.settings['start_angle'],
-            default_end=self.settings['end_angle']
+            default_mode=self.settings['mode'],
+            default_count=self.settings['count']
         )
-        angle_controls['start_angle'].valueChanged.connect(
-            lambda v: self._on_param_changed('start_angle', v))
-        angle_controls['end_angle'].valueChanged.connect(
-            lambda v: self._on_param_changed('end_angle', v))
+        
+        # Connect mode switching
+        def on_mode_changed():
+            is_count = mode_controls['count_radio'].isChecked()
+            self._on_param_changed('mode', 'count' if is_count else 'text')
+        
+        mode_controls['count_radio'].toggled.connect(on_mode_changed)
+        mode_controls['count_spin'].valueChanged.connect(
+            lambda v: self._on_param_changed('count', int(v)))
+        mode_controls['text_input'].textChanged.connect(
+            lambda: self._on_param_changed('text', mode_controls['text_input'].toPlainText()))
+        
+        self._controls['mode_controls'] = mode_controls
+        
+        # Percent controls (defines line extent along horizontal)
+        percent_controls = self.add_percent_controls(
+            layout,
+            default_start=self.settings['start_percent'],
+            default_end=self.settings['end_percent']
+        )
+        percent_controls['start_percent'].valueChanged.connect(
+            lambda v: self._on_param_changed('start_percent', v))
+        percent_controls['end_percent'].valueChanged.connect(
+            lambda v: self._on_param_changed('end_percent', v))
+        
+        # Arc bend parameter
+        arc_layout = QHBoxLayout()
+        arc_label = QLabel("Arc Bend:")
+        arc_spin = QDoubleSpinBox()
+        arc_spin.setRange(-1.0, 1.0)
+        arc_spin.setSingleStep(0.05)
+        arc_spin.setDecimals(2)
+        arc_spin.setValue(self.settings['arc_bend'])
+        arc_spin.valueChanged.connect(lambda v: self._on_param_changed('arc_bend', v))
+        arc_layout.addWidget(arc_label)
+        arc_layout.addWidget(arc_spin)
+        layout.addLayout(arc_layout)
+        
+        self._controls['arc_bend'] = arc_spin
         
         # Add explanation
-        explanation = QLabel("Note: Start/End angles define the line endpoints")
+        explanation = QLabel("Note: Arc bend curves the line (±1 = semicircle). Line runs left-to-right along x-axis.")
         explanation.setWordWrap(True)
         explanation.setStyleSheet("color: #888; font-style: italic;")
         layout.addWidget(explanation)
@@ -112,61 +138,109 @@ class LineGenerator(BaseGenerator):
             5xN numpy array [[x, y, scale_x, scale_y, rotation], ...]
         """
         # Use settings as defaults, override with kwargs
-        count = kwargs.get('count', self.settings['count'])
-        start_angle = kwargs.get('start_angle', self.settings['start_angle'])
-        end_angle = kwargs.get('end_angle', self.settings['end_angle'])
+        # In text mode, use text length instead of count
+        count = self.get_effective_count()
+        
+        start_percent = kwargs.get('start_percent', self.settings['start_percent'])
+        end_percent = kwargs.get('end_percent', self.settings['end_percent'])
         gradient_enabled = kwargs.get('gradient_enabled', self.settings['gradient_enabled'])
         uniform_scale = kwargs.get('uniform_scale', self.settings['uniform_scale'])
         start_scale = kwargs.get('start_scale', self.settings['start_scale'])
         end_scale = kwargs.get('end_scale', self.settings['end_scale'])
         rotation_mode = kwargs.get('rotation_mode', self.settings['rotation_mode'])
         base_rotation = kwargs.get('base_rotation', self.settings['base_rotation'])
+        arc_bend = kwargs.get('arc_bend', self.settings['arc_bend'])
         
         if count < 1:
             return np.array([]).reshape(0, 5)
         
-        # Convert angles to radians
-        start_rad = np.deg2rad(start_angle)
-        end_rad = np.deg2rad(end_angle)
+        # Convert percent to normalized range (0-1)
+        start_t = start_percent / 100.0
+        end_t = end_percent / 100.0
         
-        # Calculate line endpoints from angles
-        # Use radius 0.4 to keep within bounds
-        center_x, center_y = 0.5, 0.5
-        radius = 0.4
+        # Line runs horizontally across x-axis
+        # x: 0.1 to 0.9 (leave margins)
+        # y: 0.5 (center)
+        margin = 0.1
+        line_length = 1.0 - 2 * margin
         
-        start_x = center_x + radius * np.sin(start_rad)
-        start_y = center_y + radius * np.cos(start_rad)
-        end_x = center_x + radius * np.sin(end_rad)
-        end_y = center_y + radius * np.cos(end_rad)
-        
-        # Generate positions along line
+        # Generate positions
         positions = np.zeros((count, 5))
         
         for i in range(count):
-            # Interpolate position
+            # Interpolate along line extent
             if count == 1:
-                t = 0.5
+                t = (start_t + end_t) / 2.0
             else:
-                t = i / (count - 1)
+                t = start_t + (i / (count - 1)) * (end_t - start_t)
             
-            x = start_x + t * (end_x - start_x)
-            y = start_y + t * (end_y - start_y)
+            # Base position on horizontal line
+            x = margin + t * line_length
+            y = 0.5
+            tangent_angle = 0.0  # Default for straight line
+            
+            # Apply arc bend if non-zero
+            if abs(arc_bend) > 0.001:
+                # Arc bend creates a circular arc
+                # Positive bend: arc upward (decrease y)
+                # Negative bend: arc downward (increase y)
+                # ±1 = semicircle (π radians)
+                
+                # Calculate radius for semicircle at bend=±1
+                # When bend=1, the line becomes a semicircle
+                # Arc length = π * radius for semicircle
+                # We want the arc to span the same horizontal distance as the line
+                span = (end_t - start_t) * line_length
+                if span > 0:
+                    radius = span / (np.pi * abs(arc_bend))
+                else:
+                    radius = line_length / (np.pi * abs(arc_bend))
+                
+                # Arc center
+                center_x = 0.5
+                center_y = 0.5 + (radius if arc_bend > 0 else -radius)
+                
+                # Calculate angle for this position along arc
+                # Map t from start_t to end_t to angle from -π/2 to +π/2
+                if abs(end_t - start_t) > 0.001:
+                    normalized_t = (t - start_t) / (end_t - start_t)
+                else:
+                    normalized_t = 0.5
+                
+                # Angle sweeps from left to right
+                angle = (normalized_t - 0.5) * np.pi * arc_bend
+                
+                # Calculate position
+                x = center_x + radius * np.sin(angle)
+                y = center_y - radius * np.cos(angle) * (1 if arc_bend > 0 else -1)
+                
+                # Calculate tangent angle (perpendicular to radius)
+                tangent_angle = angle
             
             # Scale
             if gradient_enabled:
-                scale = start_scale + t * (end_scale - start_scale)
+                local_t = (t - start_t) / (end_t - start_t) if (end_t - start_t) > 0 else 0
+                scale = start_scale + local_t * (end_scale - start_scale)
             else:
                 scale = uniform_scale
             
             # Rotation
             if rotation_mode == 'aligned':
-                # Aligned: follow line direction
-                line_angle = np.arctan2(end_x - start_x, end_y - start_y)
-                rotation = np.rad2deg(line_angle) + base_rotation
+                # Aligned: follow tangent direction
+                if abs(arc_bend) > 0.001:
+                    # Tangent is perpendicular to radius (90° clockwise)
+                    # For bearing system: add 90° to get tangent direction
+                    rotation = np.rad2deg(tangent_angle + np.pi / 2) + base_rotation
+                else:
+                    # Horizontal line: 90° (pointing right)
+                    rotation = 90.0 + base_rotation
             else:
                 # Global: all same rotation
                 rotation = base_rotation
             
             positions[i] = [x, y, scale, scale, rotation]
+        
+        # Add label codes for text mode preview
+        positions = self.add_label_codes(positions)
         
         return positions

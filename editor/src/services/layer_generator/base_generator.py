@@ -31,6 +31,36 @@ class BaseGenerator(ABC):
         self._controls = {}  # Maps parameter names to widgets
         self._last_generated = None  # Cache last generation result
     
+    def is_text_mode(self) -> bool:
+        """Check if generator is in text mode.
+        
+        Returns:
+            True if text mode is active
+        """
+        return self.settings.get('mode', 'count') == 'text'
+    
+    def get_text(self) -> str:
+        """Get text input for text mode.
+        
+        Returns:
+            Text string from input
+        """
+        return self.settings.get('text', '')
+    
+    def get_effective_count(self) -> int:
+        """Get effective count, using text length in text mode.
+        
+        Returns:
+            Count value (from count setting or text length)
+        """
+        if self.is_text_mode():
+            from services.layer_generator.text_emblem_mapper import text_to_emblems
+            text = self.get_text()
+            emblems = text_to_emblems(text)
+            return len(emblems)
+        else:
+            return self.settings.get('count', 1)
+    
     @abstractmethod
     def get_title(self) -> str:
         """Return display title for generator popup.
@@ -81,6 +111,43 @@ class BaseGenerator(ABC):
         """
         self.settings.update(settings)
         self._update_controls_from_settings()
+    
+    def add_label_codes(self, positions: np.ndarray) -> np.ndarray:
+        """Add label codes (6th column) to positions array for text mode preview.
+        
+        Label codes:
+        - 0 = regular preview (white square + red triangle)
+        - -1 = space (bounding box only, no emblem)
+        - 1-26 = letters a-z
+        - 27 = alpha (α), 28 = omega (ω)
+        
+        Args:
+            positions: 5xN array [[x, y, scale_x, scale_y, rotation], ...]
+            
+        Returns:
+            6xN array with label codes appended
+        """
+        if not self.is_text_mode():
+            # Not text mode: append zeros (no labels)
+            label_codes = np.zeros((len(positions), 1))
+            return np.hstack([positions, label_codes])
+        
+        # Text mode: map characters to label codes
+        from services.layer_generator.text_emblem_mapper import text_to_label_codes
+        text = self.get_text()
+        label_codes = text_to_label_codes(text)
+        
+        # Ensure label_codes matches positions length
+        if len(label_codes) < len(positions):
+            # Pad with zeros
+            label_codes = np.concatenate([label_codes, np.zeros(len(positions) - len(label_codes))])
+        elif len(label_codes) > len(positions):
+            # Truncate
+            label_codes = label_codes[:len(positions)]
+        
+        # Append as 6th column
+        label_codes = label_codes.reshape(-1, 1)
+        return np.hstack([positions, label_codes])
     
     @staticmethod
     def remove_overlapping_endpoints(positions: np.ndarray, tolerance: float = 0.01) -> np.ndarray:
@@ -176,6 +243,26 @@ class BaseGenerator(ABC):
         text_input.setMaximumHeight(60)
         text_input.setPlaceholderText("Enter text here...")
         layout.addWidget(text_input)
+        
+        # Add text validation and filtering
+        def on_text_changed():
+            from services.layer_generator.text_emblem_mapper import filter_text
+            current_text = text_input.toPlainText()
+            filtered_text = filter_text(current_text)
+            
+            # Only update if text was filtered (to avoid infinite loop)
+            if current_text != filtered_text:
+                # Block signals to prevent recursive calls
+                text_input.blockSignals(True)
+                cursor_pos = text_input.textCursor().position()
+                text_input.setPlainText(filtered_text)
+                # Restore cursor position (or move to end if beyond filtered length)
+                cursor = text_input.textCursor()
+                cursor.setPosition(min(cursor_pos, len(filtered_text)))
+                text_input.setTextCursor(cursor)
+                text_input.blockSignals(False)
+        
+        text_input.textChanged.connect(on_text_changed)
         
         # Set initial mode
         if default_mode == 'count':

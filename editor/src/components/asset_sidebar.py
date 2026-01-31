@@ -418,27 +418,64 @@ class AssetSidebar(QFrame):
 			self.asset_selected.emit(asset_data)
 	
 	def _show_asset_context_menu(self, button, pos):
-		"""Show context menu for asset button with 'Generate with this' option."""
+		"""Show context menu for asset button with Generate submenu (emblems only)."""
 		asset_data = button.property("asset_data")
 		if not asset_data:
+			return
+		
+		# Only show Generate menu for emblems, not base patterns
+		if self.current_mode != "emblems":
 			return
 		
 		# Create context menu
 		menu = QMenu(self)
 		
-		# Add "Generate with this" action
-		generate_action = menu.addAction("Generate with this")
-		generate_action.triggered.connect(lambda: self._open_generator_with_asset(asset_data))
+		# Add "Generate" submenu with all generator types
+		generate_menu = menu.addMenu("Generate")
+		
+		# Path category
+		path_menu = generate_menu.addMenu("Path")
+		path_menu.addAction("Circular").triggered.connect(
+			lambda: self._open_generator_with_asset(asset_data, 'circular'))
+		path_menu.addAction("Line").triggered.connect(
+			lambda: self._open_generator_with_asset(asset_data, 'line'))
+		path_menu.addAction("Spiral").triggered.connect(
+			lambda: self._open_generator_with_asset(asset_data, 'spiral'))
+		
+		# Grid category
+		grid_menu = generate_menu.addMenu("Grid")
+		grid_menu.addAction("Grid").triggered.connect(
+			lambda: self._open_generator_with_asset(asset_data, 'grid'))
+		grid_menu.addAction("Diamond").triggered.connect(
+			lambda: self._open_generator_with_asset(asset_data, 'diamond'))
+		
+		# Misc category
+		misc_menu = generate_menu.addMenu("Misc")
+		misc_menu.addAction("Fibonacci").triggered.connect(
+			lambda: self._open_generator_with_asset(asset_data, 'fibonacci'))
+		misc_menu.addAction("Radial").triggered.connect(
+			lambda: self._open_generator_with_asset(asset_data, 'radial'))
+		misc_menu.addAction("Star").triggered.connect(
+			lambda: self._open_generator_with_asset(asset_data, 'star'))
+		
+		# Vanilla
+		generate_menu.addAction("Vanilla").triggered.connect(
+			lambda: self._open_generator_with_asset(asset_data, 'vanilla'))
 		
 		# Show menu at button position
 		menu.exec_(button.mapToGlobal(pos))
 	
-	def _open_generator_with_asset(self, asset_data):
-		"""Open generator popup with pre-selected asset."""
+	def _open_generator_with_asset(self, asset_data, generator_type):
+		"""Open generator popup with pre-selected asset.
+		
+		Args:
+			asset_data: Asset data dictionary
+			generator_type: Type of generator to open
+		"""
 		if self.parent_window and hasattr(self.parent_window, '_open_generator_with_asset'):
 			# Get the .dds filename for texture
 			texture = asset_data.get('dds_filename', asset_data.get('filename', ''))
-			self.parent_window._open_generator_with_asset(texture)
+			self.parent_window._open_generator_with_asset(texture, generator_type)
 	
 	def switch_mode(self, mode):
 		"""Switch between showing emblems or base patterns"""

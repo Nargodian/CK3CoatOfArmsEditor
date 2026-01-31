@@ -337,3 +337,38 @@ class GeneratorPopup(QDialog):
             5xN numpy array of instance transforms, or None if cancelled
         """
         return self.generated_instances
+    
+    def is_text_mode(self) -> bool:
+        """Check if current generator is in text mode.
+        
+        Returns:
+            True if generator has text mode enabled
+        """
+        if not self.current_generator:
+            return False
+        
+        # Check if generator has is_text_mode method
+        if hasattr(self.current_generator, 'is_text_mode'):
+            return self.current_generator.is_text_mode()
+        
+        return False
+    
+    def get_text_and_positions(self) -> Optional[tuple]:
+        """Get text string and positions for text mode generation.
+        
+        Returns:
+            Tuple of (text_string, positions_array) or None if not text mode
+        """
+        if not self.is_text_mode():
+            return None
+        
+        if not hasattr(self.current_generator, 'get_text'):
+            return None
+        
+        text = self.current_generator.get_text()
+        positions = self.generated_instances
+        
+        if not text or positions is None:
+            return None
+        
+        return (text, positions)

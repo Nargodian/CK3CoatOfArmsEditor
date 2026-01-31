@@ -16,13 +16,16 @@ class CircularGenerator(BaseGenerator):
     DEFAULT_END_ANGLE = 360.0
     DEFAULT_ROTATION_MODE = 'aligned'
     DEFAULT_BASE_ROTATION = 0.0
+    DEFAULT_MODE = 'count'
     
     def __init__(self):
         super().__init__()
         
         # Initialize default settings
         self.settings = {
+            'mode': self.DEFAULT_MODE,
             'count': self.DEFAULT_COUNT,
+            'text': '',
             'radius': self.DEFAULT_RADIUS,
             'start_angle': self.DEFAULT_START_ANGLE,
             'end_angle': self.DEFAULT_END_ANGLE,
@@ -42,19 +45,25 @@ class CircularGenerator(BaseGenerator):
         """Build parameter controls."""
         layout = QVBoxLayout()
         
-        # Count parameter (no text mode for now)
-        count_layout = QHBoxLayout()
-        count_label = QLabel("Count:")
-        count_spin = QDoubleSpinBox()
-        count_spin.setRange(1, 100)
-        count_spin.setDecimals(0)
-        count_spin.setValue(self.settings['count'])
-        count_spin.valueChanged.connect(lambda v: self._on_param_changed('count', int(v)))
-        count_layout.addWidget(count_label)
-        count_layout.addWidget(count_spin)
-        layout.addLayout(count_layout)
+        # Count/Text mode radio buttons
+        mode_controls = self.add_count_text_radio(
+            layout,
+            default_mode=self.settings['mode'],
+            default_count=self.settings['count']
+        )
         
-        self._controls['count'] = count_spin
+        # Connect mode switching
+        def on_mode_changed():
+            is_count = mode_controls['count_radio'].isChecked()
+            self._on_param_changed('mode', 'count' if is_count else 'text')
+        
+        mode_controls['count_radio'].toggled.connect(on_mode_changed)
+        mode_controls['count_spin'].valueChanged.connect(
+            lambda v: self._on_param_changed('count', int(v)))
+        mode_controls['text_input'].textChanged.connect(
+            lambda: self._on_param_changed('text', mode_controls['text_input'].toPlainText()))
+        
+        self._controls['mode_controls'] = mode_controls
         
         # Radius parameter
         radius_layout = QHBoxLayout()
@@ -123,7 +132,9 @@ class CircularGenerator(BaseGenerator):
             5xN numpy array [[x, y, scale_x, scale_y, rotation], ...]
         """
         # Use settings as defaults, override with kwargs
-        count = kwargs.get('count', self.settings['count'])
+        # In text mode, use text length instead of count
+        count = self.get_effective_count()
+        
         radius = kwargs.get('radius', self.settings['radius'])
         start_angle = kwargs.get('start_angle', self.settings['start_angle'])
         end_angle = kwargs.get('end_angle', self.settings['end_angle'])
@@ -180,5 +191,8 @@ class CircularGenerator(BaseGenerator):
         
         # Remove overlapping endpoints if first and last are too close
         positions = self.remove_overlapping_endpoints(positions)
+        
+        # Add label codes for text mode preview
+        positions = self.add_label_codes(positions)
         
         return positions

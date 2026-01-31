@@ -99,3 +99,65 @@ def text_to_emblems(text: str) -> list:
         if emblem:
             emblems.append(emblem)
     return emblems
+
+
+def char_to_label_code(char: str) -> int:
+    """Convert character to label code for preview rendering.
+    
+    Label codes:
+    - -1 = space (bounding box only)
+    - 0 = invalid/no label
+    - 1-26 = letters a-z
+    - 27 = alpha (α)
+    - 28 = omega (ω)
+    - 29 = beta (β)
+    
+    Args:
+        char: Single character
+        
+    Returns:
+        Integer label code
+    """
+    if char == ' ':
+        return -1
+    
+    # Lowercase a-z
+    if 'a' <= char <= 'z':
+        return ord(char) - ord('a') + 1
+    
+    # Uppercase A-Z (treat as lowercase)
+    if 'A' <= char <= 'Z':
+        return ord(char) - ord('A') + 1
+    
+    # Greek letters
+    if char == 'α':
+        return 27
+    if char == 'ω':
+        return 28
+    if char == 'β':
+        return 29
+    
+    # Invalid/unknown
+    return 0
+
+
+def text_to_label_codes(text: str) -> 'np.ndarray':
+    """Convert text string to numpy array of label codes for preview.
+    
+    Includes spaces (as -1) and skips invalid characters.
+    
+    Args:
+        text: Input text string
+        
+    Returns:
+        numpy array of integer label codes
+    """
+    import numpy as np
+    
+    codes = []
+    for char in filter_text(text):
+        code = char_to_label_code(char)
+        if code != 0:  # Skip invalid characters
+            codes.append(code)
+    
+    return np.array(codes, dtype=int)
