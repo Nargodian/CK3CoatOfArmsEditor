@@ -124,15 +124,15 @@ class PreviewWidget(QWidget):
             code: Integer label code (1-26 = a-z, 27 = α, 28 = ω)
             
         Returns:
-            Character string or empty string if invalid
+            Uppercase character string or empty string if invalid
         """
         if 1 <= code <= 26:
-            # Lowercase letters a-z
-            return chr(ord('a') + code - 1)
+            # Uppercase letters A-Z (emblems are uppercase)
+            return chr(ord('A') + code - 1)
         elif code == 27:
-            return 'α'  # alpha
+            return 'Α'  # alpha (uppercase)
         elif code == 28:
-            return 'ω'  # omega
+            return 'Ω'  # omega (uppercase)
         else:
             return ''
 

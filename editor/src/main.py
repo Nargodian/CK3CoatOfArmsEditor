@@ -2101,7 +2101,7 @@ class CoatOfArmsEditor(QMainWindow):
 				self.right_sidebar.layer_list_widget.update_selection_visuals()
 			
 			# Save to history
-			char_count = len(emblems)
+			char_count = len(created_uuids)
 			self._save_state(f"Generate text layers ({char_count} characters)")
 			
 			self.status_left.setText(f"Generated {char_count} text layers")
