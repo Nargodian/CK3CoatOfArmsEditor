@@ -51,13 +51,13 @@ class BaseGenerator(ABC):
         """Get effective count, using text length in text mode.
         
         Returns:
-            Count value (from count setting or text length)
+            Count value (from count setting or text length including spaces)
         """
         if self.is_text_mode():
-            from services.layer_generator.text_emblem_mapper import text_to_emblems
+            from services.layer_generator.text_emblem_mapper import text_to_label_codes
             text = self.get_text()
-            emblems = text_to_emblems(text)
-            return len(emblems)
+            label_codes = text_to_label_codes(text)
+            return len(label_codes)  # Includes spaces
         else:
             return self.settings.get('count', 1)
     

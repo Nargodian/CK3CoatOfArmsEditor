@@ -85,8 +85,8 @@ class PreviewWidget(QWidget):
             if int(label_code) > 0:
                 label_char = self._label_code_to_char(int(label_code))
                 if label_char:
-                    # Set font size to 50% of bounding box
-                    font_size = int(width_full * 0.5)
+                    # Set font size to 75% of bounding box
+                    font_size = int(width_full * 0.75)
                     font = painter.font()
                     font.setPixelSize(font_size)
                     font.setBold(True)
