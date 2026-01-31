@@ -44,7 +44,12 @@ class PreviewWidget(QWidget):
         
         # Draw each instance
         for instance in self.instances:
-            x_coa, y_coa, scale_x, scale_y, rotation = instance
+            # Check if we have 6 columns (with label code) or just 5
+            if len(instance) >= 6:
+                x_coa, y_coa, scale_x, scale_y, rotation, label_code = instance[:6]
+            else:
+                x_coa, y_coa, scale_x, scale_y, rotation = instance[:5]
+                label_code = 0  # Default: no label
             
             # Convert CoA coordinates (0-1) to preview pixels (0-300)
             x_px = x_coa * self.PREVIEW_SIZE
@@ -70,6 +75,12 @@ class PreviewWidget(QWidget):
             painter.setPen(QPen(QColor(255, 255, 255, 102), 1))  # 40% opacity = 102/255
             painter.drawRect(int(-width_full/2), int(-height_full/2), int(width_full), int(height_full))
             
+            # Handle label_code for special rendering
+            if int(label_code) == -1:
+                # Space character: only bounding box, no emblem square/triangle
+                painter.restore()
+                continue
+            
             # Draw white square at 50% scale centered at origin
             painter.setBrush(QBrush(QColor(255, 255, 255)))
             painter.setPen(QPen(QColor(255, 255, 255), 1))
@@ -86,8 +97,44 @@ class PreviewWidget(QWidget):
             painter.setPen(Qt.NoPen)
             painter.drawPolygon(triangle)
             
+            # Draw text label if label_code > 0
+            if int(label_code) > 0:
+                label_char = self._label_code_to_char(int(label_code))
+                if label_char:
+                    # Set font size to 50% of bounding box
+                    font_size = int(width_full * 0.5)
+                    font = painter.font()
+                    font.setPixelSize(font_size)
+                    font.setBold(True)
+                    painter.setFont(font)
+                    
+                    # Draw text centered
+                    painter.setPen(QPen(QColor(255, 255, 255)))
+                    painter.drawText(int(-width_full/4), int(-height_full/4), 
+                                    int(width_full/2), int(height_full/2),
+                                    Qt.AlignCenter, label_char)
+            
             # Restore painter state
             painter.restore()
+    
+    def _label_code_to_char(self, code: int) -> str:
+        """Convert label code to character.
+        
+        Args:
+            code: Integer label code (1-26 = a-z, 27 = α, 28 = ω)
+            
+        Returns:
+            Character string or empty string if invalid
+        """
+        if 1 <= code <= 26:
+            # Lowercase letters a-z
+            return chr(ord('a') + code - 1)
+        elif code == 27:
+            return 'α'  # alpha
+        elif code == 28:
+            return 'ω'  # omega
+        else:
+            return ''
 
 
 class GeneratorPopup(QDialog):
