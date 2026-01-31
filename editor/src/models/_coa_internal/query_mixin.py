@@ -55,10 +55,10 @@ class CoAQueryMixin:
             instance = layer.get_instance(i, caller='CoA')
             
             # Get position and scale
-            x = instance['pos_x']
-            y = instance['pos_y']
-            sx = instance['scale_x']
-            sy = instance['scale_y']
+            x = instance.pos_x
+            y = instance.pos_y
+            sx = instance.scale_x
+            sy = instance.scale_y
             
             # Scale values represent the full width/height in normalized space
             # Use absolute values to handle negative scales (flips)

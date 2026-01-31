@@ -61,7 +61,8 @@ from constants import (
     DEFAULT_PATTERN_TEXTURE,
     DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
     DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
-    CK3_NAMED_COLORS
+    CK3_NAMED_COLORS,
+    PASTE_OFFSET_X, PASTE_OFFSET_Y
 )
 
 
@@ -727,11 +728,11 @@ class CoA(CoAQueryMixin):
                 lines.append("\t\tinstance = {")
                 
                 # Position
-                lines.append(f"\t\t\tposition = {{ {inst['pos_x']:.4f} {inst['pos_y']:.4f} }}")
+                lines.append(f"\t\t\tposition = {{ {inst.pos_x:.4f} {inst.pos_y:.4f} }}")
                 
                 # Scale (combine with flip)
-                scale_x = inst['scale_x']
-                scale_y = inst['scale_y']
+                scale_x = inst.scale_x
+                scale_y = inst.scale_y
                 if layer.flip_x:
                     scale_x = -scale_x
                 if layer.flip_y:
@@ -739,8 +740,8 @@ class CoA(CoAQueryMixin):
                 lines.append(f"\t\t\tscale = {{ {scale_x:.4f} {scale_y:.4f} }}")
                 
                 # Rotation (only if non-zero)
-                if inst['rotation'] != 0.0:
-                    lines.append(f"\t\t\trotation = {inst['rotation']:.2f}")
+                if inst.rotation != 0.0:
+                    lines.append(f"\t\t\trotation = {inst.rotation:.2f}")
                 
                 # Depth (higher = further back)
                 # Calculate depth from position in list
@@ -814,11 +815,11 @@ class CoA(CoAQueryMixin):
                 lines.append("\t\tinstance = {")
                 
                 # Position
-                lines.append(f"\t\t\tposition = {{ {inst['pos_x']:.4f} {inst['pos_y']:.4f} }}")
+                lines.append(f"\t\t\tposition = {{ {inst.pos_x:.4f} {inst.pos_y:.4f} }}")
                 
                 # Scale (combine with flip)
-                scale_x = inst['scale_x']
-                scale_y = inst['scale_y']
+                scale_x = inst.scale_x
+                scale_y = inst.scale_y
                 if layer.flip_x:
                     scale_x = -scale_x
                 if layer.flip_y:
@@ -826,12 +827,12 @@ class CoA(CoAQueryMixin):
                 lines.append(f"\t\t\tscale = {{ {scale_x:.4f} {scale_y:.4f} }}")
                 
                 # Rotation (only if non-zero)
-                if inst['rotation'] != 0.0:
-                    lines.append(f"\t\t\trotation = {inst['rotation']:.2f}")
+                if inst.rotation != 0.0:
+                    lines.append(f"\t\t\trotation = {inst.rotation:.2f}")
                 
                 # Depth (preserve original depth value if present)
-                if 'depth' in inst:
-                    lines.append(f"\t\t\tdepth = {inst['depth']:.2f}")
+                if inst.depth is not None:
+                    lines.append(f"\t\t\tdepth = {inst.depth:.2f}")
                 
                 lines.append("\t\t}")
             
@@ -1056,16 +1057,16 @@ class CoA(CoAQueryMixin):
                 # Add instance with all its properties
                 new_idx = self.add_instance(
                     first_uuid,
-                    pos_x=instance['pos_x'],
-                    pos_y=instance['pos_y']
+                    pos_x=instance.pos_x,
+                    pos_y=instance.pos_y
                 )
                 # Copy remaining instance properties (if they exist)
                 new_instance = first_layer.get_instance(new_idx, caller='CoA.merge')
-                new_instance['scale_x'] = instance.get('scale_x', 1.0)
-                new_instance['scale_y'] = instance.get('scale_y', 1.0)
-                new_instance['rotation'] = instance.get('rotation', 0.0)
-                if 'depth' in instance:
-                    new_instance['depth'] = instance['depth']
+                new_instance.scale_x = instance.scale_x
+                new_instance.scale_y = instance.scale_y
+                new_instance.rotation = instance.rotation
+                if instance.depth is not None:
+                    new_instance.depth = instance.depth
         
         # Remove the other layers (not the first one)
         for uuid in uuids[1:]:
@@ -1102,20 +1103,12 @@ class CoA(CoAQueryMixin):
             if not source_layer:
                 continue
             
-            # Deep copy layer data
-            data = deepcopy(source_layer.to_dict(caller='CoA'))
-            
-            # Generate new UUID
-            data['uuid'] = str(uuid_module.uuid4())
-            
-            # Apply offset if requested
-            if apply_offset:
-                for inst in data.get('instances', []):
-                    inst['pos_x'] = inst.get('pos_x', 0.5) + PASTE_OFFSET_X
-                    inst['pos_y'] = inst.get('pos_y', 0.5) + PASTE_OFFSET_Y
-            
-            # Create new layer
-            new_layer = Layer(data, caller='CoA')
+            # Duplicate layer using Layer's duplicate method (generates new UUID)
+            new_layer = source_layer.duplicate(
+                offset_x=PASTE_OFFSET_X if apply_offset else 0.0,
+                offset_y=PASTE_OFFSET_Y if apply_offset else 0.0,
+                caller='CoA'
+            )
             
             # Insert at appropriate position
             if target_uuid and target_index is not None:
@@ -1288,7 +1281,7 @@ class CoA(CoAQueryMixin):
         self._logger.debug(f"Moved {len(layers_to_move)} layer(s) to top (visual)")
     
     def shift_layer_up(self, uuids: Union[str, List[str]]) -> bool:
-        """Shift layer(s) up one position (toward index 0, visually toward top, renders more in back)
+        """Shift layer(s) up one position (higher index = toward front/top of visual list)
         
         Args:
             uuids: Layer UUID or list of UUIDs to shift up as a group
@@ -1306,7 +1299,7 @@ class CoA(CoAQueryMixin):
         if not uuids:
             return False
         
-        # Get all indices, check if any at top (index 0)
+        # Get all indices, check if any at top (highest index)
         indices = []
         for uuid in uuids:
             idx = self._layers.get_index_by_uuid(uuid)
@@ -1314,20 +1307,20 @@ class CoA(CoAQueryMixin):
                 raise ValueError(f"Layer with UUID '{uuid}' not found")
             indices.append(idx)
         
-        # Can't shift up if any layer is at index 0
-        if min(indices) == 0:
+        # Can't shift up if any layer is at highest index (top)
+        if max(indices) >= len(self._layers) - 1:
             return False
         
-        # Get target UUID (layer immediately above the topmost selected layer)
-        target_index = min(indices) - 1
+        # Get target UUID (layer immediately above - higher index than topmost selected)
+        target_index = max(indices) + 1
         target_uuid = self.get_layer_uuid_by_index(target_index)
         
-        # Move selected layers above target
-        self.move_layer_above(uuids, target_uuid)
+        # Move selected layers below target (puts them AFTER target at higher index)
+        self.move_layer_below(uuids, target_uuid)
         return True
     
     def shift_layer_down(self, uuids: Union[str, List[str]]) -> bool:
-        """Shift layer(s) down one position (toward higher index, visually toward bottom, renders more in front)
+        """Shift layer(s) down one position (lower index = toward back/bottom of visual list)
         
         Args:
             uuids: Layer UUID or list of UUIDs to shift down as a group
@@ -1345,7 +1338,7 @@ class CoA(CoAQueryMixin):
         if not uuids:
             return False
         
-        # Get all indices, check if any at bottom (last index)
+        # Get all indices, check if any at bottom (index 0)
         indices = []
         for uuid in uuids:
             idx = self._layers.get_index_by_uuid(uuid)
@@ -1353,16 +1346,16 @@ class CoA(CoAQueryMixin):
                 raise ValueError(f"Layer with UUID '{uuid}' not found")
             indices.append(idx)
         
-        # Can't shift down if any layer is at last index
-        if max(indices) >= len(self._layers) - 1:
+        # Can't shift down if any layer is at index 0 (bottom)
+        if min(indices) == 0:
             return False
         
-        # Get target UUID (layer immediately below the bottommost selected layer)
-        target_index = max(indices) + 1
+        # Get target UUID (layer immediately below - lower index than bottommost selected)
+        target_index = min(indices) - 1
         target_uuid = self.get_layer_uuid_by_index(target_index)
         
-        # Move selected layers below target
-        self.move_layer_below(uuids, target_uuid)
+        # Move selected layers above target (puts them BEFORE target at lower index)
+        self.move_layer_above(uuids, target_uuid)
         return True
     
     def review_merge(self, uuids: List[str]) -> Dict[str, Any]:
@@ -1463,16 +1456,16 @@ class CoA(CoAQueryMixin):
                 instance = layer.get_instance(i, caller='CoA')
                 # Add to first layer
                 idx = first_layer.add_instance(
-                    pos_x=instance['pos_x'],
-                    pos_y=instance['pos_y'],
+                    pos_x=instance.pos_x,
+                    pos_y=instance.pos_y,
                     caller='CoA'
                 )
                 # Copy other properties
                 new_inst = first_layer.get_instance(idx, caller='CoA')
-                new_inst['scale_x'] = instance['scale_x']
-                new_inst['scale_y'] = instance['scale_y']
-                new_inst['rotation'] = instance['rotation']
-                new_inst['depth'] = instance['depth']
+                new_inst.scale_x = instance.scale_x
+                new_inst.scale_y = instance.scale_y
+                new_inst.rotation = instance.rotation
+                new_inst.depth = instance.depth
         
         # Remove other layers
         for uuid in uuids[1:]:
@@ -1593,6 +1586,42 @@ class CoA(CoAQueryMixin):
     # Transform Operations (Single Layer)
     # ========================================
     
+    def get_layer_position(self, uuid: str) -> Tuple[float, float]:
+        """Get layer position (AABB center for multi-instance, direct for single-instance)
+        
+        Args:
+            uuid: Layer UUID
+            
+        Returns:
+            Tuple of (x, y) position (0.0-1.0)
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        instances = layer._data.get('instances', [])
+        
+        if len(instances) == 1:
+            # Single instance: return position directly
+            return (layer.pos_x, layer.pos_y)
+        elif len(instances) > 1:
+            # Multiple instances: return AABB center
+            min_x = min(inst.get('pos_x', 0.5) for inst in instances)
+            max_x = max(inst.get('pos_x', 0.5) for inst in instances)
+            min_y = min(inst.get('pos_y', 0.5) for inst in instances)
+            max_y = max(inst.get('pos_y', 0.5) for inst in instances)
+            
+            center_x = (min_x + max_x) / 2.0
+            center_y = (min_y + max_y) / 2.0
+            
+            return (center_x, center_y)
+        else:
+            # No instances - return layer default
+            return (layer.pos_x, layer.pos_y)
+    
     def set_layer_position(self, uuid: str, x: float, y: float):
         """Set layer position (shallow - moves all instances as rigid unit)
         
@@ -1615,11 +1644,9 @@ class CoA(CoAQueryMixin):
         instances = layer._data.get('instances', [])
         
         if len(instances) == 1:
-            # Single instance: set position directly (avoid accumulation errors)
-            layer.pos_x = x
-            layer.pos_y = y
-            instances[0]['pos_x'] = x
-            instances[0]['pos_y'] = y
+            # Single instance: set position directly
+            instances[0].pos_x = x
+            instances[0].pos_y = y
         elif len(instances) > 1:
             # Multiple instances: calculate AABB center, maintain relative offsets
             # Get bounding box of all instances
@@ -1636,14 +1663,10 @@ class CoA(CoAQueryMixin):
             dx = x - aabb_center_x
             dy = y - aabb_center_y
             
-            # Update layer position
-            layer.pos_x = x
-            layer.pos_y = y
-            
             # Apply offset to all instances
             for inst in instances:
-                inst['pos_x'] = max(0.0, min(1.0, inst['pos_x'] + dx))
-                inst['pos_y'] = max(0.0, min(1.0, inst['pos_y'] + dy))
+                inst.pos_x = inst.pos_x + dx  # setter handles clamping
+                inst.pos_y = inst.pos_y + dy  # setter handles clamping
         else:
             # No instances: just set layer position
             layer.pos_x = x
@@ -1670,14 +1693,8 @@ class CoA(CoAQueryMixin):
         instances = layer._data.get('instances', [])
         if instances:
             for inst in instances:
-                inst['pos_x'] = max(0.0, min(1.0, inst['pos_x'] + dx))
-                inst['pos_y'] = max(0.0, min(1.0, inst['pos_y'] + dy))
-            
-            # Update layer.pos_x/y to match first instance (for backward compatibility)
-            # Use direct assignment to _data to avoid triggering property setter
-            if instances:
-                layer._data['pos_x'] = instances[0]['pos_x']
-                layer._data['pos_y'] = instances[0]['pos_y']
+                inst.pos_x = inst.pos_x + dx  # setter handles clamping
+                inst.pos_y = inst.pos_y + dy  # setter handles clamping
         
         self._logger.debug(f"Translated layer {uuid} (shallow): ({dx:.4f}, {dy:.4f})")
     
@@ -1754,8 +1771,8 @@ class CoA(CoAQueryMixin):
             # Single instance: set directly to avoid flicker
             layer.scale_x = scale_x
             layer.scale_y = scale_y
-            instances[0]['scale_x'] = scale_x
-            instances[0]['scale_y'] = scale_y
+            instances[0].scale_x = scale_x
+            instances[0].scale_y = scale_y
         elif len(instances) > 1:
             # Multiple instances: calculate factor change before updating layer
             old_scale_x = layer.scale_x
@@ -1768,8 +1785,8 @@ class CoA(CoAQueryMixin):
                 factor_x = scale_x / old_scale_x
                 factor_y = scale_y / old_scale_y
                 for inst in instances:
-                    inst['scale_x'] = inst.get('scale_x', 1.0) * factor_x
-                    inst['scale_y'] = inst.get('scale_y', 1.0) * factor_y
+                    inst.scale_x = inst.scale_x * factor_x
+                    inst.scale_y = inst.scale_y * factor_y
         else:
             # No instances: just set layer scale
             layer.scale_x = scale_x
@@ -1800,8 +1817,8 @@ class CoA(CoAQueryMixin):
         instances = layer._data.get('instances', [])
         if instances:
             for inst in instances:
-                inst['scale_x'] = inst.get('scale_x', 1.0) * factor_x
-                inst['scale_y'] = inst.get('scale_y', 1.0) * factor_y
+                inst.scale_x = inst.scale_x * factor_x
+                inst.scale_y = inst.scale_y * factor_y
         
         self._logger.debug(f"Scaled layer {uuid} (shallow): ({factor_x:.4f}, {factor_y:.4f})")
     
@@ -1838,8 +1855,8 @@ class CoA(CoAQueryMixin):
             
             for inst in instances:
                 # Get instance position
-                ix = inst.get('pos_x', 0.5)
-                iy = inst.get('pos_y', 0.5)
+                ix = inst.pos_x
+                iy = inst.pos_y
                 
                 # Rotate around layer center
                 dx = ix - center_x
@@ -1847,11 +1864,11 @@ class CoA(CoAQueryMixin):
                 new_dx = dx * cos_r - dy * sin_r
                 new_dy = dx * sin_r + dy * cos_r
                 
-                inst['pos_x'] = max(0.0, min(1.0, center_x + new_dx))
-                inst['pos_y'] = max(0.0, min(1.0, center_y + new_dy))
+                inst.pos_x = center_x + new_dx  # setter handles clamping
+                inst.pos_y = center_y + new_dy  # setter handles clamping
                 
                 # Update instance rotation
-                inst['rotation'] = inst.get('rotation', 0.0) + delta_rotation
+                inst.rotation = inst.rotation + delta_rotation
         
         self._logger.debug(f"Set rotation for layer {uuid} (shallow): {degrees:.2f}°")
     
@@ -1889,8 +1906,8 @@ class CoA(CoAQueryMixin):
         
         instances = layer._data.get('instances', [])
         for inst in instances:
-            inst['pos_x'] = max(0.0, min(1.0, inst['pos_x'] + dx))
-            inst['pos_y'] = max(0.0, min(1.0, inst['pos_y'] + dy))
+            inst.pos_x = inst.pos_x + dx  # setter handles clamping
+            inst.pos_y = inst.pos_y + dy  # setter handles clamping
         
         self._logger.debug(f"Translated all {len(instances)} instances of layer {uuid}: ({dx:.4f}, {dy:.4f})")
     
@@ -1911,8 +1928,8 @@ class CoA(CoAQueryMixin):
         
         instances = layer._data.get('instances', [])
         for inst in instances:
-            inst['scale_x'] *= scale_factor_x
-            inst['scale_y'] *= scale_factor_y
+            inst.scale_x = inst.scale_x * scale_factor_x
+            inst.scale_y = inst.scale_y * scale_factor_y
         
         self._logger.debug(f"Scaled all {len(instances)} instances of layer {uuid}: ({scale_factor_x:.4f}, {scale_factor_y:.4f})")
     
@@ -1932,7 +1949,7 @@ class CoA(CoAQueryMixin):
         
         instances = layer._data.get('instances', [])
         for inst in instances:
-            inst['rotation'] = (inst['rotation'] + delta_degrees) % 360
+            inst.rotation = (inst.rotation + delta_degrees) % 360
         
         self._logger.debug(f"Rotated all {len(instances)} instances of layer {uuid}: +{delta_degrees:.2f}°")
     
@@ -1957,10 +1974,10 @@ class CoA(CoAQueryMixin):
         self._cached_instance_transforms = []
         for inst in instances:
             self._cached_instance_transforms.append({
-                'pos_x': inst['pos_x'],
-                'pos_y': inst['pos_y'],
-                'scale_x': inst['scale_x'],
-                'scale_y': inst['scale_y']
+                'pos_x': inst.pos_x,
+                'pos_y': inst.pos_y,
+                'scale_x': inst.scale_x,
+                'scale_y': inst.scale_y
             })
         
         # Cache original AABB center
@@ -2049,13 +2066,13 @@ class CoA(CoAQueryMixin):
             new_scale_x = scale_x_orig * scale_factor_x
             new_scale_y = scale_y_orig * scale_factor_y
             
-            # Clamp positions to valid range
-            inst['pos_x'] = max(0.0, min(1.0, new_pos_x))
-            inst['pos_y'] = max(0.0, min(1.0, new_pos_y))
+            # Set positions (setter handles clamping)
+            inst.pos_x = new_pos_x
+            inst.pos_y = new_pos_y
             
-            # Clamp scales to valid range
-            inst['scale_x'] = max(0.01, min(1.0, new_scale_x))
-            inst['scale_y'] = max(0.01, min(1.0, new_scale_y))
+            # Set scales (no automatic clamping, manual clamp)
+            inst.scale_x = max(0.01, min(1.0, new_scale_x))
+            inst.scale_y = max(0.01, min(1.0, new_scale_y))
     
     def begin_rotation_transform(self, uuids: List[str], rotation_mode: str = 'both_deep'):
         """Cache original rotation and position state before rotation operations
@@ -2137,12 +2154,12 @@ class CoA(CoAQueryMixin):
                         center_x, center_y,
                         total_delta_degrees
                     )
-                    inst['pos_x'] = max(0.0, min(1.0, new_x))
-                    inst['pos_y'] = max(0.0, min(1.0, new_y))
+                    inst.pos_x = new_x  # setter handles clamping
+                    inst.pos_y = new_y  # setter handles clamping
                 
                 if should_rotate:
                     # Update rotation value
-                    inst['rotation'] = (inst_cache['rotation'] + total_delta_degrees) % 360
+                    inst.rotation = (inst_cache['rotation'] + total_delta_degrees) % 360
     
     def _apply_both_shallow(self, uuids: List[str], total_delta: float, cache: dict):
         """Apply both shallow mode - layers orbit group center AND instances rotate around layer center
@@ -2222,8 +2239,8 @@ class CoA(CoAQueryMixin):
                     continue
                 
                 temp_x, temp_y = temp_positions[inst_idx]
-                inst['pos_x'] = max(0.0, min(1.0, temp_x + offset_x))
-                inst['pos_y'] = max(0.0, min(1.0, temp_y + offset_y))
+                inst.pos_x = temp_x + offset_x  # setter handles clamping
+                inst.pos_y = temp_y + offset_y  # setter handles clamping
     
     def _apply_orbit_only_shallow(self, uuids: List[str], total_delta: float, cache: dict):
         """Apply orbit_only shallow mode - layers translate as units
@@ -2279,8 +2296,8 @@ class CoA(CoAQueryMixin):
                     continue
                 
                 inst_cache = cached_instances[inst_idx]
-                inst['pos_x'] = max(0.0, min(1.0, inst_cache['pos_x'] + offset_x))
-                inst['pos_y'] = max(0.0, min(1.0, inst_cache['pos_y'] + offset_y))
+                inst.pos_x = inst_cache['pos_x'] + offset_x  # setter handles clamping
+                inst.pos_y = inst_cache['pos_y'] + offset_y  # setter handles clamping
     
     def end_rotation_transform(self):
         """Clear rotation transform cache"""
@@ -2434,8 +2451,8 @@ class CoA(CoAQueryMixin):
             total_y = 0.0
             for i in range(layer.instance_count):
                 instance = layer.get_instance(i, caller='CoA')
-                total_x += instance['pos_x']
-                total_y += instance['pos_y']
+                total_x += instance.pos_x
+                total_y += instance.pos_y
             
             center_x = total_x / layer.instance_count
             center_y = total_y / layer.instance_count
@@ -2446,15 +2463,15 @@ class CoA(CoAQueryMixin):
                 
                 # Rotate position around center
                 new_x, new_y = self._rotate_point_around(
-                    instance['pos_x'], instance['pos_y'],
+                    instance.pos_x, instance.pos_y,
                     center_x, center_y,
                     delta_degrees
                 )
-                instance['pos_x'] = new_x
-                instance['pos_y'] = new_y
+                instance.pos_x = new_x  # setter handles clamping
+                instance.pos_y = new_y  # setter handles clamping
                 
                 # Rotate individual rotation
-                instance['rotation'] += delta_degrees
+                instance.rotation += delta_degrees
             
             self._logger.debug(f"Rotated {layer.instance_count} instances of layer {uuid}: +{delta_degrees:.2f}°")
         else:
@@ -2529,7 +2546,7 @@ class CoA(CoAQueryMixin):
                     instances = layer._data.get('instances', [])
                     if instances:
                         for inst in instances:
-                            inst['pos_x'] = max(0.0, min(1.0, inst['pos_x'] + dx))
+                            inst.pos_x = inst.pos_x + dx  # setter handles clamping
         
         # Vertical alignments
         else:
@@ -2756,7 +2773,7 @@ class CoA(CoAQueryMixin):
             if layer.instance_count == 1:
                 # Single instance: just rotate in place
                 instance = layer.get_instance(0, caller='CoA')
-                instance['rotation'] += delta_degrees
+                instance.rotation += delta_degrees
             else:
                 # Multiple instances: ferris wheel around layer center
                 # Calculate layer center
@@ -2764,8 +2781,8 @@ class CoA(CoAQueryMixin):
                 center_y = 0.0
                 for i in range(layer.instance_count):
                     inst = layer.get_instance(i, caller='CoA')
-                    center_x += inst['pos_x']
-                    center_y += inst['pos_y']
+                    center_x += inst.pos_x
+                    center_y += inst.pos_y
                 center_x /= layer.instance_count
                 center_y /= layer.instance_count
                 
@@ -2773,13 +2790,13 @@ class CoA(CoAQueryMixin):
                 for i in range(layer.instance_count):
                     instance = layer.get_instance(i, caller='CoA')
                     new_x, new_y = self._rotate_point_around(
-                        instance['pos_x'], instance['pos_y'],
+                        instance.pos_x, instance.pos_y,
                         center_x, center_y,
                         delta_degrees
                     )
-                    instance['pos_x'] = new_x
-                    instance['pos_y'] = new_y
-                    instance['rotation'] += delta_degrees
+                    instance.pos_x = new_x  # setter handles clamping
+                    instance.pos_y = new_y  # setter handles clamping
+                    instance.rotation += delta_degrees
         
         self._logger.debug(f"Rotate only (shallow): {len(uuids)} layers, +{delta_degrees:.2f}°")
     
@@ -2797,12 +2814,12 @@ class CoA(CoAQueryMixin):
                 # Single instance: orbit position only
                 instance = layer.get_instance(0, caller='CoA')
                 new_x, new_y = self._rotate_point_around(
-                    instance['pos_x'], instance['pos_y'],
+                    instance.pos_x, instance.pos_y,
                     center_x, center_y,
                     delta_degrees
                 )
-                instance['pos_x'] = new_x
-                instance['pos_y'] = new_y
+                instance.pos_x = new_x
+                instance.pos_y = new_y
                 # rotation unchanged
             else:
                 # Multiple instances: move layer center, keep instances relative
@@ -2811,8 +2828,8 @@ class CoA(CoAQueryMixin):
                 layer_y = 0.0
                 for i in range(layer.instance_count):
                     inst = layer.get_instance(i, caller='CoA')
-                    layer_x += inst['pos_x']
-                    layer_y += inst['pos_y']
+                    layer_x += inst.pos_x
+                    layer_y += inst.pos_y
                 layer_center_x = layer_x / layer.instance_count
                 layer_center_y = layer_y / layer.instance_count
                 
@@ -2829,8 +2846,8 @@ class CoA(CoAQueryMixin):
                 
                 for i in range(layer.instance_count):
                     instance = layer.get_instance(i, caller='CoA')
-                    instance['pos_x'] += offset_x
-                    instance['pos_y'] += offset_y
+                    instance.pos_x += offset_x
+                    instance.pos_y += offset_y
                     # rotation unchanged
         
         self._logger.debug(f"Orbit only (shallow): {len(uuids)} layers, +{delta_degrees:.2f}°")
@@ -2852,7 +2869,7 @@ class CoA(CoAQueryMixin):
             layer = self._layers.get_by_uuid(uuid)
             for i in range(layer.instance_count):
                 instance = layer.get_instance(i, caller='CoA')
-                instance['rotation'] += delta_degrees
+                instance.rotation += delta_degrees
                 # position unchanged
         
         self._logger.debug(f"Rotate only (deep): {sum(l.instance_count for l in layers)} instances, +{delta_degrees:.2f}°")
@@ -2868,18 +2885,18 @@ class CoA(CoAQueryMixin):
                 all_instances.append(instance)
         
         # Calculate center of all instances
-        center_x = sum(inst['pos_x'] for inst in all_instances) / len(all_instances)
-        center_y = sum(inst['pos_y'] for inst in all_instances) / len(all_instances)
+        center_x = sum(inst.pos_x for inst in all_instances) / len(all_instances)
+        center_y = sum(inst.pos_y for inst in all_instances) / len(all_instances)
         
         # Orbit each instance around center (no rotation change)
         for instance in all_instances:
             new_x, new_y = self._rotate_point_around(
-                instance['pos_x'], instance['pos_y'],
+                instance.pos_x, instance.pos_y,
                 center_x, center_y,
                 delta_degrees
             )
-            instance['pos_x'] = new_x
-            instance['pos_y'] = new_y
+            instance.pos_x = new_x
+            instance.pos_y = new_y
             # rotation unchanged
         
         self._logger.debug(f"Orbit only (deep): {len(all_instances)} instances, +{delta_degrees:.2f}°")
@@ -2895,19 +2912,19 @@ class CoA(CoAQueryMixin):
                 all_instances.append(instance)
         
         # Calculate center of all instances
-        center_x = sum(inst['pos_x'] for inst in all_instances) / len(all_instances)
-        center_y = sum(inst['pos_y'] for inst in all_instances) / len(all_instances)
+        center_x = sum(inst.pos_x for inst in all_instances) / len(all_instances)
+        center_y = sum(inst.pos_y for inst in all_instances) / len(all_instances)
         
         # Orbit AND rotate each instance
         for instance in all_instances:
             new_x, new_y = self._rotate_point_around(
-                instance['pos_x'], instance['pos_y'],
+                instance.pos_x, instance.pos_y,
                 center_x, center_y,
                 delta_degrees
             )
-            instance['pos_x'] = new_x
-            instance['pos_y'] = new_y
-            instance['rotation'] += delta_degrees
+            instance.pos_x = new_x
+            instance.pos_y = new_y
+            instance.rotation += delta_degrees
         
         self._logger.debug(f"Both (deep): {len(all_instances)} instances, +{delta_degrees:.2f}°")
     
@@ -2960,8 +2977,8 @@ class CoA(CoAQueryMixin):
             layer = self._layers.get_by_uuid(uuid)
             for i in range(layer.instance_count):
                 instance = layer.get_instance(i, caller='CoA')
-                total_x += instance['pos_x']
-                total_y += instance['pos_y']
+                total_x += instance.pos_x
+                total_y += instance.pos_y
                 total_count += 1
         
         group_center_x = total_x / total_count
@@ -2975,21 +2992,21 @@ class CoA(CoAQueryMixin):
                 # Single instance: reposition around group center, add rotation
                 instance = layer.get_instance(0, caller='CoA')
                 new_x, new_y = self._rotate_point_around(
-                    instance['pos_x'], instance['pos_y'],
+                    instance.pos_x, instance.pos_y,
                     group_center_x, group_center_y,
                     delta_degrees
                 )
-                instance['pos_x'] = new_x
-                instance['pos_y'] = new_y
-                instance['rotation'] += delta_degrees
+                instance.pos_x = new_x
+                instance.pos_y = new_y
+                instance.rotation += delta_degrees
             else:
                 # Multiple instances: calculate this layer's center
                 layer_x = 0.0
                 layer_y = 0.0
                 for i in range(layer.instance_count):
                     inst = layer.get_instance(i, caller='CoA')
-                    layer_x += inst['pos_x']
-                    layer_y += inst['pos_y']
+                    layer_x += inst.pos_x
+                    layer_y += inst.pos_y
                 
                 layer_center_x = layer_x / layer.instance_count
                 layer_center_y = layer_y / layer.instance_count
@@ -3010,20 +3027,20 @@ class CoA(CoAQueryMixin):
                     instance = layer.get_instance(i, caller='CoA')
                     
                     # First apply offset to move with layer center
-                    instance['pos_x'] += offset_x
-                    instance['pos_y'] += offset_y
+                    instance.pos_x += offset_x
+                    instance.pos_y += offset_y
                     
                     # Then ferris wheel around new layer center
                     rotated_x, rotated_y = self._rotate_point_around(
-                        instance['pos_x'], instance['pos_y'],
+                        instance.pos_x, instance.pos_y,
                         new_layer_center_x, new_layer_center_y,
                         delta_degrees
                     )
-                    instance['pos_x'] = rotated_x
-                    instance['pos_y'] = rotated_y
+                    instance.pos_x = rotated_x
+                    instance.pos_y = rotated_y
                     
                     # Add rotation to instance
-                    instance['rotation'] += delta_degrees
+                    instance.rotation += delta_degrees
         
         self._logger.debug(f"Rotated instance group of {len(uuids)} layers: +{delta_degrees:.2f}°")
     
@@ -3230,10 +3247,10 @@ class CoA(CoAQueryMixin):
             instance = layer.get_instance(i, caller='CoA')
             
             # Get position and scale
-            x = instance['pos_x']
-            y = instance['pos_y']
-            sx = instance['scale_x']
-            sy = instance['scale_y']
+            x = instance.pos_x
+            y = instance.pos_y
+            sx = instance.scale_x
+            sy = instance.scale_y
             
             # Scale values represent the full width/height in normalized space
             # Use absolute values to handle negative scales (flips)

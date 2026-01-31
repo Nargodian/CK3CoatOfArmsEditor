@@ -52,3 +52,7 @@ shallow transformations
 deep transformations
   - work on all instances across all layers
   - instances can move independently of their parent layer
+
+avoid dictionary based data structures or lookups
+['pos_x'] is bad
+.pos_x is good

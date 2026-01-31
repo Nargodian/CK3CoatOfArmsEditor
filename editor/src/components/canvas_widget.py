@@ -440,11 +440,11 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				for instance_idx in range(instance_count):
 					# Get instance-specific transform data
 					instance = coa.get_layer_instance(layer_uuid, instance_idx)
-					pos_x = instance['pos_x']
-					pos_y = instance['pos_y']
-					scale_x = instance['scale_x']
-					scale_y = instance['scale_y']
-					rotation = instance['rotation']
+					pos_x = instance.pos_x
+					pos_y = instance.pos_y
+					scale_x = instance.scale_x
+					scale_y = instance.scale_y
+					rotation = instance.rotation
 					
 					# Convert layer position to OpenGL coordinates
 					center_x, center_y = layer_pos_to_opengl_coords(pos_x, pos_y)

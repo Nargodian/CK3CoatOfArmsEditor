@@ -91,32 +91,13 @@ def duplicate_layer(layer, offset_x=0.0, offset_y=0.0):
         New Layer object (deep copy)
     """
     from models.coa import Layer
-    import uuid as uuid_module
-    from copy import deepcopy
     
-    # Convert to dict, deep copy, then create new Layer
-    if isinstance(layer, Layer):
-        layer_data = layer.to_dict()
-    else:
-        layer_data = dict(layer)
+    # Ensure we have a Layer object
+    if not isinstance(layer, Layer):
+        layer = Layer(layer, caller='duplicate_layer')
     
-    # Deep copy the data
-    duplicated = deepcopy(layer_data)
-    
-    # Generate new UUID
-    duplicated['uuid'] = str(uuid_module.uuid4())
-    
-    # Apply offset if provided
-    if offset_x != 0.0 or offset_y != 0.0:
-        if 'instances' in duplicated:
-            for inst in duplicated['instances']:
-                if offset_x != 0.0:
-                    inst['pos_x'] = min(1.0, max(0.0, inst.get('pos_x', 0.5) + offset_x))
-                if offset_y != 0.0:
-                    inst['pos_y'] = min(1.0, max(0.0, inst.get('pos_y', 0.5) + offset_y))
-    
-    # Return new Layer object
-    return Layer(duplicated, caller='duplicate_layer')
+    # Use Layer's duplicate method
+    return layer.duplicate(offset_x=offset_x, offset_y=offset_y, caller='duplicate_layer')
 
 
 def serialize_layer_to_text(layer):
@@ -148,13 +129,13 @@ def serialize_layer_to_text(layer):
     for i in range(layer.instance_count):
         inst = layer.get_instance(i, caller='serialize_layer_to_text')
         instance_data = {
-            "position": [inst['pos_x'], inst['pos_y']],
-            "scale": [inst['scale_x'], inst['scale_y']],
-            "rotation": int(inst['rotation'])
+            "position": [inst.pos_x, inst.pos_y],
+            "scale": [inst.scale_x, inst.scale_y],
+            "rotation": int(inst.rotation)
         }
         # Add depth if not default
-        if inst.get('depth', 0.0) != 0.0:
-            instance_data['depth'] = inst['depth']
+        if inst.depth is not None and inst.depth != 0.0:
+            instance_data['depth'] = inst.depth
         instances.append(instance_data)
     
     # If no instances, create default

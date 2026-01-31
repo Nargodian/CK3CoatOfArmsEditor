@@ -45,6 +45,8 @@ from constants import (
     CK3_NAMED_COLORS
 )
 
+from .instance import Instance
+
 
 class LayerTracker:
     """Tracks method calls for debugging and accountability
@@ -139,7 +141,6 @@ class Layer:
     """Object-oriented wrapper for layer data with instance support
     
     Provides property-based access to layer data with:
-    - Auto-migration from old format (layer['pos_x']) to new (instances[i]['pos_x'])
     - Bounds checking and validation
     - Method call tracking
     - Flat structure (no parent/child hierarchy)
@@ -153,9 +154,6 @@ class Layer:
         color1_name, color2_name, color3_name,
         flip_x, flip_y, mask, uuid
     """
-    
-    # Properties that live in instances
-    _INSTANCE_PROPERTIES = {'pos_x', 'pos_y', 'scale_x', 'scale_y', 'rotation', 'depth'}
     
     # Auto-incrementing ID for tracking (internal only, not persisted)
     _next_id = 0
@@ -174,12 +172,15 @@ class Layer:
         # Initialize or copy data
         self._data = data if data is not None else self._create_default()
         
-        # Auto-migrate old format to new
-        self._migrate_if_needed()
-        
         # Ensure UUID exists (create if missing, preserve if present)
         if 'uuid' not in self._data:
             self._data['uuid'] = str(uuid_module.uuid4())
+        
+        # Convert instance dictionaries to Instance objects
+        if 'instances' in self._data:
+            instances = self._data['instances']
+            if instances and isinstance(instances[0], dict):
+                self._data['instances'] = [Instance(inst) if isinstance(inst, dict) else inst for inst in instances]
         
         LayerTracker.log_call(caller, self._id, '__init__')
     
@@ -417,15 +418,15 @@ class Layer:
         """Get number of instances"""
         return len(self._data.get('instances', []))
     
-    def get_instance(self, index: int, caller: str = 'unknown') -> Dict:
-        """Get instance data by index
+    def get_instance(self, index: int, caller: str = 'unknown'):
+        """Get instance by index
         
         Args:
             index: Instance index
             caller: Registered key identifying the caller
             
         Returns:
-            Dictionary of instance properties
+            Instance object
             
         Raises:
             IndexError: If index out of range
@@ -516,7 +517,12 @@ class Layer:
         selected = self._data.get('selected_instance', 0)
         
         if 0 <= selected < len(instances):
-            return instances[selected].get(prop_name, default)
+            inst = instances[selected]
+            if isinstance(inst, Instance):
+                return getattr(inst, prop_name, default)
+            else:
+                # Fallback for dict (shouldn't happen after __init__)
+                return inst.get(prop_name, default)
         
         return default
     
@@ -532,11 +538,16 @@ class Layer:
         
         # Ensure instances list exists and has enough entries
         if not instances:
-            instances.append(self._create_default_instance())
+            instances.append(Instance())
             self._data['instances'] = instances
         
         if 0 <= selected < len(instances):
-            instances[selected][prop_name] = value
+            inst = instances[selected]
+            if isinstance(inst, Instance):
+                setattr(inst, prop_name, value)
+            else:
+                # Fallback for dict (shouldn't happen after __init__)
+                inst[prop_name] = value
     
     def _create_default(self) -> Dict:
         """Create default layer data"""
@@ -545,7 +556,7 @@ class Layer:
             'filename': '',
             'path': '',
             'colors': 3,
-            'instances': [self._create_default_instance()],
+            'instances': [Instance()],  # Create Instance object instead of dict
             'selected_instance': 0,
             'flip_x': False,
             'flip_y': False,
@@ -569,37 +580,6 @@ class Layer:
             'depth': 0.0
         }
     
-    def _migrate_if_needed(self):
-        """Migrate old format to instances format if needed
-        
-        Old format: layer['pos_x'], layer['pos_y'], etc.
-        New format: layer['instances'][0]['pos_x'], etc.
-        """
-        # Check if already migrated
-        if 'instances' in self._data and isinstance(self._data['instances'], list):
-            # Already has instances, clean up any old format fields
-            for key in self._INSTANCE_PROPERTIES:
-                self._data.pop(key, None)
-            return
-        
-        # Build instance from old format fields
-        instance = {}
-        for key in self._INSTANCE_PROPERTIES:
-            if key in self._data:
-                instance[key] = self._data.pop(key)
-        
-        # Fill in missing defaults
-        instance.setdefault('pos_x', DEFAULT_POSITION_X)
-        instance.setdefault('pos_y', DEFAULT_POSITION_Y)
-        instance.setdefault('scale_x', DEFAULT_SCALE_X)
-        instance.setdefault('scale_y', DEFAULT_SCALE_Y)
-        instance.setdefault('rotation', DEFAULT_ROTATION)
-        instance.setdefault('depth', 0.0)
-        
-        # Set new format
-        self._data['instances'] = [instance]
-        self._data['selected_instance'] = 0
-    
     def to_dict(self, caller: str = 'unknown') -> Dict:
         """Export to dictionary format
         
@@ -610,7 +590,20 @@ class Layer:
             Dictionary containing all layer data (including UUID)
         """
         LayerTracker.log_call(caller, self._id, 'to_dict')
-        return dict(self._data)
+        
+        # Create a copy of the data
+        import copy
+        result = copy.copy(self._data)
+        
+        # Convert Instance objects back to dictionaries for serialization
+        if 'instances' in result:
+            instances = result['instances']
+            result['instances'] = [
+                inst.to_dict() if isinstance(inst, Instance) else inst 
+                for inst in instances
+            ]
+        
+        return result
     
     def duplicate(self, caller: str = 'unknown', offset_x: float = 0.0, offset_y: float = 0.0) -> 'Layer':
         """Create a duplicate of this layer with a new UUID
@@ -635,10 +628,10 @@ class Layer:
         # Apply offset to all instances if provided
         if offset_x != 0.0 or offset_y != 0.0:
             for inst in duplicated['instances']:
-                if offset_x != 0.0:
-                    inst['pos_x'] = min(1.0, max(0.0, inst['pos_x'] + offset_x))
-                if offset_y != 0.0:
-                    inst['pos_y'] = min(1.0, max(0.0, inst['pos_y'] + offset_y))
+                # Instances in duplicated dict are still Instance objects after deepcopy
+                if isinstance(inst, Instance):
+                    inst.pos_x = inst.pos_x + offset_x  # setter handles clamping
+                    inst.pos_y = inst.pos_y + offset_y  # setter handles clamping
         
         return Layer(duplicated, caller=caller)
     

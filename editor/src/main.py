@@ -1068,22 +1068,27 @@ class CoatOfArmsEditor(QMainWindow):
 		if event.type() == event.KeyPress:
 			# Intercept arrow keys when layers are selected
 			if event.key() in [Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down]:
-				selected_indices = self.right_sidebar.get_selected_indices()
-				if selected_indices:
+				selected_uuids = self.right_sidebar.get_selected_uuids()
+				if selected_uuids:
 					# Handle arrow key movement
 					from constants import ARROW_KEY_MOVE_NORMAL, ARROW_KEY_MOVE_FINE
 					move_amount = ARROW_KEY_MOVE_FINE if event.modifiers() & Qt.ShiftModifier else ARROW_KEY_MOVE_NORMAL
 					
-					for idx in selected_indices:
-						layer = self.coa.get_layer_by_index(idx)
+					for uuid in selected_uuids:
+						current_x, current_y = self.coa.get_layer_position(uuid)
+						
 						if event.key() == Qt.Key_Left:
-							layer.pos_x = max(0.0, layer.pos_x - move_amount)
+							new_x = current_x - move_amount
+							self.coa.set_layer_position(uuid, new_x, current_y)
 						elif event.key() == Qt.Key_Right:
-							layer.pos_x = min(1.0, layer.pos_x + move_amount)
+							new_x = current_x + move_amount
+							self.coa.set_layer_position(uuid, new_x, current_y)
 						elif event.key() == Qt.Key_Up:
-							layer.pos_y = max(0.0, layer.pos_y - move_amount)
+							new_y = current_y - move_amount
+							self.coa.set_layer_position(uuid, current_x, new_y)
 						elif event.key() == Qt.Key_Down:
-							layer.pos_y = min(1.0, layer.pos_y + move_amount)
+							new_y = current_y + move_amount
+							self.coa.set_layer_position(uuid, current_x, new_y)
 					
 					# Update UI
 					self.right_sidebar._load_layer_properties()

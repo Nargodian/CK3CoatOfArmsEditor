@@ -32,29 +32,6 @@ class LayerTransformActions:
 		# Use model method directly with UUIDs
 		self.main_window.coa.align_layers(selected_uuids, alignment)
 		
-		# OLD CODE (will remove in Step 9):
-		# layers = [self.main_window.right_sidebar.layers[i] for i in selected_indices]
-		# if alignment in ['left', 'center', 'right']:
-		# 	positions = [layer.get('pos_x', 0.5) for layer in layers]
-		# 	if alignment == 'left':
-		# 		target = min(positions)
-		# 	elif alignment == 'right':
-		# 		target = max(positions)
-		# 	else:
-		# 		target = sum(positions) / len(positions)
-		# 	for idx in selected_indices:
-		# 		self.main_window.right_sidebar.layers[idx]['pos_x'] = target
-		# else:
-		# 	positions = [layer.get('pos_y', 0.5) for layer in layers]
-		# 	if alignment == 'top':
-		# 		target = min(positions)
-		# 	elif alignment == 'bottom':
-		# 		target = max(positions)
-		# 	else:
-		# 		target = sum(positions) / len(positions)
-		# 	for idx in selected_indices:
-		# 		self.main_window.right_sidebar.layers[idx]['pos_y'] = target
-		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
 		self.main_window.canvas_area.canvas_widget.update()
