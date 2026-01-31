@@ -217,11 +217,16 @@ class FileActions:
 					raise e
 				filename += '.png'
 			
-			# Get the canvas widget's pixmap/image
-			pixmap = self.main_window.canvas_area.canvas_widget.grab()
+			# Use the canvas widget's proper export function for transparency
+			success = self.main_window.canvas_area.canvas_widget.export_to_png(filename)
 			
-			# Save to file
-			pixmap.save(filename, 'PNG')
+			if not success:
+				QMessageBox.warning(
+					self.main_window,
+					"Export Failed",
+					"Failed to export PNG. Check console for errors."
+				)
+				return
 			
 			# Update status
 			import os

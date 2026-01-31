@@ -1188,15 +1188,22 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			# Render the CoA
 			self._render_coa_for_export()
 			
-			# Get the image from the framebuffer
-			image = fbo.toImage()
+			# Read pixels directly from framebuffer to preserve alpha
+			gl.glReadBuffer(gl.GL_COLOR_ATTACHMENT0)
+			pixels = gl.glReadPixels(0, 0, export_size, export_size, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE)
 			
-			# Ensure image has alpha channel
-			if image.format() != QImage.Format_RGBA8888:
-				image = image.convertToFormat(QImage.Format_RGBA8888)
-			
-			# Release framebuffer
+			# Release framebuffer before creating image
 			fbo.release()
+			
+			# Convert to numpy array and flip vertically (OpenGL origin is bottom-left)
+			arr = np.frombuffer(pixels, dtype=np.uint8).reshape(export_size, export_size, 4)
+			arr = np.flipud(arr).copy()  # copy() to make contiguous
+			
+			# Create QImage from bytes
+			image = QImage(arr.tobytes(), export_size, export_size, export_size * 4, QImage.Format_RGBA8888)
+			
+			# Make a copy since the buffer will be deallocated
+			image = image.copy()
 			
 			# Restore normal viewport and clear color
 			gl.glViewport(0, 0, self.width(), self.height())
