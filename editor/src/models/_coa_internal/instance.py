@@ -131,8 +131,8 @@ class Instance:
         lines.append('\t\t\t}')
         return '\n'.join(lines)
     
-    @staticmethod
-    def parse(data: Dict[str, Any]) -> 'Instance':
+    @classmethod
+    def parse(cls, data: Dict[str, Any]) -> 'Instance':
         """Parse instance from Clausewitz parser output
         
         Args:

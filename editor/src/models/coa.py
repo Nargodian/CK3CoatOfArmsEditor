@@ -304,18 +304,15 @@ class CoA(CoAQueryMixin):
     # Serialization (CK3 Format)
     # ========================================
     
-    @classmethod
-    def from_string(cls, ck3_text: str) -> 'CoA':
-        """Parse CoA from CK3 format string
+    def parse(self, ck3_text: str) -> None:
+        """Parse and populate CoA from CK3 format string
         
         Uses the mature CoAParser from utils.coa_parser for parsing.
         Converts parsed structure into model format with UUIDs.
+        Populates this CoA instance (clears existing data).
         
         Args:
             ck3_text: CK3 coat of arms definition
-            
-        Returns:
-            New CoA instance
             
         Example CK3 format:
             {
@@ -340,26 +337,27 @@ class CoA(CoAQueryMixin):
         from ._coa_internal.coa_parser import CoAParser
         from utils.color_utils import color_name_to_rgb
         
-        coa = cls()
+        # Clear existing layers
+        self._layers.clear(caller='CoA')
         
         # Parse CK3 text
         parser = CoAParser()
         try:
             parsed = parser.parse_string(ck3_text)
         except Exception as e:
-            coa._logger.error(f"Failed to parse CoA: {e}")
+            self._logger.error(f"Failed to parse CoA: {e}")
             raise ValueError(f"Invalid CK3 format: {e}")
         
         # Extract CoA object (first key)
         if not parsed:
-            coa._logger.warning("Empty CoA parsed")
-            return coa
+            self._logger.warning("Empty CoA parsed")
+            return
         
         coa_key = list(parsed.keys())[0]
         coa_obj = parsed[coa_key]
         
         # Extract base pattern and colors
-        coa._pattern = coa_obj.get('pattern', DEFAULT_PATTERN_TEXTURE)
+        self._pattern = coa_obj.get('pattern', DEFAULT_PATTERN_TEXTURE)
         
         # Parse color1
         color1_raw = coa_obj.get('color1', DEFAULT_BASE_COLOR1)
@@ -368,12 +366,12 @@ class CoA(CoAQueryMixin):
                 # Parse "rgb { R G B }"
                 rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color1_raw)
                 if rgb_match:
-                    coa._pattern_color1 = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
-                    coa._pattern_color1_name = None
+                    self._pattern_color1 = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
+                    self._pattern_color1_name = None
             else:
                 # Named color
-                coa._pattern_color1 = color_name_to_rgb(color1_raw)
-                coa._pattern_color1_name = color1_raw
+                self._pattern_color1 = color_name_to_rgb(color1_raw)
+                self._pattern_color1_name = color1_raw
         
         # Parse color2
         color2_raw = coa_obj.get('color2', DEFAULT_BASE_COLOR2)
@@ -381,11 +379,11 @@ class CoA(CoAQueryMixin):
             if color2_raw.startswith('rgb'):
                 rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color2_raw)
                 if rgb_match:
-                    coa._pattern_color2 = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
-                    coa._pattern_color2_name = None
+                    self._pattern_color2 = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
+                    self._pattern_color2_name = None
             else:
-                coa._pattern_color2 = color_name_to_rgb(color2_raw)
-                coa._pattern_color2_name = color2_raw
+                self._pattern_color2 = color_name_to_rgb(color2_raw)
+                self._pattern_color2_name = color2_raw
         
         # Parse color3
         color3_raw = coa_obj.get('color3', DEFAULT_BASE_COLOR3)
@@ -393,11 +391,11 @@ class CoA(CoAQueryMixin):
             if color3_raw.startswith('rgb'):
                 rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color3_raw)
                 if rgb_match:
-                    coa._pattern_color3 = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
-                    coa._pattern_color3_name = None
+                    self._pattern_color3 = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
+                    self._pattern_color3_name = None
             else:
-                coa._pattern_color3 = color_name_to_rgb(color3_raw)
-                coa._pattern_color3_name = color3_raw
+                self._pattern_color3 = color_name_to_rgb(color3_raw)
+                self._pattern_color3_name = color3_raw
         
         # Parse colored_emblem blocks using Layer.parse()
         emblems = coa_obj.get('colored_emblem', [])
@@ -406,12 +404,25 @@ class CoA(CoAQueryMixin):
         for emblem in emblems:
             try:
                 layer = Layer.parse(emblem, caller='CoA')
-                coa.add_layer_object(layer, at_front=False)
+                self.add_layer_object(layer, at_front=False)
             except Exception as e:
-                coa._logger.error(f"Failed to parse emblem: {e}")
+                self._logger.error(f"Failed to parse emblem: {e}")
                 continue
         
-        coa._logger.debug(f"Parsed CoA with {coa.get_layer_count()} layers")
+        self._logger.debug(f"Parsed CoA with {self.get_layer_count()} layers")
+    
+    @classmethod
+    def from_string(cls, ck3_text: str) -> 'CoA':
+        """Convenience factory: create CoA and parse from CK3 format string
+        
+        Args:
+            ck3_text: CK3 coat of arms definition
+            
+        Returns:
+            New CoA instance populated with parsed data
+        """
+        coa = cls()
+        coa.parse(ck3_text)
         return coa
     
     @classmethod
@@ -554,7 +565,7 @@ class CoA(CoAQueryMixin):
         coa._logger.debug(f"Parsed {coa.get_layer_count()} layers from colored_emblem blocks")
         return coa
     
-    def to_string(self) -> str:
+    def serialize(self) -> str:
         """Export CoA to CK3 format string
         
         Uses mature serialization matching the running application's format.
