@@ -442,8 +442,23 @@ class TransformWidget(QWidget):
 			self.active_handle = self.HANDLE_NONE
 			self.drag_start_pos = None
 			self.drag_start_transform = None
+			
+			# Save history for ctrl+drag duplication (deferred from duplicate time)
+			was_duplicate_drag = self.duplicate_created
+			
+			self.duplicate_created = False  # Reset for next drag
+			self.ctrl_pressed_at_drag_start = False
+			
 			# Emit signal for history saving
 			self.transformEnded.emit()
+			
+			# Save duplicate history after transform completes
+			if was_duplicate_drag:
+				try:
+					if hasattr(self, 'canvas_area') and self.canvas_area and hasattr(self.canvas_area, 'main_window'):
+						self.canvas_area.main_window._save_state("Duplicate and move layer(s)")
+				except:
+					pass  # Don't break drag if history save fails
 			event.accept()
 			return
 		super().mouseReleaseEvent(event)

@@ -72,7 +72,7 @@ class ClipboardActions:
 				self.main_window.right_sidebar._select_layer(0)
 			
 			# Update canvas
-			self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
+			self.main_window.canvas_area.canvas_widget.update()
 			
 			# OLD CODE (will remove in Step 10):
 			# from utils.coa_parser import parse_coa_string
@@ -154,7 +154,7 @@ class ClipboardActions:
 			
 			# Update UI
 			self.main_window.right_sidebar._rebuild_layer_list()
-			self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
+			self.main_window.canvas_area.canvas_widget.update()
 			
 			# Select the newly pasted layers
 			if new_uuids:
@@ -261,7 +261,7 @@ class ClipboardActions:
 			
 			# Update UI
 			self.main_window.right_sidebar._rebuild_layer_list()
-			self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
+			self.main_window.canvas_area.canvas_widget.update()
 			
 			# Select the newly pasted layers
 			if new_uuids:
@@ -299,7 +299,7 @@ class ClipboardActions:
 		
 		# Update UI
 		self.main_window.right_sidebar._rebuild_layer_list()
-		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
+		self.main_window.canvas_area.canvas_widget.update()
 		
 		# Select the new duplicated layers
 		if new_uuids:
@@ -311,12 +311,19 @@ class ClipboardActions:
 		count = len(selected_uuids)
 		self.main_window._save_state(f"Duplicate {count} layer(s)")
 	
-	def duplicate_selected_layer_below(self):
-		"""Duplicate selected layer(s) and place below"""
+	def duplicate_selected_layer_below(self, keep_selection=False):
+		"""Duplicate selected layer(s) and place below
+		
+		Args:
+			keep_selection: If True, keep original selection (for ctrl+drag). If False, select duplicates.
+		"""
 		selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
 		
 		if not selected_uuids:
 			return
+		
+		# Store original selection
+		original_selection = set(selected_uuids)
 		
 		# Duplicate using pure UUID-based positioning
 		new_uuids = []
@@ -327,17 +334,26 @@ class ClipboardActions:
 		
 		# Update UI
 		self.main_window.right_sidebar._rebuild_layer_list()
-		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
+		self.main_window.canvas_area.canvas_widget.update()
 		
-		# Select the new duplicated layers
-		if new_uuids:
-			self.main_window.right_sidebar.layer_list_widget.selected_layer_uuids = set(new_uuids)
-			self.main_window.right_sidebar.layer_list_widget.last_selected_uuid = new_uuids[0]
-			self.main_window.right_sidebar.layer_list_widget.update_selection_visuals()
+		# Select the appropriate layers based on keep_selection flag
+		if keep_selection:
+			# Keep original selection (for ctrl+drag) - originals are still at same UUIDs
+			self.main_window.right_sidebar.layer_list_widget.selected_layer_uuids = original_selection
+			if selected_uuids:
+				self.main_window.right_sidebar.layer_list_widget.last_selected_uuid = selected_uuids[0]
+		else:
+			# Select the new duplicated layers (normal duplicate operation)
+			if new_uuids:
+				self.main_window.right_sidebar.layer_list_widget.selected_layer_uuids = set(new_uuids)
+				self.main_window.right_sidebar.layer_list_widget.last_selected_uuid = new_uuids[0]
 		
-		# Save to history
-		count = len(selected_uuids)
-		self.main_window._save_state(f"Duplicate {count} layer(s) below")
+		self.main_window.right_sidebar.layer_list_widget.update_selection_visuals()
+		
+		# Save to history (but not during ctrl+drag - that's saved on mouse release)
+		if not keep_selection:
+			count = len(selected_uuids)
+			self.main_window._save_state(f"Duplicate {count} layer(s) below")
 	
 	def duplicate_selected_layer(self):
 		"""Duplicate selected layer(s) and place above"""
@@ -359,7 +375,7 @@ class ClipboardActions:
 		
 		# Update UI
 		self.main_window.right_sidebar._rebuild_layer_list()
-		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
+		self.main_window.canvas_area.canvas_widget.update()
 		
 		# Select the new duplicated layers
 		if new_uuids:

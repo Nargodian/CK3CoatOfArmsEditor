@@ -345,7 +345,7 @@ class CanvasArea(QFrame):
 			self.main_window.coa.apply_rotation_transform(list(selected_uuids), total_delta)
 			
 			# Update canvas for live preview
-			self.canvas_widget.set_coa(self.main_window.coa)
+			self.canvas_widget.update()
 			return
 		
 		# POSITION/SCALE TRANSFORMS (non-rotation)
@@ -394,7 +394,7 @@ class CanvasArea(QFrame):
 				self.main_window.coa.set_layer_scale(uuid, scale_x, scale_y)
 				self.main_window.coa.set_layer_rotation(uuid, rotation)
 			
-			self.canvas_widget.set_coa(self.main_window.coa)
+			self.canvas_widget.update()
 			# Don't reload properties during drag - causes feedback loop that resets flip state
 			# Properties will be reloaded when drag ends in _on_transform_ended()
 			return
@@ -561,7 +561,7 @@ class CanvasArea(QFrame):
 			# Task 3.6: Individual layer rotations are preserved (NOT modified)
 		
 		# Update canvas during drag for real-time feedback
-		self.canvas_widget.set_coa(self.main_window.coa)
+		self.canvas_widget.update()
 	
 	def _on_transform_ended(self):
 		"""Handle transform widget drag end"""
@@ -586,7 +586,7 @@ class CanvasArea(QFrame):
 		self._rotation_start = None  # Clear rotation tracking
 		
 		# Update canvas
-		self.canvas_widget.set_coa(self.main_window.coa)
+		self.canvas_widget.update()
 		self._drag_start_layers = None
 		self._drag_start_aabb = None
 		
@@ -607,9 +607,9 @@ class CanvasArea(QFrame):
 				self.property_sidebar.unified_scale_check.setChecked(False)
 	
 	def _on_layer_duplicated(self):
-		"""Handle Ctrl+drag layer duplication - duplicate goes BELOW original"""
+		"""Handle Ctrl+drag layer duplication - duplicate goes BELOW original, keep original selected"""
 		if self.main_window and hasattr(self.main_window, 'clipboard_actions'):
-			self.main_window.clipboard_actions.duplicate_selected_layer_below()
+			self.main_window.clipboard_actions.duplicate_selected_layer_below(keep_selection=True)
 	
 	def _on_frame_changed(self, frame_text):
 		"""Handle frame selection change"""

@@ -56,7 +56,7 @@ class FileActions:
 		
 		# Rebuild UI to reflect new empty CoA
 		self.main_window.right_sidebar._rebuild_layer_list()
-		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
+		self.main_window.canvas_area.canvas_widget.update()
 		
 		# Create initial history entry
 		self.main_window._save_state("New CoA")
@@ -167,7 +167,7 @@ class FileActions:
 						self.main_window.right_sidebar.layer_list_widget.update_selection_visuals()
 				
 				# Update canvas with CoA model
-				self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
+				self.main_window.canvas_area.canvas_widget.update()
 				
 				# Update file tracking
 				self.main_window.current_file_path = filename

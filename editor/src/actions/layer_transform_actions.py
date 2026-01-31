@@ -57,61 +57,105 @@ class LayerTransformActions:
 		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
-		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
+		self.main_window.canvas_area.canvas_widget.update()
 		self.main_window.canvas_area.update_transform_widget_for_layer()
 		
 		# Save to history
 		self.main_window._save_state(f"Align layers {alignment}")
 	
-	def flip_x(self):
-		"""Flip selected layers horizontally"""
-		#COA INTEGRATION ACTION: Step 6 - Use CoA model for flip operations
-		selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
-		if not selected_uuids:
-			return
+	def flip_x(self, orbit: bool = False):
+		"""Flip selected layers horizontally
 		
-		# Use model method for each layer
-		for uuid in selected_uuids:
-			self.main_window.coa.flip_layer(uuid, flip_x=True, flip_y=None)
+		Args:
+			orbit: If True, also mirror position across vertical center axis (x → 1.0 - x)
+		"""
+		try:
+			#COA INTEGRATION ACTION: Step 6 - Use CoA model for flip operations
+			selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
+			if not selected_uuids:
+				return
+			
+			# Get rotation mode to determine if orbit should be applied
+			if not orbit and hasattr(self.main_window, 'canvas_area'):
+				rotation_mode = self.main_window.canvas_area.get_rotation_mode()
+				# Apply orbit if mode includes orbiting
+				orbit = 'orbit' in rotation_mode.lower()
 		
-		# OLD CODE (will remove in Step 9):
-		# for idx in selected_indices:
-		# 	layer = self.main_window.right_sidebar.layers[idx]
-		# 	current_scale_x = layer.get('scale_x', 1.0)
-		# 	layer['scale_x'] = -current_scale_x
+			# Flip visual appearance
+			for uuid in selected_uuids:
+				self.main_window.coa.flip_layer(uuid, flip_x=True, flip_y=None)
+			
+			# Orbit: Mirror position across vertical center axis (x → 1.0 - x)
+			if orbit:
+				for uuid in selected_uuids:
+					current_x = self.main_window.coa.get_layer_pos_x(uuid)
+					current_y = self.main_window.coa.get_layer_pos_y(uuid)
+					new_x = 1.0 - current_x
+					self.main_window.coa.set_layer_position(uuid, new_x, current_y)
+			
+			# OLD CODE (will remove in Step 9):
+			# for idx in selected_indices:
+			# 	layer = self.main_window.right_sidebar.layers[idx]
+			# 	current_scale_x = layer.get('scale_x', 1.0)
+			# 	layer['scale_x'] = -current_scale_x
 		
-		# Update UI
-		self.main_window.right_sidebar._load_layer_properties()
-		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
-		self.main_window.canvas_area.update_transform_widget_for_layer()
-		
-		# Save to history
-		self.main_window._save_state("Flip horizontal")
+			# Update UI
+			self.main_window.right_sidebar._load_layer_properties()
+			self.main_window.canvas_area.canvas_widget.update()
+			self.main_window.canvas_area.update_transform_widget_for_layer()
+			
+			# Save to history
+			self.main_window._save_state("Flip horizontal")
+		except Exception as e:
+			from utils.logger import loggerRaise
+			loggerRaise(e, f"Error flipping horizontally: {e}")
 	
-	def flip_y(self):
-		"""Flip selected layers vertically"""
-		#COA INTEGRATION ACTION: Step 6 - Use CoA model for flip operations
-		selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
-		if not selected_uuids:
-			return
+	def flip_y(self, orbit: bool = False):
+		"""Flip selected layers vertically
 		
-		# Use model method for each layer
-		for uuid in selected_uuids:
-			self.main_window.coa.flip_layer(uuid, flip_x=None, flip_y=True)
-		
-		# OLD CODE (will remove in Step 9):
-		# for idx in selected_indices:
-		# 	layer = self.main_window.right_sidebar.layers[idx]
-		# 	current_scale_y = layer.get('scale_y', 1.0)
-		# 	layer['scale_y'] = -current_scale_y
-		
-		# Update UI
-		self.main_window.right_sidebar._load_layer_properties()
-		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
-		self.main_window.canvas_area.update_transform_widget_for_layer()
-		
-		# Save to history
-		self.main_window._save_state("Flip vertical")
+		Args:
+			orbit: If True, also mirror position across horizontal center axis (y → 1.0 - y)
+		"""
+		try:
+			#COA INTEGRATION ACTION: Step 6 - Use CoA model for flip operations
+			selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
+			if not selected_uuids:
+				return
+			
+			# Get rotation mode to determine if orbit should be applied
+			if not orbit and hasattr(self.main_window, 'canvas_area'):
+				rotation_mode = self.main_window.canvas_area.get_rotation_mode()
+				# Apply orbit if mode includes orbiting
+				orbit = 'orbit' in rotation_mode.lower()
+			
+			# Flip visual appearance
+			for uuid in selected_uuids:
+				self.main_window.coa.flip_layer(uuid, flip_x=None, flip_y=True)
+			
+			# Orbit: Mirror position across horizontal center axis (y → 1.0 - y)
+			if orbit:
+				for uuid in selected_uuids:
+					current_x = self.main_window.coa.get_layer_pos_x(uuid)
+					current_y = self.main_window.coa.get_layer_pos_y(uuid)
+					new_y = 1.0 - current_y
+					self.main_window.coa.set_layer_position(uuid, current_x, new_y)
+			
+			# OLD CODE (will remove in Step 9):
+			# for idx in selected_indices:
+			# 	layer = self.main_window.right_sidebar.layers[idx]
+			# 	current_scale_y = layer.get('scale_y', 1.0)
+			# 	layer['scale_y'] = -current_scale_y
+			
+			# Update UI
+			self.main_window.right_sidebar._load_layer_properties()
+			self.main_window.canvas_area.canvas_widget.update()
+			self.main_window.canvas_area.update_transform_widget_for_layer()
+			
+			# Save to history
+			self.main_window._save_state("Flip vertical")
+		except Exception as e:
+			from utils.logger import loggerRaise
+			loggerRaise(e, f"Error flipping vertically: {e}")
 	
 	def rotate_layers(self, degrees):
 		"""Rotate selected layers by specified degrees
@@ -130,7 +174,7 @@ class LayerTransformActions:
 		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
-		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
+		self.main_window.canvas_area.canvas_widget.update()
 		self.main_window.canvas_area.update_transform_widget_for_layer()
 		
 		# Save to history
@@ -150,22 +194,9 @@ class LayerTransformActions:
 		# Use model method
 		self.main_window.coa.move_layers_to(selected_uuids, position)
 		
-		# OLD CODE (will remove in Step 9):
-		# fixed_positions = {
-		# 	'left': 0.25, 'center': 0.5, 'right': 0.75,
-		# 	'top': 0.25, 'middle': 0.5, 'bottom': 0.75
-		# }
-		# target = fixed_positions.get(position, 0.5)
-		# if position in ['left', 'center', 'right']:
-		# 	for idx in selected_indices:
-		# 		self.main_window.right_sidebar.layers[idx]['pos_x'] = target
-		# else:
-		# 	for idx in selected_indices:
-		# 		self.main_window.right_sidebar.layers[idx]['pos_y'] = target
-		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
-		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
+		self.main_window.canvas_area.canvas_widget.update()
 		self.main_window.canvas_area.update_transform_widget_for_layer()
 		
 		# Save to history

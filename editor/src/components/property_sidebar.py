@@ -776,7 +776,7 @@ class PropertySidebar(QFrame):
 			self.layer_list_widget.update_selection_visuals()
 		
 		if self.canvas_widget:
-			self.canvas_widget.set_coa(self.main_window.coa)
+			self.canvas_widget.update()
 		
 		# Trigger selection change callback to update properties and transform widget
 		self._on_layer_selection_changed()
@@ -845,7 +845,7 @@ class PropertySidebar(QFrame):
 		if self.canvas_area:
 			self.canvas_area.update_transform_widget_for_layer()
 		if self.canvas_widget:
-			self.canvas_widget.set_coa(self.main_window.coa)
+			self.canvas_widget.update()
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):
 			layer_word = "layers" if len(selected_uuids) > 1 else "layer"
@@ -871,17 +871,16 @@ class PropertySidebar(QFrame):
 		# Move selected layers above target as a group
 		self.coa.move_layer_above(selected_uuids, target_uuid)
 		
-		# Calculate new indices for selection
-		new_indices = [idx - 1 for idx in selected_indices]
-		
-		# Update selection to new indices
-		self.selected_layer_indices = set(new_indices)
-		self.last_selected_index = max(new_indices) if new_indices else None
+		# Keep same UUIDs selected (layers moved, but UUIDs stay the same)
+		self.layer_list_widget.selected_layer_uuids = set(selected_uuids)
+		if selected_uuids:
+			self.layer_list_widget.last_selected_uuid = selected_uuids[-1]
 		
 		self._rebuild_layer_list()
+		self.layer_list_widget.update_selection_visuals()
 		self._update_layer_selection()
 		if self.canvas_widget:
-			self.canvas_widget.set_coa(self.main_window.coa)
+			self.canvas_widget.update()
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):
 			layer_word = "layers" if len(selected_indices) > 1 else "layer"
@@ -907,17 +906,16 @@ class PropertySidebar(QFrame):
 		# Move selected layers below target as a group
 		self.coa.move_layer_below(selected_uuids, target_uuid)
 		
-		# Calculate new indices for selection
-		new_indices = [idx + 1 for idx in selected_indices]
-		
-		# Update selection to new indices
-		self.selected_layer_indices = set(new_indices)
-		self.last_selected_index = max(new_indices) if new_indices else None
+		# Keep same UUIDs selected (layers moved, but UUIDs stay the same)
+		self.layer_list_widget.selected_layer_uuids = set(selected_uuids)
+		if selected_uuids:
+			self.layer_list_widget.last_selected_uuid = selected_uuids[-1]
 		
 		self._rebuild_layer_list()
+		self.layer_list_widget.update_selection_visuals()
 		self._update_layer_selection()
 		if self.canvas_widget:
-			self.canvas_widget.set_coa(self.main_window.coa)
+			self.canvas_widget.update()
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):
 			layer_word = "layers" if len(selected_indices) > 1 else "layer"
@@ -941,15 +939,16 @@ class PropertySidebar(QFrame):
 		# Select the new layers by UUID
 		if new_uuids:
 			self.layer_list_widget.selected_layer_uuids = set(new_uuids)
-			# Note: No need to track indices anymore, selection is UUID-based
+			self.layer_list_widget.last_selected_uuid = new_uuids[0]
 		
 		self._rebuild_layer_list()
+		self.layer_list_widget.update_selection_visuals()
 		self._update_layer_selection()
 		self._load_layer_properties()
 		# Enable properties tab but don't switch to it
 		self.tab_widget.setTabEnabled(2, True)
 		if self.canvas_widget:
-			self.canvas_widget.set_coa(self.main_window.coa)
+			self.canvas_widget.update()
 		# Update transform widget for new selection
 		if self.canvas_area:
 			self.canvas_area.update_transform_widget_for_layer()
@@ -995,7 +994,7 @@ class PropertySidebar(QFrame):
 			
 			# Update canvas
 			if self.canvas_widget:
-				self.canvas_widget.set_coa(self.main_window.coa)
+				self.canvas_widget.update()
 			
 			# Update asset sidebar previews with new colors
 			if self.main_window and hasattr(self.main_window, 'left_sidebar'):
@@ -1016,7 +1015,7 @@ class PropertySidebar(QFrame):
 		
 		# Update canvas to hide/show layer
 		if self.canvas_widget:
-			self.canvas_widget.set_coa(self.main_window.coa)
+			self.canvas_widget.update()
 		
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):
@@ -1085,7 +1084,7 @@ class PropertySidebar(QFrame):
 		
 		# Update canvas
 		if self.canvas_widget:
-			self.canvas_widget.set_coa(self.main_window.coa)
+			self.canvas_widget.update()
 		
 		# Save state
 		if self.main_window and hasattr(self.main_window, '_save_state'):
@@ -1145,7 +1144,7 @@ class PropertySidebar(QFrame):
 				logging.warning(f"Unhandled property {prop_name} in _update_layer_property")
 		
 		if self.canvas_widget:
-			self.canvas_widget.set_coa(self.main_window.coa)
+			self.canvas_widget.update()
 		
 		# Save to history with debouncing (to avoid spam during slider drags)
 		if self.main_window and hasattr(self.main_window, 'save_property_change_debounced'):
@@ -1175,7 +1174,7 @@ class PropertySidebar(QFrame):
 			self.main_window.coa.flip_layer(uuid, flip_x, flip_y)
 		
 		if self.canvas_widget:
-			self.canvas_widget.set_coa(self.main_window.coa)
+			self.canvas_widget.update()
 		
 		# Update transform widget - use update_transform_widget_for_layer for multi-selection
 		if self.canvas_area:
@@ -1457,7 +1456,7 @@ class PropertySidebar(QFrame):
 		
 		# Update canvas to show changes
 		if self.canvas_widget:
-			self.canvas_widget.set_coa(self.main_window.coa)
+			self.canvas_widget.update()
 		
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):

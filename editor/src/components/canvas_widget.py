@@ -2,6 +2,7 @@
 from PyQt5.QtWidgets import QOpenGLWidget
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader, QOpenGLVertexArrayObject, QOpenGLBuffer, QVector2D, QVector3D, QVector4D
+from models.coa import CoA
 
 #COA INTEGRATION ACTION: Step 5 - Import Layer and CoA models for type hints and future use
 from models.coa import CoA, Layer
@@ -136,7 +137,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def __init__(self, parent=None):
 		super().__init__(parent)
 		#COA INTEGRATION ACTION: Step 5 - Add CoA model reference (set by CanvasArea/MainWindow)
-		self.coa = None  # Reference to CoA model (will be set externally)
+		# Note: CoA is accessed via CoA.get_active() in paintGL, not stored as instance variable
 		self.base_shader = None  # Shader for base layer
 		self.design_shader = None  # Shader for emblem layers
 		self.basic_shader = None  # Shader for frame rendering
@@ -370,7 +371,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.vao.release()
 		
 		# Render emblem layers
-		if self.coa and self.design_shader and self.coa.get_layer_count() > 0:
+		coa = CoA.get_active() if CoA.has_active() else None
+		if coa and self.design_shader and coa.get_layer_count() > 0:
 			self.vao.bind()  # Bind VAO once for all emblem layers
 			self.design_shader.bind()
 			
@@ -386,13 +388,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 						self.design_shader.setUniformValue("patternUV", QVector4D(p_u0, p_v0, p_u1, p_v1))
 			
 			# Iterate through layers using UUIDs
-			for layer_uuid in self.coa.get_all_layer_uuids():
+			for layer_uuid in coa.get_all_layer_uuids():
 				# Get layer properties via UUID-based queries
-				visible = self.coa.get_layer_visible(layer_uuid)
+				visible = coa.get_layer_visible(layer_uuid)
 				if not visible:
 					continue
 				
-				filename = self.coa.get_layer_filename(layer_uuid)
+				filename = coa.get_layer_filename(layer_uuid)
 				if not filename or filename not in self.texture_uv_map:
 					continue
 				
@@ -406,15 +408,15 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				self.design_shader.setUniformValue("emblemMaskSampler", 0)
 				
 				# Set emblem colors via CoA queries (shared by all instances)
-				color1 = self.coa.get_layer_color(layer_uuid, 1)
-				color2 = self.coa.get_layer_color(layer_uuid, 2)
-				color3 = self.coa.get_layer_color(layer_uuid, 3)
+				color1 = coa.get_layer_color(layer_uuid, 1)
+				color2 = coa.get_layer_color(layer_uuid, 2)
+				color3 = coa.get_layer_color(layer_uuid, 3)
 				self.design_shader.setUniformValue("primaryColor", color1[0], color1[1], color1[2])
 				self.design_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
 				self.design_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
 				
 				# Set pattern mask flag (shared by all instances)
-				mask = self.coa.get_layer_mask(layer_uuid)
+				mask = coa.get_layer_mask(layer_uuid)
 				if mask is None:
 					pattern_flag = 0
 				else:
@@ -428,16 +430,16 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 				self.design_shader.setUniformValue("patternFlag", pattern_flag)
 				
 				# Get shared flip properties (shared by all instances)
-				flip_x = self.coa.get_layer_flip_x(layer_uuid)
-				flip_y = self.coa.get_layer_flip_y(layer_uuid)
+				flip_x = coa.get_layer_flip_x(layer_uuid)
+				flip_y = coa.get_layer_flip_y(layer_uuid)
 				scale_sign_x = -1 if flip_x else 1
 				scale_sign_y = -1 if flip_y else 1
 				
 				# Render all instances of this layer
-				instance_count = self.coa.get_layer_instance_count(layer_uuid)
+				instance_count = coa.get_layer_instance_count(layer_uuid)
 				for instance_idx in range(instance_count):
 					# Get instance-specific transform data
-					instance = self.coa.get_layer_instance(layer_uuid, instance_idx)
+					instance = coa.get_layer_instance(layer_uuid, instance_idx)
 					pos_x = instance['pos_x']
 					pos_y = instance['pos_y']
 					scale_x = instance['scale_x']
@@ -1097,11 +1099,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		"""Update the emblem layers to render (DEPRECATED - kept for compatibility)"""
 		# Deprecated: Canvas now uses CoA directly via get_all_layer_uuids()
 		pass
-	
-	def set_coa(self, coa):
-		"""Update from CoA model reference"""
-		self.coa = coa
-		self.update()
 	
 	def resizeGL(self, w, h):
 		"""Handle window resize - maintain square aspect ratio"""

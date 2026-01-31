@@ -551,6 +551,8 @@ class CoatOfArmsEditor(QMainWindow):
 				action.setEnabled(False)
 			return
 		
+		# Enable transform actions if at least one layer is selected
+		# Works for single layers, multi-selection, and multi-instance layers
 		selected_count = len(self.right_sidebar.get_selected_indices())
 		enabled = selected_count >= 1
 		
@@ -783,7 +785,7 @@ class CoatOfArmsEditor(QMainWindow):
 				self.right_sidebar._select_layer(0)
 			
 			# Update canvas
-			self.canvas_area.canvas_widget.set_coa(self.coa)
+			self.canvas_area.canvas_widget.update()
 			
 			# OLD CODE (will remove in Step 10):
 			# coa_data = load_coa_from_file(filepath)
@@ -964,7 +966,7 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Update UI and canvas (no full rebuild needed)
 			self.right_sidebar._update_layer_selection()
-			self.canvas_area.canvas_widget.set_coa(self.coa)
+			self.canvas_area.canvas_widget.update()
 			self._save_state("Change layer texture")
 	
 	def _create_layer_with_texture(self, dds_filename, color_count):
@@ -1003,7 +1005,7 @@ class CoatOfArmsEditor(QMainWindow):
 		self.right_sidebar._rebuild_layer_list()
 		
 		# Update canvas
-		self.canvas_area.canvas_widget.set_coa(self.coa)
+		self.canvas_area.canvas_widget.update()
 		
 		# Trigger selection change callback to update properties and transform widget
 		self.right_sidebar._on_layer_selection_changed()
@@ -1085,7 +1087,7 @@ class CoatOfArmsEditor(QMainWindow):
 					
 					# Update UI
 					self.right_sidebar._load_layer_properties()
-					self.canvas_area.canvas_widget.set_coa(self.coa)
+					self.canvas_area.canvas_widget.update()
 					self.canvas_area.update_transform_widget_for_layer()
 					
 					# Save to history
@@ -1195,7 +1197,7 @@ class CoatOfArmsEditor(QMainWindow):
 				layer.rotation = (layer.rotation + angle_delta) % 360
 		
 		# Update canvas
-		self.canvas_area.canvas_widget.set_coa(self.coa)
+		self.canvas_area.canvas_widget.update()
 		
 		# Update transform widget (which updates properties panel)
 		self.canvas_area.update_transform_widget_for_layer()
@@ -1245,7 +1247,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3], base_color_names)
 			
 			# Restore canvas layers - ALWAYS update, not just when selection exists
-			self.canvas_area.canvas_widget.set_coa(self.coa)
+			self.canvas_area.canvas_widget.update()
 			
 			# Update layer properties and transform widget if layers are selected
 			if valid_uuids:
@@ -1360,7 +1362,7 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Create new empty CoA
 			self.coa = CoA(pattern=default_pattern, pattern_color1=default_color_names[0], pattern_color2=default_color_names[1], pattern_color3=default_color_names[2])
-			self.canvas_area.canvas_widget.set_coa(self.coa)
+			self.canvas_area.canvas_widget.update()
 			
 			# Reset property sidebar base colors with color names
 			self.right_sidebar.set_base_colors(default_colors, default_color_names)
@@ -1497,7 +1499,7 @@ class CoatOfArmsEditor(QMainWindow):
 				self.right_sidebar._select_layer(0)
 			
 			# Update canvas
-			self.canvas_area.canvas_widget.set_coa(self.coa)
+			self.canvas_area.canvas_widget.update()
 			
 			# Save to history after pasting
 			self._save_state("Paste CoA")
@@ -1553,7 +1555,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar._rebuild_layer_list()
 			
 			# Update canvas and transform widget
-			self.canvas_area.canvas_widget.set_coa(self.coa)
+			self.canvas_area.canvas_widget.update()
 			if self.canvas_area:
 				self.canvas_area.update_transform_widget_for_layer()
 			
@@ -1595,7 +1597,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar._rebuild_layer_list()
 			
 			# Update canvas layers (but don't update transform widget - that would kill the drag)
-			self.canvas_area.canvas_widget.set_coa(self.coa)
+			self.canvas_area.canvas_widget.update()
 			
 			# Force immediate canvas redraw
 			self.canvas_area.canvas_widget.repaint()
@@ -1634,7 +1636,7 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Rebuild UI
 			self.right_sidebar._rebuild_layer_list()
-			self.canvas_area.canvas_widget.set_coa(self.coa)
+			self.canvas_area.canvas_widget.update()
 			
 			# Select the new layers
 			if new_uuids:
@@ -1702,7 +1704,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.layer_list_widget.update_selection_visuals()  # Ensure UI highlights selection
 			self.right_sidebar._update_layer_selection()
 			self.right_sidebar._load_layer_properties()  # Load properties for merged layer
-			self.canvas_area.canvas_widget.set_coa(self.coa)
+			self.canvas_area.canvas_widget.update()
 			self.canvas_area.update_transform_widget_for_layer()
 			
 			# Save to history
