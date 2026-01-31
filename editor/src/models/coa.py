@@ -2386,7 +2386,7 @@ class CoA(CoAQueryMixin):
         
         # Horizontal alignments
         if alignment in ['left', 'center', 'right']:
-            positions = [layer.pos_x for layer in layers]
+            positions = [self.get_layer_pos_x(uuid) for uuid in uuids]
             
             if alignment == 'left':
                 target = min(positions)
@@ -2395,20 +2395,14 @@ class CoA(CoAQueryMixin):
             else:  # center
                 target = sum(positions) / len(positions)
             
-            # Apply to each layer (shallow - translate all instances together)
-            for layer in layers:
-                dx = target - layer.pos_x
-                if dx != 0:
-                    layer.pos_x = target
-                    # Move all instances by same offset
-                    instances = layer._data.get('instances', [])
-                    if instances:
-                        for inst in instances:
-                            inst.pos_x = inst.pos_x + dx  # setter handles clamping
+            # Apply to each layer using set_layer_position (handles multi-instance correctly)
+            for uuid in uuids:
+                current_y = self.get_layer_pos_y(uuid)
+                self.set_layer_position(uuid, target, current_y)
         
         # Vertical alignments
         else:
-            positions = [layer.pos_y for layer in layers]
+            positions = [self.get_layer_pos_y(uuid) for uuid in uuids]
             
             if alignment == 'top':
                 target = min(positions)
@@ -2417,16 +2411,10 @@ class CoA(CoAQueryMixin):
             else:  # middle
                 target = sum(positions) / len(positions)
             
-            # Apply to each layer (shallow - translate all instances together)
-            for layer in layers:
-                dy = target - layer.pos_y
-                if dy != 0:
-                    layer.pos_y = target
-                    # Move all instances by same offset
-                    instances = layer._data.get('instances', [])
-                    if instances:
-                        for inst in instances:
-                            inst.pos_y = inst.pos_y + dy  # setter handles clamping
+            # Apply to each layer using set_layer_position (handles multi-instance correctly)
+            for uuid in uuids:
+                current_x = self.get_layer_pos_x(uuid)
+                self.set_layer_position(uuid, current_x, target)
         
         self._logger.debug(f"Aligned {len(uuids)} layers (shallow): {alignment}")
     
