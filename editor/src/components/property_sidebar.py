@@ -1175,6 +1175,19 @@ class PropertySidebar(QFrame):
 				self.scale_editor.unified_check.setChecked(False)
 		self.scale_editor.unified_check.blockSignals(False)
 		
+		# Disable scale and rotation for multi-instance layers or multi-selection
+		has_multi_instance = False
+		is_multi_selection = len(selected_uuids) > 1
+		
+		if not is_multi_selection:
+			# Check if single layer has multiple instances
+			instance_count = self.main_window.coa.get_layer_instance_count(selected_uuids[0])
+			has_multi_instance = instance_count > 1
+		
+		disable_transform = is_multi_selection or has_multi_instance
+		self.scale_editor.setEnabled(not disable_transform)
+		self.rotation_editor.setEnabled(not disable_transform)
+		
 		# Restore signals
 		self.pos_x_editor.blockSignals(False)
 		self.pos_y_editor.blockSignals(False)

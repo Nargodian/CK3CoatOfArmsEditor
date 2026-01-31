@@ -397,7 +397,7 @@ class CoAQueryMixin:
     # ========================================
     
     def get_layer_pos_x(self, uuid: str) -> float:
-        """Get X position for a layer
+        """Get X position for a layer (AABB center for multi-instance)
         
         Args:
             uuid: Layer UUID
@@ -411,10 +411,19 @@ class CoAQueryMixin:
         layer = self._layers.get_by_uuid(uuid)
         if not layer:
             raise ValueError(f"Layer with UUID '{uuid}' not found")
-        return layer.pos_x
+        
+        instances = layer._data.get('instances', [])
+        if len(instances) > 1:
+            # Multi-instance: return AABB center X
+            min_x = min(inst.pos_x for inst in instances)
+            max_x = max(inst.pos_x for inst in instances)
+            return (min_x + max_x) / 2.0
+        else:
+            # Single instance or fallback
+            return layer.pos_x
     
     def get_layer_pos_y(self, uuid: str) -> float:
-        """Get Y position for a layer
+        """Get Y position for a layer (AABB center for multi-instance)
         
         Args:
             uuid: Layer UUID
@@ -428,7 +437,16 @@ class CoAQueryMixin:
         layer = self._layers.get_by_uuid(uuid)
         if not layer:
             raise ValueError(f"Layer with UUID '{uuid}' not found")
-        return layer.pos_y
+        
+        instances = layer._data.get('instances', [])
+        if len(instances) > 1:
+            # Multi-instance: return AABB center Y
+            min_y = min(inst.pos_y for inst in instances)
+            max_y = max(inst.pos_y for inst in instances)
+            return (min_y + max_y) / 2.0
+        else:
+            # Single instance or fallback
+            return layer.pos_y
     
     def get_layer_scale_x(self, uuid: str) -> float:
         """Get X scale for a layer
