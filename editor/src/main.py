@@ -2044,24 +2044,23 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		Args:
 			text: Text string to render
-			positions: 5xN numpy array [[x, y, scale_x, scale_y, rotation], ...]
+			positions: 6xN numpy array [[x, y, scale_x, scale_y, rotation, label_code], ...]
 			emblem_texture: Optional custom emblem texture (ignored for text - uses letter emblems)
 		"""
 		try:
-			from services.layer_generator.text_emblem_mapper import text_to_emblems
+			from services.layer_generator.text_emblem_mapper import text_to_emblems, char_to_label_code, filter_text
 			from services.layer_generator.layer_string_builder import build_layer_string
 			
-			# Filter text and get emblem list
-			emblems = text_to_emblems(text)
+			# Filter text (keeps spaces, removes invalid)
+			filtered_text = filter_text(text)
 			
-			# Check if we have enough positions
-			if len(emblems) == 0:
+			if len(filtered_text) == 0:
 				print("No valid characters in text")
 				return
 			
-			if len(positions) < len(emblems):
-				print(f"Warning: Not enough positions ({len(positions)}) for text length ({len(emblems)})")
-				emblems = emblems[:len(positions)]
+			if len(positions) < len(filtered_text):
+				print(f"Warning: Not enough positions ({len(positions)}) for text length ({len(filtered_text)})")
+				filtered_text = filtered_text[:len(positions)]
 			
 			# Check for selection to insert above
 			selected_uuids = self.right_sidebar.get_selected_uuids()
@@ -2069,9 +2068,18 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			created_uuids = []
 			
-			# Create one layer per character
-			for i, emblem in enumerate(emblems):
-				# Build layer string (single instance)
+			# Create one layer per character (skip spaces)
+			for i, char in enumerate(filtered_text):
+				if char == ' ':
+					continue  # Skip spaces - no layer created
+				
+				# Get emblem for this character
+				from services.layer_generator.text_emblem_mapper import get_emblem_for_char
+				emblem = get_emblem_for_char(char)
+				if not emblem:
+					continue  # Skip invalid characters
+				
+				# Build layer string (single instance, use first 5 columns)
 				layer_string = build_layer_string(positions[i], emblem)
 				
 				# Parse directly into main CoA (parser handles insertion)

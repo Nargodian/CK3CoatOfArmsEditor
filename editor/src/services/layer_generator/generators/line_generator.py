@@ -226,14 +226,13 @@ class LineGenerator(BaseGenerator):
             
             # Rotation
             if rotation_mode == 'aligned':
-                # Aligned: follow tangent direction
+                # Aligned: perpendicular to line (pointing along it)
                 if abs(arc_bend) > 0.001:
-                    # Tangent is perpendicular to radius (90° clockwise)
-                    # For bearing system: add 90° to get tangent direction
-                    rotation = np.rad2deg(tangent_angle + np.pi / 2) + base_rotation
+                    # Perpendicular to radius
+                    rotation = np.rad2deg(tangent_angle) + base_rotation
                 else:
-                    # Horizontal line: 90° (pointing right)
-                    rotation = 90.0 + base_rotation
+                    # Horizontal line: 0° (pointing up)
+                    rotation = 0.0 + base_rotation
             else:
                 # Global: all same rotation
                 rotation = base_rotation
