@@ -40,16 +40,8 @@ class FileActions:
 		self.main_window.is_modified = False
 		self.main_window._update_window_title()
 		
-		# Create a new CoA with defaults
-		from models.coa import CoA
-		self.main_window.coa = CoA()
-		CoA.set_active(self.main_window.coa)
-		
-		# Pass new CoA reference to all components
-		self.main_window.right_sidebar.coa = self.main_window.coa
-		self.main_window.right_sidebar.layer_list_widget.coa = self.main_window.coa
-		self.main_window.canvas_area.coa = self.main_window.coa
-		self.main_window.canvas_area.canvas_widget.coa = self.main_window.coa
+		# Clear existing CoA to defaults
+		self.main_window.coa.clear()
 		
 		# Clear history before loading (to avoid storing default state)
 		self.main_window.history_manager.clear()
@@ -142,9 +134,9 @@ class FileActions:
 				with open(filename, 'r', encoding='utf-8') as f:
 					coa_text = f.read()
 				
-				# Parse into model
-				self.main_window.coa = CoA.from_string(coa_text)
-				CoA.set_active(self.main_window.coa)  # Make it the active instance for rendering
+				# Clear and parse into existing CoA instance
+				self.main_window.coa.clear()
+				self.main_window.coa.parse(coa_text)
 				
 				# Apply to UI - update from model
 				self.main_window.canvas_area.canvas_widget.set_base_texture(self.main_window.coa.pattern)

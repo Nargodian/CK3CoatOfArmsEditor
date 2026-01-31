@@ -753,20 +753,13 @@ class CoatOfArmsEditor(QMainWindow):
 			return
 		
 		try:
-			#COA INTEGRATION ACTION: Step 2 - Use CoA.from_string() for load operations
 			# Read file
 			with open(filepath, 'r', encoding='utf-8') as f:
 				coa_text = f.read()
 			
-			# Parse into model
-			self.coa = CoA.from_string(coa_text)
-			CoA.set_active(self.coa)  # Make it the active instance for rendering
-			
-			# Update CoA references in all UI components
-			self.canvas_area.coa = self.coa
-			self.canvas_area.canvas_widget.coa = self.coa
-			self.right_sidebar.coa = self.coa
-			self.right_sidebar.layer_list_widget.coa = self.coa
+			# Clear and parse into existing CoA instance
+			self.coa.clear()
+			self.coa.parse(coa_text)
 			
 			# Apply to UI - update from model
 			# Set base texture and colors

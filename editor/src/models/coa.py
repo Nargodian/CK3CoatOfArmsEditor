@@ -151,6 +151,29 @@ class CoA(CoAQueryMixin):
         
         self._logger.debug("Created new CoA")
     
+    def clear(self):
+        """Reset CoA to defaults (empty layers, default pattern/colors)"""
+        # Reset pattern and colors
+        self._pattern = DEFAULT_PATTERN_TEXTURE
+        self._pattern_color1 = CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb'].copy()
+        self._pattern_color2 = CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb'].copy()
+        self._pattern_color3 = CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'].copy()
+        self._pattern_color1_name = DEFAULT_BASE_COLOR1
+        self._pattern_color2_name = DEFAULT_BASE_COLOR2
+        self._pattern_color3_name = DEFAULT_BASE_COLOR3
+        
+        # Clear layers
+        self._layers.clear()
+        
+        # Reset transform cache
+        self._transform_cache = None
+        
+        # Reset tracking
+        self._last_added_uuid = None
+        self._last_added_uuids = []
+        
+        self._logger.debug("Cleared CoA to defaults")
+    
     # ========================================
     # Properties
     # ========================================
