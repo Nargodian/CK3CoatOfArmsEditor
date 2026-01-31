@@ -428,43 +428,6 @@ class PropertySidebar(QFrame):
 		self.emblem_color_layout.addStretch()
 		content_layout.addLayout(self.emblem_color_layout)
 		
-		# Multi-instance indicator (shown when editing multi-instance layer)
-		self.instance_selector_widget = QWidget()
-		instance_selector_layout = QHBoxLayout(self.instance_selector_widget)
-		instance_selector_layout.setContentsMargins(5, 5, 5, 5)
-		instance_selector_layout.setSpacing(5)
-		
-		self.instance_label = QLabel("Editing Instance:")
-		self.instance_label.setStyleSheet("font-size: 11px; color: #5a8dbf;")
-		instance_selector_layout.addWidget(self.instance_label)
-		
-		self.instance_prev_btn = QPushButton("<")
-		self.instance_prev_btn.setFixedSize(24, 24)
-		self.instance_prev_btn.clicked.connect(self._prev_instance)
-		instance_selector_layout.addWidget(self.instance_prev_btn)
-		
-		self.instance_display = QLabel("1 of 1")
-		self.instance_display.setStyleSheet("font-size: 11px; color: #5a8dbf; font-weight: bold;")
-		self.instance_display.setAlignment(Qt.AlignCenter)
-		self.instance_display.setMinimumWidth(50)
-		instance_selector_layout.addWidget(self.instance_display)
-		
-		self.instance_next_btn = QPushButton(">")
-		self.instance_next_btn.setFixedSize(24, 24)
-		self.instance_next_btn.clicked.connect(self._next_instance)
-		instance_selector_layout.addWidget(self.instance_next_btn)
-		
-		instance_selector_layout.addStretch()
-		self.instance_selector_widget.setStyleSheet("""
-			QWidget {
-				background-color: rgba(90, 141, 191, 15);
-				border: 1px solid rgba(90, 141, 191, 50);
-				border-radius: 4px;
-			}
-		""")
-		self.instance_selector_widget.setVisible(False)
-		content_layout.addWidget(self.instance_selector_widget)
-		
 		# Instance Properties
 		self._add_property_section(content_layout, "Instance")
 
@@ -781,45 +744,6 @@ class PropertySidebar(QFrame):
 		# Trigger selection change callback to update properties and transform widget
 		self._on_layer_selection_changed()
 	
-	def _prev_instance(self):
-		"""Switch to previous instance in multi-instance layer"""
-		selected_uuids = self.get_selected_uuids()
-		if len(selected_uuids) != 1:
-			return
-		
-		uuid = selected_uuids[0]
-		instance_count = self.main_window.coa.get_layer_instance_count(uuid)
-		if instance_count <= 1:
-			return
-		
-		selected_inst = self.main_window.selected_instance_per_layer.get(uuid, 0)
-		new_inst = (selected_inst - 1) % instance_count
-		self.main_window.selected_instance_per_layer[uuid] = new_inst
-		
-		# Reload properties and update transform widget
-		self._load_layer_properties()
-		if self.canvas_area:
-			self.canvas_area.update_transform_widget_for_layer()
-	
-	def _next_instance(self):
-		"""Switch to next instance in multi-instance layer"""
-		selected_uuids = self.get_selected_uuids()
-		if len(selected_uuids) != 1:
-			return
-		
-		uuid = selected_uuids[0]
-		instance_count = self.main_window.coa.get_layer_instance_count(uuid)
-		if instance_count <= 1:
-			return
-		
-		selected_inst = self.main_window.selected_instance_per_layer.get(uuid, 0)
-		new_inst = (selected_inst + 1) % instance_count
-		self.main_window.selected_instance_per_layer[uuid] = new_inst
-		
-		# Reload properties and update transform widget
-		self._load_layer_properties()
-		if self.canvas_area:
-			self.canvas_area.update_transform_widget_for_layer()
 	
 	def _delete_layer(self):
 		"""Delete all selected layers"""
@@ -1256,18 +1180,6 @@ class PropertySidebar(QFrame):
 		self.pos_y_editor.blockSignals(False)
 		self.scale_editor.blockSignals(False)
 		self.rotation_editor.blockSignals(False)
-		
-		# Update instance selector for single-selection multi-instance layers
-		if len(selected_uuids) == 1:
-			instance_count = self.main_window.coa.get_layer_instance_count(selected_uuids[0])
-			if instance_count > 1:
-				selected_inst = self.main_window.selected_instance_per_layer.get(selected_uuids[0], 0)
-				self.instance_display.setText(f"{selected_inst + 1} of {instance_count}")
-				self.instance_selector_widget.setVisible(True)
-			else:
-				self.instance_selector_widget.setVisible(False)
-		else:
-			self.instance_selector_widget.setVisible(False)
 		
 		# Update mask UI
 		self._update_mask_ui()

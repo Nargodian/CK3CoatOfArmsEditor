@@ -70,9 +70,6 @@ class CoatOfArmsEditor(QMainWindow):
 		# Set as active instance for global access
 		CoA.set_active(self.coa)
 		
-		# UI state tracking: which instance is selected per layer (not persisted in CoA data)
-		self.selected_instance_per_layer: dict = {}  # uuid -> instance_index
-		
 		# Initialize history manager
 		self.history_manager = HistoryManager(max_history=MAX_HISTORY_ENTRIES)
 		self.history_manager.add_listener(self._on_history_changed)
