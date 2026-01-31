@@ -292,7 +292,7 @@ class PropertySidebar(QFrame):
 		self.layer_list_widget.on_selection_changed = self._on_layer_selection_changed
 		self.layer_list_widget.on_layers_reordered = self._on_layer_reorder
 		self.layer_list_widget.on_duplicate_layer = self._duplicate_layer
-		self.layer_list_widget.on_delete_layer = self._delete_layer
+		self.layer_list_widget.on_delete_layer = lambda uuid: self._delete_layer()
 		self.layer_list_widget.on_color_changed = self._on_layer_color_changed
 		self.layer_list_widget.on_visibility_toggled = self._on_layer_visibility_toggle
 		
@@ -861,20 +861,18 @@ class PropertySidebar(QFrame):
 		if min(selected_indices) == 0:
 			return
 		
-		# Extract selected layers maintaining order
-		selected_layers = [(idx, self.get_layer_by_index(idx)) for idx in selected_indices]
+		# Get UUIDs of selected layers in order
+		selected_uuids = [self.coa.get_layer_uuid_by_index(idx) for idx in sorted(selected_indices)]
 		
-		# Remove selected layers from their current positions (highest to lowest)
-		for idx in sorted(selected_indices, reverse=True):
-			layer_uuid = self.coa.get_layer_uuid_by_index(idx)
-			self.coa.remove_layer(layer_uuid)
+		# Get target UUID (the layer above the topmost selected layer)
+		target_index = min(selected_indices) - 1
+		target_uuid = self.coa.get_layer_uuid_by_index(target_index)
 		
-		# Calculate new indices: each moves up by 1
+		# Move selected layers above target as a group
+		self.coa.move_layer_above(selected_uuids, target_uuid)
+		
+		# Calculate new indices for selection
 		new_indices = [idx - 1 for idx in selected_indices]
-		
-		# Insert layers at new positions (lowest to highest)
-		for new_idx, (old_idx, layer) in zip(sorted(new_indices), sorted(selected_layers)):
-			self.coa.insert_layer_at_index(new_idx, layer)
 		
 		# Update selection to new indices
 		self.selected_layer_indices = set(new_indices)
@@ -899,20 +897,18 @@ class PropertySidebar(QFrame):
 		if max(selected_indices) >= self.get_layer_count() - 1:
 			return
 		
-		# Extract selected layers maintaining order
-		selected_layers = [(idx, self.get_layer_by_index(idx)) for idx in selected_indices]
+		# Get UUIDs of selected layers in order
+		selected_uuids = [self.coa.get_layer_uuid_by_index(idx) for idx in sorted(selected_indices)]
 		
-		# Remove selected layers from their current positions (highest to lowest)
-		for idx in sorted(selected_indices, reverse=True):
-			layer_uuid = self.coa.get_layer_uuid_by_index(idx)
-			self.coa.remove_layer(layer_uuid)
+		# Get target UUID (the layer below the bottommost selected layer)
+		target_index = max(selected_indices) + 1
+		target_uuid = self.coa.get_layer_uuid_by_index(target_index)
 		
-		# Calculate new indices: each moves down by 1
+		# Move selected layers below target as a group
+		self.coa.move_layer_below(selected_uuids, target_uuid)
+		
+		# Calculate new indices for selection
 		new_indices = [idx + 1 for idx in selected_indices]
-		
-		# Insert layers at new positions (lowest to highest)
-		for new_idx, (old_idx, layer) in zip(sorted(new_indices), sorted(selected_layers)):
-			self.coa.insert_layer_at_index(new_idx, layer)
 		
 		# Update selection to new indices
 		self.selected_layer_indices = set(new_indices)
@@ -1176,7 +1172,7 @@ class PropertySidebar(QFrame):
 		for uuid in selected_uuids:
 			# Use CoA setters
 			self.main_window.coa.set_layer_scale(uuid, scale_x, scale_y)
-			self.main_window.coa.set_layer_flip(uuid, flip_x, flip_y)
+			self.main_window.coa.flip_layer(uuid, flip_x, flip_y)
 		
 		if self.canvas_widget:
 			self.canvas_widget.set_coa(self.main_window.coa)
@@ -1458,6 +1454,11 @@ class PropertySidebar(QFrame):
 		# Apply to all selected layers using CoA API
 		for uuid in selected_uuids:
 			self.main_window.coa.set_layer_mask(uuid, mask)
+		
+		# Update canvas to show changes
+		if self.canvas_widget:
+			self.canvas_widget.set_coa(self.main_window.coa)
+		
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):
 			self.main_window._save_state("Change pattern mask")

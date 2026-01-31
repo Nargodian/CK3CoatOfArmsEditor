@@ -244,22 +244,22 @@ class CoatOfArmsEditor(QMainWindow):
 		exit_action.triggered.connect(self.close)
 		
 		# Edit Menu
-		edit_menu = menubar.addMenu("&Edit")
+		self.edit_menu = menubar.addMenu("&Edit")
 		
-		self.undo_action = edit_menu.addAction("&Undo")
+		self.undo_action = self.edit_menu.addAction("&Undo")
 		self.undo_action.setShortcut("Ctrl+Z")
 		self.undo_action.triggered.connect(self.undo)
 		self.undo_action.setEnabled(False)
 		
-		self.redo_action = edit_menu.addAction("&Redo")
+		self.redo_action = self.edit_menu.addAction("&Redo")
 		self.redo_action.setShortcut("Ctrl+Y")
 		self.redo_action.triggered.connect(self.redo)
 		self.redo_action.setEnabled(False)
 		
-		edit_menu.addSeparator()
+		self.edit_menu.addSeparator()
 		
 		# Transform submenu
-		transform_menu = edit_menu.addMenu("&Transform")
+		transform_menu = self.edit_menu.addMenu("&Transform")
 		
 		self.flip_x_action = transform_menu.addAction("Flip &Horizontal")
 		self.flip_x_action.setShortcut("F")
@@ -292,10 +292,10 @@ class CoatOfArmsEditor(QMainWindow):
 		# Initially disable transform actions
 		self._update_transform_actions()
 		
-		edit_menu.addSeparator()
+		self.edit_menu.addSeparator()
 		
 		# Align submenu
-		align_menu = edit_menu.addMenu("&Align Layers")
+		align_menu = self.edit_menu.addMenu("&Align Layers")
 		
 		self.align_left_action = align_menu.addAction("Align &Left")
 		self.align_left_action.triggered.connect(lambda: self._align_layers('left'))
@@ -331,7 +331,7 @@ class CoatOfArmsEditor(QMainWindow):
 		self._update_alignment_actions()
 		
 		# Move to submenu (move to fixed positions)
-		move_to_menu = edit_menu.addMenu("&Move to")
+		move_to_menu = self.edit_menu.addMenu("&Move to")
 		
 		self.move_to_left_action = move_to_menu.addAction("&Left")
 		self.move_to_left_action.triggered.connect(lambda: self._move_to('left'))
@@ -366,37 +366,38 @@ class CoatOfArmsEditor(QMainWindow):
 		# Initially disable move to actions
 		self._update_move_to_actions()
 		
-		edit_menu.addSeparator()
+		self.edit_menu.addSeparator()
 		
-		select_all_action = edit_menu.addAction("Select &All Layers")
+		select_all_action = self.edit_menu.addAction("Select &All Layers")
 		select_all_action.setShortcut("Ctrl+A")
 		select_all_action.triggered.connect(self._select_all_layers)
 		
 		# Layers Menu
-		layers_menu = menubar.addMenu("&Layers")
+		self.layers_menu = menubar.addMenu("&Layers")
 		
-		copy_layer_action = layers_menu.addAction("&Copy Layer")
+		copy_layer_action = self.layers_menu.addAction("&Copy Layer")
 		copy_layer_action.setShortcut("Ctrl+C")
 		copy_layer_action.triggered.connect(self.clipboard_actions.copy_layer)
 		
-		paste_layer_action = layers_menu.addAction("&Paste Layer")
+		paste_layer_action = self.layers_menu.addAction("&Paste Layer")
 		paste_layer_action.setShortcut("Ctrl+V")
 		paste_layer_action.triggered.connect(self.clipboard_actions.paste_layer_smart)
 		
-		duplicate_layer_action = layers_menu.addAction("&Duplicate Layer")
+		duplicate_layer_action = self.layers_menu.addAction("&Duplicate Layer")
 		duplicate_layer_action.setShortcut("Ctrl+D")
 		duplicate_layer_action.triggered.connect(self.clipboard_actions.duplicate_selected_layer)
 		
-		layers_menu.addSeparator()
+		self.layers_menu.addSeparator()
 		
-		# Instance submenu
-		instance_menu = layers_menu.addMenu("&Instance")
+		# Instance section (label + actions)
+		instance_label = self.layers_menu.addAction("Instance")
+		instance_label.setEnabled(False)  # Make it non-clickable like a label
 		
-		self.split_instances_action = instance_menu.addAction("&Split")
+		self.split_instances_action = self.layers_menu.addAction("    Split")
 		self.split_instances_action.triggered.connect(self._split_selected_layer)
 		self.split_instances_action.setEnabled(False)  # Enabled only for multi-instance layers
 		
-		self.merge_as_instances_action = instance_menu.addAction("&Merge")
+		self.merge_as_instances_action = self.layers_menu.addAction("    Merge")
 		self.merge_as_instances_action.triggered.connect(self._merge_selected_layers)
 		self.merge_as_instances_action.setEnabled(False)  # Enabled only for multi-selection
 		
@@ -936,13 +937,14 @@ class CoatOfArmsEditor(QMainWindow):
 			self._save_state("Change base texture")
 	
 	def _apply_emblem_texture(self, dds_filename, color_count):
-		"""Apply texture to selected layer or create new layer"""
+		"""Apply texture to selected layer(s) or create new layer"""
 		self.right_sidebar.set_emblem_color_count(color_count)
 		selected_uuids = self.right_sidebar.get_selected_uuids()
 		
 		if selected_uuids:
-			# Update the last selected layer (the one user is viewing)
-			self._update_layer_texture(self.right_sidebar.layer_list_widget.last_selected_uuid, dds_filename, color_count)
+			# Update all selected layers
+			for uuid in selected_uuids:
+				self._update_layer_texture(uuid, dds_filename, color_count)
 		else:
 			self._create_layer_with_texture(dds_filename, color_count)
 	
@@ -1028,7 +1030,39 @@ class CoatOfArmsEditor(QMainWindow):
 			QTimer.singleShot(100, lambda: self._save_state("Initial state"))
 	
 	def eventFilter(self, obj, event):
-		"""Filter events to capture arrow keys before child widgets consume them"""
+		"""Filter events to capture arrow keys and context menus before child widgets consume them"""
+		# Handle context menu events globally
+		if event.type() == event.ContextMenu:
+			# Get the widget under the cursor
+			global_pos = event.globalPos()
+			widget_under_cursor = QApplication.widgetAt(global_pos)
+			
+			# Traverse up to find the relevant widget
+			while widget_under_cursor:
+				# Check if we're over the canvas area or canvas widget
+				if widget_under_cursor == self.canvas_area or widget_under_cursor == self.canvas_area.canvas_widget:
+					menu = QtWidgets.QMenu(self)
+					for action in self.edit_menu.actions():
+						if action.isSeparator():
+							menu.addSeparator()
+						else:
+							menu.addAction(action)
+					menu.exec_(global_pos)
+					return True
+				
+				# Check if we're over the layer list
+				elif widget_under_cursor == self.right_sidebar.layer_list_widget or widget_under_cursor.parent() == self.right_sidebar.layer_list_widget:
+					menu = QtWidgets.QMenu(self)
+					for action in self.layers_menu.actions():
+						if action.isSeparator():
+							menu.addSeparator()
+						else:
+							menu.addAction(action)
+					menu.exec_(global_pos)
+					return True
+				
+				widget_under_cursor = widget_under_cursor.parent()
+			
 		if event.type() == event.KeyPress:
 			# Intercept arrow keys when layers are selected
 			if event.key() in [Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down]:
@@ -1575,53 +1609,45 @@ class CoatOfArmsEditor(QMainWindow):
 	def _split_selected_layer(self):
 		"""Split selected layer's instances into separate layers"""
 		try:
-			from services.layer_operations import split_layer_instances
-			
 			# Require single layer selection
-			selected_indices = self.right_sidebar.get_selected_indices()
-			if not selected_indices or len(selected_indices) != 1:
+			selected_uuids = self.right_sidebar.get_selected_uuids()
+			if not selected_uuids or len(selected_uuids) != 1:
 				QMessageBox.information(self, "Split Instances", 
 					"Please select a single layer to split.")
 				return
 			
-			layer_idx = selected_indices[0]
-			if layer_idx >= self.coa.get_layer_count():
-				return
-			
-			layer = self.coa.get_layer_by_index(layer_idx)
+			uuid = selected_uuids[0]
 			
 			# Check if it's multi-instance
-			if layer.instance_count <= 1:
+			instance_count = self.coa.get_layer_instance_count(uuid)
+			if instance_count <= 1:
 				QMessageBox.information(self, "Split Instances", 
 					"Selected layer only has one instance.")
 				return
 			
-			# Split the layer
-			new_layers = split_layer_instances(layer)
+			# Split the layer using CoA method (returns new UUIDs)
+			new_uuids = self.coa.split_layer(uuid)
 			
-			# Replace original with split layers - use CoA model
-			layer_uuid = layer.uuid
-			self.coa.remove_layer(layer_uuid)
-			# Insert new layers in reverse order to maintain positions
-			for new_layer in reversed(new_layers):
-				self.coa.insert_layer_at_index(layer_idx, new_layer)
-				self.right_sidebar.last_selected_index = layer_idx
-				
-				# Clear thumbnail cache
-				if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
-					self.right_sidebar.layer_list_widget.clear_thumbnail_cache()
-				
-				# Rebuild UI
-				self.right_sidebar._rebuild_layer_list()
-				self.canvas_area.canvas_widget.set_coa(self.coa)
-				self.canvas_area.update_transform_widget_for_layer()
-				
-				# Force repaint
-				self.canvas_area.canvas_widget.repaint()
-				self.repaint()
-				
-				# Save to history
-				self._save_state(f"Split {len(new_layers)} instances")
+			# Clear thumbnail cache
+			if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
+				self.right_sidebar.layer_list_widget.clear_thumbnail_cache()
+			
+			# Rebuild UI
+			self.right_sidebar._rebuild_layer_list()
+			self.canvas_area.canvas_widget.set_coa(self.coa)
+			
+			# Select the new layers
+			if new_uuids:
+				self.right_sidebar.layer_list_widget.selected_layer_uuids = set(new_uuids)
+				self.right_sidebar.layer_list_widget.last_selected_uuid = new_uuids[0]
+				self.right_sidebar.layer_list_widget.update_selection_visuals()
+			
+			# Force repaint
+			self.canvas_area.canvas_widget.repaint()
+			self.repaint()
+			
+			# Save to history
+			self._save_state(f"Split {len(new_uuids)} instances")
 		except Exception as e:
 			loggerRaise(e, "Failed to split layer")
 	
@@ -1671,19 +1697,13 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.layer_list_widget.selected_layer_uuids = {merged_uuid}
 			self.right_sidebar.layer_list_widget.clear_thumbnail_cache()
 			
-			# Rebuild UI
+			# Rebuild UI and update selection
 			self.right_sidebar._rebuild_layer_list()
-			self.right_sidebar._update_layer_selection()  # Update selection state properly
+			self.right_sidebar.layer_list_widget.update_selection_visuals()  # Ensure UI highlights selection
+			self.right_sidebar._update_layer_selection()
+			self.right_sidebar._load_layer_properties()  # Load properties for merged layer
 			self.canvas_area.canvas_widget.set_coa(self.coa)
 			self.canvas_area.update_transform_widget_for_layer()
-			
-			# Load properties to show instance selector
-			if hasattr(self.right_sidebar, '_load_layer_properties'):
-				self.right_sidebar._load_layer_properties()
-			
-			# Force repaint
-			self.canvas_area.canvas_widget.repaint()
-			self.repaint()
 			
 			# Save to history
 			merged_layer = self.coa.get_layer_by_uuid(merged_uuid)

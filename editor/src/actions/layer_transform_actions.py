@@ -57,7 +57,7 @@ class LayerTransformActions:
 		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
-		self.main_window.canvas_area.canvas_widget.set_layers(self.main_window.right_sidebar.layers)
+		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
 		self.main_window.canvas_area.update_transform_widget_for_layer()
 		
 		# Save to history
@@ -82,7 +82,7 @@ class LayerTransformActions:
 		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
-		self.main_window.canvas_area.canvas_widget.set_layers(self.main_window.right_sidebar.layers)
+		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
 		self.main_window.canvas_area.update_transform_widget_for_layer()
 		
 		# Save to history
@@ -107,7 +107,7 @@ class LayerTransformActions:
 		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
-		self.main_window.canvas_area.canvas_widget.set_layers(self.main_window.right_sidebar.layers)
+		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
 		self.main_window.canvas_area.update_transform_widget_for_layer()
 		
 		# Save to history
@@ -128,16 +128,9 @@ class LayerTransformActions:
 		for uuid in selected_uuids:
 			self.main_window.coa.rotate_layer(uuid, degrees)
 		
-		# OLD CODE (will remove in Step 9):
-		# for idx in selected_indices:
-		# 	layer = self.main_window.right_sidebar.layers[idx]
-		# 	current_rotation = layer.get('rotation', 0.0)
-		# 	new_rotation = (current_rotation + degrees) % 360
-		# 	layer['rotation'] = new_rotation
-		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
-		self.main_window.canvas_area.canvas_widget.set_layers(self.main_window.right_sidebar.layers)
+		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
 		self.main_window.canvas_area.update_transform_widget_for_layer()
 		
 		# Save to history
@@ -172,7 +165,7 @@ class LayerTransformActions:
 		
 		# Update UI
 		self.main_window.right_sidebar._load_layer_properties()
-		self.main_window.canvas_area.canvas_widget.set_layers(self.main_window.right_sidebar.layers)
+		self.main_window.canvas_area.canvas_widget.set_coa(self.main_window.coa)
 		self.main_window.canvas_area.update_transform_widget_for_layer()
 		
 		# Save to history

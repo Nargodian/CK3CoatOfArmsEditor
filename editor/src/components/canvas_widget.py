@@ -1177,6 +1177,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			# Set viewport to export size
 			gl.glViewport(0, 0, export_size, export_size)
 			
+			# Enable alpha blending for transparency
+			gl.glEnable(gl.GL_BLEND)
+			gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+			
 			# Clear with transparent background
 			gl.glClearColor(0.0, 0.0, 0.0, 0.0)
 			gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
@@ -1186,6 +1190,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			
 			# Get the image from the framebuffer
 			image = fbo.toImage()
+			
+			# Ensure image has alpha channel
+			if image.format() != QImage.Format_RGBA8888:
+				image = image.convertToFormat(QImage.Format_RGBA8888)
 			
 			# Release framebuffer
 			fbo.release()

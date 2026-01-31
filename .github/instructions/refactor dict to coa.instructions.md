@@ -43,3 +43,12 @@ if you find code that is using global variables to track coa state
 please refactor it to use the coa model instead
 self.coa = CoA.get_active() is acceptable in classes that need to access the coa to avoid heavy refactoring
 but avoid setting self.coa = CoA() directly
+
+when transforming layers there are two concepts to keep in mind
+shallow vs deep transformations
+shallow transformations
+  - work only on a per selected layer basis
+  - instances are treated as ridgid bodies that move with their parent layer
+deep transformations
+  - work on all instances across all layers
+  - instances can move independently of their parent layer

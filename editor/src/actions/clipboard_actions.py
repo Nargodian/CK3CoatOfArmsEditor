@@ -137,21 +137,6 @@ class ClipboardActions:
 				)
 				return
 			
-			# Extract layer data as dicts (not Layer objects)
-			layer_dicts = []
-			for i in range(temp_coa.get_layer_count()):
-				uuid = temp_coa.get_layer_uuid_by_index(i)
-				if uuid:
-					layer_dicts.append(temp_coa.get_layer_as_dict(uuid))
-			
-			if temp_coa.get_layer_count() == 0:
-				QMessageBox.information(
-					self.main_window,
-					"Paste Layer",
-					"No valid layer data in clipboard"
-				)
-				return
-			
 			# Check for selection to paste above
 			selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
 			target_uuid = selected_uuids[0] if selected_uuids else None

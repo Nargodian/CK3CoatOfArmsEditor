@@ -1,5 +1,5 @@
 # PyQt5 imports
-from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSizePolicy)
+from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSizePolicy, QMenu)
 from PyQt5.QtCore import Qt
 
 # Local component imports
@@ -13,6 +13,9 @@ class CanvasArea(QFrame):
 	def __init__(self, parent=None):
 		super().__init__(parent)
 		self.setStyleSheet("QFrame { background-color: #0d0d0d; }")
+		self.setContextMenuPolicy(Qt.CustomContextMenu)
+		self.customContextMenuRequested.connect(self._show_context_menu)
+		
 		#COA INTEGRATION ACTION: Step 4 - Add CoA model reference (set by MainWindow)
 		self.coa = None  # Reference to CoA model (will be set externally)
 		self.property_sidebar = None  # Will be set by main window
@@ -627,6 +630,21 @@ class CanvasArea(QFrame):
 			frame_name = frame_map.get(frame_text, "None")
 		
 		self.canvas_widget.set_frame(frame_name)
+	
+	def _show_context_menu(self, pos):
+		"""Show context menu with Edit menu actions"""
+		if not self.main_window or not hasattr(self.main_window, 'edit_menu'):
+			return
+		
+		# Create context menu and add Edit menu actions
+		context_menu = QMenu(self)
+		for action in self.main_window.edit_menu.actions():
+			if action.isSeparator():
+				context_menu.addSeparator()
+			else:
+				context_menu.addAction(action)
+		
+		context_menu.exec_(self.mapToGlobal(pos))
 	
 	def _on_splendor_changed(self, index):
 		"""Handle splendor level change"""

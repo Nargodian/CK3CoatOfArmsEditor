@@ -938,6 +938,7 @@ class LayerListWidget(QWidget):
 				}
 			""")
 	
+
 	def update_all_buttons(self):
 		"""Update all layer buttons by querying fresh data from CoA
 		
