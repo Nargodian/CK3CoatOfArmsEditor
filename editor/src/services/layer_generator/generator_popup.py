@@ -43,17 +43,13 @@ class PreviewWidget(QWidget):
         painter.fillRect(self.rect(), QColor(0, 0, 0))
         
         # Draw each instance
-        for i, instance in enumerate(self.instances):
+        for instance in self.instances:
             # Check if we have 6 columns (with label code) or just 5
             if len(instance) >= 6:
                 x_coa, y_coa, scale_x, scale_y, rotation, label_code = instance[:6]
-                if i == 0:  # Debug first instance
-                    print(f"DEBUG: Instance has 6 cols, label_code={label_code}")
             else:
                 x_coa, y_coa, scale_x, scale_y, rotation = instance[:5]
                 label_code = 0  # Default: no label
-                if i == 0:  # Debug first instance
-                    print(f"DEBUG: Instance has 5 cols, defaulting to label_code=0")
             
             # Convert CoA coordinates (0-1) to preview pixels (0-300)
             x_px = x_coa * self.PREVIEW_SIZE
@@ -85,23 +81,7 @@ class PreviewWidget(QWidget):
                 painter.restore()
                 continue
             
-            # Draw white square at 50% scale centered at origin
-            painter.setBrush(QBrush(QColor(255, 255, 255)))
-            painter.setPen(QPen(QColor(255, 255, 255), 1))
-            painter.drawRect(int(-width_emblem/2), int(-height_emblem/2), int(width_emblem), int(height_emblem))
-            
-            # Draw red triangle corner at 50% scale (top corner - north quadrant)
-            # Triangle fills the top quadrant when square is divided by diagonals
-            triangle = QPolygonF([
-                QPointF(float(-width_emblem/2), float(-height_emblem/2)),  # Top-left
-                QPointF(float(width_emblem/2), float(-height_emblem/2)),   # Top-right
-                QPointF(0, 0)                                                # Center
-            ])
-            painter.setBrush(QBrush(QColor(255, 0, 0)))
-            painter.setPen(Qt.NoPen)
-            painter.drawPolygon(triangle)
-            
-            # Draw text label if label_code > 0
+            # Draw text label if label_code > 0 (skip white box/triangle)
             if int(label_code) > 0:
                 label_char = self._label_code_to_char(int(label_code))
                 if label_char:
@@ -112,11 +92,27 @@ class PreviewWidget(QWidget):
                     font.setBold(True)
                     painter.setFont(font)
                     
-                    # Draw text centered
+                    # Draw text centered (white on black background)
                     painter.setPen(QPen(QColor(255, 255, 255)))
-                    painter.drawText(int(-width_full/4), int(-height_full/4), 
-                                    int(width_full/2), int(height_full/2),
+                    painter.drawText(int(-width_full/2), int(-height_full/2), 
+                                    int(width_full), int(height_full),
                                     Qt.AlignCenter, label_char)
+            else:
+                # No label: draw white square at 50% scale centered at origin
+                painter.setBrush(QBrush(QColor(255, 255, 255)))
+                painter.setPen(QPen(QColor(255, 255, 255), 1))
+                painter.drawRect(int(-width_emblem/2), int(-height_emblem/2), int(width_emblem), int(height_emblem))
+                
+                # Draw red triangle corner at 50% scale (top corner - north quadrant)
+                # Triangle fills the top quadrant when square is divided by diagonals
+                triangle = QPolygonF([
+                    QPointF(float(-width_emblem/2), float(-height_emblem/2)),  # Top-left
+                    QPointF(float(width_emblem/2), float(-height_emblem/2)),   # Top-right
+                    QPointF(0, 0)                                                # Center
+                ])
+                painter.setBrush(QBrush(QColor(255, 0, 0)))
+                painter.setPen(Qt.NoPen)
+                painter.drawPolygon(triangle)
             
             # Restore painter state
             painter.restore()
