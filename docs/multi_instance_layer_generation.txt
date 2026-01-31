@@ -45,8 +45,8 @@ Text mode creates MULTIPLE LAYERS, not a multi-instance layer!
 - Warning displayed to user before generation
 
 Text Emblem Mapping:
-- Available letter emblems: ce_letter_[a-z].dds (a-z lowercase)
-- Also: ce_letter_alpha.dds, ce_letter_omega.dds, ce_letter_beta.dds
+- Available letter emblems follow pattern: ce_letter_[a-z].dds (a-z lowercase)
+- Exceptions: ce_letter_alpha.dds, ce_letter_omega.dds (full name, not ce_letter_α.dds)
 - Uppercase maps to lowercase (A → ce_letter_a.dds)
 - Create whitelist of available characters for textbox validation
 - Lookup table in text_emblem_mapper.py
@@ -326,6 +326,20 @@ Preview Performance:
 - Generate positions for up to 100 instances on each update
 - Consider throttling/debouncing if performance issues arise
 
+Preview Text Labels (Nice-to-Have Enhancement):
+- Add optional 6th column to instance data for text overlay in preview
+- Format: Nx6 numpy array [[x, y, scale_x, scale_y, rotation, label_code], ...]
+- Label codes (integer):
+  - 0 = regular preview (white square + red triangle, no text overlay)
+  - -1 = space character (only bounding box outline, no emblem square/triangle)
+  - 1-26 = lowercase letters: 1='a', 2='b', ..., 26='z'
+  - 27 = alpha (α), 28 = omega (ω)
+- Text rendering: QPainter.drawText() overlays character on emblem
+- Text size: 50% of bounding box size
+- Text displayed lowercase (convert input to lowercase, handle unicode α/ω)
+- Helps visualize character positioning for text-based layouts
+- Optional feature - generators can omit 6th column (defaults to all 0)
+
 Instance Transform Order:
 - Follows CK3 CoA rules (see CoA documentation)
 - Transform order dictated by game engine
@@ -476,6 +490,7 @@ Preview Visual Design:
   - White stroked outline box at 100% scale (40% opacity) - shows bounding box
   - White filled square at 50% scale - represents the emblem
   - Red filled triangle at 50% scale - corner fold at top-left corner
+  - Optional text label at 50% of bounding box size (overlaid on emblem)
 - Red triangle: Corner fold (like envelope flap) acts as directional indicator
 - Each instance applies position, scale, and rotation transforms
 - 50% scale for emblem better represents typical emblem appearance
