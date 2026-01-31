@@ -51,9 +51,9 @@ class ClipboardActions:
 				)
 				return
 			
-			# Parse into model using from_string()
-			from models.coa import CoA
-			self.main_window.coa = CoA.from_string(text)
+			# Clear and parse into existing CoA instance
+			self.main_window.coa.clear()
+			self.main_window.coa.parse(text)
 			
 			# Apply to UI - update from model
 			self.main_window.canvas_area.canvas_widget.set_base_texture(self.main_window.coa.pattern)
