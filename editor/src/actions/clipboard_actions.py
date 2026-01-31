@@ -69,10 +69,7 @@ class ClipboardActions:
 			self.main_window.right_sidebar.tab_widget.setCurrentIndex(1)
 			self.main_window.right_sidebar._rebuild_layer_list()
 			if self.main_window.coa.get_layer_count() > 0:
-				self.main_window.right_sidebar._select_layer(0)
-			
-			# Update canvas
-			self.main_window.canvas_area.canvas_widget.update()
+							self.main_window.canvas_area.canvas_widget.update()
 			
 			# OLD CODE (will remove in Step 10):
 			# from utils.coa_parser import parse_coa_string
@@ -342,13 +339,15 @@ class ClipboardActions:
 			self.main_window.right_sidebar.layer_list_widget.selected_layer_uuids = original_selection
 			if selected_uuids:
 				self.main_window.right_sidebar.layer_list_widget.last_selected_uuid = selected_uuids[0]
+			# Update visual state WITHOUT triggering selection callback (which resets drag state)
+			for uuid, btn in self.main_window.right_sidebar.layer_list_widget.layer_buttons:
+				btn.setChecked(uuid in original_selection)
 		else:
 			# Select the new duplicated layers (normal duplicate operation)
 			if new_uuids:
 				self.main_window.right_sidebar.layer_list_widget.selected_layer_uuids = set(new_uuids)
 				self.main_window.right_sidebar.layer_list_widget.last_selected_uuid = new_uuids[0]
-		
-		self.main_window.right_sidebar.layer_list_widget.update_selection_visuals()
+			self.main_window.right_sidebar.layer_list_widget.update_selection_visuals()
 		
 		# Save to history (but not during ctrl+drag - that's saved on mouse release)
 		if not keep_selection:

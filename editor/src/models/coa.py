@@ -948,11 +948,11 @@ class CoA(CoAQueryMixin):
         return new_layer.uuid
     
     def duplicate_layer_below(self, uuid: str, target_uuid: str) -> str:
-        """Duplicate layer and place below target in visual layer list (back of render order, lower index)
+        """Duplicate layer and place behind target in render order (lower index = renders behind)
         
         Args:
             uuid: Layer UUID to duplicate
-            target_uuid: UUID of layer to place duplicate below in the visual list (renders behind)
+            target_uuid: UUID of layer to place duplicate behind (in render order)
             
         Returns:
             UUID of the new layer
@@ -976,10 +976,10 @@ class CoA(CoAQueryMixin):
         # Create new layer
         new_layer = Layer(data, caller='CoA')
         
-        # Insert below in visual list (higher index = renders in front)
-        self._layers.insert(target_index + 1, new_layer, caller='CoA')
+        # Insert at target index (pushes target forward, duplicate stays behind)
+        self._layers.insert(target_index, new_layer, caller='CoA')
         
-        self._logger.debug(f"Duplicated layer {uuid} -> {new_layer.uuid} below (visual) {target_uuid}")
+        self._logger.debug(f"Duplicated layer {uuid} -> {new_layer.uuid} behind {target_uuid}")
         return new_layer.uuid
     
     def duplicate_layer_above(self, uuid: str, target_uuid: str) -> str:
