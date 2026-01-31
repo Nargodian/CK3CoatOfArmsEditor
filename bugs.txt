@@ -1,0 +1,7 @@
+# Non-Critical Bugs to Track
+
+## Transform Widget Frame Handling
+- **Issue**: Transform widget doesn't account for different frames when aligning
+- **Impact**: Low priority - alignment calculations may be off for non-default frames
+- **Status**: To be investigated
+

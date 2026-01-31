@@ -458,14 +458,14 @@ class Layer:
         if pos_y is None:
             pos_y = self.pos_y
         
-        new_instance = {
+        new_instance = Instance({
             'pos_x': pos_x,
             'pos_y': pos_y,
             'scale_x': DEFAULT_SCALE_X,
             'scale_y': DEFAULT_SCALE_Y,
             'rotation': DEFAULT_ROTATION,
             'depth': 0.0
-        }
+        })
         
         instances = self._data.setdefault('instances', [])
         instances.append(new_instance)

@@ -53,6 +53,7 @@ import math
 import inspect
 
 from ._coa_internal.layer import Layer, Layers, LayerTracker
+from ._coa_internal.instance import Instance
 from ._coa_internal.query_mixin import CoAQueryMixin
 from constants import (
     DEFAULT_POSITION_X, DEFAULT_POSITION_Y,
@@ -535,15 +536,15 @@ class CoA(CoAQueryMixin):
                 scale_x = float(scale[0]) if len(scale) > 0 else 1.0
                 scale_y = float(scale[1]) if len(scale) > 1 else 1.0
                 
-                instance_data = {
+                instance_obj = Instance({
                     'pos_x': pos_x,
                     'pos_y': pos_y,
                     'scale_x': scale_x,
                     'scale_y': scale_y,
                     'rotation': float(rotation),
                     'depth': float(depth)
-                }
-                layer_data['instances'].append(instance_data)
+                })
+                layer_data['instances'].append(instance_obj)
             
             # Store layer with depth for sorting
             max_depth = max(inst['depth'] for inst in layer_data['instances'])
@@ -662,14 +663,14 @@ class CoA(CoAQueryMixin):
             'filename': emblem_path,
             'path': emblem_path,
             'colors': colors,
-            'instances': [{
+            'instances': [Instance({
                 'pos_x': pos_x,
                 'pos_y': pos_y,
                 'scale_x': DEFAULT_SCALE_X,
                 'scale_y': DEFAULT_SCALE_Y,
                 'rotation': DEFAULT_ROTATION,
                 'depth': 0.0
-            }],
+            })],
             'selected_instance': 0,
             'flip_x': False,
             'flip_y': False,
@@ -1407,10 +1408,10 @@ class CoA(CoAQueryMixin):
             return (layer.pos_x, layer.pos_y)
         elif len(instances) > 1:
             # Multiple instances: return AABB center
-            min_x = min(inst.get('pos_x', 0.5) for inst in instances)
-            max_x = max(inst.get('pos_x', 0.5) for inst in instances)
-            min_y = min(inst.get('pos_y', 0.5) for inst in instances)
-            max_y = max(inst.get('pos_y', 0.5) for inst in instances)
+            min_x = min(inst.pos_x for inst in instances)
+            max_x = max(inst.pos_x for inst in instances)
+            min_y = min(inst.pos_y for inst in instances)
+            max_y = max(inst.pos_y for inst in instances)
             
             center_x = (min_x + max_x) / 2.0
             center_y = (min_y + max_y) / 2.0
@@ -1448,10 +1449,10 @@ class CoA(CoAQueryMixin):
         elif len(instances) > 1:
             # Multiple instances: calculate AABB center, maintain relative offsets
             # Get bounding box of all instances
-            min_x = min(inst.get('pos_x', 0.5) for inst in instances)
-            max_x = max(inst.get('pos_x', 0.5) for inst in instances)
-            min_y = min(inst.get('pos_y', 0.5) for inst in instances)
-            max_y = max(inst.get('pos_y', 0.5) for inst in instances)
+            min_x = min(inst.pos_x for inst in instances)
+            max_x = max(inst.pos_x for inst in instances)
+            min_y = min(inst.pos_y for inst in instances)
+            max_y = max(inst.pos_y for inst in instances)
             
             # Calculate AABB center
             aabb_center_x = (min_x + max_x) / 2.0
@@ -1898,9 +1899,9 @@ class CoA(CoAQueryMixin):
             instances = layer._data.get('instances', [])
             for inst in instances:
                 layer_cache['instances'].append({
-                    'pos_x': inst.get('pos_x', 0.5),
-                    'pos_y': inst.get('pos_y', 0.5),
-                    'rotation': inst.get('rotation', 0.0)
+                    'pos_x': inst.pos_x,
+                    'pos_y': inst.pos_y,
+                    'rotation': inst.rotation
                 })
             
             self._rotation_cache['layers'][uuid] = layer_cache
@@ -2407,10 +2408,10 @@ class CoA(CoAQueryMixin):
                 continue
             
             # Calculate current AABB center
-            min_x = min(inst.get('pos_x', 0.5) for inst in instances)
-            max_x = max(inst.get('pos_x', 0.5) for inst in instances)
-            min_y = min(inst.get('pos_y', 0.5) for inst in instances)
-            max_y = max(inst.get('pos_y', 0.5) for inst in instances)
+            min_x = min(inst.pos_x for inst in instances)
+            max_x = max(inst.pos_x for inst in instances)
+            min_y = min(inst.pos_y for inst in instances)
+            max_y = max(inst.pos_y for inst in instances)
             aabb_center_x = (min_x + max_x) / 2.0
             aabb_center_y = (min_y + max_y) / 2.0
             
