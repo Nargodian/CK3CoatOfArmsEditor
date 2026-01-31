@@ -252,6 +252,7 @@ class ClipboardActions:
 			
 			# Calculate centroid of temp layers
 			if len(temp_uuids) > 1:
+				# Multiple layers: position centroid at cursor
 				centroid_x, centroid_y = temp_coa.get_layer_centroid(temp_uuids)
 				
 				# Calculate offset from centroid to mouse position
@@ -260,8 +261,14 @@ class ClipboardActions:
 				
 				# Apply offset to temp CoA layers
 				temp_coa.adjust_layer_positions(temp_uuids, offset_x, offset_y)
+			elif temp_coa.get_layer_instance_count(temp_uuids[0]) > 1:
+				# Single multi-instance layer: position AABB center at cursor
+				bounds = temp_coa.get_layer_bounds(temp_uuids[0])
+				offset_x = norm_x - bounds['center_x']
+				offset_y = norm_y - bounds['center_y']
+				temp_coa.translate_all_instances(temp_uuids[0], offset_x, offset_y)
 			else:
-				# Single layer - place directly at mouse position
+				# Single instance layer: position at cursor directly
 				temp_coa.set_layer_position(temp_uuids[0], norm_x, norm_y)
 			
 			# Copy adjusted layers to main CoA

@@ -121,26 +121,22 @@ class CanvasArea(QFrame):
 		bottom_layout.addWidget(rotation_label)
 		
 		self.rotation_mode_combo = self._create_combo_box([
-			"Auto",
 			"Rotate Only",
 			"Orbit Only",
-			"Both",
-			"Rotate Deep",
-			"Orbit Deep",
-			"Both Deep"
+			"Normal",
+			"Rotate (Deep)",
+			"Orbit (Deep)"
 		])
 		self.rotation_mode_combo.setFixedWidth(120)  # Narrower width
 		self.rotation_mode_combo.setToolTip(
 			"Rotation Mode:\n"
-			"Auto - Intelligent routing (legacy)\n"
-			"Rotate Only - Spin in place (shallow)\n"
-			"Orbit Only - Orbit around center (shallow)\n"
-			"Both - Orbit + Rotate (shallow)\n"
-			"Rotate Deep - Spin instances in place\n"
-			"Orbit Deep - Orbit instances around center\n"
-			"Both Deep - Orbit + Rotate instances"
+			"Rotate Only - Spin layers in place\n"
+			"Orbit Only - Orbit layers around center\n"
+			"Normal - Orbit + Rotate layers\n"
+			"Rotate (Deep) - Spin all instances in place\n"
+			"Orbit (Deep) - Orbit all instances around center"
 		)
-		self.rotation_mode_combo.setCurrentIndex(0)  # Default to Auto
+		self.rotation_mode_combo.setCurrentIndex(2)  # Default to Normal
 		bottom_layout.addWidget(self.rotation_mode_combo)
 		
 		bottom_layout.addSpacing(20)
@@ -166,18 +162,16 @@ class CanvasArea(QFrame):
 			String mode name for CoA.rotate_selection()
 		"""
 		mode_map = {
-			"Auto": "auto",
 			"Rotate Only": "rotate_only",
 			"Orbit Only": "orbit_only",
-			"Both": "both",
-			"Rotate Deep": "rotate_only_deep",
-			"Orbit Deep": "orbit_only_deep",
-			"Both Deep": "both_deep"
+			"Normal": "both",
+			"Rotate (Deep)": "rotate_only_deep",
+			"Orbit (Deep)": "orbit_only_deep"
 		}
 		if not hasattr(self, 'rotation_mode_combo'):
-			return "auto"
+			return "both"
 		current_text = self.rotation_mode_combo.currentText()
-		return mode_map.get(current_text, "auto")
+		return mode_map.get(current_text, "both")
 	
 	def _create_combo_box(self, items):
 		"""Create a styled combo box"""
@@ -323,6 +317,7 @@ class CanvasArea(QFrame):
 		self.transform_widget.set_visible(True)
 	def _on_transform_changed(self, pos_x, pos_y, scale_x, scale_y, rotation):
 		"""Handle transform changes from the widget		
+		For rotation: routes through CoA.rotate_selection() using rotation mode dropdown
 		For single selection with multiple instances: group transform around AABB center
 		For single selection with one instance: direct transform
 		For multi-selection: applies group transform to all selected layers
@@ -331,6 +326,26 @@ class CanvasArea(QFrame):
 		if not selected_uuids:
 			return
 		
+		# Check if we're rotating (using rotation handle)
+		if hasattr(self.transform_widget, 'is_rotating') and self.transform_widget.is_rotating:
+			# ROTATION: Apply from cached state for dynamic preview
+			if not hasattr(self, '_rotation_start') or self._rotation_start is None:
+				# First rotation frame - cache state
+				self._rotation_start = rotation
+				rotation_mode = self.get_rotation_mode()
+				self.main_window.coa.begin_rotation_transform(list(selected_uuids), rotation_mode)
+			
+			# Calculate TOTAL delta from start
+			total_delta = rotation - self._rotation_start
+			
+			# Apply rotation from cached state (prevents compounding)
+			self.main_window.coa.apply_rotation_transform(list(selected_uuids), total_delta)
+			
+			# Update canvas for live preview
+			self.canvas_widget.set_coa(self.main_window.coa)
+			return
+		
+		# POSITION/SCALE TRANSFORMS (non-rotation)
 		# SINGLE SELECTION
 		if len(selected_uuids) == 1:
 			uuid = list(selected_uuids)[0]
@@ -393,15 +408,31 @@ class CanvasArea(QFrame):
 			self._drag_start_layers = []
 			self._aabb_synced = False  # Track if we've synced AABB this drag
 			for uuid in selected_uuids:
-				cached = self.main_window.coa.get_cached_transform(uuid)
-				if cached:
+				# For multi-instance layers, use AABB bounds instead of first instance
+				instance_count = self.main_window.coa.get_layer_instance_count(uuid)
+				if instance_count > 1:
+					# Multi-instance: use layer's AABB
+					bounds = self.main_window.coa.get_layer_bounds(uuid)
 					self._drag_start_layers.append({
 						'uuid': uuid,
-						'pos_x': cached['pos_x'],
-						'pos_y': cached['pos_y'],
-						'scale_x': cached['scale_x'],
-						'scale_y': cached['scale_y']
+						'pos_x': bounds['center_x'],
+						'pos_y': bounds['center_y'],
+						'scale_x': bounds['width'],
+						'scale_y': bounds['height'],
+						'is_multi_instance': True
 					})
+				else:
+					# Single instance: use cached transform
+					cached = self.main_window.coa.get_cached_transform(uuid)
+					if cached:
+						self._drag_start_layers.append({
+							'uuid': uuid,
+							'pos_x': cached['pos_x'],
+							'pos_y': cached['pos_y'],
+							'scale_x': cached['scale_x'],
+							'scale_y': cached['scale_y'],
+							'is_multi_instance': False
+						})
 			
 			# Calculate and cache the original group AABB (only once at drag start)
 			original_min_x = float('inf')
@@ -505,9 +536,25 @@ class CanvasArea(QFrame):
 				new_scale_x = max(0.01, min(1.0, new_scale_x))
 				new_scale_y = max(0.01, min(1.0, new_scale_y))
 			
-			# Update actual layer using CoA API (flip_x and flip_y are preserved automatically)
-			self.main_window.coa.set_layer_position(uuid, new_pos_x, new_pos_y)
-			self.main_window.coa.set_layer_scale(uuid, new_scale_x, new_scale_y)
+			# Update layer: multi-instance layers need group transform
+			if layer_state.get('is_multi_instance', False):
+				# Multi-instance layer: transform all instances as a group
+				# Calculate scale factors relative to original AABB
+				scale_factor_x = new_scale_x / scale_x_orig if scale_x_orig > 0.001 else 1.0
+				scale_factor_y = new_scale_y / scale_y_orig if scale_y_orig > 0.001 else 1.0
+				
+				# Use instance group transform (with cached positions)
+				if not hasattr(self, f'_instance_transform_begun_{uuid}'):
+					self.main_window.coa.begin_instance_group_transform(uuid)
+					setattr(self, f'_instance_transform_begun_{uuid}', True)
+				
+				self.main_window.coa.transform_instances_as_group(
+					uuid, new_pos_x, new_pos_y, scale_factor_x, scale_factor_y, 0.0
+				)
+			else:
+				# Single instance layer: direct transform
+				self.main_window.coa.set_layer_position(uuid, new_pos_x, new_pos_y)
+				self.main_window.coa.set_layer_scale(uuid, new_scale_x, new_scale_y)
 			# Task 3.6: Individual layer rotations are preserved (NOT modified)
 		
 		# Update canvas during drag for real-time feedback
@@ -515,15 +562,25 @@ class CanvasArea(QFrame):
 	
 	def _on_transform_ended(self):
 		"""Handle transform widget drag end"""
+		# Clear rotation cache (rotation already applied during drag)
+		if hasattr(self, '_rotation_start') and self._rotation_start is not None:
+			self.main_window.coa.end_rotation_transform()
+		
 		# Clear CoA transform caches
 		if self.main_window and self.main_window.coa:
 			self.main_window.coa.end_transform_group()
 			self.main_window.coa.end_instance_group_transform()
 		
+		# Clear instance transform flags
+		attrs_to_remove = [attr for attr in dir(self) if attr.startswith('_instance_transform_begun_')]
+		for attr in attrs_to_remove:
+			delattr(self, attr)
+		
 		# Clear single layer state caches
 		self._single_layer_initial_state = None
 		self._single_layer_aabb = None
 		self._initial_instance_rotation = 0
+		self._rotation_start = None  # Clear rotation tracking
 		
 		# Update canvas
 		self.canvas_widget.set_coa(self.main_window.coa)

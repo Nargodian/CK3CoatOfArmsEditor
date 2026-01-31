@@ -880,22 +880,27 @@ class LayerListWidget(QWidget):
 									color_btn.setToolTip(f"Color {color_idx}")
 									
 									# Get current color from CoA by UUID
-								color_rgb = self.coa.get_layer_color(uuid, color_idx) or [1.0, 1.0, 1.0]
-								r, g, b = int(color_rgb[0] * 255), int(color_rgb[1] * 255), int(color_rgb[2] * 255)
+									color_rgb = self.coa.get_layer_color(uuid, color_idx) or [1.0, 1.0, 1.0]
+									r, g, b = int(color_rgb[0] * 255), int(color_rgb[1] * 255), int(color_rgb[2] * 255)
+									
+									color_btn.setStyleSheet(f"""
+										QPushButton {{
+											border: 1px solid rgba(255, 255, 255, 80);
+											border-radius: 2px;
+											background-color: rgb({r}, {g}, {b});
+											padding: 0px;
+										}}
+										QPushButton:hover {{
+											border: 2px solid rgba(255, 255, 255, 150);
+										}}
+									""")
+									color_btn.clicked.connect(lambda checked, u=uuid, c_idx=color_idx: self._handle_color_pick(u, c_idx))
+									color_layout.addWidget(color_btn)
 								
-								color_btn.setStyleSheet(f"""
-									QPushButton {{
-										border: 1px solid rgba(255, 255, 255, 80);
-										border-radius: 2px;
-										background-color: rgb({r}, {g}, {b});
-									padding: 0px;
-								}}
-								QPushButton:hover {{
-									border: 2px solid rgba(255, 255, 255, 150);
-								}}
-							""")
-							color_btn.clicked.connect(lambda checked, u=uuid, c_idx=color_idx: self._handle_color_pick(u, c_idx))
-							color_layout.addWidget(color_btn)
+								# Add stretch if less than 3 colors
+								if num_colors < 3:
+									color_layout.addStretch()
+		
 		# Update button style based on instance count
 		is_multi_instance = instance_count > 1
 		if is_multi_instance:

@@ -541,6 +541,11 @@ class CoA(CoAQueryMixin):
         
         coa = cls()
         
+        # Quick validation: check if text looks like CoA data
+        if not ck3_text or 'colored_emblem' not in ck3_text:
+            coa._logger.debug(f"Text does not contain colored_emblem blocks, skipping parse")
+            return coa  # Return empty CoA
+        
         # Wrap the layers in a minimal CoA structure for parsing
         wrapped_text = f"coa_export = {{\n\tpattern = \"{DEFAULT_PATTERN_TEXTURE}\"\n\tcolor1 = \"{DEFAULT_BASE_COLOR1}\"\n\tcolor2 = \"{DEFAULT_BASE_COLOR2}\"\n\tcolor3 = \"{DEFAULT_BASE_COLOR3}\"\n\t{ck3_text}\n}}"
         
@@ -549,7 +554,7 @@ class CoA(CoAQueryMixin):
         try:
             parsed = parser.parse_string(wrapped_text)
         except Exception as e:
-            coa._logger.error(f"Failed to parse layers: {e}")
+            coa._logger.debug(f"Failed to parse layers: {e}")
             return coa  # Return empty CoA
         
         # Extract colored_emblem blocks
@@ -1856,6 +1861,358 @@ class CoA(CoAQueryMixin):
             # Clamp scales to valid range
             inst['scale_x'] = max(0.01, min(1.0, new_scale_x))
             inst['scale_y'] = max(0.01, min(1.0, new_scale_y))
+    
+    def begin_rotation_transform(self, uuids: List[str], rotation_mode: str = 'both_deep'):
+        """Cache original rotation and position state before rotation operations
+        
+        Call this at START of rotation drag, then call apply_rotation_transform
+        repeatedly during drag with TOTAL delta from start.
+        
+        Args:
+            uuids: List of layer UUIDs to cache
+            rotation_mode: Rotation mode (determines what state to cache)
+        """
+        self._rotation_cache = {
+            'mode': rotation_mode,
+            'layers': {}
+        }
+        
+        for uuid in uuids:
+            layer = self._layers.get_by_uuid(uuid)
+            if not layer:
+                continue
+            
+            layer_cache = {'instances': []}
+            
+            # Cache all instances for this layer
+            instances = layer._data.get('instances', [])
+            for inst in instances:
+                layer_cache['instances'].append({
+                    'pos_x': inst.get('pos_x', 0.5),
+                    'pos_y': inst.get('pos_y', 0.5),
+                    'rotation': inst.get('rotation', 0.0)
+                })
+            
+            self._rotation_cache['layers'][uuid] = layer_cache
+        
+        self._logger.debug(f"Cached rotation state for {len(uuids)} layers in mode '{rotation_mode}'")
+    
+    def apply_rotation_transform(self, uuids: List[str], total_delta_degrees: float):
+        """Apply rotation transform from cached original state
+        
+        This applies the TOTAL rotation delta from the original cached state,
+        not an incremental delta. Prevents compounding during drag operations.
+        
+        Args:
+            uuids: List of layer UUIDs to transform
+            total_delta_degrees: Total rotation delta from original cached state
+        """
+        if not hasattr(self, '_rotation_cache') or not self._rotation_cache:
+            self._logger.warning("No rotation cache found, call begin_rotation_transform first")
+            return
+        
+        mode = self._rotation_cache['mode']
+        cache = self._rotation_cache
+        
+        # Special handling for shallow orbit_only and both (layer-level operations)
+        if mode == 'orbit_only':
+            self._apply_orbit_only_shallow(uuids, total_delta_degrees, cache)
+            return
+        elif mode == 'both':
+            self._apply_both_shallow(uuids, total_delta_degrees, cache)
+            return
+        
+        # All other modes use unified approach
+        # rotate_only: instances orbit around layer center + rotate
+        # rotate_only_deep: instances rotate in place (no orbit)
+        # orbit_only_deep: instances orbit around unified center (no rotation)
+        should_orbit = mode in ['rotate_only', 'orbit_only_deep']
+        should_rotate = mode in ['rotate_only', 'rotate_only_deep']
+        
+        # Get rotation groups based on mode
+        rotation_groups = self._get_rotation_groups(uuids, mode, cache)
+        
+        # Apply rotation to all groups
+        for center_x, center_y, instances_with_cache in rotation_groups:
+            for inst, inst_cache in instances_with_cache:
+                if should_orbit:
+                    # Update position by orbiting around center
+                    new_x, new_y = self._rotate_point_around(
+                        inst_cache['pos_x'], inst_cache['pos_y'],
+                        center_x, center_y,
+                        total_delta_degrees
+                    )
+                    inst['pos_x'] = max(0.0, min(1.0, new_x))
+                    inst['pos_y'] = max(0.0, min(1.0, new_y))
+                
+                if should_rotate:
+                    # Update rotation value
+                    inst['rotation'] = (inst_cache['rotation'] + total_delta_degrees) % 360
+    
+    def _apply_both_shallow(self, uuids: List[str], total_delta: float, cache: dict):
+        """Apply both shallow mode - layers orbit group center AND instances rotate around layer center
+        
+        This is nested rotation:
+        1. Instances orbit + rotate around their layer center (like rotate_only)
+        2. Then the entire layer group orbits around the group center
+        """
+        # Calculate layer centers and apply layer-level rotation first
+        layer_data = []
+        for uuid in uuids:
+            if uuid not in cache['layers']:
+                continue
+            
+            layer = self._layers.get_by_uuid(uuid)
+            if not layer:
+                continue
+            
+            cached_instances = cache['layers'][uuid]['instances']
+            instances = layer._data.get('instances', [])
+            
+            if not cached_instances:
+                continue
+            
+            # Calculate layer center from cached positions
+            layer_center_x = sum(inst['pos_x'] for inst in cached_instances) / len(cached_instances)
+            layer_center_y = sum(inst['pos_y'] for inst in cached_instances) / len(cached_instances)
+            
+            # Step 1: Rotate instances around layer center (like rotate_only)
+            temp_positions = []
+            for inst_idx, inst in enumerate(instances):
+                if inst_idx >= len(cached_instances):
+                    continue
+                
+                inst_cache = cached_instances[inst_idx]
+                
+                # Orbit around layer center
+                new_x, new_y = self._rotate_point_around(
+                    inst_cache['pos_x'], inst_cache['pos_y'],
+                    layer_center_x, layer_center_y,
+                    total_delta
+                )
+                temp_positions.append((new_x, new_y))
+                
+                # Rotate
+                inst['rotation'] = (inst_cache['rotation'] + total_delta) % 360
+            
+            layer_data.append((layer, cached_instances, instances, layer_center_x, layer_center_y, temp_positions))
+        
+        if not layer_data:
+            return
+        
+        # Calculate group center from layer centers
+        group_center_x = sum(ld[3] for ld in layer_data) / len(layer_data)
+        group_center_y = sum(ld[4] for ld in layer_data) / len(layer_data)
+        
+        self._logger.debug(f"both_shallow: group_center=({group_center_x:.3f}, {group_center_y:.3f}), {len(layer_data)} layers")
+        
+        # Step 2: Orbit each layer's center around group center
+        for layer, cached_instances, instances, layer_center_x, layer_center_y, temp_positions in layer_data:
+            # Calculate where layer center orbits to
+            new_layer_center_x, new_layer_center_y = self._rotate_point_around(
+                layer_center_x, layer_center_y,
+                group_center_x, group_center_y,
+                total_delta
+            )
+            
+            # Calculate translation offset for layer group
+            offset_x = new_layer_center_x - layer_center_x
+            offset_y = new_layer_center_y - layer_center_y
+            
+            self._logger.debug(f"  layer_center=({layer_center_x:.3f}, {layer_center_y:.3f}) -> ({new_layer_center_x:.3f}, {new_layer_center_y:.3f}), offset=({offset_x:.3f}, {offset_y:.3f})")
+            
+            # Apply offset to all instances (already rotated around layer center)
+            for inst_idx, inst in enumerate(instances):
+                if inst_idx >= len(temp_positions):
+                    continue
+                
+                temp_x, temp_y = temp_positions[inst_idx]
+                inst['pos_x'] = max(0.0, min(1.0, temp_x + offset_x))
+                inst['pos_y'] = max(0.0, min(1.0, temp_y + offset_y))
+    
+    def _apply_orbit_only_shallow(self, uuids: List[str], total_delta: float, cache: dict):
+        """Apply orbit_only shallow mode - layers translate as units
+        
+        This is special because instances don't orbit individually around a center,
+        they translate together as the layer's center orbits the group center.
+        """
+        # Calculate layer centers from cached positions
+        layer_data = []
+        for uuid in uuids:
+            if uuid not in cache['layers']:
+                continue
+            
+            layer = self._layers.get_by_uuid(uuid)
+            if not layer:
+                continue
+            
+            cached_instances = cache['layers'][uuid]['instances']
+            instances = layer._data.get('instances', [])
+            
+            if not cached_instances:
+                continue
+            
+            # Calculate layer center from cached positions
+            layer_center_x = sum(inst['pos_x'] for inst in cached_instances) / len(cached_instances)
+            layer_center_y = sum(inst['pos_y'] for inst in cached_instances) / len(cached_instances)
+            
+            layer_data.append((layer, cached_instances, instances, layer_center_x, layer_center_y))
+        
+        if not layer_data:
+            return
+        
+        # Calculate group center from layer centers
+        group_center_x = sum(ld[3] for ld in layer_data) / len(layer_data)
+        group_center_y = sum(ld[4] for ld in layer_data) / len(layer_data)
+        
+        # Apply orbit to each layer as a unit
+        for layer, cached_instances, instances, layer_center_x, layer_center_y in layer_data:
+            # Calculate where layer center orbits to
+            new_layer_center_x, new_layer_center_y = self._rotate_point_around(
+                layer_center_x, layer_center_y,
+                group_center_x, group_center_y,
+                total_delta
+            )
+            
+            # Calculate translation offset
+            offset_x = new_layer_center_x - layer_center_x
+            offset_y = new_layer_center_y - layer_center_y
+            
+            # Apply offset to all instances (translate as unit, no rotation)
+            for inst_idx, inst in enumerate(instances):
+                if inst_idx >= len(cached_instances):
+                    continue
+                
+                inst_cache = cached_instances[inst_idx]
+                inst['pos_x'] = max(0.0, min(1.0, inst_cache['pos_x'] + offset_x))
+                inst['pos_y'] = max(0.0, min(1.0, inst_cache['pos_y'] + offset_y))
+    
+    def end_rotation_transform(self):
+        """Clear rotation transform cache"""
+        if hasattr(self, '_rotation_cache'):
+            self._rotation_cache = None
+            self._logger.debug("Cleared rotation cache")
+    
+    def _get_rotation_groups(self, uuids: List[str], mode: str, cache: dict):
+        """Determine rotation groups based on mode
+        
+        Returns groups: list of (center_x, center_y, [(inst, inst_cache), ...])
+        
+        Deep modes: ONE group with all instances from all layers
+        Shallow modes: ONE group per layer
+        
+        Args:
+            uuids: Layer UUIDs to group
+            mode: Rotation mode
+            cache: Rotation cache dict
+            
+        Returns:
+            List of tuples: (center_x, center_y, [(inst_dict, inst_cache_dict), ...])
+        """
+        if 'deep' in mode:
+            # Deep modes: all instances are one unified group
+            all_instances = []
+            all_positions = []
+            
+            for uuid in uuids:
+                if uuid not in cache['layers']:
+                    continue
+                
+                layer = self._layers.get_by_uuid(uuid)
+                if not layer:
+                    continue
+                
+                cached_instances = cache['layers'][uuid]['instances']
+                instances = layer._data.get('instances', [])
+                
+                for inst_idx, inst in enumerate(instances):
+                    if inst_idx >= len(cached_instances):
+                        continue
+                    
+                    inst_cache = cached_instances[inst_idx]
+                    all_instances.append((inst, inst_cache))
+                    all_positions.append((inst_cache['pos_x'], inst_cache['pos_y']))
+            
+            if not all_positions:
+                return []
+            
+            # Calculate unified center from all cached positions
+            center_x = sum(p[0] for p in all_positions) / len(all_positions)
+            center_y = sum(p[1] for p in all_positions) / len(all_positions)
+            
+            return [(center_x, center_y, all_instances)]
+        
+        else:
+            # Shallow modes: each layer is its own group
+            # For rotate_only: use layer center
+            # For both: use layer center (instances orbit around their layer center AND rotate)
+            layer_groups = []
+            
+            for uuid in uuids:
+                if uuid not in cache['layers']:
+                    continue
+                
+                layer = self._layers.get_by_uuid(uuid)
+                if not layer:
+                    continue
+                
+                cached_instances = cache['layers'][uuid]['instances']
+                instances = layer._data.get('instances', [])
+                
+                layer_instances = []
+                layer_positions = []
+                
+                for inst_idx, inst in enumerate(instances):
+                    if inst_idx >= len(cached_instances):
+                        continue
+                    
+                    inst_cache = cached_instances[inst_idx]
+                    layer_instances.append((inst, inst_cache))
+                    layer_positions.append((inst_cache['pos_x'], inst_cache['pos_y']))
+                
+                if not layer_positions:
+                    continue
+                
+                # Calculate layer center from cached positions
+                layer_center_x = sum(p[0] for p in layer_positions) / len(layer_positions)
+                layer_center_y = sum(p[1] for p in layer_positions) / len(layer_positions)
+                
+                layer_groups.append((layer_center_x, layer_center_y, layer_instances))
+            
+            return layer_groups
+    
+    def _rotate_point_around(self, point_x: float, point_y: float, center_x: float, center_y: float, degrees: float) -> tuple:
+        """Rotate a point around a center by degrees
+        
+        Args:
+            point_x, point_y: Point to rotate
+            center_x, center_y: Center of rotation
+            degrees: Rotation angle in degrees
+            
+        Returns:
+            Tuple of (new_x, new_y)
+        """
+        import math
+        
+        # Convert to radians
+        radians = math.radians(degrees)
+        
+        # Translate to origin
+        dx = point_x - center_x
+        dy = point_y - center_y
+        
+        # Rotate
+        cos_angle = math.cos(radians)
+        sin_angle = math.sin(radians)
+        
+        new_dx = dx * cos_angle - dy * sin_angle
+        new_dy = dx * sin_angle + dy * cos_angle
+        
+        # Translate back
+        new_x = new_dx + center_x
+        new_y = new_dy + center_y
+        
+        return (new_x, new_y)
     
     def rotate_layer(self, uuid: str, delta_degrees: float):
         """Rotate layer by delta
