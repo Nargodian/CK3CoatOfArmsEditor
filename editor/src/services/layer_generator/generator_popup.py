@@ -123,9 +123,10 @@ class GeneratorPopup(QDialog):
         self.title_label.setStyleSheet("font-size: 14pt; font-weight: bold;")
         right_panel.addWidget(self.title_label)
         
-        # Controls container (will be populated by generator)
-        self.controls_container = QVBoxLayout()
-        right_panel.addLayout(self.controls_container)
+        # Controls container widget (will be populated by generator)
+        self.controls_widget = QWidget()
+        self.controls_layout = QVBoxLayout(self.controls_widget)
+        right_panel.addWidget(self.controls_widget)
         
         right_panel.addStretch()
         
@@ -157,7 +158,9 @@ class GeneratorPopup(QDialog):
         # Save settings from previous generator if any
         if self.current_generator:
             self._save_current_settings()
-            self._clear_controls()
+        
+        # Clear old controls
+        self._clear_controls()
         
         self.current_generator = generator
         self.setWindowTitle(f"Generate Layer - {generator.get_title()}")
@@ -168,15 +171,22 @@ class GeneratorPopup(QDialog):
         
         # Build generator controls
         controls_layout = generator.build_controls(self)
-        self.controls_container.addLayout(controls_layout)
+        
+        # Add all items from the generator's layout to our controls_layout
+        while controls_layout.count():
+            item = controls_layout.takeAt(0)
+            if item.widget():
+                self.controls_layout.addWidget(item.widget())
+            elif item.layout():
+                self.controls_layout.addLayout(item.layout())
         
         # Initial preview update
         self._update_preview()
     
     def _clear_controls(self):
         """Remove all widgets from controls container."""
-        while self.controls_container.count():
-            child = self.controls_container.takeAt(0)
+        while self.controls_layout.count():
+            child = self.controls_layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
             elif child.layout():
@@ -191,6 +201,7 @@ class GeneratorPopup(QDialog):
                 child.widget().deleteLater()
             elif child.layout():
                 self._clear_layout(child.layout())
+                child.layout().deleteLater()  # Delete nested layouts too
     
     def _update_preview(self):
         """Update preview with current generator parameters."""
@@ -252,11 +263,15 @@ class GeneratorPopup(QDialog):
     def _on_cancel(self):
         """Handle Cancel button click."""
         self._save_current_settings()
+        self._clear_controls()
+        self.current_generator = None
         self.reject()
     
     def closeEvent(self, event):
         """Handle window close (X button)."""
         self._save_current_settings()
+        self._clear_controls()
+        self.current_generator = None
         super().closeEvent(event)
     
     def get_generated_instances(self) -> Optional[np.ndarray]:
