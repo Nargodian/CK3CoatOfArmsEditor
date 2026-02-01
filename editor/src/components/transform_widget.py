@@ -171,6 +171,11 @@ class TransformWidget(QWidget):
 	def set_visible(self, visible):
 		"""Show/hide the transform widget"""
 		self.visible = visible
+		# Make widget transparent to mouse events when not visible
+		if visible:
+			self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+		else:
+			self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 		self.update()
 	
 	def set_minimal_mode(self, enabled):
@@ -385,6 +390,11 @@ class TransformWidget(QWidget):
 	def mousePressEvent(self, event):
 		"""Handle mouse press"""
 		if event.button() == Qt.LeftButton:
+			# If zoomed in and no layer selected, pass event to canvas for panning
+			if self.canvas_widget and self.canvas_widget.zoom_level > 1.0 and not self.isVisible():
+				self.canvas_widget.mousePressEvent(event)
+				return
+			
 			# Minimal mode: only allow center drag (no handle picking)
 			if self.minimal_mode:
 				# Check if click is inside bounding rect
@@ -420,6 +430,11 @@ class TransformWidget(QWidget):
 	
 	def mouseMoveEvent(self, event):
 		"""Handle mouse move"""
+		# Pass to canvas if it's panning
+		if self.canvas_widget and self.canvas_widget.is_panning:
+			self.canvas_widget.mouseMoveEvent(event)
+			return
+		
 		if self.active_handle != self.HANDLE_NONE and self.drag_start_pos:
 			# Check for Ctrl+drag duplication with 5-pixel threshold
 			if (self.ctrl_pressed_at_drag_start and 
@@ -467,6 +482,11 @@ class TransformWidget(QWidget):
 	
 	def mouseReleaseEvent(self, event):
 		"""Handle mouse release"""
+		# Pass to canvas if it's panning
+		if self.canvas_widget and self.canvas_widget.is_panning:
+			self.canvas_widget.mouseReleaseEvent(event)
+			return
+		
 		if event.button() == Qt.LeftButton and self.active_handle != self.HANDLE_NONE:
 			# Clear rotation state when releasing any handle (could have used Alt+wheel on any handle)
 			if self.is_rotating:

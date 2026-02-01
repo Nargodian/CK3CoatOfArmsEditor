@@ -140,8 +140,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def __init__(self, parent=None):
 		super().__init__(parent)
 		
-		# Enable wheel events
+		# Enable wheel events and mouse tracking
 		self.setFocusPolicy(Qt.WheelFocus)
+		self.setMouseTracking(True)
 		
 		#COA INTEGRATION ACTION: Step 5 - Add CoA model reference (set by CanvasArea/MainWindow)
 		# Note: CoA is accessed via CoA.get_active() in paintGL, not stored as instance variable
@@ -1229,6 +1230,11 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		if cursor_pos:
 			self._adjust_pan_for_zoom(cursor_pos, old_zoom, self.zoom_level)
 		
+		# Lock pan at 100% or below
+		if self.zoom_level <= 1.0:
+			self.pan_x = 0.0
+			self.pan_y = 0.0
+		
 		self._update_widget_size()
 		self.update()
 	
@@ -1239,6 +1245,11 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		
 		if cursor_pos:
 			self._adjust_pan_for_zoom(cursor_pos, old_zoom, self.zoom_level)
+		
+		# Lock pan at 100% or below
+		if self.zoom_level <= 1.0:
+			self.pan_x = 0.0
+			self.pan_y = 0.0
 		
 		self._update_widget_size()
 		self.update()
@@ -1263,14 +1274,43 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		"""Resize widget based on zoom level"""
 		base_size = 600  # Base widget size at 100% zoom
 		new_size = int(base_size * self.zoom_level)
-		self.setFixedSize(new_size, new_size)
 		
-		# Apply pan offset by moving widget position
+		# Update size and position in one atomic operation
 		if self.parent():
-			# Move widget within parent to apply pan
-			self.move(int(self.pan_x), int(self.pan_y))
-			self.parent().updateGeometry()
-			self.parent().update()
+			center_x = (self.parent().width() - new_size) // 2
+			center_y = (self.parent().height() - new_size) // 2
+			self.setGeometry(
+				int(center_x + self.pan_x),
+				int(center_y + self.pan_y),
+				new_size,
+				new_size
+			)
+		else:
+			self.setFixedSize(new_size, new_size)
+	
+	def _update_position(self):
+		"""Update widget position based on pan offset (centered + pan)"""
+		if not self.parent():
+			return
+		
+		# Disable updates during geometry change to prevent flicker
+		self.setUpdatesEnabled(False)
+		
+		# Calculate centered position
+		center_x = (self.parent().width() - self.width()) // 2
+		center_y = (self.parent().height() - self.height()) // 2
+		
+		# Apply pan offset from center - use setGeometry to avoid flicker
+		self.setGeometry(
+			int(center_x + self.pan_x),
+			int(center_y + self.pan_y),
+			self.width(),
+			self.height()
+		)
+		
+		# Re-enable updates
+		self.setUpdatesEnabled(True)
+		self.update()
 	
 	def _adjust_pan_for_zoom(self, cursor_pos, old_zoom, new_zoom):
 		"""Adjust pan offset to keep cursor position fixed during zoom"""
@@ -1439,3 +1479,56 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			event.accept()
 		else:
 			super().wheelEvent(event)
+	
+	def mousePressEvent(self, event):
+		"""Handle mouse press for panning when zoomed"""
+		from PyQt5.QtCore import Qt
+		
+		# Enable panning when zoomed in (>100%) with left button
+		if event.button() == Qt.LeftButton and self.zoom_level > 1.0:
+			self.is_panning = True
+			self.last_mouse_pos = event.globalPos()  # Use global position, not widget-relative
+			self.setCursor(Qt.ClosedHandCursor)
+			event.accept()
+		else:
+			super().mousePressEvent(event)
+	
+	def mouseMoveEvent(self, event):
+		"""Handle mouse move for panning"""
+		from PyQt5.QtCore import Qt
+		
+		if self.is_panning and self.last_mouse_pos:
+			# Calculate delta using global coordinates
+			delta = event.globalPos() - self.last_mouse_pos
+			self.last_mouse_pos = event.globalPos()
+			
+			# Update pan offset
+			self.pan_x += delta.x()
+			self.pan_y += delta.y()
+			
+			# Update widget position
+			self._update_position()
+			event.accept()
+		else:
+			# Show open hand cursor when hovering and zoomed in
+			if self.zoom_level > 1.0:
+				self.setCursor(Qt.OpenHandCursor)
+			else:
+				self.setCursor(Qt.ArrowCursor)
+			super().mouseMoveEvent(event)
+	
+	def mouseReleaseEvent(self, event):
+		"""Handle mouse release to end panning"""
+		from PyQt5.QtCore import Qt
+		
+		if event.button() == Qt.LeftButton and self.is_panning:
+			self.is_panning = False
+			self.last_mouse_pos = None
+			# Restore cursor
+			if self.zoom_level > 1.0:
+				self.setCursor(Qt.OpenHandCursor)
+			else:
+				self.setCursor(Qt.ArrowCursor)
+			event.accept()
+		else:
+			super().mouseReleaseEvent(event)
