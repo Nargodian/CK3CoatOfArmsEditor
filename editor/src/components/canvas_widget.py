@@ -85,9 +85,10 @@ def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0, zo
 	
 	# Convert OpenGL normalized (-1.0 to +1.0) to pixels
 	# Must account for composite quad base_size factor (quad only occupies VIEWPORT_BASE_SIZE of viewport)
-	# and COMPOSITE_SCALE (shrinks CoA to fit under frame) and zoom_level
-	pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
-	pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
+	# and COMPOSITE_SCALE (shrinks CoA to fit under frame)
+	# canvas_size already incorporates zoom via widget resize, so don't multiply by zoom_level again
+	pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+	pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 	
 	# Qt Y-axis is inverted (down is positive)
 	# Canvas center is at (offset + size/2, offset + size/2)
@@ -117,9 +118,10 @@ def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0, zoom
 	
 	# Convert pixels to OpenGL normalized space
 	# Qt Y-down to OpenGL Y-up: negate pixel_y
-	# Must account for composite quad base_size factor, COMPOSITE_SCALE and zoom_level
-	gl_x = pixel_x / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / zoom_level
-	gl_y = -pixel_y / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / zoom_level
+	# Must account for composite quad base_size factor and COMPOSITE_SCALE
+	# canvas_size already incorporates zoom via widget resize, so don't divide by zoom_level again
+	gl_x = pixel_x / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE
+	gl_y = -pixel_y / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE
 	
 	# Convert OpenGL coords back to layer position
 	# layer_pos_to_opengl_coords: gl_x = pos_x * 2.0 - 1.0

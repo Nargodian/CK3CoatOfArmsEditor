@@ -199,10 +199,11 @@ class TransformWidget(QWidget):
 		# Convert layer position to Qt pixel coordinates
 		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level)
 		
-		# Widget box shows fixed size based on scale values and zoom
-		# Must match emblem rendering: multiply by VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom
-		scale_w = abs(self.scale_x) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
-		scale_h = abs(self.scale_y) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
+		# Widget box shows fixed size based on scale values
+		# Must match emblem rendering: multiply by VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+		# size already incorporates zoom via widget resize
+		scale_w = abs(self.scale_x) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+		scale_h = abs(self.scale_y) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 		
 		# Minimal mode: only draw faint bounding box
 		if self.minimal_mode:
@@ -330,9 +331,10 @@ class TransformWidget(QWidget):
 		
 		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level)
 		
-		# Must match paintEvent scaling: multiply by VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom
-		scaled_w = abs(self.scale_x) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
-		scaled_h = abs(self.scale_y) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
+		# Must match paintEvent scaling: multiply by VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+		# size already incorporates zoom via widget resize
+		scaled_w = abs(self.scale_x) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+		scaled_h = abs(self.scale_y) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 		
 		handles = self._get_handle_positions(center_x, center_y, scaled_w, scaled_h)
 		
@@ -622,7 +624,7 @@ class TransformWidget(QWidget):
 			
 		elif self.active_handle == self.HANDLE_AXIS_X:
 			# X-axis constrained movement (only horizontal)
-			canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
+			canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 			delta_x = dx / canvas_scale
 			self.pos_x = start_x + delta_x
 			# Y position stays locked
@@ -630,7 +632,7 @@ class TransformWidget(QWidget):
 		
 		elif self.active_handle == self.HANDLE_AXIS_Y:
 			# Y-axis constrained movement (only vertical)
-			canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
+			canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 			delta_y = dy / canvas_scale
 			self.pos_y = start_y + delta_y
 			# X position stays locked
@@ -743,7 +745,7 @@ class TransformWidget(QWidget):
 				# Distance is full width (anchor is at opposite edge)
 				# Scale value IS the full width in layer coordinates
 				new_width_px = abs(current_pos.x() - anchor_x_px)
-				canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
+				canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 				new_scale_x = new_width_px / canvas_scale
 				
 				# Preserve sign
@@ -789,7 +791,7 @@ class TransformWidget(QWidget):
 				# Distance is full height (anchor is at opposite edge)
 				# Scale value IS the full height in layer coordinates
 				new_height_px = abs(current_pos.y() - anchor_y_px)
-				canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
+				canvas_scale = size * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 				new_scale_y = new_height_px / canvas_scale
 				
 				# Preserve sign
