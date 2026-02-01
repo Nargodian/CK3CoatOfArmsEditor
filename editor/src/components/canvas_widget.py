@@ -1127,9 +1127,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		uncentered_x = scaled_x + 0.5
 		uncentered_y = scaled_y + 0.5
 		
-		# Apply frame offset
-		frame_x = uncentered_x - offset[0]/scale[0]
-		frame_y = uncentered_y - offset[1]/scale[1]
+		# Apply frame offset (must match inverse of frame_to_coa_space)
+		frame_x = uncentered_x - offset[0]*scale[0]
+		frame_y = uncentered_y - offset[1]*scale[1]
 		
 		return (frame_x, frame_y)
 	
