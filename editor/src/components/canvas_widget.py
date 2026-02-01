@@ -1086,7 +1086,11 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			scale_ratio_y = new_scale[1] / old_scale[1] if old_scale[1] != 0 else 1.0
 			offset_delta_x = new_offset[0] - old_offset[0]
 			offset_delta_y = new_offset[1] - old_offset[1]
-			self.canvas_area.transform_widget.rescale_for_frame_change(scale_ratio_x, scale_ratio_y, offset_delta_x, offset_delta_y)
+			self.canvas_area.transform_widget.rescale_for_frame_change(
+				scale_ratio_x, scale_ratio_y, 
+				offset_delta_x, offset_delta_y,
+				new_scale[0], new_scale[1]
+			)
 	
 	def get_frame_transform(self):
 		"""Get the current frame's scale and offset
