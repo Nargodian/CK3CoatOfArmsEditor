@@ -2,6 +2,7 @@
 from PyQt5.QtWidgets import QMessageBox, QApplication
 from models.coa import Layer
 from utils.logger import loggerRaise
+from constants import PASTE_OFFSET_X, PASTE_OFFSET_Y
 
 
 class ClipboardActions:
@@ -139,7 +140,7 @@ class ClipboardActions:
 			temp_coa.adjust_layer_positions(temp_uuids, PASTE_OFFSET_X, PASTE_OFFSET_Y)
 			
 			# Serialize adjusted layers back to string
-			layers_string = temp_coa.to_layers_string()
+			layers_string = temp_coa.serialize_layers_to_string(temp_uuids)
 			
 			# Check for selection to paste above
 			selected_uuids = self.main_window.right_sidebar.get_selected_uuids()

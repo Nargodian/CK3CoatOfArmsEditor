@@ -176,6 +176,20 @@ class Layer:
         if 'uuid' not in self._data:
             self._data['uuid'] = str(uuid_module.uuid4())
         
+        # Ensure name property exists (default to texture filename if missing)
+        if 'name' not in self._data or not self._data['name']:
+            filename = self._data.get('filename', '')
+            if filename:
+                # Remove .dds extension if present
+                if filename.endswith('.dds'):
+                    self._data['name'] = filename[:-4]
+                else:
+                    # Remove any other extension
+                    import os
+                    self._data['name'] = os.path.splitext(filename)[0]
+            else:
+                self._data['name'] = 'empty'
+        
         # Convert instance dictionaries to Instance objects
         if 'instances' in self._data:
             instances = self._data['instances']
@@ -395,6 +409,31 @@ class Layer:
     def visible(self, value: bool):
         """Set visibility state"""
         self._data['visible'] = bool(value)
+    
+    @property
+    def name(self) -> str:
+        """Get layer name (editor-only metadata)
+        
+        Defaults to texture filename without extension.
+        """
+        name = self._data.get('name', '')
+        if name:
+            return name
+        # Default to texture filename without extension
+        filename = self.filename
+        if filename:
+            # Remove .dds extension if present
+            if filename.endswith('.dds'):
+                return filename[:-4]
+            # Remove any other extension
+            import os
+            return os.path.splitext(filename)[0]
+        return 'empty'
+    
+    @name.setter
+    def name(self, value: str):
+        """Set layer name (editor-only metadata)"""
+        self._data['name'] = str(value) if value else ''
     
     # ========================================
     # Instance Management
@@ -632,6 +671,8 @@ class Layer:
         
         lines = []
         lines.append('\tcolored_emblem = {')
+        lines.append(f'\t\tuuid = "{self.uuid}"')
+        lines.append(f'\t\tname = "{self.name}"')
         lines.append(f'\t\ttexture = "{self.filename}"')
         
         # Add colors based on color count
@@ -701,8 +742,25 @@ class Layer:
         if isinstance(mask, list):
             mask = [int(x) for x in mask]
         
+        # Parse UUID (preserve if present, generate if missing)
+        layer_uuid = data.get('uuid', str(uuid_module.uuid4()))
+        
+        # Parse name (preserve if present, default to texture filename)
+        name = data.get('name', '')
+        if not name:
+            # Default to texture filename without extension
+            if filename:
+                if filename.endswith('.dds'):
+                    name = filename[:-4]
+                else:
+                    import os
+                    name = os.path.splitext(filename)[0]
+            else:
+                name = 'empty'
+        
         layer_data = {
-            'uuid': str(uuid_module.uuid4()),
+            'uuid': layer_uuid,
+            'name': name,
             'filename': filename,
             'path': filename,
             'colors': color_count,

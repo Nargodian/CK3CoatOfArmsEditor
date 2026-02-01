@@ -530,8 +530,16 @@ class CoA(CoAQueryMixin):
             if not instances:
                 instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0, 'depth': 0}]
             
+            # Parse UUID (preserve if present, generate if missing)
+            layer_uuid = emblem.get('uuid', str(uuid_module.uuid4()))
+            
+            # Parse name (preserve if present, will default in Layer.__init__ if missing)
+            layer_name = emblem.get('name', '')
+            
             # Create layer data
             layer_data = {
+                'uuid': layer_uuid,
+                'name': layer_name,
                 'filename': filename,
                 'colors': 3,
                 'color1': color1,
@@ -544,8 +552,7 @@ class CoA(CoAQueryMixin):
                 'instances': [],
                 'selected_instance': 0,
                 'flip_x': False,
-                'flip_y': False,
-                'uuid': str(uuid_module.uuid4())
+                'flip_y': False
             }
             
             # Parse instances
@@ -1681,6 +1688,24 @@ class CoA(CoAQueryMixin):
         
         layer.visible = visible
         self._logger.debug(f"Set layer {uuid} visibility: {visible}")
+    
+    def get_layer_visible(self, uuid: str) -> bool:
+        """Get layer visibility
+        
+        Args:
+            uuid: Layer UUID
+            
+        Returns:
+            True if visible, False if hidden
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        return layer.visible
     
     def set_layer_mask(self, uuid: str, mask: List[int]):
         """Set layer mask channels
@@ -3086,6 +3111,47 @@ class CoA(CoAQueryMixin):
             raise ValueError(f"Layer with UUID '{uuid}' not found")
         
         return getattr(layer, property_name)
+    
+    def get_layer_name(self, uuid: str) -> str:
+        """Get layer name (editor-only metadata)
+        
+        Returns the layer's display name, which defaults to the texture filename
+        without extension if no custom name has been set.
+        
+        Args:
+            uuid: Layer UUID
+            
+        Returns:
+            Layer name string
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        return layer.name
+    
+    def set_layer_name(self, uuid: str, name: str):
+        """Set layer name (editor-only metadata)
+        
+        The layer name is purely for editor organization and display.
+        It does not affect the layer's UUID or identity.
+        
+        Args:
+            uuid: Layer UUID
+            name: New display name for the layer
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        layer.name = name
+        self._logger.debug(f"Set layer {uuid} name: {name}")
     
     def get_layer_bounds(self, uuid: str) -> Dict[str, float]:
         """Calculate layer bounds (AABB) including all instances

@@ -177,6 +177,7 @@ class CoatOfArmsEditor(QMainWindow):
 		#COA INTEGRATION ACTION: Step 3 - Pass CoA reference to property sidebar and layer list
 		self.right_sidebar.coa = self.coa
 		self.right_sidebar.layer_list_widget.coa = self.coa
+		self.right_sidebar.layer_list_widget.main_window = self  # For history snapshots
 		splitter.addWidget(self.right_sidebar)
 		
 		# Connect sidebars together

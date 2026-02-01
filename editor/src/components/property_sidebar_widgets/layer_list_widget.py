@@ -6,7 +6,7 @@ Handles layer display, selection, drag-drop reordering, and inline actions.
 """
 
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, 
-                             QHBoxLayout, QApplication)
+                             QHBoxLayout, QApplication, QLineEdit)
 from PyQt5.QtCore import Qt, QMimeData, QByteArray, QSize
 from PyQt5.QtGui import QPixmap, QDrag
 import json
@@ -31,6 +31,7 @@ class LayerListWidget(QWidget):
 		self.drag_start_pos = None
 		self.thumbnail_cache = {}  # uuid -> QPixmap cache
 		self.property_sidebar = None  # Reference to parent PropertySidebar (for accessing base colors)
+		self.main_window = None  # Reference to main window (for history snapshots)
 		
 		# Callbacks (set by parent)
 		self.on_selection_changed = None
@@ -169,23 +170,33 @@ class LayerListWidget(QWidget):
 		
 		btn_layout.addWidget(icon_container)
 		
-		# Add layer name - query from CoA by UUID
-		layer_name = filename or 'Empty Layer'
+		# Add layer name - query from CoA by UUID using get_layer_name()
+		layer_name = self.coa.get_layer_name(uuid) if self.coa else 'Empty Layer'
 		
-		# Remove .dds extension for display
-		if layer_name.lower().endswith('.dds'):
-			layer_name = layer_name[:-4]
+		# Create editable name label
+		name_widget = QWidget()
+		name_widget.setStyleSheet("border: none;")
+		name_layout = QVBoxLayout(name_widget)
+		name_layout.setContentsMargins(0, 0, 0, 0)
+		name_layout.setSpacing(0)
 		
 		name_label = QLabel(layer_name)
 		name_label.setWordWrap(True)
 		name_label.setStyleSheet("border: none; font-size: 11px;")
+		name_label.setProperty('layer_uuid', uuid)
+		
+		# Enable double-click to edit
+		name_label.mouseDoubleClickEvent = lambda event, u=uuid, lbl=name_label: self._start_name_edit(event, u, lbl, name_widget, name_layout)
 		
 		# Add tooltip for multi-instance layers
 		if instance_count > 1:
 			instance_word = "instances" if instance_count > 1 else "instance"
-			name_label.setToolTip(f"Multi-instance layer ({instance_count} {instance_word})")
+			name_label.setToolTip(f"Multi-instance layer ({instance_count} {instance_word}). Double-click to rename.")
+		else:
+			name_label.setToolTip("Double-click to rename")
 		
-		btn_layout.addWidget(name_label, stretch=1)
+		name_layout.addWidget(name_label)
+		btn_layout.addWidget(name_widget, stretch=1)
 		
 		# Add inline color, duplicate and delete buttons
 		button_container = self._create_inline_buttons(uuid)
@@ -360,6 +371,72 @@ class LayerListWidget(QWidget):
 		inline_layout.addWidget(action_container)
 		
 		return button_container
+	
+	def _start_name_edit(self, event, uuid, label, name_widget, name_layout):
+		"""Start inline editing of layer name"""
+		if not self.coa:
+			return
+		
+		# Get current name
+		current_name = self.coa.get_layer_name(uuid)
+		
+		# Hide label
+		label.hide()
+		
+		# Create line edit
+		line_edit = QLineEdit(current_name)
+		line_edit.setStyleSheet("""
+			QLineEdit {
+				border: 1px solid #5a8dbf;
+				border-radius: 2px;
+				background-color: rgba(255, 255, 255, 200);
+				color: black;
+				font-size: 11px;
+				padding: 2px;
+			}
+		""")
+		line_edit.setProperty('layer_uuid', uuid)
+		line_edit.setProperty('original_label', label)
+		
+		# Connect signals
+		line_edit.editingFinished.connect(lambda: self._finish_name_edit(uuid, line_edit, label, name_widget))
+		line_edit.returnPressed.connect(lambda: self._finish_name_edit(uuid, line_edit, label, name_widget))
+		
+		# Add to layout and focus
+		name_layout.addWidget(line_edit)
+		line_edit.setFocus()
+		line_edit.selectAll()
+	
+	def _finish_name_edit(self, uuid, line_edit, label, name_widget):
+		"""Finish inline editing of layer name"""
+		if not self.coa:
+			return
+		
+		# Get old name for comparison
+		old_name = self.coa.get_layer_name(uuid)
+		
+		# Get new name
+		new_name = line_edit.text().strip()
+		
+		# If empty, revert to default (texture filename)
+		if not new_name:
+			# Setting empty string triggers default in Layer.name property
+			new_name = ''
+		
+		# Update CoA model
+		self.coa.set_layer_name(uuid, new_name)
+		
+		# Update label text with actual name (might be defaulted)
+		actual_name = self.coa.get_layer_name(uuid)
+		label.setText(actual_name)
+		
+		# Create snapshot if name actually changed
+		if old_name != actual_name and self.main_window:
+			self.main_window._save_state(f"Rename layer to '{actual_name}'")
+		
+		# Remove line edit and show label again
+		line_edit.deleteLater()
+		label.show()
 	
 	def _layer_mouse_press(self, event, uuid, button):
 		"""Handle mouse press on layer button for drag start"""

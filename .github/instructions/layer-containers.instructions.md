@@ -6,6 +6,10 @@ applyTo: '**'
 
 **Full planning document:** [docs/layer_containers_plan.txt](../../docs/layer_containers_plan.txt)
 
+AVOID BLOAT TO EXISTING STRUCTURES WHENEVER POSSIBLE.
+group features into seperate py files if needed.
+BUT THE PLAN COMES FIRST.
+
 ## Identity vs Organization
 **A layer's UUID is its soul. A container_uuid is just its address.**
 - Layer UUID never changes (stable identity)
