@@ -533,12 +533,16 @@ class CoA(CoAQueryMixin):
             # Parse UUID (preserve if present, generate if missing)
             layer_uuid = emblem.get('uuid', str(uuid_module.uuid4()))
             
+            # Parse container_uuid (preserve if present)
+            container_uuid = emblem.get('container_uuid')
+            
             # Parse name (preserve if present, will default in Layer.__init__ if missing)
             layer_name = emblem.get('name', '')
             
             # Create layer data
             layer_data = {
                 'uuid': layer_uuid,
+                'container_uuid': container_uuid,
                 'name': layer_name,
                 'filename': filename,
                 'colors': 3,
@@ -3152,6 +3156,68 @@ class CoA(CoAQueryMixin):
         
         layer.name = name
         self._logger.debug(f"Set layer {uuid} name: {name}")
+    
+    def get_layer_container(self, uuid: str) -> Optional[str]:
+        """Get layer's container UUID
+        
+        Args:
+            uuid: Layer UUID
+            
+        Returns:
+            Container UUID string if layer is in a container, None if at root level
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        return layer.container_uuid
+    
+    def set_layer_container(self, uuid: str, container_uuid: Optional[str]):
+        """Set layer's container UUID
+        
+        Args:
+            uuid: Layer UUID
+            container_uuid: Container UUID string, or None for root level
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        layer.container_uuid = container_uuid
+        self._logger.debug(f"Set layer {uuid} container_uuid: {container_uuid}")
+    
+    def get_layers_by_container(self, container_uuid: Optional[str]) -> List[str]:
+        """Get all layer UUIDs that belong to a specific container
+        
+        Args:
+            container_uuid: Container UUID to search for, or None for root-level layers
+            
+        Returns:
+            List of layer UUIDs that have the matching container_uuid
+        """
+        matching_uuids = []
+        for layer in self._layers:
+            if layer.container_uuid == container_uuid:
+                matching_uuids.append(layer.uuid)
+        return matching_uuids
+    
+    def get_all_containers(self) -> List[str]:
+        """Get list of all unique container UUIDs currently in use
+        
+        Returns:
+            List of unique container UUID strings (excludes None/root layers)
+        """
+        containers = set()
+        for layer in self._layers:
+            if layer.container_uuid is not None:
+                containers.add(layer.container_uuid)
+        return sorted(list(containers))
     
     def get_layer_bounds(self, uuid: str) -> Dict[str, float]:
         """Calculate layer bounds (AABB) including all instances

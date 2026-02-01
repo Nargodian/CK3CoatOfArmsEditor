@@ -435,6 +435,20 @@ class Layer:
         """Set layer name (editor-only metadata)"""
         self._data['name'] = str(value) if value else ''
     
+    @property
+    def container_uuid(self) -> Optional[str]:
+        """Get container UUID (editor-only metadata)
+        
+        Returns None if layer is at root level, otherwise returns
+        the container UUID string that groups related layers.
+        """
+        return self._data.get('container_uuid')
+    
+    @container_uuid.setter
+    def container_uuid(self, value: Optional[str]):
+        """Set container UUID (editor-only metadata)"""
+        self._data['container_uuid'] = value
+    
     # ========================================
     # Instance Management
     # ========================================
@@ -672,6 +686,8 @@ class Layer:
         lines = []
         lines.append('\tcolored_emblem = {')
         lines.append(f'\t\tuuid = "{self.uuid}"')
+        if self.container_uuid:
+            lines.append(f'\t\tcontainer_uuid = "{self.container_uuid}"')
         lines.append(f'\t\tname = "{self.name}"')
         lines.append(f'\t\ttexture = "{self.filename}"')
         
@@ -745,6 +761,9 @@ class Layer:
         # Parse UUID (preserve if present, generate if missing)
         layer_uuid = data.get('uuid', str(uuid_module.uuid4()))
         
+        # Parse container_uuid (preserve if present, None if missing)
+        container_uuid = data.get('container_uuid')
+        
         # Parse name (preserve if present, default to texture filename)
         name = data.get('name', '')
         if not name:
@@ -760,6 +779,7 @@ class Layer:
         
         layer_data = {
             'uuid': layer_uuid,
+            'container_uuid': container_uuid,
             'name': name,
             'filename': filename,
             'path': filename,
