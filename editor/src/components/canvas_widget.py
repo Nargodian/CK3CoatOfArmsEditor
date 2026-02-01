@@ -1115,8 +1115,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		"""
 		scale, offset = self.get_frame_transform()
 		# Apply frame scale and offset
-		frame_x = (pos_x - 0.5) * scale[0] + 0.5 + offset[0]
-		frame_y = (pos_y - 0.5) * scale[1] + 0.5 + offset[1]
+		frame_x = (pos_x - 0.5) * scale[0] + 0.5 - offset[0]
+		frame_y = (pos_y - 0.5) * scale[1] + 0.5 - offset[1]
 		return (frame_x, frame_y)
 	
 	def frame_to_coa_space(self, frame_x, frame_y):
