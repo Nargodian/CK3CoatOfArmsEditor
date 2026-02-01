@@ -54,7 +54,7 @@ class CanvasArea(QFrame):
 		self.canvas_widget = CoatOfArmsCanvas()
 		self.canvas_widget.canvas_area = self  # Give canvas access to canvas_area
 		self.canvas_widget.setMinimumSize(400, 400)
-		self.canvas_widget.setMaximumSize(1000, 1000)
+		self.canvas_widget.setMaximumSize(3000, 3000)  # Allow zoom up to 500% (600 * 5.0)
 		
 		canvas_layout.addWidget(self.canvas_widget)
 		

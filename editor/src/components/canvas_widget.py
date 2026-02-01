@@ -315,7 +315,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self._render_coa_to_framebuffer()
 		
 		# Restore viewport to widget size (RTT sets it to 512x512)
-		size = min(self.width(), self.height())
+		# Cap viewport at 1200x1200 to prevent excessive pixel counts
+		size = min(self.width(), self.height(), 1200)
 		x = (self.width() - size) // 2
 		y = (self.height() - size) // 2
 		gl.glViewport(x, y, size, size)
@@ -1212,15 +1213,25 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	# Zoom and View Controls
 	# ========================================
 	
-	def zoom_in(self):
+	def zoom_in(self, cursor_pos=None):
 		"""Zoom in by 25%"""
+		old_zoom = self.zoom_level
 		self.zoom_level = min(self.zoom_level * 1.25, 5.0)  # Max 5x zoom (500%)
+		
+		if cursor_pos:
+			self._adjust_pan_for_zoom(cursor_pos, old_zoom, self.zoom_level)
+		
 		self._update_widget_size()
 		self.update()
 	
-	def zoom_out(self):
+	def zoom_out(self, cursor_pos=None):
 		"""Zoom out by 25%"""
+		old_zoom = self.zoom_level
 		self.zoom_level = max(self.zoom_level / 1.25, 0.25)  # Min 0.25x zoom (25%)
+		
+		if cursor_pos:
+			self._adjust_pan_for_zoom(cursor_pos, old_zoom, self.zoom_level)
+		
 		self._update_widget_size()
 		self.update()
 	
@@ -1245,6 +1256,37 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		base_size = 600  # Base widget size at 100% zoom
 		new_size = int(base_size * self.zoom_level)
 		self.setFixedSize(new_size, new_size)
+	
+	def _adjust_pan_for_zoom(self, cursor_pos, old_zoom, new_zoom):
+		"""Adjust pan offset to keep cursor position fixed during zoom"""
+		# Get current widget size before resize
+		old_size = int(600 * old_zoom)
+		new_size = int(600 * new_zoom)
+		
+		# Convert cursor position to layer coordinates (0-1 range) at old zoom
+		# cursor_pos is in widget coordinates
+		layer_pos = qt_pixels_to_layer_pos(
+			cursor_pos.x(), cursor_pos.y(), 
+			old_size, 
+			offset_x=0, offset_y=0
+		)
+		
+		# After zoom, we want the same layer position to be under the cursor
+		# Calculate where that layer position will be in the new widget size
+		new_widget_pos = layer_pos_to_qt_pixels(
+			layer_pos[0], layer_pos[1],
+			new_size,
+			offset_x=0, offset_y=0
+		)
+		
+		# Calculate the offset change needed
+		delta_x = cursor_pos.x() - new_widget_pos[0]
+		delta_y = cursor_pos.y() - new_widget_pos[1]
+		
+		# Adjust pan offset (convert from Qt pixels to GL coordinates)
+		# Pan is in GL coordinates (-1 to 1), so convert delta
+		self.pan_offset_x += (delta_x / new_size) * 2.0
+		self.pan_offset_y -= (delta_y / new_size) * 2.0  # Invert Y for GL
 	
 	def set_show_grid(self, show):
 		"""Toggle grid visibility"""
@@ -1378,12 +1420,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		
 		# Check for Ctrl key modifier
 		if event.modifiers() & Qt.ControlModifier:
-			# Zoom in/out with Ctrl+Wheel
+			# Zoom in/out with Ctrl+Wheel centered on cursor
+			cursor_pos = event.pos()
 			delta = event.angleDelta().y()
 			if delta > 0:
-				self.zoom_in()
+				self.zoom_in(cursor_pos)
 			elif delta < 0:
-				self.zoom_out()
+				self.zoom_out(cursor_pos)
 			
 			# Notify main window to update zoom toolbar
 			if self.canvas_area and hasattr(self.canvas_area, 'parent'):
