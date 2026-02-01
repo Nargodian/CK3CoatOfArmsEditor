@@ -221,12 +221,22 @@ class ClipboardActions:
 				self.main_window.canvas_area.canvas_widget.height()
 			)
 			
-			# Convert to normalized coordinates (-0.5 to 0.5 range, then offset to 0-1)
-			# Formula: ((pixel_coord - center) / (size/2)) / 1.1 + 0.5
-			# The 1.1 factor accounts for the rendering bounds scaling
-			center = canvas_size / 2
-			norm_x = ((canvas_x - center) / (canvas_size / 2) / 1.1) + 0.5
-			norm_y = ((canvas_y - center) / (canvas_size / 2) / 1.1) + 0.5
+			# Get canvas offset within parent for qt_pixels_to_layer_pos
+			canvas_offset_x = canvas_geometry.x()
+			canvas_offset_y = canvas_geometry.y()
+			
+			# Get zoom level
+			zoom_level = getattr(self.main_window.canvas_area.canvas_widget, 'zoom_level', 1.0)
+			
+			# Convert Qt pixels to frame space using shared coordinate functions
+			from components.canvas_widget import qt_pixels_to_layer_pos
+			frame_x, frame_y = qt_pixels_to_layer_pos(
+				mouse_pos.x(), mouse_pos.y(),
+				canvas_size, canvas_offset_x, canvas_offset_y, zoom_level
+			)
+			
+			# Convert frame space to CoA space
+			norm_x, norm_y = self.main_window.canvas_area.canvas_widget.frame_to_coa_space(frame_x, frame_y)
 			
 			# Get all UUIDs from temp CoA
 			temp_uuids = [temp_coa.get_layer_uuid_by_index(i) for i in range(temp_coa.get_layer_count())]
