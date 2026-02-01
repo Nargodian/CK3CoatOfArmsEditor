@@ -264,6 +264,9 @@ class ShapeGenerator(BaseGenerator):
             
             positions[i] = [x, y, scale, scale, rotation]
         
+        # Remove overlapping endpoints for closed shapes
+        positions = self.remove_overlapping_endpoints(positions)
+        
         # Add label codes for text mode preview
         positions = self.add_label_codes(positions)
         

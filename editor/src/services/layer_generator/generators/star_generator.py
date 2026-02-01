@@ -188,4 +188,9 @@ class StarGenerator(BaseGenerator):
                 
                 positions.append([x, y, scale, scale, rotation])
         
-        return np.array(positions)
+        positions = np.array(positions)
+        
+        # Remove overlapping endpoints for closed star path
+        positions = self.remove_overlapping_endpoints(positions)
+        
+        return positions
