@@ -253,7 +253,7 @@ class ClipboardActions:
 				temp_coa.set_layer_position(temp_uuids[0], norm_x, norm_y)
 			
 			# Serialize adjusted layers back to string
-			layers_string = temp_coa.to_layers_string()
+			layers_string = temp_coa.serialize_layers_to_string(temp_uuids)
 			
 			# Parse directly into main CoA (no target_uuid = insert at front)
 			new_uuids = self.main_window.coa.parse(layers_string, target_uuid=None)
