@@ -1086,11 +1086,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			scale_ratio_y = new_scale[1] / old_scale[1] if old_scale[1] != 0 else 1.0
 			offset_delta_x = new_offset[0] - old_offset[0]
 			offset_delta_y = new_offset[1] - old_offset[1]
-			self.canvas_area.transform_widget.rescale_for_frame_change(
-				scale_ratio_x, scale_ratio_y, 
-				offset_delta_x, offset_delta_y,
-				new_scale[0], new_scale[1]
-			)
+			self.canvas_area.transform_widget.rescale_for_frame_change(scale_ratio_x, scale_ratio_y, offset_delta_x, offset_delta_y)
 	
 	def get_frame_transform(self):
 		"""Get the current frame's scale and offset
@@ -1127,13 +1123,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		scaled_x = centered_x * scale[0]
 		scaled_y = centered_y * scale[1]
 		
-		# Move back from origin
-		uncentered_x = scaled_x + 0.5
-		uncentered_y = scaled_y + 0.5
-		
-		# Apply frame offset
-		frame_x = uncentered_x - offset[0]/scale[0]
-		frame_y = uncentered_y - offset[1]/scale[1]
+		# Move back from origin and apply offset
+		# Offset is applied AFTER scaling in shader, so subtract it directly
+		frame_x = scaled_x + 0.5 - offset[0]
+		frame_y = scaled_y + 0.5 - offset[1]
 		
 		return (frame_x, frame_y)
 	
@@ -1148,13 +1141,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		"""
 		scale, offset = self.get_frame_transform()
 		
-		# Remove frame offset
-		no_offset_x = frame_x + offset[0]*scale[0]
-		no_offset_y = frame_y + offset[1]*scale[1]
-		
-		# Center position (move to origin)
-		centered_x = no_offset_x - 0.5
-		centered_y = no_offset_y - 0.5
+		# Remove frame offset and center (move to origin)
+		# Offset was applied after scaling, so add it back directly
+		centered_x = frame_x - 0.5 + offset[0]
+		centered_y = frame_y - 0.5 + offset[1]
 		
 		# Remove frame scale
 		unscaled_x = centered_x / scale[0]
