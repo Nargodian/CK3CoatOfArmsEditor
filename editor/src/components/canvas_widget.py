@@ -1123,10 +1123,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		scaled_x = centered_x * scale[0]
 		scaled_y = centered_y * scale[1]
 		
-		# Move back from origin and apply offset
-		# Offset is applied AFTER scaling in shader, so subtract it directly
-		frame_x = scaled_x + 0.5 - offset[0]
-		frame_y = scaled_y + 0.5 - offset[1]
+		# Move back from origin
+		uncentered_x = scaled_x + 0.5
+		uncentered_y = scaled_y + 0.5
+		
+		# Apply frame offset
+		frame_x = uncentered_x - offset[0]/scale[0]
+		frame_y = uncentered_y - offset[1]/scale[1]
 		
 		return (frame_x, frame_y)
 	
@@ -1141,10 +1144,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		"""
 		scale, offset = self.get_frame_transform()
 		
-		# Remove frame offset and center (move to origin)
-		# Offset was applied after scaling, so add it back directly
-		centered_x = frame_x - 0.5 + offset[0]
-		centered_y = frame_y - 0.5 + offset[1]
+		# Remove frame offset
+		no_offset_x = frame_x + offset[0]*scale[0]
+		no_offset_y = frame_y + offset[1]*scale[1]
+		
+		# Center position (move to origin)
+		centered_x = no_offset_x - 0.5
+		centered_y = no_offset_y - 0.5
 		
 		# Remove frame scale
 		unscaled_x = centered_x / scale[0]
