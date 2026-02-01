@@ -150,7 +150,11 @@ class TransformWidget(QWidget):
 			offset_delta_x: new_frame_offset_x - old_frame_offset_x
 			offset_delta_y: new_frame_offset_y - old_frame_offset_y
 		"""
-		# Adjust position by offset delta (scaled to composite space)
+		# Scale position coordinates around center (0.5, 0.5) first
+		self.pos_x = (self.pos_x - 0.5) * scale_ratio_x + 0.5
+		self.pos_y = (self.pos_y - 0.5) * scale_ratio_y + 0.5
+		
+		# Then adjust position by offset delta (scaled to composite space)
 		self.pos_x -= offset_delta_x * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 		self.pos_y -= offset_delta_y * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
 		
