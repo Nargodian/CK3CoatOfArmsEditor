@@ -1,0 +1,854 @@
+LAYER CONTAINERS - UI FEATURE PLAN
+=====================================
+
+OVERVIEW
+--------
+Add layer containers (folders) to organize layers in the layer list.
+Containers provide visual organization and multi-selection convenience.
+Container data is stored per-layer (game ignores these properties).
+
+GOALS
+-----
+- Group related layers visually for better organization
+- Collapse/expand containers to reduce visual clutter
+- Drag layers into/out of containers
+- Select entire containers (multi-selects all contained layers)
+- Maintain container organization through copy/paste operations
+
+ARCHITECTURE
+------------
+
+UUID SYSTEM:
+Layer UUID Format: Plain UUID4 (existing code, unchanged)
+- Format: Standard UUID4 string (e.g., "550e8400-e29b-41d4-a716-446655440000")
+- Generated once, never changes (stable identifier)
+- No embedded metadata
+
+Container UUID Format: "{prefix}_{uuid}_{name}"
+- Prefix: "container" (identifies as container)
+- UUID: Plain UUID4 string for uniqueness (e.g., "550e8400-e29b-41d4-a716-446655440000")
+- Name: Human-readable identifier (container display name)
+- Example: "container_550e8400-e29b-41d4-a716-446655440000_Stars"
+- Layer example: "550e8400-e29b-41d4-a716-446655440000"
+
+Paste Behavior:
+- When pasting, regenerate ONLY the UUID portion (not name)
+- Keep container prefix and name suffix intact
+- Example: "container_550e8400-e29b-41d4-a716-446655440000_Stars" → "container_661f9520-f3ac-52e5-b827-557766551111_Stars"
+- Ensures uniqueness while preserving semantics
+- Multiple pastes of "Stars" container all named "Stars" with different UUIDs
+
+UUID Generation:
+- Layers: Use existing uuid.uuid4() directly (no changes)
+  * Plain UUID4 string: str(uuid.uuid4())
+  * Example: "550e8400-e29b-41d4-a716-446655440000"
+- Containers: Format string "container_{uuid}_{name}"
+  * UUID portion: str(uuid.uuid4())
+  * Name portion: user-provided container name
+  * Example: f"container_{uuid.uuid4()}_{name}"
+- Layer name stored as separate 'name' property (not in UUID)
+- Container name stored as suffix in container_uuid string
+- Renaming:
+  * Layers: Update 'name' property only (UUID never changes)
+  * Containers: Parse and rebuild string with same UUID, new name
+
+Layer Name Property:
+- Each layer has a 'name' property separate from uuid
+- Default: texture filename without extension (e.g., "ce_lion")
+- On import without name property: default to texture filename sans extension
+- If name property is empty string: default to texture filename
+- User can rename (editor-only, always written, game ignores)
+- Layer UUID is plain UUID4 (no name embedding)
+- Name property is the only source of truth for layer name
+- On paste: preserve name property, layer gets new plain UUID4
+- On rename: update name property only (UUID unchanged)
+- Duplicate names allowed (uniqueness from UUID, not name)
+- Name validation: empty strings default to texture, duplicates allowed
+
+TERMINOLOGY (CRITICAL):
+- layer_uuid: Unique identifier for EACH layer (existing concept, unchanged)
+  * Every layer has its own unique layer_uuid
+  * Used for all layer operations, selection, transforms, etc.
+  * Never shared between layers
+  * Generated once when layer is created
+  * Format: Plain UUID4 string (e.g., "550e8400-e29b-41d4-a716-446655440000")
+  * Generated using: str(uuid.uuid4())
+  * On paste/duplicate: new plain UUID4 generated
+  * Layer Renaming:
+    - User can rename layers (changes 'name' property only)
+    - Default name is texture filename (e.g., "ce_lion" from "ce_lion.dds")
+    - Renaming does NOT change UUID (UUID is stable)
+    - Custom names are editor-only (always written, game ignores)
+    - Layer UUID and name are separate (no embedding)
+
+- container_uuid: PROPERTY on a layer indicating container membership (new concept)
+  * Optional property (can be None)
+  * Shared by multiple layers to indicate grouping
+  * NOT an identifier for the layer itself
+  * Can be changed/removed without affecting layer identity
+  * Format: "container_{uuid}_{name}" (e.g., "container_550e8400-e29b-41d4-a716-446655440000_Stars")
+  * UUID portion: plain UUID4 string
+  * Name portion: container display name
+  * On paste/duplicate: regenerate UUID portion, preserve name
+  * On rename: update name portion, keep UUID portion
+  * Example: "container_550e8400-e29b-41d4-a716-446655440000_Stars" (shared by layers 1, 2, 3)
+
+- Duplication: Creates NEW layer_uuid, regenerates container_uuid
+  * New layer = new identity (new plain UUID4)
+  * Duplicating layer in container: new layer_uuid, preserves container_uuid
+  * Duplicating container: new container_uuid (new UUID portion, same name)
+
+Container Storage:
+- Each layer has a "container_uuid" property (string or None)
+- Stored per colored_emblem in layer data: container_uuid="container_{uuid}_{name}"
+- Example: container_uuid="container_550e8400-e29b-41d4-a716-446655440000_Stars"
+- UUID portion is plain UUID4 string
+- CK3 Format: Appended as CK3-style properties to colored_emblem blocks
+  * container_uuid and name follow CK3 property syntax (key="value")
+  * Game ignores unknown properties when loading CoA
+  * Editor → clipboard → editor: metadata preserved
+  * Editor → game → copy from game → editor: metadata lost (game doesn't preserve)
+- Containers are NOT arrays or lists
+- Container is visual expression of layers sharing the same container_uuid
+- Layers with same container_uuid are grouped together in UI
+- container_uuid=None means layer is at root level
+- Even a single layer with container_uuid set is "in a container"
+
+CoA Model:
+- Stores container_uuid as a per-layer property
+- No container objects or collections exist in the model
+- Containers are emergent from querying layers by shared container_uuid
+- Provides get/set methods: get_layer_container(), set_layer_container()
+- Serializes container_uuid and name in CK3 format (always written)
+- Game ignores unknown properties, but editor preserves them
+
+Copy Behavior:
+- Copying individual layers: strips container_uuid (copied layers start at root)
+- Copying whole container: preserves container_uuid (maintains organization)
+
+UI Layer:
+- Queries all layers and groups by container_uuid
+- Builds tree view by finding layers with matching container_uuid
+- Container marker is UI representation of shared container_uuid (not a data structure)
+- Container marker displays folder icon (not layer preview)
+- Container has editable name (double-click to edit inline)
+- Container marker is a selectable UI element (like layers)
+- Container selection = select all layers with that container_uuid
+- Expand/collapse state stored in UI only (not persisted)
+- Visual indentation for contained layers
+
+Data Flow:
+- Layer operations work on individual layers by layer_uuid (unchanged)
+- UI builds container hierarchy by grouping layers with matching container_uuid
+- Selecting container selects all child layers
+- Moving layer to container sets its container_uuid property
+- Copy individual layer: strips container_uuid (goes to root)
+- Copy whole container: preserves container_uuid (stays organized)
+- All exports write metadata (game ignores, editor preserves)
+
+COMPONENTS TO MODIFY
+--------------------
+
+1. CoA Model (models/coa/)
+   - Add 'name' property to Layer class (separate from uuid)
+   - Add container_uuid property to Layer class
+   - Add methods: get_layer_container(layer_uuid), set_layer_container(layer_uuid, container_uuid)
+   - Add method: get_layers_by_container(container_uuid)
+   - Add method: get_all_containers()
+   - Include container_uuid and name in serialization (always written)
+
+2. Layer List Component (asset_sidebar.py)
+   - Convert from flat list to tree view
+   - Group layers by container_uuid when building UI
+   - Add container creation/deletion UI
+   - Handle expand/collapse interactions (UI state only)
+   - Update drag-and-drop to support containers
+
+3. Layer Selection
+   - Selecting container = multi-selecting all contained layers (identical behavior)
+   - Multi-select can include whole containers or span multiple containers
+   - Property panel shows multi-selection state when container selected
+   - All operations apply to the selected layers
+   - Deselecting any sub-layer deselects entire container (no half measures)
+   - Reselecting sub-layer does NOT auto-reselect container (even if all layers reselected)
+   - Partial selection state not supported
+
+4. Copy/Paste Operations (clipboard_actions.py)
+   - Detect if copying individual layers or whole container
+   - Strip container_uuid when copying individual layers
+   - Preserve container_uuid when copying whole container
+
+5. Layer Generators (services/layer_generator)
+   - Pattern generators (grid, circle, text, etc.) can create multiple layers
+   - Text generator outputs should be automatically placed in containers
+   - Each letter in text mode creates a separate layer (different emblem)
+   - Container keeps text layers organized and manageable
+   - Generators should support assigning container_uuid to generated layers
+   - Allows generated layers to be created as an organized container group
+   - Container naming:
+     * Pattern generators: use generator name (e.g., "circle", "grid")
+     * Text generator: use format "text (<the string>)" (e.g., "text (HELLO)")
+     * No automatic numbering (multiple circles all named "circle")
+     * Container names are not unique (uniqueness comes from container_uuid)
+
+OPERATIONS
+----------
+
+Create Container:
+- Select multiple non-contiguous layers (e.g., layers at positions 1, 2, 4, 5)
+- Determine default name from context (generator name, "Container 1", etc.)
+- Generate new container_uuid: f"container_{uuid.uuid4()}_{name}"
+  * Example: "container_550e8400-e29b-41d4-a716-446655440000_Stars"
+- Set container_uuid property for all selected layers
+- Move all selected layers to position of highest selected layer (e.g., position 1)
+- Layers not in selection shift down to fill gaps (e.g., layer 3 becomes layer 5)
+- UI creates expandable container marker at that position
+- Container marker shows folder icon and editable name
+- Container marker represents shared container_uuid (not a container object or list)
+- Container visual structure is expression of container_uuid property
+- No complex UI reorganization needed - just query and display by container_uuid
+
+Delete Container:
+- Set container_uuid=None for all layers in that container
+- Moves all contained layers to root level
+- Remove container UI element
+
+Move Layer to Container:
+- Call coa.set_layer_container(layer_uuid, container_uuid)
+- Rebuild tree view to reflect new grouping
+- Layer remains in same position in CoA's flat list
+
+Move Layer Within Container (context-sensitive):
+- If layer is inside container, move_layer_above/below stays within container
+- Cannot move sub-layer above/below container boundary
+- Reordering constrained to container's internal layers
+
+Move Layer at Root (context-sensitive):
+- If layer is at root, move_layer_above/below skips over entire containers
+- Containers treated as single unit when reordering root layers
+- Cannot accidentally split container or insert root layer inside
+
+Move Layer to Root:
+- Call coa.set_layer_container(layer_uuid, None)
+- Layer appears at root in UI
+
+Collapse/Expand:
+- Toggle collapsed state in UI component only (not persisted)
+- Show/hide child layer UI elements
+- Container header remains visible
+- UI: [+] button when collapsed (click to expand), [-] button when expanded (click to collapse)
+- Toggle button displayed on container marker, left of folder icon
+
+Select Container:
+- Container marker is clickable/selectable element in layer list
+- Selecting container = multi-selecting all its contained layers (same action)
+- Selection requires: container marker UUID + all layer UUIDs (5 total for 4-layer container)
+- Find all layers with matching container_uuid
+- Add all those layer UUIDs to selection
+- Canvas highlights all selected layers
+- Property panel shows multi-selection state ("X layers selected")
+- Visual feedback: border enclosing all selected layers in canvas
+
+Copy Individual Layer:
+- Strip container_uuid from copied layer data
+- Pasted layer will adopt destination container's UUID
+
+Copy Container:
+- Preserve container_uuid for all layers in clipboard
+- Paste will create new container with new container_uuid
+
+Copy Multiple Containers:
+- Preserve each layer's container_uuid in clipboard
+- On paste, generate new container_uuid for each unique container_uuid
+- Maintains separation (don't mix into one container)
+- Example: Copy Container A + Container B → Paste creates Container A' + Container B'
+
+Copy Sub-Layers (layers from within container):
+- Strip container_uuid from copied layer data
+- Pasted layers will adopt destination container_uuid
+- Multi-select treats all collected UUIDs as one group (ignores original grouping)
+- If user ctrl-selects random layers (some in containers, some not), treat as individual layers
+- Drop behavior depends on slot they're dropped on (not their original container membership)
+
+Duplicate Container:
+- Generate new container_uuid by regenerating UUID portion (keeps name)
+- Example: "container_550e8400-e29b-41d4-a716-446655440000_Stars" → "container_661f9520-f3ac-52e5-b827-557766551111_Stars"
+- Duplicate all layers in the container:
+  * Each duplicated layer gets NEW layer_uuid (new plain UUID4)
+  * Each duplicated layer gets the NEW container_uuid (shared grouping)
+- Results in two separate containers with different UUID portions but same name
+- Different from copy: creates new container_uuid immediately
+
+Toggle Container Visibility:
+- Batch-sets visibility on all contained layers
+- Calls CoA.set_layer_visibility() for each layer in container
+- All visibility changes persist in layer data
+- UI displays aggregate visibility state (visible if any layer visible)
+- Toggle button on container marker controls this operation
+
+Paste Layers:
+Rule 1 - Layers WITHOUT container_uuid (individual layers or sub-layers):
+- Generate new layer_uuid (new plain UUID4)
+- Adopt destination container's UUID if pasting into/over container
+- Go to root if pasting at root level
+- Container selected = paste at top of container (adopt its UUID)
+
+Rule 2 - Layers WITH container_uuid (copied container):
+- Regenerate container_uuid UUID portion (keep name)
+- Example: "container_550e8400-e29b-41d4-a716-446655440000_Stars" → "container_661f9520-f3ac-52e5-b827-557766551111_Stars"
+- Generate new layer_uuid for each layer (new plain UUID4)
+- If container selected and pasted layers have container_uuid:
+  * Layers with matching UUID keep their grouping (get same new UUID portion)
+  * Then follow normal paste-above rules
+- Generate NEW UUID portion for each unique container_uuid in clipboard (preserves names)
+- Create new independent containers (maintains separation and names)
+- If multiple containers: each gets its own new UUID portion (don't merge)
+  * "container_old1_Stars" + "container_old2_Circles" → "container_new1_Stars" + "container_new2_Circles"
+- If pasting over existing container: place new containers at root level at container's position
+- If container is selected: place new containers at root level above that container
+- If can't go in container, goes to root slot (unless it has container_uuid)
+- Never nest containers
+
+Paste Collision Handling:
+- UUID collisions are extremely unlikely (UUID4 space is 2^122)
+- Names can duplicate (multiple "Stars" containers with different UUID portions)
+- No collision detection needed
+
+Paste Position:
+- Never nest containers
+- No selection: paste at end/top
+- Root layer selected: paste above selected layer
+- Sub-layer selected: paste at that position in container (Rule 1) or above container (Rule 2)
+- Container selected: paste at top of container (Rule 1) or above container (Rule 2)
+
+Drag and Drop:
+- Drag layer to root re-order slot: sets container_uuid=None
+- Drag layer to container sub re-order slot: updates layer's container_uuid
+- Drag container marker to root re-order slot: repositions entire container
+- Drag container marker to sub re-order slot: does nothing (no nested containers)
+
+Container Validator:
+- Scans layers in order to ensure containers are contiguous
+- Detects gaps: layers with same container_uuid separated by different layer
+- Example violation: layers 1,2 have container_uuid A, layer 3 has container_uuid B, layers 4,5 have container_uuid A
+- Resolution: split non-contiguous group (4,5) off with new container_uuid
+- Validation is part of the action itself (not separate step)
+- Snapshots taken BEFORE action (captures pre-action state for undo)
+- Action executes including validation as part of it
+- Operations that include validation:
+  * Layer reordering
+  * Moving layers between containers
+  * Any operation that changes layer positions
+- Non-contiguous containers after operation = bug (forgot to validate during action)
+- Redo operations will force validation split (expected behavior)
+- Undo restores pre-action snapshot (no validation needed)
+- Maintains visual integrity of containers (no fragmented containers)
+
+Merge Container:
+- Selecting container (multi-selects all contained layers) then merge operation
+- Converts all container layers into single instance layer with multiple instances
+- Resulting merged layer has container_uuid=None (not in a container)
+- If layers have mixed properties (texture, colors, etc.), warn user before merging
+- Similar to regular merge but source is container selection
+
+EDGE CASES
+----------
+- Layers without texture property: use "empty" as default name (rare situation)
+- Deleting layer: layer_uuid and container_uuid both removed (automatic)
+- Duplicating layer: NEW layer_uuid generated, container_uuid preserved (duplicate stays in same container)
+- Duplicating sub-layer: NEW layer_uuid, preserves container_uuid (stays in same container)
+- Duplicating container: NEW container_uuid, each layer gets NEW layer_uuid
+- Copying individual layer: strips container_uuid
+- Copying sub-layers from container: strips container_uuid
+- Copying container: preserves container_uuid in clipboard
+- Copying multiple containers: preserves each container_uuid (maintains separation)
+- Pasting layers without container_uuid: adopt destination container_uuid (or go to root)
+- Pasting layers with container_uuid: generate new container_uuid for each unique container (don't merge)
+- Pasting with container_uuid over container: place new container(s) above (not inside)
+- Container selection for paste: paste at top of container (Rule 1) or above container (Rule 2)
+- Pasting container cannot nest inside another container
+- Reordering layers: context-sensitive behavior
+  * Sub-layers: can only reorder within their container
+  * Root layers: skip over entire containers as units
+- Nested containers: NOT supported (containers are flat grouping only)
+- Empty containers: automatically removed when last layer removed/moved
+- Multi-select spanning containers: allowed (select layers from multiple containers)
+- Container UUID collision: impossible (UUIDs are unique)
+- Orphaned layers: if container_uuid points to non-existent container, treat as root
+- Non-contiguous containers: validator splits fragmented groups with new UUIDs
+- Container gaps after reorder: validator runs automatically to fix
+- Merge with container selected: converts to instance layer with container_uuid=None, warns if mixed properties
+
+PERSISTENCE
+-----------
+
+Container UUID Storage:
+- container_uuid stored as layer property in CK3 format
+- Serialized/deserialized with layer data automatically
+- Always written to .txt output
+- Copy behavior:
+  * Individual layer copy: container_uuid stripped (goes to root)
+  * Whole container copy: container_uuid preserved (maintains organization)
+
+Metadata Behavior:
+- Editor always writes uuid, container_uuid, and name properties
+- Game ignores unknown properties when loading CoA
+- Editor → clipboard → editor: metadata preserved (full roundtrip)
+- Editor → game → copy from game → editor: metadata lost
+  * Game doesn't preserve properties it doesn't understand
+  * Editor regenerates new UUIDs on import (generate_uuid("layer", name))
+  * Layers without name property: default name = texture filename sans extension
+  * No container organization (all layers start at root)
+- We make no effort to strip metadata - game handles what it doesn't understand
+- Existing CoA files: No migration needed - files without container data just load with all layers at root
+
+UI State Management:
+- Collapse/Expand State:
+  * Session-only (not persisted in CoA)
+  * Containers default to expanded on load
+  * Stored in UI component only
+  * Could add user preference for default state
+- Visibility State:
+  * Managed by CoA (persisted in layer data)
+  * Container visibility toggle batch-sets all contained layers
+  * UI displays aggregate state based on layer visibility
+  * No separate "container visibility" state maintained
+
+IMPLEMENTATION PITFALLS TO AVOID
+---------------------------------
+
+CRITICAL - READ BEFORE IMPLEMENTING:
+
+2. layer_uuid vs container_uuid Confusion:
+   - layer_uuid = layer's unique identity (never shared, never changes)
+   - container_uuid = grouping property (shared by multiple layers, can change freely)
+   - Don't use container_uuid for layer operations (transforms, selection, etc.)
+   - Don't treat layer_uuid as if it were a grouping identifier
+
+3. Paste Logic Two-Rule System:
+   - Must check presence of container_uuid in clipboard data
+   - Rule 1 (no container_uuid): adopt destination container or go to root
+   - Rule 2 (has container_uuid): create new container at root level
+   - Don't mix the rules - they have completely different behaviors
+   - Container selected + pasted data has container_uuid = paste ABOVE, not inside
+
+4. Context-Sensitive Operations:
+   - move_layer_above/below behavior changes based on layer location
+   - Sub-layer: constrained within container boundaries
+   - Root layer: skips entire containers as single units
+   - Must check layer's container_uuid to determine correct behavior
+   - Don't assume all layers follow same reordering rules
+
+5. Validator Must Run Inside Actions:
+   - Validator is NOT a separate step - it's part of the action itself
+   - Snapshots taken BEFORE action (captures pre-action state)
+   - Action executes and includes validation
+   - Don't call validator separately after action completes
+   - If containers non-contiguous after action = bug (validation was skipped)
+
+6. Selection State After Container Rename:
+   - When container renamed: container_uuid name portion changes
+   - MUST update all layers with old container_uuid to use new one
+   - MUST update selection state if container currently selected
+   - MUST update any tracking dictionaries/maps
+   - Forgetting = selection becomes "orphaned" and stops working
+   - Layer UUIDs never change (stable identifiers)
+
+7. Copy Detection Subtlety:
+   - Copying container element = preserve container_uuid
+   - Copying individual layers (even all layers in container) = strip container_uuid
+   - Must detect: "did user select container marker or individual layers?"
+   - Don't assume multi-selecting all layers = copying container
+   - Selection type (container vs layers) determines copy behavior
+
+8. Phase 1 Must Stop:
+   - Phase 1 is SEPARATE and testable - implement ONLY Phase 1, then STOP
+   - Do NOT continue to Phase 2 without explicit instruction
+   - Test Phase 1 thoroughly before proceeding
+   - Phases 2-7 are continuous (don't stop between them)
+   - Ignoring this = untestable, broken foundation
+
+9. State Persistence Confusion:
+    - Collapse/Expand: UI-only session state (NOT persisted)
+    - Visibility: CoA-managed persisted state (survives save/load)
+    - Container visibility toggle: batch-sets individual layer visibility via CoA
+    - Don't create "container visibility" state - query aggregate from layers
+    - Don't persist collapse/expand state
+
+10. Empty Container Handling:
+    - Document says "automatically removed when last layer removed/moved"
+    - But edge cases: what if layer deleted? moved to root? pasted elsewhere?
+    - Must check after any operation that removes layer from container
+    - Query get_layers_by_container(uuid) - if empty, remove container marker
+    - Don't leave empty container markers in UI
+
+IMPLEMENTATION PHASES
+---------------------
+
+NOTE: Phase 1 is SEPARATE and testable independently. Stop and test after Phase 1 completion.
+Phases 2-7 are markers/milestones in a SINGLE continuous implementation.
+DO NOT implement phases 2-7 as separate testable epochs.
+Complete phases 2-7 together properly - those phases are for planning/tracking only.
+
+Phase 1: Layer Name Property & Visibility API (SEPARATE - STOP AND TEST AFTER THIS)
+- Add 'name' property to Layer class (separate from uuid)
+  * Default: texture filename without extension
+  * On import without name property: extract from texture filename
+  * User can rename (editor-only, always written, game ignores)
+  * Stored as separate property, not parsed from UUID
+- Add CoA methods for layer name:
+  * get_layer_name(layer_uuid) -> str
+  * set_layer_name(layer_uuid, name) -> None (just updates property)
+- Add CoA methods for layer visibility:
+  * get_layer_visible(layer_uuid) -> bool
+  * set_layer_visible(layer_uuid, visible) -> None
+- Update Layer initialization to set name property from texture filename
+- Update import/parse logic to default name from texture if name property missing
+- Update serialization to include name property (NOT container_uuid yet)
+- Test: Layers have name property, can be renamed, visibility can be toggled, save/load works
+- NOTE: Layer UUID format remains unchanged (plain UUID4)
+
+Phase 2: Container Model Support
+- Add container_uuid property to Layer class
+- Add CoA methods: get_layer_container(), set_layer_container()
+- Add CoA methods: get_layers_by_container(), get_all_containers()
+- Update serialization to include container_uuid
+
+Phase 3: UI Tree View
+- Convert layer list to tree widget/structure
+- Group layers by container_uuid when building UI
+- Implement expand/collapse (UI state only)
+- Visual styling (indentation, icons)
+
+Phase 4: Container Operations
+- Create container UI (generate container_uuid, set on selected layers)
+- Regroup selected layers at highest layer position
+- Delete container (set affected layers to None)
+- Duplicate container (new container_uuid, duplicate all layers)
+- Select container (multi-select all contained layers)
+- Move layer to container (update container_uuid)
+
+Phase 5: Drag and Drop
+- Update D&D handlers for containers
+- Drag layer to sub re-order slot sets container_uuid
+- Drag layer to root re-order slot sets container_uuid=None
+- Drag container marker to root re-order slot repositions container
+- Reject container marker drops on sub re-order slots (no nesting)
+
+Phase 6: Copy/Paste Logic
+- Detect container vs individual/sub-layer copy
+- Strip container_uuid when copying individual layers or sub-layers
+- Preserve container_uuid when copying container
+- Paste logic based on presence of container_uuid in clipboard:
+  * No container_uuid: adopt destination container or go to root
+  * Has container_uuid: generate new container_uuid, create new container
+- Handle container selection for paste (top of container or above container)
+
+Phase 7: Integration & Polish
+- Implement container validator for contiguity checking
+- Integrate validator into actions that need it (validation is part of action)
+- Update all layer operations to handle containers
+- Test edge cases thoroughly
+- Add keyboard shortcuts
+- Visual feedback & animations
+
+TECHNICAL NOTES
+---------------
+
+Qt Widgets:
+- Use QTreeWidget or QTreeView for hierarchical display
+- Custom QStyledItemDelegate for layer items
+- Maintain current visual style
+- Container marker is selectable UI element (not a layer widget, but behaves like one)
+- Container marker displays [+]/[-] toggle button for collapse/expand
+  * [+] when collapsed, [-] when expanded
+  * Positioned left of folder icon
+- Container marker displays folder icon (not layer preview thumbnail)
+- Container marker controls:
+  * Duplicate button (duplicates entire container)
+  * Delete button (deletes container, moves layers to root)
+  * Visible toggle (batch-sets visibility on all contained layers via CoA.set_layer_visibility())
+  * NO color pickers (container is not a layer)
+- Container name editing: double-click opens inline text box, enter/escape to confirm/cancel
+- Container marker supports selection, drag, context menu
+
+UI Layout Structure:
+Normal layer list (no containers):
+  - re-order slot 1
+  - layer 1
+  - re-order slot 2
+  - layer 2
+  - re-order slot 3
+  - layer 3
+  - re-order slot 4
+  - layer 4
+  - re-order slot 5
+
+With container grouping layers 2 and 3:
+  - re-order slot 1
+  - layer 1
+  - re-order slot 2
+  - [-] container marker (nameable) [same level as layers]
+      - sub-re-order slot 1 [indented]
+      - layer 2 [indented]
+      - sub-re-order slot 2 [indented]
+      - layer 3 [indented]
+      - sub-re-order slot 3 [indented]
+  - re-order slot 3
+  - layer 4
+  - re-order slot 4
+
+When collapsed:
+  - re-order slot 1
+  - layer 1
+  - re-order slot 2
+  - [+] container marker (nameable) [same level as layers]
+  - re-order slot 3
+  - layer 4
+  - re-order slot 4
+
+Notes on reorder slots:
+- Containers treated as single unit at root level (has reorder slots before/after)
+- Container marker is at same indentation level as regular layers
+- Inside container, layers are indented with sub-reorder slots for internal reordering
+- Container marker is collapsible and nameable
+
+Drag behavior:
+- Layer → root re-order slot: removes from container (container_uuid=None)
+- Layer → sub re-order slot: moves into container (sets container_uuid)
+- Container marker → root re-order slot: repositions entire container
+- Container marker → sub re-order slot: rejected (no nested containers)
+
+Layer Data Structure (with container):
+{
+  "uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "type": "emblem",
+  "container_uuid": "container_661f9520-f3ac-52e5-b827-557766551111_Stars",  # NEW PROPERTY (CK3 format, editor-only)
+  "name": "ce_lion",  # NEW PROPERTY (CK3 format, editor-only)
+  "texture": "ce_lion.dds",
+  "pos_x": 0.5,
+  ...
+}
+
+# In CK3 .txt format (always written by editor):
+colored_emblem = {
+  uuid = "550e8400-e29b-41d4-a716-446655440000"
+  container_uuid = "container_661f9520-f3ac-52e5-b827-557766551111_Stars"  # Editor metadata (game ignores)
+  name = "ce_lion"  # Editor metadata (game ignores)
+  texture = "ce_lion.dds"
+  color1 = rgb { 255 0 0 }
+  ...
+}
+
+# When pasted to game then copied back:
+colored_emblem = {
+  texture = "ce_lion.dds"
+  color1 = rgb { 255 0 0 }
+  ...  # Game doesn't preserve metadata it doesn't understand
+}
+
+Building UI Tree:
+1. Query all layers from CoA
+2. Group layers by container_uuid
+3. For each unique container_uuid (not None):
+   - Create container UI element
+   - Add all layers with that container_uuid as children
+4. Add layers with container_uuid=None at root level
+
+Container Selection:
+- Clicking container marker = multi-selecting all contained layers (same action)
+- Query: layers = coa.get_layers_by_container(container_uuid)
+- Adds all those layer UUIDs to selection set
+- Property panel shows multi-selection state ("X layers selected")
+- Canvas highlights all selected layers
+- No difference between selecting container vs manually multi-selecting its layers
+
+Copy Detection:
+- Individual layer copy: user selects specific layers
+- Whole container copy: user selects container element itself
+- When copying container, check all contained layers and preserve container_uuid
+- When copying individual layers (even if all in container), strip container_uuid
+
+Container Metadata:
+- Container names stored in separate metadata dict (container_uuid -> name)
+- Names appended to UUIDs for storage (uniqueness from UUID, not name)
+- Container names are NOT unique (multiple "circle" containers allowed)
+- Metadata should be serialized with CoA for persistence
+- Default names from generator ("circle", "grid", "text (WORD)", etc.)
+- User can rename via double-click inline edit or context menu
+- No migration needed: in-game CoA strings have no container data (treat as is)
+
+Rendering/Operations:
+- Containers are invisible to canvas (not rendered)
+- All layer operations work on individual layer UUIDs (unchanged)
+- Transform/visibility/etc apply to selected layers, not container concept
+
+TESTING CHECKLIST
+-----------------
+[ ] Create container (generates UUID, regroups layers at highest position)
+[ ] Create container from non-contiguous layers (1,2,4,5 -> all at position 1)
+[ ] Move layers into containers (sets container_uuid)
+[ ] Move layers out of containers (sets container_uuid=None)
+[ ] Delete container (sets all layers to container_uuid=None)
+[ ] Collapse/expand containers (UI state only)
+[ ] Delete layer in container (container_uuid removed with layer)
+[ ] Duplicate layer in container (NEW layer_uuid, preserves container_uuid)
+[ ] Duplicate sub-layer (NEW layer_uuid, preserves container_uuid)
+[ ] Duplicate container (NEW container_uuid, all layers get NEW layer_uuids)
+[ ] Copy individual layer (strips container_uuid)
+[ ] Copy sub-layers from container (strips container_uuid)
+[ ] Copy container (preserves container_uuid in clipboard)
+[ ] Copy multiple containers (preserves each container_uuid separately)
+[ ] Paste layers without UUID into container (adopts container UUID)
+[ ] Paste layers without UUID to root (goes to root)
+[ ] Paste layers with UUID (generates new UUID, creates new container)
+[ ] Paste multiple containers (generates new UUID for each, maintains separation)
+[ ] Paste layers with UUID over container (places new container above)
+[ ] Paste with container selected - no UUID (goes to top of container)
+[ ] Paste with container selected - has UUID (places new container above)
+[ ] Select container (selects all contained layers)
+[ ] Multi-select layers across containers
+[ ] Transform operations on selected container (affects all layers)
+[ ] Drag-reorder root layers (skips over containers as units)
+[ ] Drag-reorder sub-layers (constrained within container)
+[ ] Move sub-layer cannot escape container boundary
+[ ] Move root layer skips entire containers
+[ ] Merge container (creates instance layer with no container_uuid)
+[ ] Merge container with mixed properties (shows warning)
+[ ] Validator detects non-contiguous containers (layers 1,2,4,5 with gap at 3)
+[ ] Validator splits fragmented container into separate containers
+[ ] Validator runs after reorder operations
+[ ] Container name editing (double-click to edit, enter to confirm, escape to cancel)
+[ ] Container name persistence (save/load)
+[ ] Container duplicate button (duplicates entire container with new UUID)
+[ ] Container delete button (removes container, layers go to root)
+[ ] Container visible toggle (batch-sets layer visibility via CoA.set_layer_visibility())
+[ ] Container visible toggle displays aggregate state (visible if any layer visible)
+[ ] Save/load with container_uuid preserved
+[ ] Export CoA always includes metadata (editor → clipboard → editor preserves)
+[ ] Import from game loses metadata (game → clipboard → editor generates new)
+[ ] All existing layer operations still work
+[ ] Empty container handling (auto-remove or show empty)
+
+OPEN QUESTIONS
+--------------
+1. Nested containers? NO - flat grouping only (container_uuid can't point to another container)
+2. Should containers have their own context menu? YES - delete, rename, etc.
+3. Keyboard shortcuts for container operations? YES - create, collapse/expand, rename
+4. Show layer count badge on containers? YES - helpful visual indicator
+5. Drag whole container to reorder all children? YES - moves all layers together
+6. Filter/search behavior with collapsed containers? Auto-expand when match found
+
+ADDITIONAL REQUIREMENTS
+-----------------------
+
+CoA Model Methods to Add:
+- get_layer_name(layer_uuid) -> Get layer's 'name' property
+- set_layer_name(layer_uuid, name) -> Set layer's 'name' property (just updates property, no UUID changes)
+- get_layer_visible(layer_uuid) -> bool: Get layer visibility state
+- set_layer_visible(layer_uuid, visible) -> Set layer visibility state
+- parse_container_uuid(container_uuid) -> Extract UUID and name from container_uuid string
+- get_container_name(container_uuid) -> Get display name for container (parse from string)
+- set_container_name(container_uuid, name) -> Update container name:
+  * Parse old container_uuid to extract UUID portion
+  * Rebuild string: f"container_{uuid_portion}_{new_name}"
+  * Update container_uuid property on ALL layers with old container_uuid
+  * Update selection state if container currently selected
+  * Returns new container_uuid for caller to track
+- get_layer_container(layer_uuid) -> Get the container_uuid property of a layer
+- set_layer_container(layer_uuid, container_uuid) -> Set a layer's container_uuid property
+- get_layers_by_container(container_uuid) -> Return list of layer_uuids that have matching container_uuid
+- get_all_containers() -> Return list of unique container_uuids currently in use
+- move_layer_above(layer_uuid, target_layer_uuid) -> Context-sensitive: stays within container if sub-layer, skips containers if root
+- move_layer_below(layer_uuid, target_layer_uuid) -> Context-sensitive: stays within container if sub-layer, skips containers if root
+- get_layer_above(layer_uuid, skip_container_boundaries=False) -> Get layer_uuid of layer visually above, optionally skip to container boundary
+- get_layer_below(layer_uuid, skip_container_boundaries=False) -> Get layer_uuid of layer visually below, optionally skip to container boundary
+- move_layer_above_container(layer_uuids, container_uuid) -> Move layers to position above a container marker
+- move_layer_below_container(layer_uuids, container_uuid) -> Move layers to position below a container marker
+- is_layer_in_container(layer_uuid) -> Check if layer has container_uuid set (is inside a container)
+- regroup_layers_at_highest(layer_uuids, container_uuid) -> Move all specified layers to highest layer position and set container_uuid
+- paste_as_new_container(layer_data_list) -> Create new container_uuid and paste all layers with that container_uuid
+- validate_container_contiguity() -> Scan layers for gaps in container_uuid, split non-contiguous groups with new container_uuids
+- get_container_name(container_uuid) -> Get display name for container (extract from UUID)
+- set_container_name(container_uuid, name) -> Generate new container_uuid using regenerate_uuid(old_uuid, name) and update all layers
+  * MUST update container_uuid property on ALL layers with old container_uuid
+  * MUST update selection state if container currently selected
+  * Returns new container_uuid for caller to track
+
+Container Naming:
+- Container name is embedded in container_uuid: "container_{uuid}_{name}"
+- UUID portion is plain UUID4 string
+- Extract name using parse or string split
+- Rename using set_container_name(container_uuid, new_name)
+  * Parses old container_uuid to extract UUID portion
+  * Rebuilds string: f"container_{uuid_portion}_{new_name}"
+  * Updates all layers with old container_uuid to use new one
+  * CRITICAL: Must update all references or lose track of container
+  * If container selected, must update selection state with new container_uuid
+- Default names from generator ("circle", "grid", "text (WORD)", etc.)
+- User can rename via double-click inline edit or context menu
+- Names can duplicate (multiple "Stars" with different UUID portions)
+- Container expand/collapse state is UI-only (not persisted in CoA)
+
+Copy/Paste Detection:
+- Need to distinguish when user copies container vs individual layers
+- Check if clipboard contains container_uuid with "container_" prefix
+- If copying container marker: preserve container_uuid for all contained layers
+- If copying individual layers: strip container_uuid
+- Container names are embedded in container_uuid string
+
+NOTES
+-----
+- CRITICAL: layer_uuid ≠ container_uuid
+  * layer_uuid: unique layer identity (never shared, never changes)
+  * container_uuid: grouping property (shared by container members)
+- Layer UUID format: Plain UUID4 string
+  * Example: "550e8400-e29b-41d4-a716-446655440000"
+  * Generated using: str(uuid.uuid4())
+  * Stable identifier, never changes
+- Container UUID format: "container_{uuid}_{name}"
+  * Example: "container_550e8400-e29b-41d4-a716-446655440000_Stars"
+  * UUID portion: plain UUID4 string
+  * Name portion: container display name
+- Layer name stored as separate 'name' property (not in UUID)
+- Paste operations:
+  * Layers: generate new plain UUID4
+  * Containers: regenerate UUID portion of container_uuid, preserve name
+- Layer renaming:
+  * Layers: update 'name' property only (UUID never changes)
+  * Default name is texture filename without extension
+  * Empty names default to texture filename
+  * Layers without texture use "empty" as name
+  * Custom names are editor-only (always written, game ignores)
+- Container renaming:
+  * Parse container_uuid to extract UUID portion
+  * Rebuild with same UUID, new name
+  * Update all layers with old container_uuid
+- container_uuid stored per colored_emblem as property
+- CoA model DOES know about container_uuid property
+- Initial assumption of "CoA-free" was incorrect - containers require CoA methods
+- Containers are NOT arrays, lists, or collections
+- Container is visual expression of layers sharing the same container_uuid
+- No container objects exist - containers emerge from querying layers by container_uuid
+- Even single layer with container_uuid set is "in a container"
+- container_uuid is a layer property, but operations need CoA navigation methods
+- Similar pattern to existing methods like move_layer_above(), get_layer_below()
+- CoA provides get/set methods following existing patterns
+- Editor always writes metadata (uuid, container_uuid, name)
+- Game ignores unknown properties, but editor preserves them in clipboard
+- Containers have no game functionality - editor organization only
+- Copy behavior distinguishes individual vs container copy:
+  * Individual layer: strips container_uuid (prevents unintended grouping)
+  * Whole container: preserves container_uuid (maintains organization)
+- Undo/redo based on snapshots (snapshots taken before action, action includes validation)
+- Validation is part of action itself (not separate step)
+- Container selection is convenience for multi-selecting layers (identical action)
+- Selecting container marker = multi-selecting all its contained layers
+- Selection requires container UUID + all layer UUIDs (no partial selection)
+- Deselecting any sub-layer deselects entire container (no half measures)
+- All operations ultimately work on layer UUIDs, not containers
+- Operations like merge convert container selection to instance layer (loses container_uuid)
+- Container names NOT unique (multiple "circle" containers allowed)
+- UUID collisions extremely unlikely (hash-based), no collision detection needed
+- 1000 layers is not a performance concern for validator
+- System must be implemented all at once (phases are planning markers only)
