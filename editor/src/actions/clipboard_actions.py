@@ -94,18 +94,45 @@ class ClipboardActions:
 			)
 			return
 		
+		# PHASE 6: Detect if copying whole container or individual layers
+		# Check if all selected layers share the same container_uuid
+		container_uuids = set()
+		for uuid in selected_uuids:
+			container_uuid = self.main_window.coa.get_layer_container(uuid)
+			container_uuids.add(container_uuid)
+		
+		# Determine copy type:
+		# - If all layers share same non-None container_uuid AND count matches container: preserve container_uuid
+		# - Otherwise (individual layers, mixed containers, or root layers): strip container_uuid
+		is_whole_container = False
+		if len(container_uuids) == 1 and None not in container_uuids:
+			container_uuid = next(iter(container_uuids))
+			container_layers = self.main_window.coa.get_layers_by_container(container_uuid)
+			if set(selected_uuids) == set(container_layers):
+				is_whole_container = True
+		
 		# Serialize selected layers using CoA method
-		clipboard_text = self.main_window.coa.serialize_layers_to_string(selected_uuids)
+		if is_whole_container:
+			# Container copy: preserve container_uuid
+			clipboard_text = self.main_window.coa.serialize_layers_to_string(selected_uuids, strip_container_uuid=False)
+		else:
+			# Individual/mixed copy: strip container_uuid
+			clipboard_text = self.main_window.coa.serialize_layers_to_string(selected_uuids, strip_container_uuid=True)
 		
 		# Copy to clipboard
 		clipboard = QApplication.clipboard()
 		clipboard.setText(clipboard_text)
 		
 		count = len(selected_uuids)
-		self.main_window.status_left.setText(f"{count} layer(s) copied to clipboard")
+		copy_type = "container" if is_whole_container else "layer(s)"
+		self.main_window.status_left.setText(f"{count} {copy_type} copied to clipboard")
 	
 	def paste_layer(self):
-		"""Paste layer from clipboard at original position with offset"""
+		"""Paste layer from clipboard using two-rule system
+		
+		Rule 1 (no container_uuid): Adopt destination container or go to root
+		Rule 2 (has container_uuid): Create new container at root level
+		"""
 		from models.coa import CoA
 		
 		try:
@@ -139,15 +166,103 @@ class ClipboardActions:
 			temp_uuids = [temp_coa.get_layer_uuid_by_index(i) for i in range(temp_coa.get_layer_count())]
 			temp_coa.adjust_layer_positions(temp_uuids, PASTE_OFFSET_X, PASTE_OFFSET_Y)
 			
-			# Serialize adjusted layers back to string
-			layers_string = temp_coa.serialize_layers_to_string(temp_uuids)
+			# PHASE 6: Detect if pasted data has container_uuid (Rule 1 vs Rule 2)
+			# Check if any layer in clipboard has container_uuid set
+			has_container_uuid = False
+			clipboard_container_uuids = set()
+			for uuid in temp_uuids:
+				container_uuid = temp_coa.get_layer_container(uuid)
+				if container_uuid is not None:
+					has_container_uuid = True
+					clipboard_container_uuids.add(container_uuid)
 			
-			# Check for selection to paste above
+			# Check current selection to determine paste target
 			selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
-			target_uuid = selected_uuids[0] if selected_uuids else None
+			selected_container_uuid = None
+			if selected_uuids:
+				# Check if selection is a container (all layers share same container_uuid)
+				selection_containers = set()
+				for uuid in selected_uuids:
+					container_uuid = self.main_window.coa.get_layer_container(uuid)
+					if container_uuid is not None:
+						selection_containers.add(container_uuid)
+				
+				# If all selected layers in same container, that's our target container
+				if len(selection_containers) == 1:
+					selected_container_uuid = next(iter(selection_containers))
 			
-			# Parse directly into main CoA
-			new_uuids = self.main_window.coa.parse(layers_string, target_uuid=target_uuid)
+			# Apply paste rules
+			if not has_container_uuid:
+				# RULE 1: Layers without container_uuid
+				# If container selected: adopt that container_uuid and paste at top of container
+				# If sub-layer selected: adopt that layer's container_uuid and paste at that position
+				# If root layer selected: paste above it (no container)
+				# If nothing selected: paste at end (no container)
+				
+				target_uuid = None
+				target_container = None
+				
+				if selected_uuids and selected_container_uuid:
+					# Container or sub-layer selected: adopt container, paste at top
+					target_container = selected_container_uuid
+					# Find first layer in container for target_uuid
+					container_layers = self.main_window.coa.get_layers_by_container(selected_container_uuid)
+					if container_layers:
+						target_uuid = container_layers[0]
+				elif selected_uuids:
+					# Root layer selected: paste above it
+					target_uuid = selected_uuids[0]
+				
+				# Set container_uuid on all temp layers
+				if target_container:
+					for uuid in temp_uuids:
+						temp_coa.set_layer_container(uuid, target_container)
+				
+				# Serialize and parse
+				layers_string = temp_coa.serialize_layers_to_string(temp_uuids, strip_container_uuid=False)
+				new_uuids = self.main_window.coa.parse(layers_string, target_uuid=target_uuid)
+				
+			else:
+				# RULE 2: Layers with container_uuid
+				# Create new container(s) at root level
+				# Regenerate container_uuid for each unique container in clipboard
+				
+				# Build mapping of old container_uuid -> new container_uuid
+				container_uuid_map = {}
+				for old_container_uuid in clipboard_container_uuids:
+					# Regenerate container UUID (keeps name, new UUID portion)
+					new_container_uuid = self.main_window.coa.regenerate_container_uuid(old_container_uuid)
+					container_uuid_map[old_container_uuid] = new_container_uuid
+				
+				# Update temp layers with new container UUIDs
+				for uuid in temp_uuids:
+					old_container = temp_coa.get_layer_container(uuid)
+					if old_container in container_uuid_map:
+						temp_coa.set_layer_container(uuid, container_uuid_map[old_container])
+				
+				# Determine paste position
+				target_uuid = None
+				if selected_uuids:
+					if selected_container_uuid:
+						# Container selected: paste ABOVE container (not inside)
+						# Find first layer in selected container, use as target
+						container_layers = self.main_window.coa.get_layers_by_container(selected_container_uuid)
+						if container_layers:
+							target_uuid = container_layers[0]
+					else:
+						# Root layer selected: paste above it
+						target_uuid = selected_uuids[0]
+				
+				# Serialize and parse (container_uuid preserved)
+				layers_string = temp_coa.serialize_layers_to_string(temp_uuids, strip_container_uuid=False)
+				new_uuids = self.main_window.coa.parse(layers_string, target_uuid=target_uuid)
+			
+			# PHASE 7: Validate container contiguity after paste
+			splits = self.main_window.coa.validate_container_contiguity()
+			if splits:
+				# Log splits for debugging
+				for split in splits:
+					self.main_window._logger.info(f"Container split: {split['old_container']} -> {split['new_container']} ({split['layer_count']} layers)")
 			
 			# Update UI
 			self.main_window.right_sidebar._rebuild_layer_list()
@@ -161,9 +276,10 @@ class ClipboardActions:
 			
 			# Save to history
 			count = temp_coa.get_layer_count()
-			self.main_window._save_state(f"Paste {count} layer(s)")
+			paste_type = "container" if has_container_uuid else "layer(s)"
+			self.main_window._save_state(f"Paste {count} {paste_type}")
 			
-			self.main_window.status_left.setText(f"{count} layer(s) pasted")
+			self.main_window.status_left.setText(f"{count} {paste_type} pasted")
 			
 		except Exception as e:
 			loggerRaise(e, f"Failed to paste layer: {str(e)}")

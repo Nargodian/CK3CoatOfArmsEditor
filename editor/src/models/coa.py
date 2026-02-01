@@ -658,13 +658,15 @@ class CoA(CoAQueryMixin):
         """
         return self.serialize()
     
-    def serialize_layers_to_string(self, uuids: list) -> str:
+    def serialize_layers_to_string(self, uuids: list, strip_container_uuid: bool = True) -> str:
         """Export specific layers to CK3 format string
         
         Serializes only the layers with the given UUIDs. Useful for clipboard operations.
         
         Args:
             uuids: List of layer UUIDs to serialize
+            strip_container_uuid: If True, remove container_uuid from serialized layers (default for individual copy).
+                                  If False, preserve container_uuid (for whole container copy).
             
         Returns:
             CK3 format string containing only the specified layers
@@ -678,7 +680,16 @@ class CoA(CoAQueryMixin):
             if not layer:
                 continue
             
-            lines.append(layer.serialize(caller='CoA'))
+            # Serialize the layer
+            layer_string = layer.serialize(caller='CoA')
+            
+            # Strip container_uuid if requested
+            if strip_container_uuid:
+                # Remove the container_uuid line from serialization
+                import re
+                layer_string = re.sub(r'\s*container_uuid\s*=\s*"[^"]*"\s*\n', '', layer_string)
+            
+            lines.append(layer_string)
         
         lines.append("}")
         return '\n'.join(lines)
@@ -3329,6 +3340,86 @@ class CoA(CoAQueryMixin):
         
         self._logger.info(f"Created container {new_container_uuid} with {len(layer_uuids)} layers at position {highest_idx}")
         return new_container_uuid
+    
+    def validate_container_contiguity(self) -> List[Dict[str, any]]:
+        """Validate that containers are contiguous, split non-contiguous groups
+        
+        Scans all layers in order to ensure containers have no gaps. If a container
+        is fragmented (layers separated by different container), splits off the
+        non-contiguous portion with a new container_uuid.
+        
+        This is validation WITHIN an action, not after. Called as part of operations
+        that change layer positions (reorder, move, paste).
+        
+        Returns:
+            List of split operations: [{"old_container": str, "new_container": str, "layer_count": int}]
+        """
+        import uuid as uuid_module
+        
+        splits = []
+        all_uuids = self.get_all_layer_uuids()
+        
+        # Build map of container_uuid -> list of (index, layer_uuid) tuples
+        container_positions = {}
+        for idx, uuid in enumerate(all_uuids):
+            container_uuid = self.get_layer_container(uuid)
+            if container_uuid is None:
+                continue  # Root layers are always valid
+            
+            if container_uuid not in container_positions:
+                container_positions[container_uuid] = []
+            container_positions[container_uuid].append((idx, uuid))
+        
+        # Check each container for contiguity
+        for container_uuid, positions in container_positions.items():
+            if len(positions) <= 1:
+                continue  # Single layer is always contiguous
+            
+            # Sort by index
+            positions.sort(key=lambda x: x[0])
+            
+            # Find gaps (non-contiguous groups)
+            groups = []
+            current_group = [positions[0]]
+            
+            for i in range(1, len(positions)):
+                prev_idx = positions[i-1][0]
+                curr_idx = positions[i][0]
+                
+                # If indices are consecutive, same group
+                if curr_idx == prev_idx + 1:
+                    current_group.append(positions[i])
+                else:
+                    # Gap detected! Start new group
+                    groups.append(current_group)
+                    current_group = [positions[i]]
+            
+            # Add last group
+            groups.append(current_group)
+            
+            # If more than one group, we need to split
+            if len(groups) > 1:
+                # Keep first group with original container_uuid
+                # Split off remaining groups with new UUIDs
+                for i in range(1, len(groups)):
+                    group = groups[i]
+                    
+                    # Generate new container UUID (same name, new UUID portion)
+                    new_container_uuid = self.regenerate_container_uuid(container_uuid)
+                    
+                    # Update all layers in this group
+                    for _, uuid in group:
+                        self.set_layer_container(uuid, new_container_uuid)
+                    
+                    splits.append({
+                        "old_container": container_uuid,
+                        "new_container": new_container_uuid,
+                        "layer_count": len(group)
+                    })
+                    
+                    self._logger.info(f"Split non-contiguous container: {container_uuid} -> {new_container_uuid} ({len(group)} layers)")
+        
+        return splits
     
     def get_layer_bounds(self, uuid: str) -> Dict[str, float]:
         """Calculate layer bounds (AABB) including all instances

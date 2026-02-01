@@ -902,6 +902,12 @@ class LayerListWidget(QWidget):
 			for uuid in dragged_uuids:
 				self.coa.set_layer_container(uuid, target_container)
 			
+			# PHASE 7: Validate container contiguity after reorder
+			splits = self.coa.validate_container_contiguity()
+			if splits and self.main_window:
+				for split in splits:
+					self.main_window._logger.info(f"Container split: {split['old_container']} -> {split['new_container']} ({split['layer_count']} layers)")
+			
 			# Update selection
 			self.selected_layer_uuids = set(dragged_uuids)
 			self.last_selected_uuid = dragged_uuids[-1] if dragged_uuids else None
@@ -941,6 +947,12 @@ class LayerListWidget(QWidget):
 			else:
 				target_uuid = self.coa.get_layer_uuid_by_index(target_index)
 				self.coa.move_layer_above(container_layers, target_uuid)
+			
+			# PHASE 7: Validate container contiguity after reorder
+			splits = self.coa.validate_container_contiguity()
+			if splits and self.main_window:
+				for split in splits:
+					self.main_window._logger.info(f"Container split: {split['old_container']} -> {split['new_container']} ({split['layer_count']} layers)")
 			
 			# Rebuild and maintain selection
 			self.rebuild()
