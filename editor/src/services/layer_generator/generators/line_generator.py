@@ -99,12 +99,6 @@ class LineGenerator(BaseGenerator):
         
         self._controls['arc_bend'] = arc_slider
         
-        # Add explanation
-        explanation = QLabel("Note: Arc bend curves the line (±1 = semicircle). Line runs left-to-right along x-axis.")
-        explanation.setWordWrap(True)
-        explanation.setStyleSheet("color: #888; font-style: italic;")
-        layout.addWidget(explanation)
-        
         # Scale controls
         scale_controls = self.add_scale_controls(
             layout,

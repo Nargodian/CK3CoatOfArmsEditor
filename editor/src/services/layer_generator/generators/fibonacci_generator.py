@@ -51,19 +51,16 @@ class FibonacciGenerator(BaseGenerator):
         
         self._controls['count'] = count_spin
         
-        # Scale control
-        scale_layout = QHBoxLayout()
-        scale_label = QLabel("Scale:")
-        scale_spin = QDoubleSpinBox()
-        scale_spin.setRange(0.01, 0.5)
-        scale_spin.setSingleStep(0.01)
-        scale_spin.setValue(self.settings['uniform_scale'])
-        scale_spin.valueChanged.connect(lambda v: self._on_param_changed('uniform_scale', v))
-        scale_layout.addWidget(scale_label)
-        scale_layout.addWidget(scale_spin)
-        layout.addLayout(scale_layout)
+        # Scale controls (slider + spinbox combo)
+        scale_controls = self.add_scale_controls(
+            layout,
+            default_scale=self.settings['uniform_scale'],
+            enable_gradient=False
+        )
+        scale_controls['uniform_scale'].valueChanged.connect(
+            lambda v: self._on_param_changed('uniform_scale', v / 100.0))
         
-        self._controls['uniform_scale'] = scale_spin
+        self._controls['uniform_scale'] = scale_controls['uniform_scale']
         
         # Rotation controls
         rotation_controls = self.add_rotation_controls(
@@ -75,12 +72,6 @@ class FibonacciGenerator(BaseGenerator):
             lambda v: self._on_param_changed('rotation_mode', v))
         rotation_controls['base_rotation'].valueChanged.connect(
             lambda v: self._on_param_changed('base_rotation', float(v)))
-        
-        # Info note
-        note = QLabel("Creates natural sunflower seed pattern. More points = smaller individual instances.")
-        note.setWordWrap(True)
-        note.setStyleSheet("color: #888; font-style: italic; font-size: 9pt;")
-        layout.addWidget(note)
         
         return layout
     

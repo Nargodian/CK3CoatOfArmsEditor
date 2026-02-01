@@ -47,8 +47,8 @@ class VanillaGenerator(BaseGenerator):
             with open(layouts_path, 'r', encoding='utf-8') as f:
                 cls._loaded_layouts = json.load(f)
             
-            # Sort layout names for consistent ordering
-            cls._layout_names = sorted(cls._loaded_layouts.keys())
+            # Preserve insertion order from JSON (Python 3.7+ dict order)
+            cls._layout_names = list(cls._loaded_layouts.keys())
             
         except Exception as e:
             print(f"Error loading vanilla layouts: {e}")

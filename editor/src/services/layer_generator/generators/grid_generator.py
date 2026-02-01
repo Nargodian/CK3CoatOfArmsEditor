@@ -60,25 +60,16 @@ class GridGenerator(BaseGenerator):
         
         self._controls['columns'] = columns_spin
         
-        # Scale control (uniform only for grid)
-        scale_layout = QHBoxLayout()
-        scale_label = QLabel("Scale:")
-        scale_spin = QDoubleSpinBox()
-        scale_spin.setRange(0.01, 1.0)
-        scale_spin.setSingleStep(0.01)
-        scale_spin.setValue(self.settings['uniform_scale'])
-        scale_spin.valueChanged.connect(lambda v: self._on_param_changed('uniform_scale', v))
-        scale_layout.addWidget(scale_label)
-        scale_layout.addWidget(scale_spin)
-        layout.addLayout(scale_layout)
+        # Scale controls (slider + spinbox combo)
+        scale_controls = self.add_scale_controls(
+            layout,
+            default_scale=self.settings['uniform_scale'],
+            enable_gradient=False  # Grid doesn't support gradient
+        )
+        scale_controls['uniform_scale'].valueChanged.connect(
+            lambda v: self._on_param_changed('uniform_scale', v / 100.0))
         
-        self._controls['uniform_scale'] = scale_spin
-        
-        # Info note
-        note = QLabel("Note: Grid fills 0-1 space. Use transform tools to resize after generation.")
-        note.setWordWrap(True)
-        note.setStyleSheet("color: #888; font-style: italic; font-size: 9pt;")
-        layout.addWidget(note)
+        self._controls['uniform_scale'] = scale_controls['uniform_scale']
         
         return layout
     
