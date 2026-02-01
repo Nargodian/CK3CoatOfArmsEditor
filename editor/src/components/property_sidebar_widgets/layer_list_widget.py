@@ -369,6 +369,12 @@ class LayerListWidget(QWidget):
 		marker_btn.setProperty('container_uuid', container_uuid)
 		marker_btn.clicked.connect(lambda checked: self._select_container(container_uuid))
 		
+		# Enable drag functionality for container marker
+		marker_btn.mousePressEvent = lambda event, c_uuid=container_uuid, btn=marker_btn: \
+			self._container_mouse_press(event, c_uuid, btn)
+		marker_btn.mouseMoveEvent = lambda event, c_uuid=container_uuid, btn=marker_btn: \
+			self._container_mouse_move(event, c_uuid, btn)
+		
 		# Create layout
 		btn_layout = QHBoxLayout(marker_btn)
 		btn_layout.setContentsMargins(5, 5, 5, 5)
@@ -763,16 +769,47 @@ class LayerListWidget(QWidget):
 		drag.exec_(Qt.MoveAction)
 		self.drag_start_uuid = None
 	
+	def _container_mouse_press(self, event, container_uuid, button):
+		"""Handle mouse press on container marker for drag start"""
+		if event.button() == Qt.LeftButton:
+			self.drag_start_uuid = container_uuid  # Store container UUID
+			self.drag_start_pos = event.pos()
+		QPushButton.mousePressEvent(button, event)
+	
+	def _container_mouse_move(self, event, container_uuid, button):
+		"""Handle mouse move on container marker for drag operation"""
+		if not (event.buttons() & Qt.LeftButton):
+			return
+		
+		if self.drag_start_uuid is None:
+			return
+		
+		# Check if dragged far enough
+		if (event.pos() - self.drag_start_pos).manhattanLength() < 10:
+			return
+		
+		# Start drag with container UUID
+		drag = QDrag(button)
+		mime_data = QMimeData()
+		# Use different format to distinguish from layer drag
+		mime_data.setData('application/x-container-uuid', QByteArray(container_uuid.encode('utf-8')))
+		drag.setMimeData(mime_data)
+		
+		drag.exec_(Qt.MoveAction)
+		self.drag_start_uuid = None
+	
 	def dragEnterEvent(self, event):
 		"""Handle drag enter on layer list"""
-		if event.mimeData().hasFormat('application/x-layer-uuids'):
+		if event.mimeData().hasFormat('application/x-layer-uuids') or \
+		   event.mimeData().hasFormat('application/x-container-uuid'):
 			event.accept()
 		else:
 			event.ignore()
 	
 	def dragMoveEvent(self, event):
 		"""Handle drag move over layer list and highlight drop zones"""
-		if event.mimeData().hasFormat('application/x-layer-uuids'):
+		if event.mimeData().hasFormat('application/x-layer-uuids') or \
+		   event.mimeData().hasFormat('application/x-container-uuid'):
 			# Find which drop zone is closest to cursor
 			drop_pos = event.pos()
 			closest_zone = None
@@ -806,7 +843,7 @@ class LayerListWidget(QWidget):
 			event.ignore()
 	
 	def dropEvent(self, event):
-		"""Handle drop on layer list to reorder (supports multi-layer)"""
+		"""Handle drop on layer list to reorder layers or containers"""
 		# Clear drop zone highlight
 		if self.active_drop_zone:
 			self.active_drop_zone.setProperty('highlighted', 'false')
@@ -814,8 +851,28 @@ class LayerListWidget(QWidget):
 			self.active_drop_zone.style().polish(self.active_drop_zone)
 			self.active_drop_zone = None
 		
+		# Find which drop zone is closest to cursor
+		drop_pos = event.pos()
+		closest_zone = None
+		min_distance = float('inf')
+		
+		for zone in self.drop_zones:
+			zone_center = zone.geometry().center()
+			distance = abs(drop_pos.y() - zone_center.y())
+			if distance < min_distance:
+				min_distance = distance
+				closest_zone = zone
+		
+		if not closest_zone:
+			event.ignore()
+			return
+		
+		# Get drop zone properties
+		target_index = closest_zone.property('drop_index')
+		is_indented = closest_zone.property('indented') or False
+		
+		# Handle layer drag
 		if event.mimeData().hasFormat('application/x-layer-uuids'):
-			# Get dragged UUIDs
 			dragged_uuids_json = bytes(event.mimeData().data('application/x-layer-uuids')).decode('utf-8')
 			dragged_uuids = json.loads(dragged_uuids_json)
 			
@@ -823,50 +880,78 @@ class LayerListWidget(QWidget):
 				event.ignore()
 				return
 			
-			# Find which drop zone is closest to cursor
-			drop_pos = event.pos()
-			closest_zone = None
-			min_distance = float('inf')
+			# Determine target container based on drop zone
+			target_container = None
+			if is_indented:
+				# Dropping in sub-zone - find which container this zone belongs to
+				target_uuid = self.coa.get_layer_uuid_by_index(target_index) if target_index < self.coa.get_layer_count() else None
+				if target_uuid:
+					target_container = self.coa.get_layer_container(target_uuid)
+			# else: root zone, target_container stays None
 			
-			for zone in self.drop_zones:
-				zone_center = zone.geometry().center()
-				distance = abs(drop_pos.y() - zone_center.y())
-				if distance < min_distance:
-					min_distance = distance
-					closest_zone = zone
-			
-			if not closest_zone:
-				event.ignore()
-				return
-			
-			# Get the target index from the drop zone
-			target_index = closest_zone.property('drop_index')
-			
-			# UUID-based drag-drop reordering
-			# Get the UUID at the target position (if exists)
+			# Move layers
 			if target_index == 0:
-				# Drop at bottom - move all dragged layers to bottom
 				self.coa.move_layer_to_bottom(dragged_uuids)
 			elif target_index >= self.coa.get_layer_count():
-				# Drop at top - move all dragged layers to top
 				self.coa.move_layer_to_top(dragged_uuids)
 			else:
-				# Drop between layers - get target UUID and move above it
 				target_uuid = self.coa.get_layer_uuid_by_index(target_index)
 				self.coa.move_layer_above(dragged_uuids, target_uuid)
 			
-			# Update selection to new UUIDs (keep same UUIDs selected)
+			# Update container assignment for all dragged layers
+			for uuid in dragged_uuids:
+				self.coa.set_layer_container(uuid, target_container)
+			
+			# Update selection
 			self.selected_layer_uuids = set(dragged_uuids)
 			self.last_selected_uuid = dragged_uuids[-1] if dragged_uuids else None
 			
 			self.rebuild()
 			self.update_selection_visuals()
 			
-			# Notify parent of reorder
 			if self.on_layers_reordered:
 				self.on_layers_reordered(len(dragged_uuids))
 			
 			event.accept()
+		
+		# Handle container drag
+		elif event.mimeData().hasFormat('application/x-container-uuid'):
+			container_uuid = bytes(event.mimeData().data('application/x-container-uuid')).decode('utf-8')
+			
+			if not container_uuid:
+				event.ignore()
+				return
+			
+			# Reject drop on indented zones (no nesting)
+			if is_indented:
+				event.ignore()
+				return
+			
+			# Get all layers in the container
+			container_layers = self.coa.get_layers_by_container(container_uuid)
+			if not container_layers:
+				event.ignore()
+				return
+			
+			# Move all container layers as a unit
+			if target_index == 0:
+				self.coa.move_layer_to_bottom(container_layers)
+			elif target_index >= self.coa.get_layer_count():
+				self.coa.move_layer_to_top(container_layers)
+			else:
+				target_uuid = self.coa.get_layer_uuid_by_index(target_index)
+				self.coa.move_layer_above(container_layers, target_uuid)
+			
+			# Rebuild and maintain selection
+			self.rebuild()
+			self.selected_layer_uuids = set(container_layers)
+			self.update_selection_visuals()
+			
+			if self.on_layers_reordered:
+				self.on_layers_reordered(len(container_layers))
+			
+			event.accept()
+		
 		else:
 			event.ignore()
 	
