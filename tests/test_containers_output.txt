@@ -1,0 +1,70 @@
+coa_export = {
+	pattern = "pattern__solid.dds"
+	color1 = "purple"
+	color2 = "yellow"
+	color3 = "black"
+	colored_emblem = {
+		uuid = "f3aa4014-7fd7-4438-a11a-eb1ca0ecf9cd"
+		container_uuid = "container_19795ff9-5ec8-4394-b3c1-41db1326eadb_Animals"
+		name = "Lion Front"
+		texture = "ce_lion.dds"
+		color1 = "yellow"
+		color2 = "red"
+		color3 = "blue"
+			instance = {
+				position = { 0.5 0.5 }
+				scale = { 0.7 0.7 }
+			}
+	}
+	colored_emblem = {
+		uuid = "2c267125-4e5a-4bbe-8e11-12a5a29cca95"
+		container_uuid = "container_19795ff9-5ec8-4394-b3c1-41db1326eadb_Animals"
+		name = "Lion Back"
+		texture = "ce_lion.dds"
+		color1 = "yellow"
+		color2 = "red"
+		color3 = "blue"
+			instance = {
+				position = { 0.5 0.5 }
+				scale = { 0.7 0.7 }
+			}
+	}
+	colored_emblem = {
+		uuid = "ab37895d-70be-4b2d-a696-940dcc84ccdc"
+		container_uuid = "container_8f3bddd1-9031-4aa2-a5d0-c5f7001fc952_Symbols"
+		name = "Cross Main"
+		texture = "ce_cross.dds"
+		color1 = "yellow"
+		color2 = "red"
+		color3 = "blue"
+			instance = {
+				position = { 0.5 0.5 }
+				scale = { 0.7 0.7 }
+			}
+	}
+	colored_emblem = {
+		uuid = "df9ee315-cdd0-4aca-bbd0-f44d17758c60"
+		container_uuid = "container_8f3bddd1-9031-4aa2-a5d0-c5f7001fc952_Symbols"
+		name = "Cross Accent"
+		texture = "ce_cross.dds"
+		color1 = "yellow"
+		color2 = "red"
+		color3 = "blue"
+			instance = {
+				position = { 0.5 0.5 }
+				scale = { 0.7 0.7 }
+			}
+	}
+	colored_emblem = {
+		uuid = "29e0972a-459b-4778-bbc4-f00479eae66a"
+		name = "Star Solo"
+		texture = "ce_star.dds"
+		color1 = "yellow"
+		color2 = "red"
+		color3 = "blue"
+			instance = {
+				position = { 0.5 0.5 }
+				scale = { 0.7 0.7 }
+			}
+	}
+}

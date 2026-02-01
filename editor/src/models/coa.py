@@ -3219,6 +3219,117 @@ class CoA(CoAQueryMixin):
                 containers.add(layer.container_uuid)
         return sorted(list(containers))
     
+    def generate_container_uuid(self, name: str) -> str:
+        """Generate a new container UUID with given name
+        
+        Args:
+            name: Display name for the container
+            
+        Returns:
+            Container UUID string in format "container_{uuid}_{name}"
+        """
+        import uuid
+        return f"container_{uuid.uuid4()}_{name}"
+    
+    def regenerate_container_uuid(self, old_container_uuid: str) -> str:
+        """Regenerate container UUID (new UUID portion, keep name)
+        
+        Args:
+            old_container_uuid: Original container UUID
+            
+        Returns:
+            New container UUID with same name but new UUID portion
+        """
+        # Parse old UUID to extract name
+        parts = old_container_uuid.split('_', 2)
+        if len(parts) >= 3:
+            name = parts[2]
+            return self.generate_container_uuid(name)
+        else:
+            # Fallback if parsing fails
+            return self.generate_container_uuid("Container")
+    
+    def duplicate_container(self, container_uuid: str) -> str:
+        """Duplicate an entire container with all its layers
+        
+        Args:
+            container_uuid: Container UUID to duplicate
+            
+        Returns:
+            New container UUID
+        """
+        import uuid as uuid_module
+        
+        # Get all layers in the container
+        layer_uuids = self.get_layers_by_container(container_uuid)
+        if not layer_uuids:
+            self._logger.warning(f"Container {container_uuid} has no layers")
+            return container_uuid
+        
+        # Generate new container UUID (same name, new UUID portion)
+        new_container_uuid = self.regenerate_container_uuid(container_uuid)
+        
+        # Duplicate each layer and assign to new container
+        for old_uuid in layer_uuids:
+            # Duplicate the layer
+            new_uuid = self.duplicate_layer(old_uuid)
+            # Assign to new container
+            self.set_layer_container(new_uuid, new_container_uuid)
+        
+        self._logger.info(f"Duplicated container {container_uuid} -> {new_container_uuid} with {len(layer_uuids)} layers")
+        return new_container_uuid
+    
+    def create_container_from_layers(self, layer_uuids: List[str], name: str = "Container") -> str:
+        """Create a new container from selected layers and regroup them
+        
+        Args:
+            layer_uuids: List of layer UUIDs to group
+            name: Name for the new container
+            
+        Returns:
+            New container UUID
+        """
+        if not layer_uuids:
+            self._logger.warning("Cannot create container from empty layer list")
+            return None
+        
+        # Generate new container UUID
+        new_container_uuid = self.generate_container_uuid(name)
+        
+        # Find the layer with highest position (earliest in z-order, lowest index)
+        all_uuids = self.get_all_layer_uuids()
+        highest_idx = len(all_uuids)  # Start with lowest priority
+        target_uuid = None
+        
+        for uuid in layer_uuids:
+            idx = all_uuids.index(uuid) if uuid in all_uuids else None
+            if idx is not None and idx < highest_idx:
+                highest_idx = idx
+                target_uuid = uuid
+        
+        if target_uuid is None:
+            self._logger.warning("No valid layers found for container creation")
+            return None
+        
+        # Sort layers by current position to maintain relative order
+        layer_positions = [(all_uuids.index(uuid), uuid) for uuid in layer_uuids if uuid in all_uuids]
+        layer_positions.sort()  # Sort by index
+        
+        # Move all other layers to be right above the target (maintaining order)
+        # Skip the first one (it's already at the target position)
+        for i in range(1, len(layer_positions)):
+            _, uuid = layer_positions[i]
+            # Move this layer to be above the previous layer
+            prev_uuid = layer_positions[i-1][1]
+            self.move_layer_above(uuid, prev_uuid)
+        
+        # Set container UUID on all layers
+        for _, uuid in layer_positions:
+            self.set_layer_container(uuid, new_container_uuid)
+        
+        self._logger.info(f"Created container {new_container_uuid} with {len(layer_uuids)} layers at position {highest_idx}")
+        return new_container_uuid
+    
     def get_layer_bounds(self, uuid: str) -> Dict[str, float]:
         """Calculate layer bounds (AABB) including all instances
         
