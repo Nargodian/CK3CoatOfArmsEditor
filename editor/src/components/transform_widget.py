@@ -137,7 +137,7 @@ class TransformWidget(QWidget):
 		self.rotation = rotation
 		self.update()
 	
-	def rescale_for_frame_change(self, scale_ratio_x, scale_ratio_y, offset_delta_x, offset_delta_y):
+	def rescale_for_frame_change(self, scale_ratio_x, scale_ratio_y, offset_delta_x, offset_delta_y, new_frame_scale_x, new_frame_scale_y):
 		"""Rescale widget proportionally when frame changes to prevent false transforms
 		
 		When the frame changes (e.g., from scale 1.0 to 0.9), the widget needs to adjust
@@ -149,16 +149,21 @@ class TransformWidget(QWidget):
 			scale_ratio_y: new_frame_scale_y / old_frame_scale_y
 			offset_delta_x: new_frame_offset_x - old_frame_offset_x
 			offset_delta_y: new_frame_offset_y - old_frame_offset_y
+			new_frame_scale_x: new frame scale X (needed for offset scaling)
+			new_frame_scale_y: new frame scale Y (needed for offset scaling)
 		"""
-		# Scale position coordinates around center (0.5, 0.5) first
+		# Step 1: Scale position coordinates around center (0.5, 0.5)
+		# This matches the order in coordinate conversion: scale is applied first
 		self.pos_x = (self.pos_x - 0.5) * scale_ratio_x + 0.5
 		self.pos_y = (self.pos_y - 0.5) * scale_ratio_y + 0.5
 		
-		# Then adjust position by offset delta (scaled to composite space)
-		self.pos_x -= offset_delta_x * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
-		self.pos_y -= offset_delta_y * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+		# Step 2: Apply offset delta (scaled by new frame scale and composite space)
+		# Offset operates in scaled space, so divide by new frame scale
+		# Also scale by VIEWPORT_BASE_SIZE to convert to CoA space
+		self.pos_x -= (offset_delta_x / new_frame_scale_x) * VIEWPORT_BASE_SIZE
+		self.pos_y -= (offset_delta_y / new_frame_scale_y) * VIEWPORT_BASE_SIZE
 		
-		# Adjust scale by frame scale ratio
+		# Step 3: Adjust scale by frame scale ratio
 		self.scale_x *= scale_ratio_x
 		self.scale_y *= scale_ratio_y
 		
