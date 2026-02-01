@@ -685,10 +685,10 @@ class Layer:
         
         lines = []
         lines.append('\tcolored_emblem = {')
-        lines.append(f'\t\tuuid = "{self.uuid}"')
+        # Write metadata as special comments (game ignores, editor parses)
         if self.container_uuid:
-            lines.append(f'\t\tcontainer_uuid = "{self.container_uuid}"')
-        lines.append(f'\t\tname = "{self.name}"')
+            lines.append(f'\t\t##META##container_uuid="{self.container_uuid}"')
+        lines.append(f'\t\t##META##name="{self.name}"')
         lines.append(f'\t\ttexture = "{self.filename}"')
         
         # Add colors based on color count
@@ -713,12 +713,13 @@ class Layer:
         return '\n'.join(lines)
     
     @classmethod
-    def parse(cls, data: Dict[str, Any], caller: str = 'unknown') -> 'Layer':
+    def parse(cls, data: Dict[str, Any], caller: str = 'unknown', regenerate_uuid: bool = False) -> 'Layer':
         """Parse layer from Clausewitz parser output
         
         Args:
             data: Dict from parser with texture, colors, instances, etc
             caller: Registered key identifying the caller
+            regenerate_uuid: If True, always generate new UUID (for paste operations)
             
         Returns:
             New Layer object
@@ -758,8 +759,11 @@ class Layer:
         if isinstance(mask, list):
             mask = [int(x) for x in mask]
         
-        # Parse UUID (preserve if present, generate if missing)
-        layer_uuid = data.get('uuid', str(uuid_module.uuid4()))
+        # Parse UUID (regenerate if requested for paste operations, otherwise preserve if present)
+        if regenerate_uuid:
+            layer_uuid = str(uuid_module.uuid4())
+        else:
+            layer_uuid = data.get('uuid', str(uuid_module.uuid4()))
         
         # Parse container_uuid (preserve if present, None if missing)
         container_uuid = data.get('container_uuid')

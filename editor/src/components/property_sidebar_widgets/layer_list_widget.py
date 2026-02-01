@@ -8,9 +8,10 @@ Handles layer display, selection, drag-drop reordering, and inline actions.
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, 
                              QHBoxLayout, QApplication, QLineEdit)
 from PyQt5.QtCore import Qt, QMimeData, QByteArray, QSize
-from PyQt5.QtGui import QPixmap, QDrag
+from PyQt5.QtGui import QPixmap, QDrag, QIcon
 import json
 import math
+import os
 from utils.atlas_compositor import composite_emblem_atlas, get_atlas_path
 from constants import HIGH_CONTRAST_DARK, HIGH_CONTRAST_LIGHT
 
@@ -23,6 +24,7 @@ class LayerListWidget(QWidget):
 		#COA INTEGRATION ACTION: Step 3 - Add CoA model reference (set externally)
 		self.coa = None  # Reference to CoA model (will be set by MainWindow)
 		self.selected_layer_uuids = set()  # Track selection by UUID
+		self.selected_container_uuids = set()  # Track explicitly selected containers
 		self.last_selected_uuid = None
 		self.layer_buttons = []  # List of (uuid, button) tuples
 		self.container_markers = []  # List of (container_uuid, marker_widget) tuples
@@ -50,25 +52,6 @@ class LayerListWidget(QWidget):
 		main_layout = QVBoxLayout(self)
 		main_layout.setContentsMargins(0, 0, 0, 0)
 		main_layout.setSpacing(2)
-		
-		# Add "Group into Container" button (hidden by default)
-		self.group_container_btn = QPushButton("📦 Group into Container")
-		self.group_container_btn.setFixedHeight(30)
-		self.group_container_btn.setStyleSheet("""
-			QPushButton {
-				background-color: rgba(100, 150, 100, 100);
-				border: 1px solid rgba(150, 200, 150, 100);
-				border-radius: 4px;
-				color: white;
-				font-weight: bold;
-			}
-			QPushButton:hover {
-				background-color: rgba(120, 170, 120, 120);
-			}
-		""")
-		self.group_container_btn.clicked.connect(self._create_container_from_selection)
-		self.group_container_btn.hide()  # Hidden by default
-		main_layout.addWidget(self.group_container_btn)
 		
 		# Create container for layers
 		layers_container = QWidget()
@@ -183,6 +166,13 @@ class LayerListWidget(QWidget):
 					# Reverse the container layers for display
 					container_layers_reversed = list(reversed(container_layers))
 					
+					# Add drop zone at the top of the container (before first layer)
+					if container_layers:
+						# Get the highest layer in the container (last in all_uuids)
+						highest_layer_index = all_uuids.index(container_layers[-1])
+						self._add_drop_zone(highest_layer_index + 1, layout_pos, indented=True, container_uuid=container_uuid)
+						layout_pos += 1
+					
 					for layer_uuid in container_layers_reversed:
 						layer_btn = self._create_layer_button(layer_uuid, indented=True)
 						self.layers_layout.insertWidget(layout_pos, layer_btn)
@@ -191,7 +181,23 @@ class LayerListWidget(QWidget):
 						
 						# Add drop zone after each sub-layer
 						actual_index = all_uuids.index(layer_uuid)
-						self._add_drop_zone(actual_index, layout_pos, indented=True)
+						self._add_drop_zone(actual_index, layout_pos, indented=True, container_uuid=container_uuid)
+						layout_pos += 1
+					
+					# Add root-level drop zone after the expanded container
+					# This allows placing items below the container at root level
+					if container_layers:
+						lowest_layer_index = all_uuids.index(container_layers[0])
+						self._add_drop_zone(lowest_layer_index, layout_pos, indented=False)
+						layout_pos += 1
+				else:
+					# Even when collapsed, add a drop zone below the container marker
+					# This allows dropping at the root level after this container
+					container_layers = container_map.get(container_uuid, [])
+					if container_layers:
+						# Get the lowest layer in the container (first in all_uuids)
+						lowest_layer_index = all_uuids.index(container_layers[0])
+						self._add_drop_zone(lowest_layer_index, layout_pos, indented=False)
 						layout_pos += 1
 		
 		# Re-add stretch at the end
@@ -222,7 +228,7 @@ class LayerListWidget(QWidget):
 		layer_btn.setCheckable(True)
 		layer_btn.setFixedHeight(60)
 		layer_btn.setProperty('layer_uuid', uuid)
-		layer_btn.clicked.connect(lambda checked: self._select_layer_by_uuid(uuid))
+		layer_btn.clicked.connect(lambda checked, u=uuid: self._select_layer_by_uuid(u))
 		
 		# Enable drag functionality
 		layer_btn.mousePressEvent = lambda event, u=uuid, btn=layer_btn: self._layer_mouse_press(event, u, btn)
@@ -346,8 +352,12 @@ class LayerListWidget(QWidget):
 				}
 			""")
 		
-		# Add button to container layout and return container
+		# Add button to container layout
 		container_layout.addWidget(layer_btn)
+		
+		# Store reference to the actual button in the container widget for later access
+		container_widget.layer_button = layer_btn
+		
 		return container_widget
 	
 	def _create_container_marker(self, container_uuid):
@@ -365,7 +375,7 @@ class LayerListWidget(QWidget):
 		
 		marker_btn = QPushButton()
 		marker_btn.setCheckable(True)  # Make it selectable
-		marker_btn.setFixedHeight(40)
+		marker_btn.setFixedHeight(60)
 		marker_btn.setProperty('container_uuid', container_uuid)
 		marker_btn.clicked.connect(lambda checked: self._select_container(container_uuid))
 		
@@ -381,7 +391,7 @@ class LayerListWidget(QWidget):
 		btn_layout.setSpacing(8)
 		
 		# Add expand/collapse button
-		toggle_btn = QPushButton("[+]" if is_collapsed else "[-]")
+		toggle_btn = QPushButton("+" if is_collapsed else "−")
 		toggle_btn.setFixedSize(24, 24)
 		toggle_btn.setToolTip("Expand/Collapse Container")
 		toggle_btn.setStyleSheet("""
@@ -389,9 +399,10 @@ class LayerListWidget(QWidget):
 				border: 1px solid rgba(255, 255, 255, 60);
 				border-radius: 2px;
 				background-color: rgba(255, 255, 255, 10);
-				font-size: 10px;
+				font-size: 16px;
 				font-weight: bold;
 				padding: 0px;
+				text-align: center;
 			}
 			QPushButton:hover {
 				background-color: rgba(255, 255, 255, 30);
@@ -400,10 +411,12 @@ class LayerListWidget(QWidget):
 		toggle_btn.clicked.connect(lambda: self._toggle_container_collapse(container_uuid))
 		btn_layout.addWidget(toggle_btn)
 		
-		# Add folder icon (📁)
-		icon_label = QLabel("📁")
+		# Add folder icon
+		icon_label = QLabel()
 		icon_label.setFixedSize(24, 24)
-		icon_label.setStyleSheet("border: none; font-size: 18px;")
+		icon_label.setStyleSheet("border: none;")
+		folder_icon = QIcon(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'assets', 'folder.svg'))
+		icon_label.setPixmap(folder_icon.pixmap(20, 20))
 		btn_layout.addWidget(icon_label)
 		
 		# Add container name (editable)
@@ -513,19 +526,19 @@ class LayerListWidget(QWidget):
 		if visible is None:
 			visible = True
 		visibility_btn = QPushButton("👁" if visible else "🚫")
-		visibility_btn.setFixedSize(20, 20)
+		visibility_btn.setFixedSize(20, 15)
 		visibility_btn.setToolTip("Toggle Visibility")
 		visibility_btn.setStyleSheet("""
 			QPushButton {
-				border: 1px solid rgba(255, 255, 255, 60);
-				border-radius: 2px;
-				background-color: rgba(255, 255, 255, 10);
+				border: none;
+				background-color: transparent;
 				font-size: 10px;
 				padding: 0px;
 				text-align: center;
 			}
 			QPushButton:hover {
 				background-color: rgba(141, 191, 90, 100);
+				border-radius: 2px;
 			}
 		""")
 		visibility_btn.clicked.connect(lambda checked: self._handle_visibility_toggle(uuid))
@@ -533,19 +546,19 @@ class LayerListWidget(QWidget):
 		
 		# Duplicate button
 		duplicate_btn = QPushButton("⎘")
-		duplicate_btn.setFixedSize(20, 20)
+		duplicate_btn.setFixedSize(20, 15)
 		duplicate_btn.setToolTip("Duplicate Layer")
 		duplicate_btn.setStyleSheet("""
 			QPushButton {
-				border: 1px solid rgba(255, 255, 255, 60);
-				border-radius: 2px;
-				background-color: rgba(255, 255, 255, 10);
+				border: none;
+				background-color: transparent;
 				font-size: 10px;
 				padding: 0px;
 				text-align: center;
 			}
 			QPushButton:hover {
 				background-color: rgba(90, 141, 191, 100);
+				border-radius: 2px;
 			}
 		""")
 		duplicate_btn.clicked.connect(lambda checked: self._handle_duplicate(uuid))
@@ -553,13 +566,12 @@ class LayerListWidget(QWidget):
 		
 		# Delete button
 		delete_btn = QPushButton("×")
-		delete_btn.setFixedSize(20, 20)
+		delete_btn.setFixedSize(20, 15)
 		delete_btn.setToolTip("Delete Layer")
 		delete_btn.setStyleSheet("""
 			QPushButton {
-				border: 1px solid rgba(255, 100, 100, 60);
-				border-radius: 2px;
-				background-color: rgba(255, 255, 255, 10);
+				border: none;
+				background-color: transparent;
 				font-size: 14px;
 				font-weight: bold;
 				padding: 0px;
@@ -567,6 +579,7 @@ class LayerListWidget(QWidget):
 			}
 			QPushButton:hover {
 				background-color: rgba(191, 90, 90, 100);
+				border-radius: 2px;
 			}
 		""")
 		delete_btn.clicked.connect(lambda checked: self._handle_delete(uuid))
@@ -589,19 +602,19 @@ class LayerListWidget(QWidget):
 		any_visible = any(self.coa.get_layer_visible(uuid) for uuid in container_layers)
 		
 		visibility_btn = QPushButton("👁" if any_visible else "🚫")
-		visibility_btn.setFixedSize(20, 20)
+		visibility_btn.setFixedSize(20, 15)
 		visibility_btn.setToolTip("Toggle Container Visibility")
 		visibility_btn.setStyleSheet("""
 			QPushButton {
-				border: 1px solid rgba(255, 255, 255, 60);
-				border-radius: 2px;
-				background-color: rgba(255, 255, 255, 10);
+				border: none;
+				background-color: transparent;
 				font-size: 10px;
 				padding: 0px;
 				text-align: center;
 			}
 			QPushButton:hover {
 				background-color: rgba(141, 191, 90, 100);
+				border-radius: 2px;
 			}
 		""")
 		visibility_btn.clicked.connect(lambda: self._handle_container_visibility_toggle(container_uuid))
@@ -609,19 +622,19 @@ class LayerListWidget(QWidget):
 		
 		# Duplicate button
 		duplicate_btn = QPushButton("⎘")
-		duplicate_btn.setFixedSize(20, 20)
+		duplicate_btn.setFixedSize(20, 15)
 		duplicate_btn.setToolTip("Duplicate Container")
 		duplicate_btn.setStyleSheet("""
 			QPushButton {
-				border: 1px solid rgba(255, 255, 255, 60);
-				border-radius: 2px;
-				background-color: rgba(255, 255, 255, 10);
+				border: none;
+				background-color: transparent;
 				font-size: 10px;
 				padding: 0px;
 				text-align: center;
 			}
 			QPushButton:hover {
 				background-color: rgba(90, 141, 191, 100);
+				border-radius: 2px;
 			}
 		""")
 		duplicate_btn.clicked.connect(lambda: self._handle_container_duplicate(container_uuid))
@@ -629,13 +642,12 @@ class LayerListWidget(QWidget):
 		
 		# Delete button
 		delete_btn = QPushButton("×")
-		delete_btn.setFixedSize(20, 20)
+		delete_btn.setFixedSize(20, 15)
 		delete_btn.setToolTip("Delete Container")
 		delete_btn.setStyleSheet("""
 			QPushButton {
-				border: 1px solid rgba(255, 100, 100, 60);
-				border-radius: 2px;
-				background-color: rgba(255, 255, 255, 10);
+				border: none;
+				background-color: transparent;
 				font-size: 14px;
 				font-weight: bold;
 				padding: 0px;
@@ -643,6 +655,7 @@ class LayerListWidget(QWidget):
 			}
 			QPushButton:hover {
 				background-color: rgba(191, 90, 90, 100);
+				border-radius: 2px;
 			}
 		""")
 		delete_btn.clicked.connect(lambda: self._handle_container_delete(container_uuid))
@@ -721,7 +734,36 @@ class LayerListWidget(QWidget):
 		if event.button() == Qt.LeftButton:
 			self.drag_start_uuid = uuid
 			self.drag_start_pos = event.pos()
+		elif event.button() == Qt.RightButton:
+			# Show context menu
+			self._show_layer_context_menu(event, uuid, button)
+			return  # Don't call parent mousePressEvent for right-click
 		QPushButton.mousePressEvent(button, event)
+	
+	def _show_layer_context_menu(self, event, uuid, button):
+		"""Show context menu for layer button"""
+		from PyQt5.QtWidgets import QMenu
+		
+		# Create menu
+		menu = QMenu(button)
+		menu.setStyleSheet("""
+			QMenu {
+				background-color: rgb(50, 50, 50);
+				color: white;
+				border: 1px solid rgba(255, 255, 255, 60);
+			}
+			QMenu::item:selected {
+				background-color: rgba(100, 150, 255, 150);
+			}
+		""")
+		
+		# Add "Group into Container" action if multiple layers selected
+		if len(self.selected_layer_uuids) >= 2:
+			group_action = menu.addAction("Group")
+			group_action.triggered.connect(self._create_container_from_selection)
+		
+		# Show menu at cursor position
+		menu.exec_(button.mapToGlobal(event.pos()))
 	
 	def _layer_mouse_move(self, event, uuid, button):
 		"""Handle mouse move on layer button for drag operation"""
@@ -816,8 +858,10 @@ class LayerListWidget(QWidget):
 			min_distance = float('inf')
 			
 			for zone in self.drop_zones:
-				zone_center = zone.geometry().center()
-				distance = abs(drop_pos.y() - zone_center.y())
+				# Map zone center to layer list widget coordinates
+				zone_center_global = zone.mapToGlobal(zone.rect().center())
+				zone_center_local = self.mapFromGlobal(zone_center_global)
+				distance = abs(drop_pos.y() - zone_center_local.y())
 				if distance < min_distance:
 					min_distance = distance
 					closest_zone = zone
@@ -857,8 +901,10 @@ class LayerListWidget(QWidget):
 		min_distance = float('inf')
 		
 		for zone in self.drop_zones:
-			zone_center = zone.geometry().center()
-			distance = abs(drop_pos.y() - zone_center.y())
+			# Map zone center to layer list widget coordinates
+			zone_center_global = zone.mapToGlobal(zone.rect().center())
+			zone_center_local = self.mapFromGlobal(zone_center_global)
+			distance = abs(drop_pos.y() - zone_center_local.y())
 			if distance < min_distance:
 				min_distance = distance
 				closest_zone = zone
@@ -883,13 +929,17 @@ class LayerListWidget(QWidget):
 			# Determine target container based on drop zone
 			target_container = None
 			if is_indented:
-				# Dropping in sub-zone - find which container this zone belongs to
-				target_uuid = self.coa.get_layer_uuid_by_index(target_index) if target_index < self.coa.get_layer_count() else None
-				if target_uuid:
-					target_container = self.coa.get_layer_container(target_uuid)
+				# Dropping in sub-zone - get container from drop zone property
+				target_container = closest_zone.property('container_uuid')
 			# else: root zone, target_container stays None
 			
-			# Move layers
+			# Update container assignment ONLY if layers are moving to a different container
+			for uuid in dragged_uuids:
+				current_container = self.coa.get_layer_container(uuid)
+				if current_container != target_container:
+					self.coa.set_layer_container(uuid, target_container)
+			
+			# Then move layers to target position
 			if target_index == 0:
 				self.coa.move_layer_to_bottom(dragged_uuids)
 			elif target_index >= self.coa.get_layer_count():
@@ -897,10 +947,6 @@ class LayerListWidget(QWidget):
 			else:
 				target_uuid = self.coa.get_layer_uuid_by_index(target_index)
 				self.coa.move_layer_above(dragged_uuids, target_uuid)
-			
-			# Update container assignment for all dragged layers
-			for uuid in dragged_uuids:
-				self.coa.set_layer_container(uuid, target_container)
 			
 			# PHASE 7: Validate container contiguity after reorder
 			splits = self.coa.validate_container_contiguity()
@@ -967,7 +1013,7 @@ class LayerListWidget(QWidget):
 		else:
 			event.ignore()
 	
-	def _add_drop_zone(self, drop_index, layout_position, indented=False):
+	def _add_drop_zone(self, drop_index, layout_position, indented=False, container_uuid=None):
 		"""Add a drop zone separator at the specified position"""
 		# Create container for indentation support
 		container = QWidget()
@@ -985,6 +1031,7 @@ class LayerListWidget(QWidget):
 		drop_zone.setFixedHeight(8)
 		drop_zone.setProperty('drop_index', drop_index)
 		drop_zone.setProperty('indented', indented)
+		drop_zone.setProperty('container_uuid', container_uuid)
 		drop_zone.setStyleSheet("""
 			QWidget {
 				background-color: transparent;
@@ -1020,6 +1067,9 @@ class LayerListWidget(QWidget):
 		modifiers = QApplication.keyboardModifiers()
 		ctrl_pressed = modifiers & Qt.ControlModifier
 		shift_pressed = modifiers & Qt.ShiftModifier
+		
+		# Clear container selection when selecting individual layers
+		self.selected_container_uuids.clear()
 		
 		if shift_pressed and self.last_selected_uuid is not None:
 			# Shift+Click: Range selection - need to select all UUIDs between last and current
@@ -1076,20 +1126,31 @@ class LayerListWidget(QWidget):
 		container_layers = set(self.coa.get_layers_by_container(container_uuid))
 		
 		if ctrl_pressed:
-			# Ctrl+Click: Toggle all layers in container
-			if container_layers.issubset(self.selected_layer_uuids):
-				# All layers selected, deselect them
+			# Ctrl+Click: Toggle container and its layers
+			if container_uuid in self.selected_container_uuids:
+				# Container selected, deselect it and its layers
+				self.selected_container_uuids.discard(container_uuid)
 				self.selected_layer_uuids -= container_layers
 			else:
-				# Add all layers to selection
+				# Add container and all layers to selection
+				self.selected_container_uuids.add(container_uuid)
 				self.selected_layer_uuids.update(container_layers)
 		else:
-			# Regular click: Select only these layers
-			self.selected_layer_uuids = container_layers.copy()
+			# Regular click: Toggle selection
+			if container_uuid in self.selected_container_uuids:
+				# Container selected, deselect everything
+				self.selected_container_uuids.clear()
+				self.selected_layer_uuids.clear()
+			else:
+				# Select only this container and its layers
+				self.selected_container_uuids = {container_uuid}
+				self.selected_layer_uuids = container_layers.copy()
 		
 		# Update last selected (use first layer in container)
-		if container_layers:
+		if container_layers and self.selected_layer_uuids:
 			self.last_selected_uuid = next(iter(container_layers))
+		else:
+			self.last_selected_uuid = None
 		
 		# Update UI
 		self.update_selection_visuals()
@@ -1108,31 +1169,17 @@ class LayerListWidget(QWidget):
 	def update_selection_visuals(self):
 		"""Update which layer buttons and container markers are checked"""
 		# Update layer buttons
-		for uuid, btn in self.layer_buttons:
-			btn.setChecked(uuid in self.selected_layer_uuids)
-		
-		# Update container markers (checked if all layers in container are selected)
-		for container_uuid, marker in self.container_markers:
-			container_layers = set(self.coa.get_layers_by_container(container_uuid)) if self.coa else set()
-			all_selected = container_layers and container_layers.issubset(self.selected_layer_uuids)
-			marker.setChecked(all_selected)
-		
-		# Show/hide "Group into Container" button
-		# Show if 2+ layers selected and they're not all from the same container
-		if len(self.selected_layer_uuids) >= 2:
-			# Check if all selected layers have same container_uuid
-			container_uuids = set()
-			for uuid in self.selected_layer_uuids:
-				container_uuid = self.coa.get_layer_container(uuid) if self.coa else None
-				container_uuids.add(container_uuid)
-			
-			# Show button if mixed containers or all at root
-			if len(container_uuids) > 1 or (len(container_uuids) == 1 and None in container_uuids):
-				self.group_container_btn.show()
+		for uuid, container_widget in self.layer_buttons:
+			# Get the actual button from the container widget
+			if hasattr(container_widget, 'layer_button'):
+				container_widget.layer_button.setChecked(uuid in self.selected_layer_uuids)
 			else:
-				self.group_container_btn.hide()
-		else:
-			self.group_container_btn.hide()
+				# Fallback for old-style buttons (shouldn't happen after container implementation)
+				container_widget.setChecked(uuid in self.selected_layer_uuids)
+		
+		# Update container markers (checked if explicitly selected)
+		for container_uuid, marker in self.container_markers:
+			marker.setChecked(container_uuid in self.selected_container_uuids)
 		
 		if self.on_selection_changed:
 			self.on_selection_changed()
@@ -1162,6 +1209,7 @@ class LayerListWidget(QWidget):
 	def clear_selection(self):
 		"""Clear selection and update UI"""
 		self.selected_layer_uuids.clear()
+		self.selected_container_uuids.clear()
 		self.last_selected_uuid = None
 		self.update_selection_visuals()
 		if self.on_selection_changed:
@@ -1217,9 +1265,9 @@ class LayerListWidget(QWidget):
 		
 		container_layers = self.coa.get_layers_by_container(container_uuid)
 		
-		# Determine new visibility state (toggle based on current aggregate)
+		# If ANY layer is visible, hide ALL. If ALL are hidden, show ALL.
 		any_visible = any(self.coa.get_layer_visible(uuid) for uuid in container_layers)
-		new_visibility = not any_visible
+		new_visibility = False if any_visible else True
 		
 		# Set visibility for all layers in container
 		for uuid in container_layers:
@@ -1258,20 +1306,44 @@ class LayerListWidget(QWidget):
 			self.on_selection_changed()
 	
 	def _handle_container_delete(self, container_uuid):
-		"""Delete container (moves layers to root)"""
-		if not self.coa or not self.main_window:
+		"""Delete container and all its layers"""
+		if not self.coa:
 			return
 		
-		# Create snapshot for undo
-		self.main_window._save_state("Delete Container")
+		# Get all layers in container
+		container_layers = list(self.coa.get_layers_by_container(container_uuid))
 		
-		# Set all layers in container to None (moves to root)
-		container_layers = self.coa.get_layers_by_container(container_uuid)
+		if not container_layers:
+			return
+		
+		# Save state BEFORE deletion
+		if self.main_window and hasattr(self.main_window, '_save_state'):
+			self.main_window._save_state("Delete Container")
+		
+		# Delete all layers directly
 		for uuid in container_layers:
-			self.coa.set_layer_container(uuid, None)
+			self.coa.remove_layer(uuid)
+		
+		# Clear selection
+		self.selected_layer_uuids = self.selected_layer_uuids - set(container_layers)
+		self.selected_container_uuids.discard(container_uuid)
+		
+		# Clear thumbnail cache
+		self.clear_thumbnail_cache()
 		
 		# Rebuild UI
 		self.rebuild()
+		
+		# Update canvas
+		if hasattr(self, 'property_sidebar') and self.property_sidebar:
+			if self.property_sidebar.canvas_widget:
+				self.property_sidebar.canvas_widget.update()
+			if self.property_sidebar.canvas_area:
+				self.property_sidebar.canvas_area.update_transform_widget_for_layer()
+		
+		# Notify selection changed
+		if self.on_selection_changed:
+			self.on_selection_changed()
 		
 		# Trigger callback if selection changes
 		if self.on_selection_changed:
@@ -1368,23 +1440,20 @@ class LayerListWidget(QWidget):
 		if len(self.selected_layer_uuids) < 2:
 			return
 		
-		# Create snapshot for undo
-		self.main_window._save_state("Create Container")
-		
-		# Create container
+		# Create container FIRST
 		layer_list = list(self.selected_layer_uuids)
 		new_container_uuid = self.coa.create_container_from_layers(layer_list, name="Container")
+		
+		# THEN snapshot for undo (captures state WITH container)
+		self.main_window._save_state("Create Container")
 		
 		# Rebuild UI
 		self.rebuild()
 		
-		# Keep selection on the newly grouped layers
+		# Select the newly created container (but don't trigger another save)
 		self.selected_layer_uuids = set(layer_list)
+		self.selected_container_uuids = {new_container_uuid}
 		self.update_selection_visuals()
-		
-		# Trigger callback
-		if self.on_selection_changed:
-			self.on_selection_changed()
 	
 	def _uuid_to_index(self, uuid):
 		"""Convert UUID to index by searching layer_buttons list"""

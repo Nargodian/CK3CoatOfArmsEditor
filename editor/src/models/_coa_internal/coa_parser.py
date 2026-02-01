@@ -45,14 +45,33 @@ class CoAParser:
 		return self.parse_block()
 	
 	def skip_whitespace(self):
-		"""Skip whitespace and comments"""
+		"""Skip whitespace and comments, but extract ##META## metadata"""
 		while self.pos < len(self.text):
 			if self.text[self.pos].isspace():
 				self.pos += 1
 			elif self.text[self.pos] == '#':
-				# Skip comment until end of line
-				while self.pos < len(self.text) and self.text[self.pos] != '\n':
-					self.pos += 1
+				# Check for ##META## comment
+				if self.text[self.pos:self.pos+8] == '##META##':
+					# Extract metadata key=value from comment
+					self.pos += 8  # Skip ##META##
+					start = self.pos
+					# Read until end of line
+					while self.pos < len(self.text) and self.text[self.pos] != '\n':
+						self.pos += 1
+					meta_line = self.text[start:self.pos].strip()
+					# Parse key="value" and store in pending metadata
+					if '=' in meta_line:
+						key, value = meta_line.split('=', 1)
+						key = key.strip()
+						value = value.strip().strip('"')  # Remove quotes
+						# Store for next block to pick up
+						if not hasattr(self, '_pending_metadata'):
+							self._pending_metadata = {}
+						self._pending_metadata[key] = value
+				else:
+					# Skip regular comment until end of line
+					while self.pos < len(self.text) and self.text[self.pos] != '\n':
+						self.pos += 1
 			else:
 				break
 	
@@ -239,6 +258,11 @@ class CoAParser:
 	def parse_dict_block(self) -> Dict[str, Any]:
 		"""Parse a dict-style block like { key=value }"""
 		result = {}
+		
+		# Inject any pending metadata from ##META## comments
+		if hasattr(self, '_pending_metadata') and self._pending_metadata:
+			result.update(self._pending_metadata)
+			self._pending_metadata = {}  # Clear after use
 		
 		while self.pos < len(self.text):
 			self.skip_whitespace()

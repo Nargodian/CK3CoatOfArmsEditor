@@ -414,11 +414,12 @@ class CoA(CoAQueryMixin):
         
         else:
             # Loose layers: Insert at target_uuid position
+            # Always regenerate UUIDs for loose layers (paste operations)
             emblems = coa_obj.get('colored_emblem', [])
             
             for emblem in emblems:
                 try:
-                    layer = Layer.parse(emblem, caller='CoA')
+                    layer = Layer.parse(emblem, caller='CoA', regenerate_uuid=True)
                     self.add_layer_object(layer, target_uuid=target_uuid, at_front=(target_uuid is None))
                     new_uuids.append(layer.uuid)
                     # Stack subsequent layers on top of each other
@@ -530,8 +531,8 @@ class CoA(CoAQueryMixin):
             if not instances:
                 instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0, 'depth': 0}]
             
-            # Parse UUID (preserve if present, generate if missing)
-            layer_uuid = emblem.get('uuid', str(uuid_module.uuid4()))
+            # Always generate new UUID for paste operations (avoid duplicate UUIDs)
+            layer_uuid = str(uuid_module.uuid4())
             
             # Parse container_uuid (preserve if present)
             container_uuid = emblem.get('container_uuid')

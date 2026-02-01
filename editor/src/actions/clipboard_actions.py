@@ -469,8 +469,11 @@ class ClipboardActions:
 			if selected_uuids:
 				self.main_window.right_sidebar.layer_list_widget.last_selected_uuid = selected_uuids[0]
 			# Update visual state WITHOUT triggering selection callback (which resets drag state)
-			for uuid, btn in self.main_window.right_sidebar.layer_list_widget.layer_buttons:
-				btn.setChecked(uuid in original_selection)
+			for uuid, container_widget in self.main_window.right_sidebar.layer_list_widget.layer_buttons:
+				if hasattr(container_widget, 'layer_button'):
+					container_widget.layer_button.setChecked(uuid in original_selection)
+				else:
+					container_widget.setChecked(uuid in original_selection)
 		else:
 			# Select the new duplicated layers (normal duplicate operation)
 			if new_uuids:

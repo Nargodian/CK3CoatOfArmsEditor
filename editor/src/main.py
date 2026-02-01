@@ -412,6 +412,13 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		self.layers_menu.addSeparator()
 		
+		# Group/Ungroup Container action
+		self.group_container_action = self.layers_menu.addAction("Group")
+		self.group_container_action.triggered.connect(self._group_or_ungroup_container)
+		self.group_container_action.setEnabled(False)  # Enabled based on selection
+		
+		self.layers_menu.addSeparator()
+		
 		# Instance section (label + actions)
 		instance_label = self.layers_menu.addAction("Instance")
 		instance_label.setEnabled(False)  # Make it non-clickable like a label
@@ -585,12 +592,27 @@ class CoatOfArmsEditor(QMainWindow):
 		if not hasattr(self, 'right_sidebar'):
 			self.merge_as_instances_action.setEnabled(False)
 			self.split_instances_action.setEnabled(False)
+			self.group_container_action.setEnabled(False)
 			return
 		
 		selected_uuids = self.right_sidebar.get_selected_uuids()
 		
 		# Merge: enabled for 2+ selections
 		self.merge_as_instances_action.setEnabled(len(selected_uuids) >= 2)
+		
+		# Group/Ungroup: Check if a container was explicitly selected
+		layer_list = self.right_sidebar.layer_list_widget
+		is_container_selected = len(layer_list.selected_container_uuids) > 0
+		
+		if is_container_selected:
+			self.group_container_action.setText("Ungroup")
+			self.group_container_action.setEnabled(True)
+		elif len(selected_uuids) >= 2:
+			self.group_container_action.setText("Group")
+			self.group_container_action.setEnabled(True)
+		else:
+			self.group_container_action.setText("Group")
+			self.group_container_action.setEnabled(False)
 		
 		# Split: enabled for single selection with 2+ instances
 		if len(selected_uuids) == 1:
@@ -1282,6 +1304,7 @@ class CoatOfArmsEditor(QMainWindow):
 		state = {
 			'coa_snapshot': self.coa.get_snapshot(),
 			'selected_layer_uuids': set(self.right_sidebar.get_selected_uuids()),  # UI state
+			'selected_container_uuids': set(self.right_sidebar.layer_list_widget.selected_container_uuids),  # Container selection state
 		}
 		
 		return state
@@ -1306,6 +1329,10 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.layer_list_widget.selected_layer_uuids = valid_uuids
 			if valid_uuids:
 				self.right_sidebar.layer_list_widget.last_selected_uuid = next(iter(valid_uuids))
+			
+			# Restore container selection state
+			saved_container_selection = set(state.get('selected_container_uuids', set()))
+			self.right_sidebar.layer_list_widget.selected_container_uuids = saved_container_selection
 			
 			# Always update canvas and base colors (regardless of selection)
 			self.canvas_area.canvas_widget.base_color1_name = self.coa.pattern_color1_name
@@ -1797,6 +1824,32 @@ class CoatOfArmsEditor(QMainWindow):
 			self._save_state(f"Merge {len(layers_to_merge)} layers ({instance_count} instances)")
 		except Exception as e:
 			loggerRaise(e, "Failed to merge layers")
+	
+	def _group_or_ungroup_container(self):
+		"""Group selected layers into a container or ungroup if full container selected"""
+		try:
+			selected_uuids = self.right_sidebar.get_selected_uuids()
+			if len(selected_uuids) < 2:
+				return
+			
+			# Check if a container was explicitly selected
+			layer_list = self.right_sidebar.layer_list_widget
+			is_container_selected = len(layer_list.selected_container_uuids) > 0
+			
+			if is_container_selected:
+				# Ungroup: remove container
+				self._save_state("Ungroup Container")
+				for uuid in selected_uuids:
+					self.coa.set_layer_container(uuid, None)
+				layer_list.selected_container_uuids.clear()
+				self.right_sidebar._rebuild_layer_list()
+				self.right_sidebar.layer_list_widget.update_selection_visuals()
+			else:
+				# Group: create container
+				if hasattr(self.right_sidebar, 'layer_list_widget'):
+					self.right_sidebar.layer_list_widget._create_container_from_selection()
+		except Exception as e:
+			loggerRaise(e, "Failed to group/ungroup layers")
 	
 	def paste_layer_smart(self):
 		"""Smart paste - delegates to clipboard_actions"""
