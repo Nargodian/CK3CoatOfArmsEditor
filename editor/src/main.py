@@ -149,6 +149,16 @@ class CoatOfArmsEditor(QMainWindow):
 		# Create menu bar
 		self._create_menu_bar()
 		
+		# Create toolbar with zoom controls
+		from PyQt5.QtWidgets import QToolBar
+		from components.zoom_toolbar import ZoomToolbar
+		toolbar = QToolBar("Main Toolbar")
+		toolbar.setMovable(False)
+		self.zoom_toolbar = ZoomToolbar(self)
+		self.zoom_toolbar.zoom_changed.connect(self._on_zoom_changed)
+		toolbar.addWidget(self.zoom_toolbar)
+		self.addToolBar(toolbar)
+		
 		# Create central widget with splitter
 		central_widget = QWidget()
 		self.setCentralWidget(central_widget)
@@ -481,6 +491,21 @@ class CoatOfArmsEditor(QMainWindow):
 		# View Menu
 		view_menu = menubar.addMenu("&View")
 		
+		# Zoom actions
+		zoom_in_action = view_menu.addAction("Zoom &In")
+		zoom_in_action.setShortcut("Ctrl++")
+		zoom_in_action.triggered.connect(self._zoom_in)
+		
+		zoom_out_action = view_menu.addAction("Zoom &Out")
+		zoom_out_action.setShortcut("Ctrl+-")
+		zoom_out_action.triggered.connect(self._zoom_out)
+		
+		zoom_reset_action = view_menu.addAction("&Reset Zoom")
+		zoom_reset_action.setShortcut("Ctrl+0")
+		zoom_reset_action.triggered.connect(self._zoom_reset)
+		
+		view_menu.addSeparator()
+		
 		# Grid submenu
 		grid_menu = view_menu.addMenu("Show &Grid")
 		
@@ -561,6 +586,9 @@ class CoatOfArmsEditor(QMainWindow):
 		"""Zoom in on canvas"""
 		if hasattr(self.canvas_area, 'canvas_widget'):
 			self.canvas_area.canvas_widget.zoom_in()
+			# Update zoom toolbar
+			if hasattr(self, 'zoom_toolbar'):
+				self.zoom_toolbar.set_zoom_percent(self.canvas_area.canvas_widget.get_zoom_percent())
 			# Update transform widget position after zoom change
 			if hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
 				self.canvas_area.update_transform_widget_for_layer()
@@ -569,6 +597,9 @@ class CoatOfArmsEditor(QMainWindow):
 		"""Zoom out on canvas"""
 		if hasattr(self.canvas_area, 'canvas_widget'):
 			self.canvas_area.canvas_widget.zoom_out()
+			# Update zoom toolbar
+			if hasattr(self, 'zoom_toolbar'):
+				self.zoom_toolbar.set_zoom_percent(self.canvas_area.canvas_widget.get_zoom_percent())
 			# Update transform widget position after zoom change
 			if hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
 				self.canvas_area.update_transform_widget_for_layer()
@@ -577,6 +608,17 @@ class CoatOfArmsEditor(QMainWindow):
 		"""Reset canvas zoom to 100%"""
 		if hasattr(self.canvas_area, 'canvas_widget'):
 			self.canvas_area.canvas_widget.zoom_reset()
+			# Update zoom toolbar
+			if hasattr(self, 'zoom_toolbar'):
+				self.zoom_toolbar.set_zoom_percent(100)
+			# Update transform widget position after zoom change
+			if hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
+				self.canvas_area.update_transform_widget_for_layer()
+	
+	def _on_zoom_changed(self, zoom_percent):
+		"""Handle zoom level change from toolbar"""
+		if hasattr(self.canvas_area, 'canvas_widget'):
+			self.canvas_area.canvas_widget.set_zoom_level(zoom_percent)
 			# Update transform widget position after zoom change
 			if hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
 				self.canvas_area.update_transform_widget_for_layer()

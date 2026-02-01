@@ -39,6 +39,15 @@ class ShortcutsDialog(QDialog):
         <tr><td><b>Ctrl+F</b></td><td>Flip selected layer(s) vertically</td></tr>
         </table>
         
+        <h3>View Operations</h3>
+        <table width="100%">
+        <tr><td width="30%"><b>Ctrl++</b></td><td>Zoom in (max 500%)</td></tr>
+        <tr><td><b>Ctrl+-</b></td><td>Zoom out (min 25%)</td></tr>
+        <tr><td><b>Ctrl+0</b></td><td>Reset zoom to 100%</td></tr>
+        <tr><td><b>Ctrl+Wheel</b></td><td>Zoom in/out with mouse wheel</td></tr>
+        <tr><td><b>Drag</b></td><td>Pan canvas when zoomed >100%</td></tr>
+        </table>
+        
         <h3>Layer Operations</h3>
         <table width="100%">
         <tr><td width="30%"><b>Ctrl+A</b></td><td>Select all layers</td></tr>

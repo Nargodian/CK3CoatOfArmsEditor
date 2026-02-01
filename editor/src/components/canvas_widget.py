@@ -183,15 +183,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	# ========================================
 	
 	def resizeEvent(self, event):
-		"""Override resize to maintain square aspect"""
+		"""Override resize - allow full container size when zoomed, square when at 100%"""
 		super().resizeEvent(event)
-		# Force square dimensions
-		size = min(self.width(), self.height())
-		if self.width() != size or self.height() != size:
-			self.setFixedSize(size, size)
+		# Don't force square when zoomed - let it use full container space
+		# The viewport will be set correctly in paintGL
 	
 	def sizeHint(self):
-		"""Suggest square aspect ratio"""
+		"""Suggest flexible aspect ratio"""
 		return QSize(600, 600)
 	
 	# ========================================
@@ -558,8 +556,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.composite_shader.setUniformValue("bleedMargin", safeMargin)
 			self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
 		
-		# Composite quad always at fixed size (scaling/offset done in shader)
-		base_size = VIEWPORT_BASE_SIZE * self.zoom_level * COMPOSITE_SCALE * safeMargin
+		# Composite quad at fixed base size - zoom is handled by widget resize
+		base_size = VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * safeMargin
+		
 		# Texture coords: RTT renders Y-up (OpenGL standard), texture V=0 at bottom, V=1 at top
 		# Position Y=-1 (bottom) → V=0, Position Y=+1 (top) → V=1
 		vertices = np.array([
@@ -682,8 +681,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		u0 = frame_index / 6.0
 		u1 = (frame_index + 1) / 6.0
 		
-		# Render frame at same size as composite
-		base_size = VIEWPORT_BASE_SIZE * self.zoom_level
+		# Render frame at same size as composite - zoom handled by widget resize
+		base_size = VIEWPORT_BASE_SIZE
+		
 		vertices = np.array([
 			-base_size, -base_size, 0.0,  u0, 1.0,
 			 base_size, -base_size, 0.0,  u1, 1.0,
@@ -707,9 +707,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# Set grid color (light gray)
 		gl.glColor4f(0.5, 0.5, 0.5, 0.5)
 		
-		# Draw vertical and horizontal lines
-		grid_size = VIEWPORT_BASE_SIZE * self.zoom_level
-		grid_step = (VIEWPORT_BASE_SIZE * 2.0 * self.zoom_level) / self.grid_divisions  # Divide into grid_divisions
+		# Draw vertical and horizontal lines - zoom handled by widget resize
+		grid_size = VIEWPORT_BASE_SIZE
+		grid_step = (VIEWPORT_BASE_SIZE * 2.0) / self.grid_divisions  # Divide into grid_divisions
 		
 		gl.glBegin(gl.GL_LINES)
 		
@@ -1208,18 +1208,37 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	
 	def zoom_in(self):
 		"""Zoom in by 25%"""
-		self.zoom_level = min(self.zoom_level * 1.25, 4.0)  # Max 4x zoom
+		self.zoom_level = min(self.zoom_level * 1.25, 5.0)  # Max 5x zoom (500%)
+		self._update_widget_size()
 		self.update()
 	
 	def zoom_out(self):
 		"""Zoom out by 25%"""
-		self.zoom_level = max(self.zoom_level / 1.25, 0.25)  # Min 0.25x zoom
+		self.zoom_level = max(self.zoom_level / 1.25, 0.25)  # Min 0.25x zoom (25%)
+		self._update_widget_size()
 		self.update()
 	
 	def zoom_reset(self):
 		"""Reset zoom to 100%"""
 		self.zoom_level = 1.0
+		self._update_widget_size()
 		self.update()
+	
+	def set_zoom_level(self, zoom_percent):
+		"""Set zoom to specific percentage (25-500)"""
+		self.zoom_level = max(0.25, min(5.0, zoom_percent / 100.0))
+		self._update_widget_size()
+		self.update()
+	
+	def get_zoom_percent(self):
+		"""Get current zoom as percentage"""
+		return int(self.zoom_level * 100)
+	
+	def _update_widget_size(self):
+		"""Resize widget based on zoom level"""
+		base_size = 600  # Base widget size at 100% zoom
+		new_size = int(base_size * self.zoom_level)
+		self.setFixedSize(new_size, new_size)
 	
 	def set_show_grid(self, show):
 		"""Toggle grid visibility"""
@@ -1347,6 +1366,25 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	# Mouse Event Handlers
 	# ========================================
 	
-	def mousePressEvent(self, event):
-		"""Handle mouse press events"""
-		pass
+	def wheelEvent(self, event):
+		"""Handle mouse wheel events"""
+		from PyQt5.QtCore import Qt
+		
+		# Check for Ctrl key modifier
+		if event.modifiers() & Qt.ControlModifier:
+			# Zoom in/out with Ctrl+Wheel
+			delta = event.angleDelta().y()
+			if delta > 0:
+				self.zoom_in()
+			elif delta < 0:
+				self.zoom_out()
+			
+			# Notify main window to update zoom toolbar
+			if self.canvas_area and hasattr(self.canvas_area, 'parent'):
+				main_window = self.canvas_area.parent()
+				if hasattr(main_window, 'zoom_toolbar'):
+					main_window.zoom_toolbar.set_zoom_percent(self.get_zoom_percent())
+			
+			event.accept()
+		else:
+			super().wheelEvent(event)

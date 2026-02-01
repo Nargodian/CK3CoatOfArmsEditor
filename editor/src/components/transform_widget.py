@@ -196,7 +196,7 @@ class TransformWidget(QWidget):
 		# Get canvas position, size and zoom level within parent container
 		_, _, _, _, size, offset_x, offset_y, zoom_level = self._get_canvas_rect()
 		
-		# Convert layer position to Qt pixel coordinates using shared function with zoom
+		# Convert layer position to Qt pixel coordinates
 		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level)
 		
 		# Widget box shows fixed size based on scale values and zoom
