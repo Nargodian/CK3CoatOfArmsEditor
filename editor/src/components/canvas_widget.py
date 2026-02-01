@@ -139,6 +139,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	
 	def __init__(self, parent=None):
 		super().__init__(parent)
+		
+		# Enable wheel events
+		self.setFocusPolicy(Qt.WheelFocus)
+		
 		#COA INTEGRATION ACTION: Step 5 - Add CoA model reference (set by CanvasArea/MainWindow)
 		# Note: CoA is accessed via CoA.get_active() in paintGL, not stored as instance variable
 		self.canvas_area = None  # Reference to CanvasArea (set after init)

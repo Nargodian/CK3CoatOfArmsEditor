@@ -500,7 +500,9 @@ class TransformWidget(QWidget):
 		"""Handle mouse wheel for scaling and rotation while dragging"""
 		# Only respond to wheel events when actively dragging
 		if self.active_handle == self.HANDLE_NONE:
-			super().wheelEvent(event)
+			# Pass wheel event to the canvas widget underneath for zoom control
+			if self.canvas_widget:
+				self.canvas_widget.wheelEvent(event)
 			return
 		
 		try:
