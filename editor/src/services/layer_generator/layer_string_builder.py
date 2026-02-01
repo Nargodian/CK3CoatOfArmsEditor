@@ -1,6 +1,6 @@
 """Helper functions for building CK3 layer format strings."""
 
-def build_layer_string(instances: 'np.ndarray', emblem_texture: str) -> str:
+def build_layer_string(instances: 'np.ndarray', emblem_texture: str, container_uuid: str = None) -> str:
 	"""Build CK3 format string for a layer with instances.
 	
 	Args:
@@ -8,6 +8,7 @@ def build_layer_string(instances: 'np.ndarray', emblem_texture: str) -> str:
 		          or single instance [x, y, scale_x, scale_y, rotation, (label_code)]
 		          6th column (label_code) is optional and ignored if present
 		emblem_texture: Emblem texture filename (.dds)
+		container_uuid: Optional container UUID to assign this layer to
 		
 	Returns:
 		CK3 format layer string
@@ -21,6 +22,8 @@ def build_layer_string(instances: 'np.ndarray', emblem_texture: str) -> str:
 	lines = []
 	lines.append("layers_export = {")
 	lines.append("\tcolored_emblem = {")
+	if container_uuid:
+		lines.append(f'\t\t##META## container_uuid = "{container_uuid}"')
 	lines.append(f'\t\ttexture = "{emblem_texture}"')
 	lines.append('\t\tcolor1 = "white"')
 	

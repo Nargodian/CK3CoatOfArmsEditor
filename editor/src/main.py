@@ -2031,21 +2031,11 @@ class CoatOfArmsEditor(QMainWindow):
 		if result == self.generator_popup.Accepted:
 			# Check if text mode is active
 			if self.generator_popup.is_text_mode():
-				# Text mode: will create multiple layers (one per character)
+				# Text mode: will create multiple layers (one per character) in a container
 				text_data = self.generator_popup.get_text_and_positions()
 				if text_data:
 					text, positions = text_data
-					# Show warning dialog
-					from PyQt5.QtWidgets import QMessageBox
-					reply = QMessageBox.question(
-						self,
-						'Text Mode Warning',
-						'Text mode will create multiple layers (one per character), not a single multi-instance layer.\n\nContinue?',
-						QMessageBox.Yes | QMessageBox.No,
-						QMessageBox.No
-					)
-					if reply == QMessageBox.Yes:
-						self._create_text_layers(text, positions, emblem_texture=asset_texture)
+					self._create_text_layers(text, positions, emblem_texture=asset_texture)
 			else:
 				# Count mode: create single multi-instance layer
 				generated_instances = self.generator_popup.get_generated_instances()
@@ -2129,6 +2119,10 @@ class CoatOfArmsEditor(QMainWindow):
 				print("No valid characters in text")
 				return
 			
+			# Generate container UUID for all text layers
+			container_name = f"text ({filtered_text})"
+			container_uuid = self.coa.generate_container_uuid(container_name)
+			
 			# Check for selection to insert above
 			selected_uuids = self.right_sidebar.get_selected_uuids()
 			target_uuid = selected_uuids[0] if selected_uuids else None
@@ -2148,7 +2142,7 @@ class CoatOfArmsEditor(QMainWindow):
 					continue  # Skip invalid characters
 				
 				# Build layer string (single instance, use first 5 columns)
-				layer_string = build_layer_string(positions[i], emblem)
+				layer_string = build_layer_string(positions[i], emblem, container_uuid=container_uuid)
 				
 				# Parse directly into main CoA (parser handles insertion)
 				new_uuids = self.coa.parse(layer_string, target_uuid=target_uuid)
@@ -2162,9 +2156,11 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar._rebuild_layer_list()
 			self.canvas_area.canvas_widget.update()
 			
-			# Select the newly created layers
+			# Select the newly created container and collapse it
 			if created_uuids:
 				self.right_sidebar.layer_list_widget.selected_layer_uuids = set(created_uuids)
+				self.right_sidebar.layer_list_widget.selected_container_uuids = {container_uuid}
+				self.right_sidebar.layer_list_widget.collapsed_containers.add(container_uuid)  # Start collapsed
 				self.right_sidebar.layer_list_widget.last_selected_uuid = created_uuids[-1]
 				self.right_sidebar.layer_list_widget.update_selection_visuals()
 			
@@ -2172,7 +2168,7 @@ class CoatOfArmsEditor(QMainWindow):
 			char_count = len(created_uuids)
 			self._save_state(f"Generate text layers ({char_count} characters)")
 			
-			self.status_left.setText(f"Generated {char_count} text layers")
+			self.status_left.setText(f"Generated {char_count} text layers in container")
 			
 		except Exception as e:
 			loggerRaise(e, f"Failed to create text layers: {str(e)}")
