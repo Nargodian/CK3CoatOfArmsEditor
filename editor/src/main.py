@@ -520,6 +520,10 @@ class CoatOfArmsEditor(QMainWindow):
 		# Help Menu
 		help_menu = menubar.addMenu("&Help")
 		
+		shortcuts_action = help_menu.addAction("&Keyboard Shortcuts")
+		shortcuts_action.setShortcut("F1")
+		shortcuts_action.triggered.connect(self._show_shortcuts)
+		
 		about_action = help_menu.addAction("&About")
 		about_action.triggered.connect(self._show_about)
 	
@@ -533,6 +537,12 @@ class CoatOfArmsEditor(QMainWindow):
 				self.canvas_area.update_transform_widget_for_layer()
 			self.right_sidebar.tab_widget.setTabEnabled(2, True)
 			self._update_menu_actions()
+	
+	def _show_shortcuts(self):
+		"""Show keyboard shortcuts help dialog"""
+		from components.shortcuts_dialog import ShortcutsDialog
+		dialog = ShortcutsDialog(self)
+		dialog.exec_()
 	
 	def _show_about(self):
 		"""Show about dialog"""
