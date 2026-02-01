@@ -1130,8 +1130,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		"""
 		scale, offset = self.get_frame_transform()
 		# Remove frame offset and scale
-		pos_x = (frame_x - 0.5 - offset[0]) / scale[0] + 0.5
-		pos_y = (frame_y - 0.5 - offset[1]) / scale[1] + 0.5
+		pos_x = (frame_x - 0.5 + offset[0]) / scale[0] + 0.5
+		pos_y = (frame_y - 0.5 + offset[1]) / scale[1] + 0.5
 		return (pos_x, pos_y)
 	
 	def set_prestige(self, level):
