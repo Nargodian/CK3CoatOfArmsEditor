@@ -1114,9 +1114,23 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			tuple: (frame_x, frame_y) in visual frame space
 		"""
 		scale, offset = self.get_frame_transform()
-		# Apply frame scale and offset
-		frame_x = (pos_x - 0.5) * scale[0] + 0.5 - offset[0]
-		frame_y = (pos_y - 0.5) * scale[1] + 0.5 - offset[1]
+		
+		# Center position (move to origin)
+		centered_x = pos_x - 0.5
+		centered_y = pos_y - 0.5
+		
+		# Apply frame scale
+		scaled_x = centered_x * scale[0]
+		scaled_y = centered_y * scale[1]
+		
+		# Move back from origin
+		uncentered_x = scaled_x + 0.5
+		uncentered_y = scaled_y + 0.5
+		
+		# Apply frame offset
+		frame_x = uncentered_x - offset[0]/scale[0]
+		frame_y = uncentered_y - offset[1]/scale[1]
+		
 		return (frame_x, frame_y)
 	
 	def frame_to_coa_space(self, frame_x, frame_y):
@@ -1129,9 +1143,23 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			tuple: (pos_x, pos_y) in CoA space (0-1 range)
 		"""
 		scale, offset = self.get_frame_transform()
-		# Remove frame offset and scale
-		pos_x = (frame_x - 0.5 + offset[0]) / scale[0] + 0.5
-		pos_y = (frame_y - 0.5 + offset[1]) / scale[1] + 0.5
+		
+		# Remove frame offset
+		no_offset_x = frame_x + offset[0]*scale[0]
+		no_offset_y = frame_y + offset[1]*scale[1]
+		
+		# Center position (move to origin)
+		centered_x = no_offset_x - 0.5
+		centered_y = no_offset_y - 0.5
+		
+		# Remove frame scale
+		unscaled_x = centered_x / scale[0]
+		unscaled_y = centered_y / scale[1]
+		
+		# Move back from origin
+		pos_x = unscaled_x + 0.5
+		pos_y = unscaled_y + 0.5
+		
 		return (pos_x, pos_y)
 	
 	def set_prestige(self, level):
