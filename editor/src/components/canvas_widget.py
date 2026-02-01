@@ -181,6 +181,14 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.show_grid = False  # Whether to show alignment grid
 		self.grid_divisions = 4  # Grid size (2, 4, 8, or 16)
 		
+		# Pan properties (OpenGL coordinates -1 to 1)
+		self.pan_x = 0.0
+		self.pan_y = 0.0
+		
+		# Mouse drag state for panning
+		self.is_panning = False
+		self.last_mouse_pos = None
+		
 		# Store clear color for restoration after export
 		self.clear_color = (0.95, 0.95, 0.95, 0.0)  # Default, updated in initializeGL
 	
@@ -1256,37 +1264,31 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		base_size = 600  # Base widget size at 100% zoom
 		new_size = int(base_size * self.zoom_level)
 		self.setFixedSize(new_size, new_size)
+		
+		# Apply pan offset by moving widget position
+		if self.parent():
+			# Move widget within parent to apply pan
+			self.move(int(self.pan_x), int(self.pan_y))
+			self.parent().updateGeometry()
+			self.parent().update()
 	
 	def _adjust_pan_for_zoom(self, cursor_pos, old_zoom, new_zoom):
 		"""Adjust pan offset to keep cursor position fixed during zoom"""
-		# Get current widget size before resize
+		# Get widget sizes
 		old_size = int(600 * old_zoom)
 		new_size = int(600 * new_zoom)
 		
-		# Convert cursor position to layer coordinates (0-1 range) at old zoom
-		# cursor_pos is in widget coordinates
-		layer_pos = qt_pixels_to_layer_pos(
-			cursor_pos.x(), cursor_pos.y(), 
-			old_size, 
-			offset_x=0, offset_y=0
-		)
+		# Calculate cursor position relative to widget center (in old size)
+		old_center_x = cursor_pos.x() - old_size / 2
+		old_center_y = cursor_pos.y() - old_size / 2
 		
-		# After zoom, we want the same layer position to be under the cursor
-		# Calculate where that layer position will be in the new widget size
-		new_widget_pos = layer_pos_to_qt_pixels(
-			layer_pos[0], layer_pos[1],
-			new_size,
-			offset_x=0, offset_y=0
-		)
+		# After resize, cursor will be at different position relative to new center
+		# Calculate pan offset needed to keep the same world point under cursor
+		scale_ratio = new_zoom / old_zoom
 		
-		# Calculate the offset change needed
-		delta_x = cursor_pos.x() - new_widget_pos[0]
-		delta_y = cursor_pos.y() - new_widget_pos[1]
-		
-		# Adjust pan offset (convert from Qt pixels to GL coordinates)
-		# Pan is in GL coordinates (-1 to 1), so convert delta
-		self.pan_offset_x += (delta_x / new_size) * 2.0
-		self.pan_offset_y -= (delta_y / new_size) * 2.0  # Invert Y for GL
+		# Pan offset in pixels (how much to shift the widget)
+		self.pan_x += old_center_x * (1 - scale_ratio)
+		self.pan_y += old_center_y * (1 - scale_ratio)
 	
 	def set_show_grid(self, show):
 		"""Toggle grid visibility"""

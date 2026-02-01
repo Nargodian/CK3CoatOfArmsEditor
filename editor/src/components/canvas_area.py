@@ -15,6 +15,7 @@ class CanvasArea(QFrame):
 		self.setStyleSheet("QFrame { background-color: #0d0d0d; }")
 		self.setContextMenuPolicy(Qt.CustomContextMenu)
 		self.customContextMenuRequested.connect(self._show_context_menu)
+		self.setMinimumWidth(800)  # Ensure canvas area has enough space
 		
 		#COA INTEGRATION ACTION: Step 4 - Add CoA model reference (set by MainWindow)
 		self.coa = None  # Reference to CoA model (will be set externally)
@@ -46,17 +47,13 @@ class CanvasArea(QFrame):
 		# Container to center the square canvas
 		canvas_container = QFrame()
 		canvas_container.setStyleSheet("QFrame { background-color: #0d0d0d; }")
-		canvas_layout = QVBoxLayout(canvas_container)
-		canvas_layout.setContentsMargins(10, 10, 10, 10)
-		canvas_layout.setAlignment(Qt.AlignCenter)
+		# No layout - we'll position canvas widget absolutely for pan support
 		
 		# OpenGL canvas widget (square aspect)
-		self.canvas_widget = CoatOfArmsCanvas()
+		self.canvas_widget = CoatOfArmsCanvas(canvas_container)
 		self.canvas_widget.canvas_area = self  # Give canvas access to canvas_area
 		self.canvas_widget.setMinimumSize(400, 400)
 		self.canvas_widget.setMaximumSize(3000, 3000)  # Allow zoom up to 500% (600 * 5.0)
-		
-		canvas_layout.addWidget(self.canvas_widget)
 		
 		# Transform widget (absolute positioned overlay)
 		# Parent to canvas_container (not canvas_widget) to avoid edge clipping

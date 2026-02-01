@@ -1,10 +1,13 @@
 # PyQt5 imports
 from PyQt5.QtWidgets import (
     QFrame, QVBoxLayout, QHBoxLayout, QLabel, 
-    QScrollArea, QPushButton, QWidget, QGridLayout, QComboBox, QMenu
+    QScrollArea, QPushButton, QWidget, QComboBox, QMenu
 )
 from PyQt5.QtCore import Qt, QTimer, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
+
+# Component imports
+from .flow_layout import FlowLayout
 
 # Standard library imports
 import json
@@ -228,10 +231,10 @@ class AssetSidebar(QFrame):
 		scroll_layout = QVBoxLayout(scroll_widget)
 		scroll_layout.setContentsMargins(10, 10, 10, 10)
 		
-		# Grid for asset icons
-		self.assets_grid = QGridLayout()
-		self.assets_grid.setSpacing(8)
-		scroll_layout.addLayout(self.assets_grid)
+		# Flow layout for asset icons (auto-wraps based on width)
+		self.assets_flow = FlowLayout()
+		self.assets_flow.setSpacing(8)
+		scroll_layout.addLayout(self.assets_flow)
 		scroll_layout.addStretch()
 		
 		self.build_asset_grid()
@@ -242,7 +245,7 @@ class AssetSidebar(QFrame):
 	def build_asset_grid(self):
 		"""Build responsive grid of asset icons with dynamic color compositing"""
 		# Clear previous items
-		self.clear_layout(self.assets_grid)
+		self.clear_layout(self.assets_flow)
 		# Clear button list
 		self.asset_buttons.clear()
 		# Clear emblem widget references
@@ -254,16 +257,8 @@ class AssetSidebar(QFrame):
 		# Get current layer colors for compositing
 		colors = self._get_current_layer_colors()
 		
-		# Calculate number of columns based on available width
-		scroll_width = self.scroll_area.viewport().width()
-		icon_padding = 8
-		effective_width = self.current_icon_size + (icon_padding * 2)
-		cols = max(1, scroll_width // effective_width)
-		
+		# No need to calculate columns - FlowLayout handles wrapping automatically
 		for i, asset in enumerate(assets):
-			row = i // cols
-			col = i % cols
-			
 			item = QPushButton()
 			item.setFixedSize(self.current_icon_size, self.current_icon_size)
 			
@@ -336,11 +331,7 @@ class AssetSidebar(QFrame):
 				}
 			""")
 			
-			self.assets_grid.addWidget(item, row, col)
-			self.asset_buttons.append(item)
-		
-		# If we're in patterns mode and showing pattern__solid_designer.dds, select it by default
-		if self.current_mode == "patterns":
+			self.assets_flow.addWidget(item)
 			for btn in self.asset_buttons:
 				asset_data = btn.property("asset_data")
 				if asset_data and "pattern__solid_designer" in asset_data.get("filename", ""):
@@ -390,12 +381,9 @@ class AssetSidebar(QFrame):
 				pass
 			btn.deleteLater()
 		self.asset_buttons.clear()
-		# Clear the grid layout
-		self.clear_layout(self.assets_grid)
-		# Rebuild the grid with new category
-		self.build_asset_grid()
-	
-	def handle_resize(self):
+		# Clear the flow layout
+		self.clear_layout(self.assets_flow)
+		# Rebuild the asset grid
 		"""Handle resize event to recalculate grid columns"""
 		# Use timer to avoid rapid rebuilding during resize
 		if not hasattr(self, '_resize_timer'):
@@ -515,7 +503,7 @@ class AssetSidebar(QFrame):
 				pass
 			btn.deleteLater()
 		self.asset_buttons.clear()
-		self.clear_layout(self.assets_grid)
+		self.clear_layout(self.assets_flow)
 		self.build_asset_grid()
 	
 	def _get_current_layer_colors(self):

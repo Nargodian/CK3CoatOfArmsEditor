@@ -146,18 +146,8 @@ class CoatOfArmsEditor(QMainWindow):
 		# QTimer.singleShot(500, self._check_autosave_recovery)  # TODO: Fix autosave recovery
 	
 	def setup_ui(self):
-		# Create menu bar
+		# Create menu bar (includes zoom controls)
 		self._create_menu_bar()
-		
-		# Create toolbar with zoom controls
-		from PyQt5.QtWidgets import QToolBar
-		from components.zoom_toolbar import ZoomToolbar
-		toolbar = QToolBar("Main Toolbar")
-		toolbar.setMovable(False)
-		self.zoom_toolbar = ZoomToolbar(self)
-		self.zoom_toolbar.zoom_changed.connect(self._on_zoom_changed)
-		toolbar.addWidget(self.zoom_toolbar)
-		self.addToolBar(toolbar)
 		
 		# Create central widget with splitter
 		central_widget = QWidget()
@@ -228,6 +218,12 @@ class CoatOfArmsEditor(QMainWindow):
 	def _create_menu_bar(self):
 		"""Create the menu bar with File, Edit, Help menus"""
 		menubar = self.menuBar()
+		
+		# Add zoom controls to the right of menu bar
+		from components.zoom_toolbar import ZoomToolbar
+		self.zoom_toolbar = ZoomToolbar(self)
+		self.zoom_toolbar.zoom_changed.connect(self._on_zoom_changed)
+		menubar.setCornerWidget(self.zoom_toolbar, Qt.TopRightCorner)
 		
 		# File Menu
 		file_menu = menubar.addMenu("&File")
@@ -1156,10 +1152,9 @@ class CoatOfArmsEditor(QMainWindow):
 	# ========================================
 	
 	def resizeEvent(self, event):
-		"""Handle window resize to recalculate grid columns in asset sidebar"""
+		"""Handle window resize"""
 		super().resizeEvent(event)
-		if hasattr(self, 'left_sidebar'):
-			self.left_sidebar.handle_resize()
+		# FlowLayout handles resize automatically, no manual recalculation needed
 	
 	def showEvent(self, event):
 		"""Handle window show - save initial state after UI is set up"""
