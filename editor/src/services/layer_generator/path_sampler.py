@@ -44,6 +44,7 @@ class PathSampler:
         self.total_length = 0.0
         
         self._load_svg(svg_filepath)
+        self._normalize_points()
         self._calculate_lengths()
     
     def _load_svg(self, filepath: str):
@@ -54,15 +55,17 @@ class PathSampler:
             
             # Handle SVG namespace
             ns = {'svg': 'http://www.w3.org/2000/svg'}
-            paths = root.findall('./svg:path', ns)
+            
+            # Try finding paths with namespace first
+            paths = root.findall('.//svg:path', ns)
             if not paths:
-                # Try without namespace
-                paths = root.findall('./path')
+                # Try without namespace (search all descendants)
+                paths = root.findall('.//path')
             
             if not paths:
                 raise ValueError(f"No <path> elements found in {filepath}")
             
-            # Process only top-level paths (concatenate if multiple)
+            # Process all found paths (concatenate if multiple)
             for path_elem in paths:
                 d = path_elem.get('d')
                 if d:
@@ -99,6 +102,53 @@ class PathSampler:
                 if self.points[i] != self.points[i-1]:
                     cleaned.append(self.points[i])
             self.points = cleaned
+    
+    def _normalize_points(self):
+        """Normalize all points to -0.5 to 0.5 coordinate space.
+        
+        Finds bounding box, scales longest dimension to 1.0 unit span,
+        centers the shape, and preserves aspect ratio.
+        """
+        if len(self.points) < 2:
+            return
+        
+        points_array = np.array(self.points)
+        
+        # Calculate bounding box
+        min_x, min_y = points_array.min(axis=0)
+        max_x, max_y = points_array.max(axis=0)
+        
+        width = max_x - min_x
+        height = max_y - min_y
+        
+        # Avoid division by zero
+        if width < 1e-10 and height < 1e-10:
+            # Degenerate case - all points are the same
+            self.points = [(0.0, 0.0)]
+            return
+        
+        # Find longest dimension and scale factor
+        max_dimension = max(width, height)
+        scale = 1.0 / max_dimension if max_dimension > 0 else 1.0
+        
+        # Calculate center of bounding box
+        center_x = (min_x + max_x) / 2.0
+        center_y = (min_y + max_y) / 2.0
+        
+        # Translate to origin, scale, and center in -0.5 to 0.5 space
+        normalized = []
+        for x, y in self.points:
+            # Translate to origin
+            nx = x - center_x
+            ny = y - center_y
+            
+            # Scale
+            nx *= scale
+            ny *= scale
+            
+            normalized.append((nx, ny))
+        
+        self.points = normalized
     
     def _calculate_lengths(self):
         """Pre-calculate cumulative lengths for fast lookup."""

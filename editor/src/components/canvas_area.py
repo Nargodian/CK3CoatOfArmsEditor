@@ -258,8 +258,14 @@ class CanvasArea(QFrame):
 					group_scale_y = bounds['height']
 					group_rotation = 0
 					
+					# Convert CoA space to frame-adjusted visual space
+					frame_x, frame_y = self.canvas_widget.coa_to_frame_space(group_pos_x, group_pos_y)
+					frame_scale, _ = self.canvas_widget.get_frame_transform()
+					frame_scale_x = group_scale_x * frame_scale[0]
+					frame_scale_y = group_scale_y * frame_scale[1]
+					
 					# Pass is_multi_selection=True for group behavior
-					self.transform_widget.set_transform(group_pos_x, group_pos_y, group_scale_x, group_scale_y, group_rotation, is_multi_selection=True)
+					self.transform_widget.set_transform(frame_x, frame_y, frame_scale_x, frame_scale_y, group_rotation, is_multi_selection=True)
 					self.transform_widget.set_visible(True)
 					return
 				except ValueError:

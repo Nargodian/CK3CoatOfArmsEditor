@@ -12,6 +12,7 @@ class DiamondGenerator(BaseGenerator):
     DEFAULT_ROWS = 9
     DEFAULT_COLUMNS = 6
     DEFAULT_SCALE = 0.08
+    DEFAULT_INSET = 0.02  # Fixed constant - padding from edges
     STAGGER_OFFSET = 0.5  # Fixed constant - alternating rows offset by half column spacing
     
     def __init__(self):
@@ -116,20 +117,22 @@ class DiamondGenerator(BaseGenerator):
         count = rows * columns
         positions = []
         
-        # Calculate spacing
+        # Calculate spacing with inset (fill INSET to 1-INSET space)
+        usable_range = 1.0 - 2 * self.DEFAULT_INSET
+        
         if columns == 1:
             x_spacing = 0
             x_start = 0.5
         else:
-            x_spacing = 1.0 / (columns - 1)
-            x_start = 0.0
+            x_spacing = usable_range / (columns - 1)
+            x_start = self.DEFAULT_INSET
         
         if rows == 1:
             y_spacing = 0
             y_start = 0.5
         else:
-            y_spacing = 1.0 / (rows - 1)
-            y_start = 0.0
+            y_spacing = usable_range / (rows - 1)
+            y_start = self.DEFAULT_INSET
         
         # Generate staggered grid
         for row in range(rows):
@@ -141,8 +144,8 @@ class DiamondGenerator(BaseGenerator):
                 x = x_start + col * x_spacing + x_offset
                 y = y_start + row * y_spacing
                 
-                # Keep instances within 0-1 bounds
-                if 0.0 <= x <= 1.0:
+                # Keep instances within bounds (inset to 1-inset)
+                if self.DEFAULT_INSET <= x <= (1.0 - self.DEFAULT_INSET):
                     positions.append([x, y, scale, scale, 0.0])
         
         return np.array(positions)

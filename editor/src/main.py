@@ -2006,12 +2006,23 @@ class CoatOfArmsEditor(QMainWindow):
 			emblem_texture: Optional custom emblem texture (.dds filename)
 		"""
 		try:
+			import numpy as np
 			from services.layer_generator.layer_string_builder import build_layer_string
 			
 			default_emblem = emblem_texture if emblem_texture else "ce_fleur.dds"
 			
+			# Apply frame scale compensation to prevent growth on drag
+			# Get current frame scale
+			frame_scale, _ = self.canvas_area.canvas_widget.get_frame_transform()
+			frame_scale_x, frame_scale_y = frame_scale
+			
+			# Compensate instance scales by dividing by frame scale
+			compensated_instances = instances.copy()
+			compensated_instances[:, 2] /= frame_scale_x  # scale_x
+			compensated_instances[:, 3] /= frame_scale_y  # scale_y
+			
 			# Build layer string
-			layer_string = build_layer_string(instances, default_emblem)
+			layer_string = build_layer_string(compensated_instances, default_emblem)
 			
 			# Check for selection to insert above
 			selected_uuids = self.right_sidebar.get_selected_uuids()
@@ -2048,19 +2059,21 @@ class CoatOfArmsEditor(QMainWindow):
 			emblem_texture: Optional custom emblem texture (ignored for text - uses letter emblems)
 		"""
 		try:
-			from services.layer_generator.text_emblem_mapper import text_to_emblems, char_to_label_code, filter_text
+			from services.layer_generator.text_emblem_mapper import get_emblem_for_char, label_code_to_char
 			from services.layer_generator.layer_string_builder import build_layer_string
 			
-			# Filter text (keeps spaces, removes invalid)
-			filtered_text = filter_text(text)
+			# Reconstruct filtered text from label codes (6th column)
+			# This ensures we match exactly what the generator used
+			if positions.shape[1] < 6:
+				print("Error: positions array missing label codes (6th column)")
+				return
+			
+			label_codes = positions[:, 5].astype(int)
+			filtered_text = ''.join(label_code_to_char(code) for code in label_codes)
 			
 			if len(filtered_text) == 0:
 				print("No valid characters in text")
 				return
-			
-			if len(positions) < len(filtered_text):
-				print(f"Warning: Not enough positions ({len(positions)}) for text length ({len(filtered_text)})")
-				filtered_text = filtered_text[:len(positions)]
 			
 			# Check for selection to insert above
 			selected_uuids = self.right_sidebar.get_selected_uuids()
@@ -2068,8 +2081,9 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			created_uuids = []
 			
-			# Create one layer per character (skip spaces)
-			for i, char in enumerate(filtered_text):
+			# Create layers in reverse order so layer list reads correctly top-to-bottom
+			for i in range(len(filtered_text) - 1, -1, -1):
+				char = filtered_text[i]
 				if char == ' ':
 					continue  # Skip spaces - no layer created
 				

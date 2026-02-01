@@ -161,3 +161,24 @@ def text_to_label_codes(text: str) -> 'np.ndarray':
             codes.append(code)
     
     return np.array(codes, dtype=int)
+
+
+def label_code_to_char(code: int) -> str:
+    """Convert label code back to character.
+    
+    Args:
+        code: Label code (-1 for space, 1-26 for a-z, 27=α, 28=ω)
+        
+    Returns:
+        Character string, or empty string if invalid
+    """
+    if code == -1:
+        return ' '
+    elif 1 <= code <= 26:
+        return chr(ord('a') + code - 1)
+    elif code == 27:
+        return 'α'
+    elif code == 28:
+        return 'ω'
+    else:
+        return ''

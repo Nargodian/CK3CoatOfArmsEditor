@@ -24,7 +24,12 @@ class RadialGenerator(BaseGenerator):
             'min_radius': self.DEFAULT_MIN_RADIUS,
             'max_radius': self.DEFAULT_MAX_RADIUS,
             'instances_per_ray': self.DEFAULT_INSTANCES_PER_RAY,
+            'gradient_enabled': False,
             'uniform_scale': self.DEFAULT_SCALE,
+            'start_scale': self.DEFAULT_SCALE,
+            'end_scale': self.DEFAULT_SCALE,
+            'rotation_mode': 'global',
+            'base_rotation': 0.0,
         }
     
     def get_title(self) -> str:
@@ -91,19 +96,31 @@ class RadialGenerator(BaseGenerator):
         
         self._controls['max_radius'] = max_radius_spin
         
-        # Scale control
-        scale_layout = QHBoxLayout()
-        scale_label = QLabel("Scale:")
-        scale_spin = QDoubleSpinBox()
-        scale_spin.setRange(0.01, 0.5)
-        scale_spin.setSingleStep(0.01)
-        scale_spin.setValue(self.settings['uniform_scale'])
-        scale_spin.valueChanged.connect(lambda v: self._on_param_changed('uniform_scale', v))
-        scale_layout.addWidget(scale_label)
-        scale_layout.addWidget(scale_spin)
-        layout.addLayout(scale_layout)
+        # Scale controls with gradient
+        scale_controls = self.add_scale_controls(
+            layout,
+            default_scale=self.settings['uniform_scale'],
+            enable_gradient=self.settings['gradient_enabled']
+        )
+        scale_controls['gradient_check'].toggled.connect(
+            lambda v: self._on_param_changed('gradient_enabled', v))
+        scale_controls['uniform_scale'].valueChanged.connect(
+            lambda v: self._on_param_changed('uniform_scale', v / 100.0))
+        scale_controls['start_scale'].valueChanged.connect(
+            lambda v: self._on_param_changed('start_scale', v / 100.0))
+        scale_controls['end_scale'].valueChanged.connect(
+            lambda v: self._on_param_changed('end_scale', v / 100.0))
         
-        self._controls['uniform_scale'] = scale_spin
+        # Rotation controls
+        rotation_controls = self.add_rotation_controls(
+            layout,
+            default_mode=self.settings['rotation_mode'],
+            default_rotation=self.settings['base_rotation']
+        )
+        rotation_controls['mode_combo'].currentTextChanged.connect(
+            lambda v: self._on_param_changed('rotation_mode', v))
+        rotation_controls['base_rotation'].valueChanged.connect(
+            lambda v: self._on_param_changed('base_rotation', float(v)))
         
         return layout
     
@@ -124,7 +141,12 @@ class RadialGenerator(BaseGenerator):
         instances_per_ray = kwargs.get('instances_per_ray', self.settings['instances_per_ray'])
         min_radius = kwargs.get('min_radius', self.settings['min_radius'])
         max_radius = kwargs.get('max_radius', self.settings['max_radius'])
-        scale = kwargs.get('uniform_scale', self.settings['uniform_scale'])
+        gradient_enabled = kwargs.get('gradient_enabled', self.settings['gradient_enabled'])
+        uniform_scale = kwargs.get('uniform_scale', self.settings['uniform_scale'])
+        start_scale = kwargs.get('start_scale', self.settings['start_scale'])
+        end_scale = kwargs.get('end_scale', self.settings['end_scale'])
+        rotation_mode = kwargs.get('rotation_mode', self.settings['rotation_mode'])
+        base_rotation = kwargs.get('base_rotation', self.settings['base_rotation'])
         
         if ray_count < 1 or instances_per_ray < 1:
             return np.array([]).reshape(0, 5)
@@ -153,8 +175,17 @@ class RadialGenerator(BaseGenerator):
                 x = center_x + radius * np.sin(angle)
                 y = center_y + radius * np.cos(angle)
                 
-                # Rotation aligned with ray direction
-                rotation = np.rad2deg(angle)
+                # Scale (gradient or uniform)
+                if gradient_enabled:
+                    scale = start_scale + t * (end_scale - start_scale)
+                else:
+                    scale = uniform_scale
+                
+                # Rotation (aligned with ray or global)
+                if rotation_mode == 'aligned':
+                    rotation = -np.rad2deg(angle) + 180 + base_rotation
+                else:
+                    rotation = base_rotation
                 
                 positions.append([x, y, scale, scale, rotation])
         

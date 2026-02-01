@@ -1,7 +1,8 @@
 """Line pattern generator - arranges instances along a straight line."""
 
 import numpy as np
-from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QDoubleSpinBox, QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QDoubleSpinBox, QWidget, QSlider
+from PyQt5.QtCore import Qt
 from ..base_generator import BaseGenerator
 
 
@@ -79,17 +80,24 @@ class LineGenerator(BaseGenerator):
         # Arc bend parameter
         arc_layout = QHBoxLayout()
         arc_label = QLabel("Arc Bend:")
+        arc_slider = QSlider(Qt.Horizontal)
+        arc_slider.setRange(-100, 100)  # -1.0 to 1.0 (multiply by 100)
+        arc_slider.setValue(int(self.settings['arc_bend'] * 100))
         arc_spin = QDoubleSpinBox()
         arc_spin.setRange(-1.0, 1.0)
-        arc_spin.setSingleStep(0.05)
+        arc_spin.setSingleStep(0.01)
         arc_spin.setDecimals(2)
         arc_spin.setValue(self.settings['arc_bend'])
-        arc_spin.valueChanged.connect(lambda v: self._on_param_changed('arc_bend', v))
+        arc_spin.setMaximumWidth(80)
+        arc_slider.valueChanged.connect(lambda v: arc_spin.setValue(v/100))
+        arc_spin.valueChanged.connect(lambda v: arc_slider.setValue(int(v*100)))
+        arc_slider.valueChanged.connect(lambda v: self._on_param_changed('arc_bend', v/100))
         arc_layout.addWidget(arc_label)
+        arc_layout.addWidget(arc_slider)
         arc_layout.addWidget(arc_spin)
         layout.addLayout(arc_layout)
         
-        self._controls['arc_bend'] = arc_spin
+        self._controls['arc_bend'] = arc_slider
         
         # Add explanation
         explanation = QLabel("Note: Arc bend curves the line (±1 = semicircle). Line runs left-to-right along x-axis.")
@@ -106,11 +114,11 @@ class LineGenerator(BaseGenerator):
         scale_controls['gradient_check'].toggled.connect(
             lambda v: self._on_param_changed('gradient_enabled', v))
         scale_controls['uniform_scale'].valueChanged.connect(
-            lambda v: self._on_param_changed('uniform_scale', v))
+            lambda v: self._on_param_changed('uniform_scale', v / 100.0))
         scale_controls['start_scale'].valueChanged.connect(
-            lambda v: self._on_param_changed('start_scale', v))
+            lambda v: self._on_param_changed('start_scale', v / 100.0))
         scale_controls['end_scale'].valueChanged.connect(
-            lambda v: self._on_param_changed('end_scale', v))
+            lambda v: self._on_param_changed('end_scale', v / 100.0))
         
         # Rotation controls
         rotation_controls = self.add_rotation_controls(

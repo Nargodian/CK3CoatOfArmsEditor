@@ -25,6 +25,8 @@ class FibonacciGenerator(BaseGenerator):
         self.settings = {
             'count': self.DEFAULT_COUNT,
             'uniform_scale': self.DEFAULT_SCALE,
+            'rotation_mode': 'global',
+            'base_rotation': 0.0,
         }
     
     def get_title(self) -> str:
@@ -63,6 +65,17 @@ class FibonacciGenerator(BaseGenerator):
         
         self._controls['uniform_scale'] = scale_spin
         
+        # Rotation controls
+        rotation_controls = self.add_rotation_controls(
+            layout,
+            default_mode=self.settings['rotation_mode'],
+            default_rotation=self.settings['base_rotation']
+        )
+        rotation_controls['mode_combo'].currentTextChanged.connect(
+            lambda v: self._on_param_changed('rotation_mode', v))
+        rotation_controls['base_rotation'].valueChanged.connect(
+            lambda v: self._on_param_changed('base_rotation', float(v)))
+        
         # Info note
         note = QLabel("Creates natural sunflower seed pattern. More points = smaller individual instances.")
         note.setWordWrap(True)
@@ -89,6 +102,8 @@ class FibonacciGenerator(BaseGenerator):
         # Use settings as defaults, override with kwargs
         count = kwargs.get('count', self.settings['count'])
         scale = kwargs.get('uniform_scale', self.settings['uniform_scale'])
+        rotation_mode = kwargs.get('rotation_mode', self.settings['rotation_mode'])
+        base_rotation = kwargs.get('base_rotation', self.settings['base_rotation'])
         
         if count < 1:
             return np.array([]).reshape(0, 5)
@@ -116,8 +131,11 @@ class FibonacciGenerator(BaseGenerator):
             x = center_x + radius * np.cos(angle)
             y = center_y + radius * np.sin(angle)
             
-            # Rotation follows the spiral (aligned with angle)
-            rotation = np.rad2deg(angle)
+            # Rotation (aligned with spiral or global)
+            if rotation_mode == 'aligned':
+                rotation = np.rad2deg(angle) + base_rotation
+            else:
+                rotation = base_rotation
             
             positions[i] = [x, y, scale, scale, rotation]
         

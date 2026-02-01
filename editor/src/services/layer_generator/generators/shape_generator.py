@@ -173,11 +173,11 @@ class ShapeGenerator(BaseGenerator):
         scale_controls['gradient_check'].toggled.connect(
             lambda v: self._on_param_changed('gradient_enabled', v))
         scale_controls['uniform_scale'].valueChanged.connect(
-            lambda v: self._on_param_changed('uniform_scale', v))
+            lambda v: self._on_param_changed('uniform_scale', v / 100.0))
         scale_controls['start_scale'].valueChanged.connect(
-            lambda v: self._on_param_changed('start_scale', v))
+            lambda v: self._on_param_changed('start_scale', v / 100.0))
         scale_controls['end_scale'].valueChanged.connect(
-            lambda v: self._on_param_changed('end_scale', v))
+            lambda v: self._on_param_changed('end_scale', v / 100.0))
         
         # Rotation controls
         rotation_controls = self.add_rotation_controls(
@@ -256,8 +256,8 @@ class ShapeGenerator(BaseGenerator):
             
             # Rotation
             if rotation_mode == 'aligned':
-                # Aligned: follow path tangent
-                rotation = tangent_angle + base_rotation
+                # Aligned: perpendicular to path (tangent + 90°)
+                rotation = -(tangent_angle + 90) + 180 + base_rotation
             else:
                 # Global: all same rotation
                 rotation = base_rotation

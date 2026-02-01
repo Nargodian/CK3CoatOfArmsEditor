@@ -12,6 +12,7 @@ class GridGenerator(BaseGenerator):
     DEFAULT_ROWS = 5
     DEFAULT_COLUMNS = 5
     DEFAULT_SCALE = 0.08
+    DEFAULT_INSET = 0.02  # Fixed constant - padding from edges
     
     def __init__(self):
         super().__init__()
@@ -104,20 +105,22 @@ class GridGenerator(BaseGenerator):
         count = rows * columns
         positions = np.zeros((count, 5))
         
-        # Calculate spacing to fill 0-1 space
+        # Calculate spacing with inset (fill INSET to 1-INSET space)
+        usable_range = 1.0 - 2 * self.DEFAULT_INSET
+        
         if columns == 1:
             x_spacing = 0
             x_start = 0.5
         else:
-            x_spacing = 1.0 / (columns - 1)
-            x_start = 0.0
+            x_spacing = usable_range / (columns - 1)
+            x_start = self.DEFAULT_INSET
         
         if rows == 1:
             y_spacing = 0
             y_start = 0.5
         else:
-            y_spacing = 1.0 / (rows - 1)
-            y_start = 0.0
+            y_spacing = usable_range / (rows - 1)
+            y_start = self.DEFAULT_INSET
         
         # Generate grid positions
         idx = 0

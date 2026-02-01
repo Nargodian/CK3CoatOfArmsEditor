@@ -131,11 +131,11 @@ class SpiralGenerator(BaseGenerator):
         scale_controls['gradient_check'].toggled.connect(
             lambda v: self._on_param_changed('gradient_enabled', v))
         scale_controls['uniform_scale'].valueChanged.connect(
-            lambda v: self._on_param_changed('uniform_scale', v))
+            lambda v: self._on_param_changed('uniform_scale', v / 100.0))
         scale_controls['start_scale'].valueChanged.connect(
-            lambda v: self._on_param_changed('start_scale', v))
+            lambda v: self._on_param_changed('start_scale', v / 100.0))
         scale_controls['end_scale'].valueChanged.connect(
-            lambda v: self._on_param_changed('end_scale', v))
+            lambda v: self._on_param_changed('end_scale', v / 100.0))
         
         # Rotation controls
         rotation_controls = self.add_rotation_controls(

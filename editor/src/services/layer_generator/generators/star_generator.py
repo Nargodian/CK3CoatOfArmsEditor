@@ -25,6 +25,8 @@ class StarGenerator(BaseGenerator):
             'inner_ratio': self.DEFAULT_INNER_RADIUS_RATIO,
             'instances_per_edge': self.DEFAULT_INSTANCES_PER_EDGE,
             'uniform_scale': self.DEFAULT_SCALE,
+            'rotation_mode': 'global',
+            'base_rotation': 0.0,
         }
     
     def get_title(self) -> str:
@@ -105,6 +107,17 @@ class StarGenerator(BaseGenerator):
         
         self._controls['uniform_scale'] = scale_spin
         
+        # Rotation controls
+        rotation_controls = self.add_rotation_controls(
+            layout,
+            default_mode=self.settings['rotation_mode'],
+            default_rotation=self.settings['base_rotation']
+        )
+        rotation_controls['mode_combo'].currentTextChanged.connect(
+            lambda v: self._on_param_changed('rotation_mode', v))
+        rotation_controls['base_rotation'].valueChanged.connect(
+            lambda v: self._on_param_changed('base_rotation', float(v)))
+        
         return layout
     
     def _on_param_changed(self, param_name: str, value):
@@ -128,6 +141,8 @@ class StarGenerator(BaseGenerator):
         inner_ratio = kwargs.get('inner_ratio', self.settings['inner_ratio'])
         instances_per_edge = kwargs.get('instances_per_edge', self.settings['instances_per_edge'])
         scale = kwargs.get('uniform_scale', self.settings['uniform_scale'])
+        rotation_mode = kwargs.get('rotation_mode', self.settings['rotation_mode'])
+        base_rotation = kwargs.get('base_rotation', self.settings['base_rotation'])
         
         if points < 3 or instances_per_edge < 1:
             return np.array([]).reshape(0, 5)
@@ -146,18 +161,16 @@ class StarGenerator(BaseGenerator):
             y = center_y + r * np.sin(angle)
             vertices.append((x, y))
         
-        # Close the star by connecting back to first vertex
-        vertices.append(vertices[0])
-        
         # Generate instances along edges
         positions = []
         
-        for i in range(len(vertices) - 1):
+        for i in range(len(vertices)):
             start_x, start_y = vertices[i]
-            end_x, end_y = vertices[i + 1]
+            end_x, end_y = vertices[(i + 1) % len(vertices)]  # Wrap around to close star
             
-            # Place instances along this edge
-            for j in range(instances_per_edge):
+            # Place instances along this edge (skip j==0 after first edge to avoid doubling corners)
+            start_j = 0 if i == 0 else 1
+            for j in range(start_j, instances_per_edge):
                 if instances_per_edge == 1:
                     t = 0.5
                 else:
@@ -166,10 +179,15 @@ class StarGenerator(BaseGenerator):
                 x = start_x + t * (end_x - start_x)
                 y = start_y + t * (end_y - start_y)
                 
-                # Calculate rotation aligned with edge direction
-                dx = end_x - start_x
-                dy = end_y - start_y
-                rotation = np.rad2deg(np.arctan2(dx, dy))
+                # Calculate rotation
+                if rotation_mode == 'aligned':
+                    # Radial from center with offset
+                    dx = x - center_x
+                    dy = y - center_y
+                    rotation = -np.rad2deg(np.arctan2(dx, dy)) + 180 + base_rotation
+                else:
+                    # Global rotation
+                    rotation = base_rotation
                 
                 positions.append([x, y, scale, scale, rotation])
         

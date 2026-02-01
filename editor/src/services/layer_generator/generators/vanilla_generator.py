@@ -92,7 +92,7 @@ class VanillaGenerator(BaseGenerator):
         
         layout.addStretch()
         
-        parent_widget.setLayout(layout)
+        return layout
     
     def _on_layout_changed(self, index):
         """Handle layout selection change."""

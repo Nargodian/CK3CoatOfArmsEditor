@@ -241,23 +241,34 @@ class GeneratorPopup(QDialog):
     
     def _clear_controls(self):
         """Remove all widgets from controls container."""
+        # Process events first to ensure any pending deletions are completed
+        from PyQt5.QtWidgets import QApplication
+        QApplication.processEvents()
+        
         while self.controls_layout.count():
             child = self.controls_layout.takeAt(0)
             if child.widget():
-                child.widget().deleteLater()
+                widget = child.widget()
+                widget.setParent(None)
+                widget.deleteLater()
             elif child.layout():
                 self._clear_layout(child.layout())
-                child.layout().deleteLater()  # Delete the layout itself too
+                child.layout().deleteLater()
+        
+        # Process events again to ensure widgets are deleted before new ones are added
+        QApplication.processEvents()
     
     def _clear_layout(self, layout):
         """Recursively clear a layout."""
         while layout.count():
             child = layout.takeAt(0)
             if child.widget():
-                child.widget().deleteLater()
+                widget = child.widget()
+                widget.setParent(None)
+                widget.deleteLater()
             elif child.layout():
                 self._clear_layout(child.layout())
-                child.layout().deleteLater()  # Delete nested layouts too
+                child.layout().deleteLater()
     
     def _update_preview(self):
         """Update preview with current generator parameters."""
