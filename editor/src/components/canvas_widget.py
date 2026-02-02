@@ -88,14 +88,14 @@ def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0, zo
 	# Convert OpenGL normalized (-1.0 to +1.0) to pixels
 	# Apply zoom and composite scale
 	# Use canvas_size (the square dimension) for both to maintain square aspect
-	pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
-	pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
+	pixel_x = gl_x * (canvas_size[1] / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
+	pixel_y = gl_y * (canvas_size[1] / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 	
 	# Qt Y-axis is inverted (down is positive)
 	# Canvas center is at (offset + size/2, offset + size/2)
 	# Apply pan offset (already in pixels)
-	qt_x = offset_x + canvas_size / 2 + pixel_x + pan_x
-	qt_y = offset_y + canvas_size / 2 - pixel_y + pan_y  # Negate Y for Qt coords
+	qt_x = offset_x + canvas_size[1] / 2 + pixel_x + pan_x
+	qt_y = offset_y + canvas_size[1] / 2 - pixel_y + pan_y  # Negate Y for Qt coords
 	
 	return qt_x, qt_y
 
@@ -117,14 +117,14 @@ def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0, zoom
 		(pos_x, pos_y): Layer position (0-1 range, 0=top in CK3)
 	"""
 	# Remove pan offset first
-	pixel_x = qt_x - offset_x - canvas_size / 2 - pan_x
-	pixel_y = qt_y - offset_y - canvas_size / 2 - pan_y
+	pixel_x = qt_x - offset_x - canvas_size[1] / 2 - pan_x
+	pixel_y = qt_y - offset_y - canvas_size[1] / 2 - pan_y
 	
 	# Convert pixels to OpenGL normalized space
 	# Qt Y-down to OpenGL Y-up: negate pixel_y
 	# Account for zoom and composite scale
-	gl_x = pixel_x / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / zoom_level
-	gl_y = -pixel_y / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / zoom_level
+	gl_x = pixel_x / (canvas_size[1] / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / zoom_level
+	gl_y = -pixel_y / (canvas_size[1] / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / zoom_level
 	
 	# Convert OpenGL coords back to layer position
 	# layer_pos_to_opengl_coords: gl_x = pos_x * 2.0 - 1.0

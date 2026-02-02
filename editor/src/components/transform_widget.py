@@ -109,8 +109,8 @@ class TransformWidget(QWidget):
 			tuple: (x, y, width, height, size, offset_x, offset_y, zoom_level, pan_x, pan_y)
 				- x, y: canvas position in container
 				- width, height: canvas dimensions
-				- size: square viewport size (min of width/height)
-				- offset_x, offset_y: position of square viewport center
+				- size: square viewport size (min of width/height) for backward compat
+				- offset_x, offset_y: position of square CoA area within canvas (centered)
 				- zoom_level: current canvas zoom (default 1.0 if not available)
 				- pan_x, pan_y: current pan offsets (default 0.0 if not available)
 		"""
@@ -118,6 +118,7 @@ class TransformWidget(QWidget):
 		x, y = geom.x(), geom.y()
 		width, height = geom.width(), geom.height()
 		size = min(width, height)
+		# CoA is centered within the canvas area
 		offset_x = x + (width - size) / 2
 		offset_y = y + (height - size) / 2
 		# Get zoom level and pan offsets from canvas widget if available
@@ -202,10 +203,10 @@ class TransformWidget(QWidget):
 		painter.setRenderHint(QPainter.Antialiasing)
 		
 		# Get canvas position, size, zoom level, and pan offsets
-		_, _, _, _, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
+		_, _, width, height, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
 		
 		# Convert layer position to Qt pixel coordinates
-		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level, pan_x, pan_y)
+		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
 		
 		# Widget box shows fixed size based on scale values
 		# Must match emblem rendering: multiply by VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
@@ -335,9 +336,9 @@ class TransformWidget(QWidget):
 			return self.HANDLE_NONE
 		
 		# Get canvas position, size, zoom level, and pan offsets
-		_, _, _, _, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
+		_, _, width, height, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
 		
-		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level, pan_x, pan_y)
+		center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
 		
 		# Must match paintEvent scaling: multiply by VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 		# size already incorporates widget dimensions, multiply by zoom for visual scaling
@@ -666,17 +667,17 @@ class TransformWidget(QWidget):
 		start_x, start_y, start_sx, start_sy, start_rot = self.drag_start_transform
 		
 		# Get canvas size, zoom level, and pan offsets for coordinate conversion
-		_, _, _, _, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
+		_, _, width, height, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
 		
 		if self.active_handle == self.HANDLE_CENTER:
 			# Move - apply pixel delta to starting position
 			# Convert start position to pixels
-			start_x_px, start_y_px = layer_pos_to_qt_pixels(start_x, start_y, size, offset_x, offset_y, zoom_level, pan_x, pan_y)
+			start_x_px, start_y_px = layer_pos_to_qt_pixels(start_x, start_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
 			# Apply pixel delta
 			new_x_px = start_x_px + dx
 			new_y_px = start_y_px + dy
 			# Convert back to layer coords with zoom
-			new_pos_x, new_pos_y = qt_pixels_to_layer_pos(new_x_px, new_y_px, size, offset_x, offset_y, zoom_level, pan_x, pan_y)
+			new_pos_x, new_pos_y = qt_pixels_to_layer_pos(new_x_px, new_y_px, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
 			self.pos_x = new_pos_x
 			self.pos_y = new_pos_y
 			
@@ -699,8 +700,8 @@ class TransformWidget(QWidget):
 		elif self.active_handle == self.HANDLE_ROTATE:
 			# Rotate - calculate delta angle from start position
 			# Get center in screen coords with zoom and pan
-			_, _, _, _, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
-			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level, pan_x, pan_y)
+			_, _, width, height, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
+			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
 			
 			# Calculate angle from center to start position
 			start_angle = math.degrees(math.atan2(self.drag_start_pos.y() - center_y, self.drag_start_pos.x() - center_x))
@@ -726,8 +727,8 @@ class TransformWidget(QWidget):
 					anchor_x, anchor_y = start_x - start_sx * 0.5, start_y - start_sy * 0.5  # TL
 				
 				# Convert anchor to screen coords with zoom and pan
-				_, _, _, _, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
-				anchor_x_px, anchor_y_px = layer_pos_to_qt_pixels(anchor_x, anchor_y, size, offset_x, offset_y, zoom_level, pan_x, pan_y)
+				_, _, width, height, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
+				anchor_x_px, anchor_y_px = layer_pos_to_qt_pixels(anchor_x, anchor_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
 				
 				# Calculate distance from anchor to current mouse position
 				curr_vec_x = current_pos.x() - anchor_x_px
@@ -759,9 +760,8 @@ class TransformWidget(QWidget):
 				scale_delta = distance / (size * base_scale)
 				
 				# Determine if moving away or towards center
-				_, _, _, _, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
-				center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level, pan_x, pan_y)
-				
+				_, _, width, height, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
+				center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
 				# Vector from center to drag start
 				start_vec_x = self.drag_start_pos.x() - center_x
 				start_vec_y = self.drag_start_pos.y() - center_y
@@ -797,7 +797,7 @@ class TransformWidget(QWidget):
 					anchor_x = start_x - start_sx * 0.5
 				
 				# Convert anchor to screen coords with zoom and pan
-				anchor_x_px, _ = layer_pos_to_qt_pixels(anchor_x, start_y, size, offset_x, offset_y, zoom_level, pan_x, pan_y)
+				anchor_x_px, _ = layer_pos_to_qt_pixels(anchor_x, start_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
 				
 				# Calculate new scale based on distance from anchor to mouse
 				# Distance is full width (anchor is at opposite edge)
@@ -830,8 +830,8 @@ class TransformWidget(QWidget):
 		
 		elif self.active_handle in [self.HANDLE_T, self.HANDLE_B]:
 			# Vertical scale with zoom and pan
-			_, _, _, _, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
-			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level, pan_x, pan_y)
+			_, _, width, height, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
+			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
 			
 			if alt_pressed:
 				# Alt+drag: Anchor opposite edge
@@ -843,7 +843,7 @@ class TransformWidget(QWidget):
 					anchor_y = start_y - start_sy * 0.5
 				
 				# Convert anchor to screen coords with zoom and pan
-				_, anchor_y_px = layer_pos_to_qt_pixels(start_x, anchor_y, size, offset_x, offset_y, zoom_level, pan_x, pan_y)
+				_, anchor_y_px = layer_pos_to_qt_pixels(start_x, anchor_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
 				
 				# Calculate new scale based on distance from anchor to mouse
 				# Distance is full height (anchor is at opposite edge)

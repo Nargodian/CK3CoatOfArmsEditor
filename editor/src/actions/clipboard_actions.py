@@ -333,7 +333,7 @@ class ClipboardActions:
 			canvas_y = mouse_pos.y() - canvas_offset.y()
 			
 			# Get canvas widget size
-			canvas_size = min(
+			canvas_size = (
 				self.main_window.canvas_area.canvas_widget.width(),
 				self.main_window.canvas_area.canvas_widget.height()
 			)
@@ -342,14 +342,16 @@ class ClipboardActions:
 			canvas_offset_x = canvas_geometry.x()
 			canvas_offset_y = canvas_geometry.y()
 			
-			# Get zoom level
+			# Get zoom level and pan offsets
 			zoom_level = getattr(self.main_window.canvas_area.canvas_widget, 'zoom_level', 1.0)
+			pan_x = getattr(self.main_window.canvas_area.canvas_widget, 'pan_x', 0.0)
+			pan_y = getattr(self.main_window.canvas_area.canvas_widget, 'pan_y', 0.0)
 			
 			# Convert Qt pixels to frame space using shared coordinate functions
 			from components.canvas_widget import qt_pixels_to_layer_pos
 			frame_x, frame_y = qt_pixels_to_layer_pos(
 				mouse_pos.x(), mouse_pos.y(),
-				canvas_size, canvas_offset_x, canvas_offset_y, zoom_level
+				canvas_size, canvas_offset_x, canvas_offset_y, zoom_level, pan_x, pan_y
 			)
 			
 			# Convert frame space to CoA space
