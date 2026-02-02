@@ -224,6 +224,8 @@ class ModAssetSource:
         self.has_emblems = False
         self.has_patterns = False
         self.has_frames = False
+        self.has_realm_frames = False
+        self.has_title_frames = False
         self.has_culture_files = False
         self.has_emblem_metadata = False
         self.has_pattern_metadata = False
@@ -278,6 +280,19 @@ def detect_coa_assets(mod_path: Path) -> Dict[str, bool]:
     frames_dir = mod_path / "gfx" / "interface" / "coat_of_arms" / "frames"
     has_frames = frames_dir.exists() and any(frames_dir.glob("*.dds"))
     
+    # Check for realm frames (government-specific)
+    realm_frames_dir = mod_path / "gfx" / "interface" / "icons" / "realm_frames"
+    has_realm_frames = realm_frames_dir.exists() and any(realm_frames_dir.glob("*_mask.dds"))
+    
+    # Check for title frames (crown_strip, title_mask, title_<size>, topframe_<size>)
+    coa_dir = mod_path / "gfx" / "interface" / "coat_of_arms"
+    has_title_frames = coa_dir.exists() and (
+        (coa_dir / "title_mask.dds").exists() or
+        any(coa_dir.glob("crown_strip_*.dds")) or
+        any(coa_dir.glob("title_*.dds")) or
+        any(coa_dir.glob("topframe_*.dds"))
+    )
+    
     # Check for culture files (frame transforms)
     culture_dir = mod_path / "common" / "culture" / "cultures"
     has_culture_files = culture_dir.exists() and any(culture_dir.glob("*.txt"))
@@ -290,6 +305,8 @@ def detect_coa_assets(mod_path: Path) -> Dict[str, bool]:
         'has_emblems': has_emblems,
         'has_patterns': has_patterns,
         'has_frames': has_frames,
+        'has_realm_frames': has_realm_frames,
+        'has_title_frames': has_title_frames,
         'has_culture_files': has_culture_files,
         'has_emblem_metadata': has_emblem_metadata,
         'has_pattern_metadata': has_pattern_metadata
@@ -335,6 +352,8 @@ def build_asset_sources(base_game_dir: Path, mod_dir: Optional[Path] = None) -> 
     base_source.has_emblems = base_assets['has_emblems']
     base_source.has_patterns = base_assets['has_patterns']
     base_source.has_frames = base_assets['has_frames']
+    base_source.has_realm_frames = base_assets['has_realm_frames']
+    base_source.has_title_frames = base_assets['has_title_frames']
     base_source.has_culture_files = base_assets['has_culture_files']
     base_source.has_emblem_metadata = base_assets['has_emblem_metadata']
     base_source.has_pattern_metadata = base_assets['has_pattern_metadata']
@@ -353,6 +372,8 @@ def build_asset_sources(base_game_dir: Path, mod_dir: Optional[Path] = None) -> 
                 mod_source.has_emblems = mod_assets['has_emblems']
                 mod_source.has_patterns = mod_assets['has_patterns']
                 mod_source.has_frames = mod_assets['has_frames']
+                mod_source.has_realm_frames = mod_assets['has_realm_frames']
+                mod_source.has_title_frames = mod_assets['has_title_frames']
                 mod_source.has_culture_files = mod_assets['has_culture_files']
                 mod_source.has_emblem_metadata = mod_assets['has_emblem_metadata']
                 mod_source.has_pattern_metadata = mod_assets['has_pattern_metadata']
@@ -366,7 +387,7 @@ def find_asset_files(source: ModAssetSource, asset_type: str) -> List[Path]:
     
     Args:
         source: ModAssetSource to search
-        asset_type: 'emblems', 'patterns', or 'frames'
+        asset_type: 'emblems', 'patterns', 'frames', or 'realm_frames'
     
     Returns:
         List of DDS file paths
@@ -388,6 +409,27 @@ def find_asset_files(source: ModAssetSource, asset_type: str) -> List[Path]:
         else:
             search_dir = source.path / "gfx" / "interface" / "coat_of_arms" / "frames"
         pattern = "*.dds"
+    elif asset_type == 'realm_frames':
+        if source.is_base_game:
+            search_dir = source.path / "game" / "gfx" / "interface" / "icons" / "realm_frames"
+        else:
+            search_dir = source.path / "gfx" / "interface" / "icons" / "realm_frames"
+        pattern = "*.dds"
+    elif asset_type == 'title_frames':
+        if source.is_base_game:
+            search_dir = source.path / "game" / "gfx" / "interface" / "coat_of_arms"
+        else:
+            search_dir = source.path / "gfx" / "interface" / "coat_of_arms"
+        # Get title_mask.dds, crown_strip_*.dds, title_*.dds (not title_mask.dds), topframe_*.dds
+        if not search_dir.exists():
+            return []
+        files = []
+        if (search_dir / "title_mask.dds").exists():
+            files.append(search_dir / "title_mask.dds")
+        files.extend(search_dir.glob("crown_strip_*.dds"))
+        files.extend(search_dir.glob("title_[0-9]*.dds"))  # title_28.dds, etc., not title_mask.dds
+        files.extend(search_dir.glob("topframe_*.dds"))
+        return files
     else:
         return []
     
@@ -654,7 +696,7 @@ class ConversionWorker(QThread):
             for source in self.asset_sources:
                 self.progress.emit(f"  - {source.name}", 0, 0)
             
-            total_steps = 5
+            total_steps = 6
             current_step = 0
             
             # Step 1: Process emblems
@@ -677,6 +719,14 @@ class ConversionWorker(QThread):
             if not self.process_frames_from_sources():
                 self.finished.emit(False, "Frame processing failed")
                 return
+            
+            # Step 3.5: Process realm frames (government-specific)
+            if not self.process_realm_frames_from_sources():
+                self.log_error("Realm frame processing failed (non-critical)")
+            
+            # Step 3.6: Process title frames (crown_strip, title_mask, title, topframe)
+            if not self.process_title_frames_from_sources():
+                self.log_error("Title frame processing failed (non-critical)")
             
             # Step 4: Extract frame transforms
             current_step += 1
@@ -947,6 +997,134 @@ class ConversionWorker(QThread):
             
         except Exception as e:
             self.log_error(f"Frame processing error: {str(e)}")
+            return False
+    
+    def process_realm_frames_from_sources(self) -> bool:
+        """Process realm frame (government) DDS files from all sources to PNGs."""
+        try:
+            # Create output directory
+            realm_frames_out = self.output_dir / "realm_frames"
+            realm_frames_out.mkdir(parents=True, exist_ok=True)
+            
+            total_processed = 0
+            total_skipped = 0
+            total_errors = 0
+            
+            # Process each source
+            for source in self.asset_sources:
+                if not source.has_realm_frames:
+                    continue
+                
+                self.progress.emit(f"Processing realm frames from {source.name}...", 0, 0)
+                
+                dds_files = find_asset_files(source, 'realm_frames')
+                
+                if not dds_files:
+                    self.progress.emit(f"No realm frame files found in {source.name}", 0, 0)
+                    continue
+                
+                processed = 0
+                skipped = 0
+                errors = 0
+                
+                for i, dds_file in enumerate(dds_files):
+                    self.progress.emit(f"Processing realm frames from {source.name}... {i}/{len(dds_files)}", i, len(dds_files))
+                    
+                    png_file = realm_frames_out / f"{dds_file.stem}.png"
+                    
+                    if not self.should_process(dds_file, png_file):
+                        skipped += 1
+                        continue
+                    
+                    img_array = load_dds_image(dds_file)
+                    if img_array is None:
+                        self.log_error(f"Failed to load DDS from {source.name}: {dds_file.name}")
+                        errors += 1
+                        continue
+                    
+                    try:
+                        img = Image.fromarray(img_array, mode='RGBA')
+                        img.save(png_file, 'PNG')
+                        processed += 1
+                    except Exception as e:
+                        self.log_error(f"Error processing {dds_file.name} from {source.name}: {str(e)}")
+                        errors += 1
+                
+                total_processed += processed
+                total_skipped += skipped
+                total_errors += errors
+                
+                self.progress.emit(f"{source.name}: {processed} realm frames processed, {skipped} skipped, {errors} errors", 0, 0)
+            
+            self.progress.emit(f"Total realm frames: {total_processed} processed, {total_skipped} skipped, {total_errors} errors", 0, 0)
+            return True
+            
+        except Exception as e:
+            self.log_error(f"Realm frame processing error: {str(e)}")
+            return False
+    
+    def process_title_frames_from_sources(self) -> bool:
+        """Process title frame assets (crown_strip, title_mask, title, topframe) to PNGs."""
+        try:
+            # Create output directory
+            title_frames_out = self.output_dir / "title_frames"
+            title_frames_out.mkdir(parents=True, exist_ok=True)
+            
+            total_processed = 0
+            total_skipped = 0
+            total_errors = 0
+            
+            # Process each source
+            for source in self.asset_sources:
+                if not source.has_title_frames:
+                    continue
+                
+                self.progress.emit(f"Processing title frames from {source.name}...", 0, 0)
+                
+                dds_files = find_asset_files(source, 'title_frames')
+                
+                if not dds_files:
+                    self.progress.emit(f"No title frame files found in {source.name}", 0, 0)
+                    continue
+                
+                processed = 0
+                skipped = 0
+                errors = 0
+                
+                for i, dds_file in enumerate(dds_files):
+                    self.progress.emit(f"Processing title frames from {source.name}... {i}/{len(dds_files)}", i, len(dds_files))
+                    
+                    png_file = title_frames_out / f"{dds_file.stem}.png"
+                    
+                    if not self.should_process(dds_file, png_file):
+                        skipped += 1
+                        continue
+                    
+                    img_array = load_dds_image(dds_file)
+                    if img_array is None:
+                        self.log_error(f"Failed to load DDS from {source.name}: {dds_file.name}")
+                        errors += 1
+                        continue
+                    
+                    try:
+                        img = Image.fromarray(img_array, mode='RGBA')
+                        img.save(png_file, 'PNG')
+                        processed += 1
+                    except Exception as e:
+                        self.log_error(f"Error processing {dds_file.name} from {source.name}: {str(e)}")
+                        errors += 1
+                
+                total_processed += processed
+                total_skipped += skipped
+                total_errors += errors
+                
+                self.progress.emit(f"{source.name}: {processed} title frames processed, {skipped} skipped, {errors} errors", 0, 0)
+            
+            self.progress.emit(f"Total title frames: {total_processed} processed, {total_skipped} skipped, {total_errors} errors", 0, 0)
+            return True
+            
+        except Exception as e:
+            self.log_error(f"Title frame processing error: {str(e)}")
             return False
     
     def extract_frame_transforms_from_sources(self) -> bool:
