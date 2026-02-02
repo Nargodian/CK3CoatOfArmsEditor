@@ -1001,6 +1001,10 @@ class PropertySidebar(QFrame):
 				self.tab_widget.setCurrentIndex(1)
 			if self.canvas_area:
 				self.canvas_area.update_transform_widget_for_layer(None)
+		
+		# Update canvas to reflect selection change
+		if self.canvas_widget:
+			self.canvas_widget.update()
 	
 	def _on_layer_reorder(self, count):
 		"""Handle layer reordering from drag-drop

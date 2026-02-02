@@ -1551,15 +1551,21 @@ class LayerListWidget(QWidget):
 		if not self.coa:
 			return
 		
-		# Find the button for this UUID
-		button = None
-		for btn_uuid, btn in self.layer_buttons:
+		# Find the container widget for this UUID
+		container_widget = None
+		for btn_uuid, container in self.layer_buttons:
 			if btn_uuid == uuid:
-				button = btn
+				container_widget = container
 				break
 		
-		if not button:
+		if not container_widget:
 			return
+		
+		# Get the actual button from the container widget
+		if not hasattr(container_widget, 'layer_button'):
+			return
+		
+		button = container_widget.layer_button
 		
 		# Query fresh properties from CoA
 		filename = self.coa.get_layer_filename(uuid)
