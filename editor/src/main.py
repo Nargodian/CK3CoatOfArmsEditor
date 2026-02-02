@@ -1129,15 +1129,15 @@ class CoatOfArmsEditor(QMainWindow):
 				colors=color_count
 			)
 		
-		# Auto-select the newly added layer using UUID from CoA
+		# Update UI - rebuild layer list first
+		self.right_sidebar._rebuild_layer_list()
+		
+		# Then auto-select the newly added layer using UUID from CoA
 		new_uuid = self.coa.get_last_added_uuid()
 		if new_uuid:
 			self.right_sidebar.layer_list_widget.selected_layer_uuids = {new_uuid}
 			self.right_sidebar.layer_list_widget.last_selected_uuid = new_uuid
 			self.right_sidebar.layer_list_widget.update_selection_visuals()
-		
-		# Update UI
-		self.right_sidebar._rebuild_layer_list()
 		
 		# Update canvas
 		self.canvas_area.canvas_widget.update()
