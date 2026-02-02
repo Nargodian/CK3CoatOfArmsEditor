@@ -1305,7 +1305,10 @@ class CoatOfArmsEditor(QMainWindow):
 				super().keyPressEvent(event)
 		# M key for toggle minimal transform widget
 		elif event.key() == Qt.Key_M and not event.modifiers():
-			self.canvas_area.minimal_transform_btn.toggle()
+			# Cycle through transform modes: Normal -> Minimal -> Gimble -> Normal
+			current_index = self.canvas_area.transform_mode_combo.currentIndex()
+			next_index = (current_index + 1) % 3
+			self.canvas_area.transform_mode_combo.setCurrentIndex(next_index)
 			event.accept()
 		# P key for toggle picker tool
 		elif event.key() == Qt.Key_P and not event.modifiers():

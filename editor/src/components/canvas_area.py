@@ -264,25 +264,32 @@ class CanvasArea(QFrame):
 		
 		bottom_layout.addSpacing(20)
 		
-		# Add minimal transform widget toggle button
-		from PyQt5.QtWidgets import QPushButton
-		self.minimal_transform_btn = QPushButton("▭")
-		self.minimal_transform_btn.setCheckable(True)
-		self.minimal_transform_btn.setToolTip("Toggle minimal transform widget (M)\nShows faint box only, drag and wheel functions work")
-		self.minimal_transform_btn.setFixedSize(24, 20)
-		self.minimal_transform_btn.setStyleSheet("""
-			QPushButton { 
-				font-size: 14px; 
-				padding: 0px; 
-				border: 1px solid rgba(255, 255, 255, 40); 
+		# Add transform mode dropdown
+		from PyQt5.QtWidgets import QPushButton, QComboBox
+		self.transform_mode_combo = QComboBox()
+		self.transform_mode_combo.addItems(["Normal", "Minimal", "Gimble"])
+		self.transform_mode_combo.setCurrentIndex(0)  # Default to Normal
+		self.transform_mode_combo.setToolTip("Transform Widget Mode (M)\nNormal: Scale + rotation handles\nMinimal: Corners only\nGimble: Position arrows + rotation ring")
+		self.transform_mode_combo.setFixedHeight(20)
+		self.transform_mode_combo.setStyleSheet("""
+			QComboBox {
+				font-size: 11px;
+				padding: 2px 4px;
+				border: 1px solid rgba(255, 255, 255, 40);
+				background-color: rgba(40, 40, 40, 200);
+				color: white;
 			}
-			QPushButton:checked {
-				background-color: rgba(100, 150, 255, 100);
-				border: 1px solid rgba(100, 150, 255, 180);
+			QComboBox::drop-down {
+				border: none;
+			}
+			QComboBox QAbstractItemView {
+				background-color: rgba(40, 40, 40, 240);
+				color: white;
+				selection-background-color: rgba(100, 150, 255, 100);
 			}
 		""")
-		self.minimal_transform_btn.toggled.connect(self.transform_widget.set_minimal_mode)
-		bottom_layout.addWidget(self.minimal_transform_btn)
+		self.transform_mode_combo.currentIndexChanged.connect(self._on_transform_mode_changed)
+		bottom_layout.addWidget(self.transform_mode_combo)
 		
 		# Add layer picker tool button
 		self.picker_btn = QPushButton("🎯")
@@ -885,3 +892,8 @@ class CanvasArea(QFrame):
 		"""Handle show selection button toggle"""
 		# Trigger canvas update to show/hide selection tint
 		self.canvas_widget.update()
+	
+	def _on_transform_mode_changed(self, index):
+		"""Handle transform mode dropdown change"""
+		mode = ["normal", "minimal", "gimble"][index]
+		self.transform_widget.set_transform_mode(mode)

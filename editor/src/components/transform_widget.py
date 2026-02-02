@@ -42,8 +42,10 @@ class TransformWidget(QWidget):
 	HANDLE_L = 8   # Left edge
 	HANDLE_R = 9   # Right edge
 	HANDLE_ROTATE = 10
-	HANDLE_AXIS_X = 11  # X-axis arrow
-	HANDLE_AXIS_Y = 12  # Y-axis arrow
+	HANDLE_AXIS_X = 11  # X-axis arrow (gimble mode)
+	HANDLE_AXIS_Y = 12  # Y-axis arrow (gimble mode)
+	HANDLE_GIMBLE_ROTATE = 13  # Rotation ring (gimble mode)
+	HANDLE_GIMBLE_CENTER = 14  # Center dot (gimble mode)
 	
 	def __init__(self, parent=None, canvas_widget=None):
 		super().__init__(parent)
@@ -86,8 +88,9 @@ class TransformWidget(QWidget):
 		self.handle_size = 8
 		self.rotation_handle_offset = 30
 		
-		# Minimal mode for simplified widget
-		self.minimal_mode = False
+		# Transform mode: normal, minimal, or gimble
+		self.transform_mode = "normal"
+		self.minimal_mode = False  # Kept for backward compatibility
 		self.bounding_rect = QRectF()  # Initialize bounding rect
 		
 		# Position absolutely on top of parent
@@ -182,8 +185,19 @@ class TransformWidget(QWidget):
 			self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 		self.update()
 	
+	def set_transform_mode(self, mode):
+		"""Set transform widget mode
+		
+		Args:
+			mode: str - "normal", "minimal", or "gimble"
+		"""
+		self.transform_mode = mode
+		self.minimal_mode = (mode == "minimal")  # Update backward compat flag
+		self.update()
+	
 	def set_minimal_mode(self, enabled):
-		"""Toggle minimal transform widget mode"""
+		"""Toggle minimal transform widget mode (backward compatibility)"""
+		self.transform_mode = "minimal" if enabled else "normal"
 		self.minimal_mode = enabled
 		self.update()
 	
@@ -214,22 +228,26 @@ class TransformWidget(QWidget):
 		scale_w = abs(self.scale_x) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 		scale_h = abs(self.scale_y) * (size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 		
-		# Minimal mode: only draw faint bounding box
-		if self.minimal_mode:
-			self.bounding_rect = QRectF(
-				center_x - scale_w, center_y - scale_h,
-				scale_w * 2, scale_h * 2
-			)
-			painter.setPen(QPen(QColor(255, 255, 255, 30), 1))
-			painter.drawRect(self.bounding_rect)
-			return  # Skip all handle drawing
-		
-		# Match canvas coordinate system:
-		# - Canvas uses -0.8 to 0.8 screen space for the CoA
-		# - Position 0.5 = center (0.0 in screen space)
-		# - Scale is multiplied by 0.6 for actual size
-		
-		# Draw axis-aligned bounding box (fixed size)
+		# Render based on transform mode
+		if self.transform_mode == "minimal":
+			self._paint_minimal_mode(painter, center_x, center_y, scale_w, scale_h)
+		elif self.transform_mode == "gimble":
+			self._paint_gimble_mode(painter, center_x, center_y, scale_w, scale_h)
+		else:  # normal mode
+			self._paint_normal_mode(painter, center_x, center_y, scale_w, scale_h)
+	
+	def _paint_minimal_mode(self, painter, center_x, center_y, scale_w, scale_h):
+		"""Paint minimal mode: just faint bounding box"""
+		self.bounding_rect = QRectF(
+			center_x - scale_w, center_y - scale_h,
+			scale_w * 2, scale_h * 2
+		)
+		painter.setPen(QPen(QColor(255, 255, 255, 30), 1))
+		painter.drawRect(self.bounding_rect)
+	
+	def _paint_normal_mode(self, painter, center_x, center_y, scale_w, scale_h):
+		"""Paint normal mode: scale handles + rotation handle (no arrows, no center dot)"""
+		# Draw axis-aligned bounding box
 		painter.setPen(QPen(QColor(90, 141, 191, 200), 2))
 		painter.setBrush(Qt.NoBrush)
 		rect = QRectF(center_x - scale_w, center_y - scale_h, scale_w * 2, scale_h * 2)
@@ -241,38 +259,38 @@ class TransformWidget(QWidget):
 		painter.setPen(handle_pen)
 		painter.setBrush(handle_brush)
 		
-		# Get corner positions in screen space (fixed box size)
+		# Get corner positions
 		corners = self._get_handle_positions(center_x, center_y, scale_w, scale_h)
 		
-		# Draw corner handles
+		# Draw corner handles (circles)
 		for handle_type in [self.HANDLE_TL, self.HANDLE_TR, self.HANDLE_BL, self.HANDLE_BR]:
 			pos = corners[handle_type]
 			painter.drawEllipse(pos, self.handle_size, self.handle_size)
 		
-		# Draw edge handles
+		# Draw edge handles (squares)
 		for handle_type in [self.HANDLE_T, self.HANDLE_B, self.HANDLE_L, self.HANDLE_R]:
 			pos = corners[handle_type]
 			painter.drawRect(int(pos.x() - self.handle_size/2), int(pos.y() - self.handle_size/2), 
 			                self.handle_size, self.handle_size)
 		
-		# Draw center handle
-		center_pos = corners[self.HANDLE_CENTER]
-		painter.drawEllipse(center_pos, self.handle_size, self.handle_size)
-		
 		# Draw rotation handle
+		center_pos = corners[self.HANDLE_CENTER]
 		rot_pos = corners[self.HANDLE_ROTATE]
 		painter.drawEllipse(rot_pos, self.handle_size, self.handle_size)
 		
 		# Draw line to rotation handle
 		painter.setPen(QPen(QColor(90, 141, 191, 150), 1, Qt.DashLine))
 		painter.drawLine(center_pos, rot_pos)
+	
+	def _paint_gimble_mode(self, painter, center_x, center_y, scale_w, scale_h):
+		"""Paint gimble mode: X/Y arrows, center dot, rotation ring"""
+		# No bounding box in gimble mode
 		
-		# Draw axis arrows for constrained translation
-		arrow_start_offset = 15  # Start arrows a bit away from center
+		arrow_start_offset = 15
 		arrow_length = 50
 		arrow_head_size = 8
 		
-		# Check if hovering over arrows for highlight
+		# Check if hovering for highlight
 		hover_handle = self._get_handle_at_pos(self.mapFromGlobal(self.cursor().pos())) if hasattr(self, 'cursor') else self.HANDLE_NONE
 		
 		# X-axis arrow (red, pointing right)
@@ -282,7 +300,6 @@ class TransformWidget(QWidget):
 		x_start = QPointF(center_x + arrow_start_offset, center_y)
 		x_end = QPointF(center_x + arrow_start_offset + arrow_length, center_y)
 		painter.drawLine(x_start, x_end)
-		# Arrow head
 		painter.drawPolygon([
 			x_end,
 			QPointF(x_end.x() - arrow_head_size, x_end.y() - arrow_head_size/2),
@@ -296,12 +313,24 @@ class TransformWidget(QWidget):
 		y_start = QPointF(center_x, center_y - arrow_start_offset)
 		y_end = QPointF(center_x, center_y - arrow_start_offset - arrow_length)
 		painter.drawLine(y_start, y_end)
-		# Arrow head
 		painter.drawPolygon([
 			y_end,
 			QPointF(y_end.x() - arrow_head_size/2, y_end.y() + arrow_head_size),
 			QPointF(y_end.x() + arrow_head_size/2, y_end.y() + arrow_head_size)
 		])
+		
+		# Center dot (blue) for free 2D movement
+		center_alpha = 255 if hover_handle == self.HANDLE_GIMBLE_CENTER else 200
+		painter.setPen(QPen(QColor(100, 150, 255, center_alpha), 2))
+		painter.setBrush(QBrush(QColor(100, 150, 255, center_alpha)))
+		painter.drawEllipse(QPointF(center_x, center_y), 6, 6)
+		
+		# Yellow rotation ring (extends beyond arrows)
+		ring_radius = arrow_start_offset + arrow_length + 15  # Beyond arrow tips
+		ring_alpha = 255 if hover_handle == self.HANDLE_GIMBLE_ROTATE else 180
+		painter.setPen(QPen(QColor(255, 220, 80, ring_alpha), 3 if hover_handle == self.HANDLE_GIMBLE_ROTATE else 2))
+		painter.setBrush(Qt.NoBrush)
+		painter.drawEllipse(QPointF(center_x, center_y), ring_radius, ring_radius)
 	
 	def _get_handle_positions(self, center_x, center_y, half_w, half_h):
 		"""Calculate handle positions in screen space.
@@ -327,6 +356,8 @@ class TransformWidget(QWidget):
 		positions[self.HANDLE_ROTATE] = QPointF(center_x, top - self.rotation_handle_offset)
 		positions[self.HANDLE_AXIS_X] = QPointF(center_x + 65, center_y)  # End of X arrow (15 + 50)
 		positions[self.HANDLE_AXIS_Y] = QPointF(center_x, center_y - 65)  # End of Y arrow (15 + 50, pointing up)
+		positions[self.HANDLE_GIMBLE_CENTER] = QPointF(center_x, center_y)  # Gimble center dot
+		# HANDLE_GIMBLE_ROTATE is a ring, hit detection uses radius instead of position
 		
 		return positions
 	
@@ -347,49 +378,67 @@ class TransformWidget(QWidget):
 		
 		handles = self._get_handle_positions(center_x, center_y, scaled_w, scaled_h)
 		
-		# Check handles in priority order (rotation first, then axis arrows, then corners, edges, center)
-		check_order = [
-			self.HANDLE_ROTATE,
-			self.HANDLE_AXIS_X, self.HANDLE_AXIS_Y,
-			self.HANDLE_TL, self.HANDLE_TR, self.HANDLE_BL, self.HANDLE_BR,
-			self.HANDLE_T, self.HANDLE_B, self.HANDLE_L, self.HANDLE_R,
-			self.HANDLE_CENTER
-		]
-		
-		hit_distance = self.handle_size + 4  # Slightly larger hit area
-		
-		# Use wider hit area for axis arrows (check along the arrow shaft)
-		for handle_type in check_order:
-			handle_pos = handles[handle_type]
+		# Build check order based on mode
+		if self.transform_mode == "gimble":
+			# Gimble mode: check rotation ring, arrows, center dot
+			# Check rotation ring first (it's a ring, not a point)
+			ring_radius = 80  # 15 + 50 + 15
+			dist_from_center = math.sqrt((pos.x() - center_x)**2 + (pos.y() - center_y)**2)
+			if abs(dist_from_center - ring_radius) < 8:  # Hit tolerance for ring
+				return self.HANDLE_GIMBLE_ROTATE
 			
-			if handle_type == self.HANDLE_AXIS_X:
-				# Check along X arrow line (pointing right, starting at center_x + 15)
-				if abs(pos.y() - center_y) < 10 and center_x + 15 < pos.x() < center_x + 65:
-					return handle_type
-			elif handle_type == self.HANDLE_AXIS_Y:
-				# Check along Y arrow line (pointing up, starting at center_y - 15)
-				if abs(pos.x() - center_x) < 10 and center_y - 65 < pos.y() < center_y - 15:
-					return handle_type
-			else:
-				# Regular circular hit detection
+			# Check arrows (along shaft)
+			if abs(pos.y() - center_y) < 10 and center_x + 15 < pos.x() < center_x + 65:
+				return self.HANDLE_AXIS_X
+			if abs(pos.x() - center_x) < 10 and center_y - 65 < pos.y() < center_y - 15:
+				return self.HANDLE_AXIS_Y
+			
+			# Check center dot
+			if math.sqrt((pos.x() - center_x)**2 + (pos.y() - center_y)**2) < 8:
+				return self.HANDLE_GIMBLE_CENTER
+			
+			return self.HANDLE_NONE
+		
+		elif self.transform_mode == "minimal":
+			# Minimal mode: check if inside bounding box for center drag
+			left = center_x - scaled_w
+			right = center_x + scaled_w
+			top = center_y - scaled_h
+			bottom = center_y + scaled_h
+			
+			if left <= pos.x() <= right and top <= pos.y() <= bottom:
+				return self.HANDLE_CENTER
+			return self.HANDLE_NONE
+		
+		else:  # normal mode
+			# Normal mode: check scale handles and rotation handle (no arrows, no center dot)
+			check_order = [
+				self.HANDLE_ROTATE,
+				self.HANDLE_TL, self.HANDLE_TR, self.HANDLE_BL, self.HANDLE_BR,
+				self.HANDLE_T, self.HANDLE_B, self.HANDLE_L, self.HANDLE_R
+			]
+			
+			hit_distance = self.handle_size + 4
+			
+			for handle_type in check_order:
+				handle_pos = handles[handle_type]
 				dx = pos.x() - handle_pos.x()
 				dy = pos.y() - handle_pos.y()
 				distance = math.sqrt(dx*dx + dy*dy)
 				
 				if distance <= hit_distance:
 					return handle_type
-		
-		# If no handle hit, check if we're inside the AABB (for translation)
-		# This makes the entire bounding box grabbable for moving
-		left = center_x - scaled_w
-		right = center_x + scaled_w
-		top = center_y - scaled_h
-		bottom = center_y + scaled_h
-		
-		if left <= pos.x() <= right and top <= pos.y() <= bottom:
-			return self.HANDLE_CENTER  # Treat as center handle (translation)
-		
-		return self.HANDLE_NONE
+			
+			# Check if inside AABB for translation (grab anywhere in box)
+			left = center_x - scaled_w
+			right = center_x + scaled_w
+			top = center_y - scaled_h
+			bottom = center_y + scaled_h
+			
+			if left <= pos.x() <= right and top <= pos.y() <= bottom:
+				return self.HANDLE_CENTER
+			
+			return self.HANDLE_NONE
 	
 	def mousePressEvent(self, event):
 		"""Handle mouse press"""
@@ -487,13 +536,13 @@ class TransformWidget(QWidget):
 		# Update cursor based on handle
 		handle = self._get_handle_at_pos(event.pos())
 		if handle != self.HANDLE_NONE:
-			if handle == self.HANDLE_CENTER:
+			if handle == self.HANDLE_CENTER or handle == self.HANDLE_GIMBLE_CENTER:
 				self.setCursor(Qt.SizeAllCursor)
 			elif handle == self.HANDLE_AXIS_X:
 				self.setCursor(Qt.SizeHorCursor)
 			elif handle == self.HANDLE_AXIS_Y:
 				self.setCursor(Qt.SizeVerCursor)
-			elif handle == self.HANDLE_ROTATE:
+			elif handle == self.HANDLE_ROTATE or handle == self.HANDLE_GIMBLE_ROTATE:
 				self.setCursor(Qt.CrossCursor)
 			else:
 				self.setCursor(Qt.SizeFDiagCursor)
@@ -669,7 +718,7 @@ class TransformWidget(QWidget):
 		# Get canvas size, zoom level, and pan offsets for coordinate conversion
 		_, _, width, height, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
 		
-		if self.active_handle == self.HANDLE_CENTER:
+		if self.active_handle == self.HANDLE_CENTER or self.active_handle == self.HANDLE_GIMBLE_CENTER:
 			# Move - apply pixel delta to starting position
 			# Convert start position to pixels
 			start_x_px, start_y_px = layer_pos_to_qt_pixels(start_x, start_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
@@ -697,7 +746,7 @@ class TransformWidget(QWidget):
 			# X position stays locked
 			self.pos_x = start_x
 			
-		elif self.active_handle == self.HANDLE_ROTATE:
+		elif self.active_handle == self.HANDLE_ROTATE or self.active_handle == self.HANDLE_GIMBLE_ROTATE:
 			# Rotate - calculate delta angle from start position
 			# Get center in screen coords with zoom and pan
 			_, _, width, height, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
@@ -710,7 +759,13 @@ class TransformWidget(QWidget):
 			# Apply delta rotation
 			angle_delta = current_angle - start_angle
 			start_rotation = self.drag_start_transform[4]  # rotation is index 4 in tuple
-			self.rotation = start_rotation + angle_delta
+			new_rotation = start_rotation + angle_delta
+			
+			# Shift-hold: snap to 45° increments
+			if modifiers and (modifiers & Qt.ShiftModifier):
+				new_rotation = round(new_rotation / 45.0) * 45.0
+			
+			self.rotation = new_rotation
 			
 		elif self.active_handle in [self.HANDLE_TL, self.HANDLE_TR, self.HANDLE_BL, self.HANDLE_BR]:
 			# Corner scale (uniform scaling)
