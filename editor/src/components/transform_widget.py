@@ -749,8 +749,9 @@ class TransformWidget(QWidget):
 		elif self.active_handle == self.HANDLE_ROTATE or self.active_handle == self.HANDLE_GIMBLE_ROTATE:
 			# Rotate - calculate delta angle from start position
 			# Get center in screen coords with zoom and pan
+			# Use drag start position to keep rotation center stable
 			_, _, width, height, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
-			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
+			center_x, center_y = layer_pos_to_qt_pixels(start_x, start_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
 			
 			# Calculate angle from center to start position
 			start_angle = math.degrees(math.atan2(self.drag_start_pos.y() - center_y, self.drag_start_pos.x() - center_x))

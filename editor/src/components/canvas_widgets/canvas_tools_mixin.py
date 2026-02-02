@@ -602,6 +602,9 @@ class CanvasToolsMixin:
 					if hasattr(self, 'canvas_area') and self.canvas_area:
 						if hasattr(self.canvas_area, 'picker_btn'):
 							self.canvas_area.picker_btn.setChecked(False)
+						
+						# Re-enable transform widget now that picker is done
+						self.canvas_area.update_transform_widget_for_layer()
 				
 				return True
 		
