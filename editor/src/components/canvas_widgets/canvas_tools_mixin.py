@@ -22,6 +22,11 @@ class CanvasToolsMixin:
 		self.picker_uuid_map = {}  # RGB tuple -> UUID mapping
 		self.picker_texture_id = None  # OpenGL texture ID for picker RTT
 		
+		# Paint select state (ctrl+drag in picker mode)
+		self.paint_selecting = False  # True when ctrl+dragging to paint select
+		self.paint_select_mode = None  # 'select' or 'deselect' based on first click
+		self.paint_selected_uuids = set()  # UUIDs already processed in this paint session
+		
 		# Tool cursors
 		self.tool_cursors = {
 			'layer_picker': Qt.CrossCursor,
@@ -534,6 +539,31 @@ class CanvasToolsMixin:
 			# Sample UUID at mouse position
 			uuid = self._sample_picker_at_mouse(mouse_pos)
 			
+			# Paint select mode - toggle layers as we drag over them
+			if self.paint_selecting and uuid and uuid not in self.paint_selected_uuids:
+				if hasattr(self, 'canvas_area') and self.canvas_area:
+					if hasattr(self.canvas_area, 'main_window') and self.canvas_area.main_window:
+						main_window = self.canvas_area.main_window
+						layer_list = main_window.right_sidebar.layer_list_widget
+						
+						# Mark as processed
+						self.paint_selected_uuids.add(uuid)
+						
+						# Apply paint mode (select or deselect)
+						if self.paint_select_mode == 'select':
+							if uuid not in layer_list.selected_layer_uuids:
+								layer_list.selected_layer_uuids.add(uuid)
+								layer_list.last_selected_uuid = uuid
+						elif self.paint_select_mode == 'deselect':
+							if uuid in layer_list.selected_layer_uuids:
+								layer_list.selected_layer_uuids.remove(uuid)
+								if layer_list.last_selected_uuid == uuid:
+									layer_list.last_selected_uuid = None
+						
+						layer_list.update_selection_visuals()
+						main_window.right_sidebar._on_layer_selection_changed()
+			
+			# Show tooltip for hovered layer
 			if uuid != self.hovered_uuid:
 				self.hovered_uuid = uuid
 				
@@ -571,46 +601,98 @@ class CanvasToolsMixin:
 			return False
 		
 		mouse_pos = event.pos()
+		modifiers = event.modifiers()
 		
 		if self.active_tool == 'layer_picker':
 			# Sample UUID at click position
 			uuid = self._sample_picker_at_mouse(mouse_pos)
 			
 			if uuid:
-				# Add layer to selection (instead of replacing)
 				if hasattr(self, 'canvas_area') and self.canvas_area:
 					if hasattr(self.canvas_area, 'main_window') and self.canvas_area.main_window:
 						main_window = self.canvas_area.main_window
 						layer_list = main_window.right_sidebar.layer_list_widget
 						
-						# Add to existing selection
-						layer_list.selected_layer_uuids.add(uuid)
-						layer_list.last_selected_uuid = uuid
-						layer_list.update_selection_visuals()
+						# Check if ctrl is held - enter paint select mode
+						ctrl_held = modifiers & Qt.ControlModifier
 						
-						# Update properties and transform widget
-						main_window.right_sidebar._on_layer_selection_changed()
-				
-				# Check if shift is held - if so, stay in picker mode
-				shift_held = event.modifiers() & Qt.ShiftModifier
-				
-				if not shift_held:
-					# Deactivate picker tool (one-shot mode)
-					self.set_tool_mode(None)
-					
-					# Notify canvas_area to uncheck picker button
-					if hasattr(self, 'canvas_area') and self.canvas_area:
-						if hasattr(self.canvas_area, 'picker_btn'):
-							self.canvas_area.picker_btn.setChecked(False)
+						if ctrl_held:
+							# Start paint selection - toggle first layer and track mode
+							self.paint_selecting = True
+							self.paint_selected_uuids = {uuid}  # Track this UUID as processed
+							
+							if uuid in layer_list.selected_layer_uuids:
+								# First click was on selected layer - paint deselect mode
+								self.paint_select_mode = 'deselect'
+								layer_list.selected_layer_uuids.remove(uuid)
+							else:
+								# First click was on unselected layer - paint select mode
+								self.paint_select_mode = 'select'
+								layer_list.selected_layer_uuids.add(uuid)
+								layer_list.last_selected_uuid = uuid
+							
+							layer_list.update_selection_visuals()
+							main_window.right_sidebar._on_layer_selection_changed()
 						
-						# Re-enable transform widget now that picker is done
-						self.canvas_area.update_transform_widget_for_layer()
+						else:
+							# Regular click - toggle if already selected, otherwise add
+							if uuid in layer_list.selected_layer_uuids:
+								# Toggle off (unselect)
+								layer_list.selected_layer_uuids.remove(uuid)
+								if layer_list.last_selected_uuid == uuid:
+									layer_list.last_selected_uuid = None
+							else:
+								# Add to selection
+								layer_list.selected_layer_uuids.add(uuid)
+								layer_list.last_selected_uuid = uuid
+							
+							layer_list.update_selection_visuals()
+							main_window.right_sidebar._on_layer_selection_changed()
+							
+							# Check if shift is held - if so, stay in picker mode
+							shift_held = modifiers & Qt.ShiftModifier
+							
+							if not shift_held:
+								# Deactivate picker tool (one-shot mode)
+								self.set_tool_mode(None)
+								
+								# Notify canvas_area to uncheck picker button
+								if hasattr(self.canvas_area, 'picker_btn'):
+									self.canvas_area.picker_btn.setChecked(False)
+								
+								# Re-enable transform widget now that picker is done
+								self.canvas_area.update_transform_widget_for_layer()
 				
 				return True
 		
 		elif self.active_tool == 'eyedropper':
 			# TODO: Sample color and apply to selected layer
 			pass
+		
+		return False
+	
+	def _on_tool_mouse_release(self, event):
+		"""Handle mouse release for active tool
+		
+		Args:
+			event: QMouseEvent
+		
+		Returns:
+			True if event was handled by tool, False otherwise
+		"""
+		if not self.active_tool:
+			return False
+		
+		if event.button() != Qt.LeftButton:
+			return False
+		
+		if self.active_tool == 'layer_picker':
+			# End paint selection mode
+			if self.paint_selecting:
+				self.paint_selecting = False
+				self.paint_select_mode = None
+				self.paint_selected_uuids.clear()
+				return True
 		
 		return False
 	

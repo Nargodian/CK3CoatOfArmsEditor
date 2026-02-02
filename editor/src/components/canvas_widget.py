@@ -2354,8 +2354,14 @@ class CoatOfArmsCanvas(CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 			super().mouseMoveEvent(event)
 	
 	def mouseReleaseEvent(self, event):
-		"""Handle mouse release to end panning"""
+		"""Handle mouse release to end panning or tool actions"""
 		from PyQt5.QtCore import Qt
+		
+		# Let tool handle release first
+		if hasattr(self, '_on_tool_mouse_release'):
+			if self._on_tool_mouse_release(event):
+				event.accept()
+				return
 		
 		if event.button() == Qt.LeftButton and self.is_panning:
 			self.is_panning = False

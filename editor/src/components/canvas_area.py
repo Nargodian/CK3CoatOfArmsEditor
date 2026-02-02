@@ -886,7 +886,9 @@ class CanvasArea(QFrame):
 		if checked:
 			self.canvas_widget.set_tool_mode('layer_picker')
 		else:
+			# Deactivate picker and re-enable transform widget (keeps selection)
 			self.canvas_widget.set_tool_mode(None)
+			self.update_transform_widget_for_layer()
 	
 	def _on_show_selection_toggled(self, checked):
 		"""Handle show selection button toggle"""
