@@ -333,15 +333,15 @@ class ClipboardActions:
 			canvas_y = mouse_pos.y() - canvas_offset.y()
 			
 			# Get canvas widget size
-			canvas_size = (
-				self.main_window.canvas_area.canvas_widget.width(),
-				self.main_window.canvas_area.canvas_widget.height()
-			)
+			canvas_width = self.main_window.canvas_area.canvas_widget.width()
+			canvas_height = self.main_window.canvas_area.canvas_widget.height()
+			canvas_size = (canvas_width, canvas_height)
 			
 			# Get canvas offset within parent for qt_pixels_to_layer_pos
-			canvas_offset_x = canvas_geometry.x()
-			canvas_offset_y = canvas_geometry.y()
-			
+			# Add centering padding like _get_canvas_rect does
+			size = min(canvas_width, canvas_height)
+			canvas_offset_x = canvas_geometry.x() + (canvas_width - size) / 2
+			canvas_offset_y = canvas_geometry.y() + (canvas_height - size) / 2
 			# Get zoom level and pan offsets
 			zoom_level = getattr(self.main_window.canvas_area.canvas_widget, 'zoom_level', 1.0)
 			pan_x = getattr(self.main_window.canvas_area.canvas_widget, 'pan_x', 0.0)
