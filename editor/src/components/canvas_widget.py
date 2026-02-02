@@ -1288,6 +1288,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.pan_y = 0.0
 		
 		self.update()
+		# Update zoom toolbar - traverse up to find main window
+		self._update_zoom_toolbar()
 		# Trigger transform widget update
 		if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
 			self.canvas_area.transform_widget.update()
@@ -1306,6 +1308,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.pan_y = 0.0
 		
 		self.update()
+		# Update zoom toolbar - traverse up to find main window
+		self._update_zoom_toolbar()
 		# Trigger transform widget update
 		if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
 			self.canvas_area.transform_widget.update()
@@ -1324,6 +1328,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		"""Set zoom to specific percentage (25-500)"""
 		self.zoom_level = max(0.25, min(5.0, zoom_percent / 100.0))
 		self.update()
+		# Update zoom toolbar display
+		self._update_zoom_toolbar()
 		# Trigger transform widget update
 		if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
 			self.canvas_area.transform_widget.update()
@@ -1374,23 +1380,36 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.setUpdatesEnabled(True)
 		self.update()
 	
+	def _update_zoom_toolbar(self):
+		"""Update zoom toolbar display by traversing up widget hierarchy"""
+		if not self.canvas_area:
+			return
+		
+		# Traverse up the widget hierarchy to find main window with zoom_toolbar
+		widget = self.canvas_area
+		while widget:
+			if hasattr(widget, 'zoom_toolbar'):
+				widget.zoom_toolbar.set_zoom_percent(self.get_zoom_percent(), emit_signal=False)
+				return
+			widget = widget.parent() if hasattr(widget, 'parent') else None
+	
 	def _adjust_pan_for_zoom(self, cursor_pos, old_zoom, new_zoom):
 		"""Adjust pan offset to keep cursor position fixed during zoom"""
-		# Get widget sizes
-		old_size = int(600 * old_zoom)
-		new_size = int(600 * new_zoom)
+		# Get widget dimensions
+		widget_width = self.width()
+		widget_height = self.height()
 		
-		# Calculate cursor position relative to widget center (in old size)
-		old_center_x = cursor_pos.x() - old_size / 2
-		old_center_y = cursor_pos.y() - old_size / 2
+		# Calculate cursor position relative to widget center
+		cursor_offset_x = cursor_pos.x() - widget_width / 2
+		cursor_offset_y = cursor_pos.y() - widget_height / 2
 		
-		# After resize, cursor will be at different position relative to new center
-		# Calculate pan offset needed to keep the same world point under cursor
+		# Calculate how much the canvas scaled
 		scale_ratio = new_zoom / old_zoom
 		
-		# Pan offset in pixels (how much to shift the widget)
-		self.pan_x += old_center_x * (1 - scale_ratio)
-		self.pan_y += old_center_y * (1 - scale_ratio)
+		# Adjust pan to keep the same world point under cursor
+		# Pan offset compensates for the canvas scaling around center
+		self.pan_x += cursor_offset_x * (1 - scale_ratio)
+		self.pan_y += cursor_offset_y * (1 - scale_ratio)
 	
 	def set_show_grid(self, show):
 		"""Toggle grid visibility"""
@@ -1532,15 +1551,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			elif delta < 0:
 				self.zoom_out(cursor_pos)
 			
-			# Notify main window to update zoom toolbar
-			if self.canvas_area and hasattr(self.canvas_area, 'parent'):
-				main_window = self.canvas_area.parent()
-				if hasattr(main_window, 'zoom_toolbar'):
-					main_window.zoom_toolbar.set_zoom_percent(self.get_zoom_percent())
-			
-			event.accept()
-		else:
-			super().wheelEvent(event)
+			# zoom_in/zoom_out already update toolbar, no need to do it again
 	
 	def mousePressEvent(self, event):
 		"""Handle mouse press for panning when zoomed"""
@@ -1564,9 +1575,16 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			delta = event.globalPos() - self.last_mouse_pos
 			self.last_mouse_pos = event.globalPos()
 			
-			# Update pan offset
+			# Update pan offset with bounds
 			self.pan_x += delta.x()
 			self.pan_y += delta.y()
+			
+			# Clamp panning to reasonable bounds based on zoom level
+			# Allow panning up to half the canvas size in each direction
+			canvas_size = min(self.width(), self.height())
+			max_pan = canvas_size * self.zoom_level * 0.3
+			self.pan_x = max(-max_pan, min(max_pan, self.pan_x))
+			self.pan_y = max(-max_pan, min(max_pan, self.pan_y))
 			
 			# Trigger repaint and transform widget update
 			self.update()

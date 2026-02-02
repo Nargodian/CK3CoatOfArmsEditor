@@ -1,7 +1,7 @@
 """Zoom toolbar widget with zoom controls."""
 
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QToolButton, QComboBox, QLabel
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QToolButton, QMenu, QLabel
+from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QIcon
 import os
 
@@ -28,15 +28,28 @@ class ZoomToolbar(QWidget):
 		self.zoom_out_btn.clicked.connect(self._on_zoom_out)
 		layout.addWidget(self.zoom_out_btn)
 		
-		# Zoom level dropdown
-		self.zoom_combo = QComboBox()
-		self.zoom_combo.setEditable(False)
-		self.zoom_combo.setMinimumWidth(80)
+		# Zoom level display (shows actual zoom)
+		self.zoom_display = QLabel("100%")
+		self.zoom_display.setMinimumWidth(60)
+		self.zoom_display.setAlignment(Qt.AlignCenter)
+		self.zoom_display.setStyleSheet("QLabel { padding: 2px 4px; background-color: #2d2d2d; border: 1px solid #555; border-radius: 2px; }")
+		layout.addWidget(self.zoom_display)
+		
+		# Zoom preset button with dropdown menu
+		self.preset_btn = QToolButton()
+		self.preset_btn.setText("🔍")  # Magnifying glass icon
+		self.preset_btn.setToolTip("Jump to preset zoom level")
+		self.preset_btn.setPopupMode(QToolButton.InstantPopup)
+		
+		# Create preset menu
+		preset_menu = QMenu(self)
 		for preset in self.ZOOM_PRESETS:
-			self.zoom_combo.addItem(f"🔍 {preset}%", preset)
-		self.zoom_combo.setCurrentIndex(self.ZOOM_PRESETS.index(100))  # Default to 100%
-		self.zoom_combo.currentIndexChanged.connect(self._on_combo_changed)
-		layout.addWidget(self.zoom_combo)
+			action = preset_menu.addAction(f"{preset}%")
+			action.setData(preset)
+			action.triggered.connect(lambda checked, p=preset: self._on_preset_selected(p))
+		
+		self.preset_btn.setMenu(preset_menu)
+		layout.addWidget(self.preset_btn)
 		
 		# Zoom in button
 		self.zoom_in_btn = QToolButton()
@@ -49,7 +62,7 @@ class ZoomToolbar(QWidget):
 	
 	def _on_zoom_in(self):
 		"""Handle zoom in button click"""
-		current_zoom = self.zoom_combo.currentData()
+		current_zoom = self.get_zoom_percent()
 		# Find next preset
 		for preset in self.ZOOM_PRESETS:
 			if preset > current_zoom:
@@ -61,7 +74,7 @@ class ZoomToolbar(QWidget):
 	
 	def _on_zoom_out(self):
 		"""Handle zoom out button click"""
-		current_zoom = self.zoom_combo.currentData()
+		current_zoom = self.get_zoom_percent()
 		# Find previous preset
 		for preset in reversed(self.ZOOM_PRESETS):
 			if preset < current_zoom:
@@ -71,35 +84,23 @@ class ZoomToolbar(QWidget):
 		new_zoom = max(25, int(current_zoom / 1.25))
 		self.set_zoom_percent(new_zoom)
 	
-	def _on_combo_changed(self, index):
-		"""Handle combo box selection change"""
-		if index >= 0:
-			zoom_value = self.zoom_combo.itemData(index)
-			self.zoom_changed.emit(zoom_value)
+	def _on_preset_selected(self, preset_value):
+		"""Handle preset selection from dropdown menu"""
+		self.zoom_changed.emit(preset_value)
 	
-	def set_zoom_percent(self, percent):
-		"""Set zoom level (updates combo box without triggering signal)"""
-		# Block signals to prevent recursive updates
-		self.zoom_combo.blockSignals(True)
+	def set_zoom_percent(self, percent, emit_signal=True):
+		"""Set zoom level (updates display only, not combo selection)"""
+		# Update the zoom display to show actual zoom
+		self.zoom_display.setText(f"{percent}%")
 		
-		# Try to find exact match in presets
-		try:
-			index = self.ZOOM_PRESETS.index(percent)
-			self.zoom_combo.setCurrentIndex(index)
-		except ValueError:
-			# Not a preset, find closest or add custom entry
-			for i, preset in enumerate(self.ZOOM_PRESETS):
-				if preset >= percent:
-					self.zoom_combo.setCurrentIndex(i)
-					break
-			else:
-				self.zoom_combo.setCurrentIndex(len(self.ZOOM_PRESETS) - 1)
-		
-		self.zoom_combo.blockSignals(False)
-		
-		# Emit signal
-		self.zoom_changed.emit(percent)
+		# Emit signal only if requested
+		if emit_signal:
+			self.zoom_changed.emit(percent)
 	
 	def get_zoom_percent(self):
-		"""Get current zoom percentage"""
-		return self.zoom_combo.currentData()
+		"""Get current zoom percentage from display"""
+		text = self.zoom_display.text().strip().rstrip('%')
+		try:
+			return int(text)
+		except ValueError:
+			return 100
