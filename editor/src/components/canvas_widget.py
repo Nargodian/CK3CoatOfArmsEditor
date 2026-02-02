@@ -572,16 +572,20 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.composite_shader.setUniformValue("bleedMargin", safeMargin)
 			self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
 		
-		# Composite quad at fixed base size - zoom is handled by widget resize
-		base_size = VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * safeMargin
+		# Composite quad size with zoom and pan applied
+		base_size = VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * safeMargin * self.zoom_level
+		
+		# Apply pan offset (convert from pixels to normalized coordinates)
+		pan_offset_x = self.pan_x / (self.width() / 2) if self.width() > 0 else 0
+		pan_offset_y = -self.pan_y / (self.height() / 2) if self.height() > 0 else 0
 		
 		# Texture coords: RTT renders Y-up (OpenGL standard), texture V=0 at bottom, V=1 at top
 		# Position Y=-1 (bottom) → V=0, Position Y=+1 (top) → V=1
 		vertices = np.array([
-			-base_size, -base_size, 0.0,  0.0, 0.0,  # bottom-left
-			 base_size, -base_size, 0.0,  1.0, 0.0,  # bottom-right
-			 base_size,  base_size, 0.0,  1.0, 1.0,  # top-right
-			-base_size,  base_size, 0.0,  0.0, 1.0,  # top-left
+			-base_size + pan_offset_x, -base_size + pan_offset_y, 0.0,  0.0, 0.0,  # bottom-left
+			 base_size + pan_offset_x, -base_size + pan_offset_y, 0.0,  1.0, 0.0,  # bottom-right
+			 base_size + pan_offset_x,  base_size + pan_offset_y, 0.0,  1.0, 1.0,  # top-right
+			-base_size + pan_offset_x,  base_size + pan_offset_y, 0.0,  0.0, 1.0,  # top-left
 		], dtype=np.float32)
 		
 		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
@@ -1235,7 +1239,6 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.pan_x = 0.0
 			self.pan_y = 0.0
 		
-		self._update_widget_size()
 		self.update()
 	
 	def zoom_out(self, cursor_pos=None):
@@ -1251,19 +1254,18 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.pan_x = 0.0
 			self.pan_y = 0.0
 		
-		self._update_widget_size()
 		self.update()
 	
 	def zoom_reset(self):
 		"""Reset zoom to 100%"""
 		self.zoom_level = 1.0
-		self._update_widget_size()
+		self.pan_x = 0.0
+		self.pan_y = 0.0
 		self.update()
 	
 	def set_zoom_level(self, zoom_percent):
 		"""Set zoom to specific percentage (25-500)"""
 		self.zoom_level = max(0.25, min(5.0, zoom_percent / 100.0))
-		self._update_widget_size()
 		self.update()
 	
 	def get_zoom_percent(self):

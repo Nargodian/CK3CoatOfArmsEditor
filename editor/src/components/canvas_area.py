@@ -47,13 +47,14 @@ class CanvasArea(QFrame):
 		# Container to center the square canvas
 		canvas_container = QFrame()
 		canvas_container.setStyleSheet("QFrame { background-color: #0d0d0d; }")
-		# No layout - we'll position canvas widget absolutely for pan support
+		canvas_container_layout = QVBoxLayout(canvas_container)
+		canvas_container_layout.setContentsMargins(0, 0, 0, 0)
 		
-		# OpenGL canvas widget (square aspect)
+		# OpenGL canvas widget (fills entire container)
 		self.canvas_widget = CoatOfArmsCanvas(canvas_container)
 		self.canvas_widget.canvas_area = self  # Give canvas access to canvas_area
-		self.canvas_widget.setMinimumSize(400, 400)
-		self.canvas_widget.setMaximumSize(3000, 3000)  # Allow zoom up to 500% (600 * 5.0)
+		# Widget fills container - zoom handled by scaling rendering, not widget size
+		canvas_container_layout.addWidget(self.canvas_widget)
 		
 		# Transform widget (absolute positioned overlay)
 		# Parent to canvas_container (not canvas_widget) to avoid edge clipping
