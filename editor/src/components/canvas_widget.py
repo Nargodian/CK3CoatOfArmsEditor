@@ -1,5 +1,5 @@
 # PyQt5 imports
-from PyQt5.QtWidgets import QOpenGLWidget
+from PyQt5.QtWidgets import QOpenGLWidget, QSizePolicy
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QOpenGLShaderProgram, QOpenGLShader, QOpenGLVertexArrayObject, QOpenGLBuffer, QVector2D, QVector3D, QVector4D
 from models.coa import CoA
@@ -72,7 +72,7 @@ def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0, zo
 	Args:
 		pos_x: Layer X position (0-1, where 0.5 is center)
 		pos_y: Layer Y position (0-1, where 0.5 is center)
-		canvas_size: Size of the canvas square in pixels
+		canvas_size: Size of the canvas square in pixels (min of width/height)
 		offset_x: X offset of canvas within parent widget
 		offset_y: Y offset of canvas within parent widget
 		zoom_level: Canvas zoom level (default 1.0)
@@ -87,12 +87,13 @@ def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0, zo
 	
 	# Convert OpenGL normalized (-1.0 to +1.0) to pixels
 	# Apply zoom and composite scale
+	# Use canvas_size (the square dimension) for both to maintain square aspect
 	pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 	pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 	
 	# Qt Y-axis is inverted (down is positive)
 	# Canvas center is at (offset + size/2, offset + size/2)
-	# Apply pan offset
+	# Apply pan offset (already in pixels)
 	qt_x = offset_x + canvas_size / 2 + pixel_x + pan_x
 	qt_y = offset_y + canvas_size / 2 - pixel_y + pan_y  # Negate Y for Qt coords
 	
@@ -145,6 +146,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# Enable wheel events and mouse tracking
 		self.setFocusPolicy(Qt.WheelFocus)
 		self.setMouseTracking(True)
+		
+		# Allow widget to expand to fill available space
+		self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 		
 		#COA INTEGRATION ACTION: Step 5 - Add CoA model reference (set by CanvasArea/MainWindow)
 		# Note: CoA is accessed via CoA.get_active() in paintGL, not stored as instance variable
@@ -206,8 +210,11 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# The viewport will be set correctly in paintGL
 	
 	def sizeHint(self):
-		"""Suggest flexible aspect ratio"""
-		return QSize(600, 600)
+		"""Suggest initial size - will expand to fill container"""
+		# Return parent size if available, otherwise default
+		if self.parent():
+			return self.parent().size()
+		return QSize(800, 600)
 	
 	# ========================================
 	# OpenGL Initialization and Rendering
@@ -326,11 +333,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self._render_coa_to_framebuffer()
 		
 		# Restore viewport to widget size (RTT sets it to 512x512)
-		# Cap viewport at 1200x1200 to prevent excessive pixel counts
-		size = min(self.width(), self.height(), 1200)
-		x = (self.width() - size) // 2
-		y = (self.height() - size) // 2
-		gl.glViewport(x, y, size, size)
+		# Use full widget dimensions (no longer forcing square)
+		gl.glViewport(0, 0, self.width(), self.height())
 		
 		# Composite framebuffer to viewport with frame mask
 		self._composite_to_viewport()
@@ -577,19 +581,36 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# Composite quad size with zoom and pan applied
 		base_size = VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * safeMargin * self.zoom_level
 		
+		# Calculate aspect ratio correction to keep CoA square
+		aspect = self.width() / self.height() if self.height() > 0 else 1.0
+		if aspect > 1.0:
+			# Width > Height: compress horizontally
+			size_x = base_size / aspect
+			size_y = base_size
+		else:
+			# Height > Width: compress vertically
+			size_x = base_size
+			size_y = base_size * aspect
+		
 		# Apply pan offset (convert from pixels to normalized coordinates)
 		# Use square canvas_size to match coordinate conversion functions
 		canvas_size = min(self.width(), self.height())
 		pan_offset_x = self.pan_x / (canvas_size / 2) if canvas_size > 0 else 0
 		pan_offset_y = -self.pan_y / (canvas_size / 2) if canvas_size > 0 else 0
 		
+		# Scale pan offset by same aspect correction applied to quad
+		if aspect > 1.0:
+			pan_offset_x /= aspect
+		else:
+			pan_offset_y *= aspect
+		
 		# Texture coords: RTT renders Y-up (OpenGL standard), texture V=0 at bottom, V=1 at top
 		# Position Y=-1 (bottom) → V=0, Position Y=+1 (top) → V=1
 		vertices = np.array([
-			-base_size + pan_offset_x, -base_size + pan_offset_y, 0.0,  0.0, 0.0,  # bottom-left
-			 base_size + pan_offset_x, -base_size + pan_offset_y, 0.0,  1.0, 0.0,  # bottom-right
-			 base_size + pan_offset_x,  base_size + pan_offset_y, 0.0,  1.0, 1.0,  # top-right
-			-base_size + pan_offset_x,  base_size + pan_offset_y, 0.0,  0.0, 1.0,  # top-left
+			-size_x + pan_offset_x, -size_y + pan_offset_y, 0.0,  0.0, 0.0,  # bottom-left
+			 size_x + pan_offset_x, -size_y + pan_offset_y, 0.0,  1.0, 0.0,  # bottom-right
+			 size_x + pan_offset_x,  size_y + pan_offset_y, 0.0,  1.0, 1.0,  # top-right
+			-size_x + pan_offset_x,  size_y + pan_offset_y, 0.0,  0.0, 1.0,  # top-left
 		], dtype=np.float32)
 		
 		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
@@ -711,17 +732,34 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		height = self.height()
 		base_size = VIEWPORT_BASE_SIZE * self.zoom_level
 		
+		# Calculate aspect ratio correction to keep frame square
+		aspect = width / height if height > 0 else 1.0
+		if aspect > 1.0:
+			# Width > Height: compress horizontally
+			size_x = base_size / aspect
+			size_y = base_size
+		else:
+			# Height > Width: compress vertically
+			size_x = base_size
+			size_y = base_size * aspect
+		
 		# Apply pan offset (convert to normalized coordinates)
 		# Use square canvas_size to match coordinate conversion functions
 		canvas_size = min(width, height)
 		pan_offset_x = self.pan_x / (canvas_size / 2)
 		pan_offset_y = -self.pan_y / (canvas_size / 2)
 		
+		# Scale pan offset by same aspect correction applied to quad
+		if aspect > 1.0:
+			pan_offset_x /= aspect
+		else:
+			pan_offset_y *= aspect
+		
 		vertices = np.array([
-			-base_size + pan_offset_x, -base_size + pan_offset_y, 0.0,  u0, 1.0,
-			 base_size + pan_offset_x, -base_size + pan_offset_y, 0.0,  u1, 1.0,
-			 base_size + pan_offset_x,  base_size + pan_offset_y, 0.0,  u1, 0.0,
-			-base_size + pan_offset_x,  base_size + pan_offset_y, 0.0,  u0, 0.0,
+			-size_x + pan_offset_x, -size_y + pan_offset_y, 0.0,  u0, 1.0,
+			 size_x + pan_offset_x, -size_y + pan_offset_y, 0.0,  u1, 1.0,
+			 size_x + pan_offset_x,  size_y + pan_offset_y, 0.0,  u1, 0.0,
+			-size_x + pan_offset_x,  size_y + pan_offset_y, 0.0,  u0, 0.0,
 		], dtype=np.float32)
 		
 		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
@@ -1228,12 +1266,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		pass
 	
 	def resizeGL(self, w, h):
-		"""Handle window resize - maintain square aspect ratio"""
-		# Calculate square viewport centered in the widget
-		size = min(w, h)
-		x = (w - size) // 2
-		y = (h - size) // 2
-		gl.glViewport(x, y, size, size)
+		"""Handle window resize - use full widget dimensions"""
+		# Use full widget dimensions (no longer forcing square aspect)
+		gl.glViewport(0, 0, w, h)
 	
 	# ========================================
 	# Zoom and View Controls
