@@ -66,7 +66,7 @@ def layer_pos_to_opengl_coords(pos_x, pos_y):
 	return gl_x, gl_y
 
 
-def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0, zoom_level=1.0):
+def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0, zoom_level=1.0, pan_x=0.0, pan_y=0.0):
 	"""Convert layer position (0-1 range) to Qt widget pixel coordinates.
 	
 	Args:
@@ -76,6 +76,8 @@ def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0, zo
 		offset_x: X offset of canvas within parent widget
 		offset_y: Y offset of canvas within parent widget
 		zoom_level: Canvas zoom level (default 1.0)
+		pan_x: Pan offset in pixels (horizontal)
+		pan_y: Pan offset in pixels (vertical)
 		
 	Returns:
 		(qt_x, qt_y): Qt pixel coordinates (Y-down)
@@ -84,21 +86,20 @@ def layer_pos_to_qt_pixels(pos_x, pos_y, canvas_size, offset_x=0, offset_y=0, zo
 	gl_x, gl_y = layer_pos_to_opengl_coords(pos_x, pos_y)
 	
 	# Convert OpenGL normalized (-1.0 to +1.0) to pixels
-	# Must account for composite quad base_size factor (quad only occupies VIEWPORT_BASE_SIZE of viewport)
-	# and COMPOSITE_SCALE (shrinks CoA to fit under frame)
-	# canvas_size already incorporates zoom via widget resize, so don't multiply by zoom_level again
-	pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
-	pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE
+	# Apply zoom and composite scale
+	pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
+	pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * zoom_level
 	
 	# Qt Y-axis is inverted (down is positive)
 	# Canvas center is at (offset + size/2, offset + size/2)
-	qt_x = offset_x + canvas_size / 2 + pixel_x
-	qt_y = offset_y + canvas_size / 2 - pixel_y  # Negate Y for Qt coords
+	# Apply pan offset
+	qt_x = offset_x + canvas_size / 2 + pixel_x + pan_x
+	qt_y = offset_y + canvas_size / 2 - pixel_y + pan_y  # Negate Y for Qt coords
 	
 	return qt_x, qt_y
 
 
-def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0, zoom_level=1.0):
+def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0, zoom_level=1.0, pan_x=0.0, pan_y=0.0):
 	"""Convert Qt widget pixel coordinates to layer position (0-1 range).
 	
 	Args:
@@ -108,20 +109,21 @@ def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0, zoom
 		offset_x: X offset of canvas within parent widget
 		offset_y: Y offset of canvas within parent widget
 		zoom_level: Canvas zoom level (default 1.0)
+		pan_x: Pan offset in pixels (horizontal)
+		pan_y: Pan offset in pixels (vertical)
 		
 	Returns:
 		(pos_x, pos_y): Layer position (0-1 range, 0=top in CK3)
 	"""
-	# Convert Qt pixels to canvas-relative pixels
-	pixel_x = qt_x - offset_x - canvas_size / 2
-	pixel_y = qt_y - offset_y - canvas_size / 2
+	# Remove pan offset first
+	pixel_x = qt_x - offset_x - canvas_size / 2 - pan_x
+	pixel_y = qt_y - offset_y - canvas_size / 2 - pan_y
 	
 	# Convert pixels to OpenGL normalized space
 	# Qt Y-down to OpenGL Y-up: negate pixel_y
-	# Must account for composite quad base_size factor and COMPOSITE_SCALE
-	# canvas_size already incorporates zoom via widget resize, so don't divide by zoom_level again
-	gl_x = pixel_x / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE
-	gl_y = -pixel_y / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE
+	# Account for zoom and composite scale
+	gl_x = pixel_x / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / zoom_level
+	gl_y = -pixel_y / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / zoom_level
 	
 	# Convert OpenGL coords back to layer position
 	# layer_pos_to_opengl_coords: gl_x = pos_x * 2.0 - 1.0
@@ -701,14 +703,21 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		u0 = frame_index / 6.0
 		u1 = (frame_index + 1) / 6.0
 		
-		# Render frame at same size as composite - zoom handled by widget resize
-		base_size = VIEWPORT_BASE_SIZE
+		# Frame renders at VIEWPORT_BASE_SIZE (larger than composite which is scaled down)
+		# Apply zoom and pan to match composite positioning
+		width = self.width()
+		height = self.height()
+		base_size = VIEWPORT_BASE_SIZE * self.zoom_level
+		
+		# Apply pan offset (convert to normalized coordinates)
+		pan_offset_x = self.pan_x / (width / 2)
+		pan_offset_y = -self.pan_y / (height / 2)
 		
 		vertices = np.array([
-			-base_size, -base_size, 0.0,  u0, 1.0,
-			 base_size, -base_size, 0.0,  u1, 1.0,
-			 base_size,  base_size, 0.0,  u1, 0.0,
-			-base_size,  base_size, 0.0,  u0, 0.0,
+			-base_size + pan_offset_x, -base_size + pan_offset_y, 0.0,  u0, 1.0,
+			 base_size + pan_offset_x, -base_size + pan_offset_y, 0.0,  u1, 1.0,
+			 base_size + pan_offset_x,  base_size + pan_offset_y, 0.0,  u1, 0.0,
+			-base_size + pan_offset_x,  base_size + pan_offset_y, 0.0,  u0, 0.0,
 		], dtype=np.float32)
 		
 		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
@@ -1240,6 +1249,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.pan_y = 0.0
 		
 		self.update()
+		# Trigger transform widget update
+		if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
+			self.canvas_area.transform_widget.update()
 	
 	def zoom_out(self, cursor_pos=None):
 		"""Zoom out by 25%"""
@@ -1255,6 +1267,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.pan_y = 0.0
 		
 		self.update()
+		# Trigger transform widget update
+		if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
+			self.canvas_area.transform_widget.update()
 	
 	def zoom_reset(self):
 		"""Reset zoom to 100%"""
@@ -1262,11 +1277,17 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.pan_x = 0.0
 		self.pan_y = 0.0
 		self.update()
+		# Trigger transform widget update
+		if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
+			self.canvas_area.transform_widget.update()
 	
 	def set_zoom_level(self, zoom_percent):
 		"""Set zoom to specific percentage (25-500)"""
 		self.zoom_level = max(0.25, min(5.0, zoom_percent / 100.0))
 		self.update()
+		# Trigger transform widget update
+		if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
+			self.canvas_area.transform_widget.update()
 	
 	def get_zoom_percent(self):
 		"""Get current zoom as percentage"""
@@ -1508,8 +1529,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.pan_x += delta.x()
 			self.pan_y += delta.y()
 			
-			# Update widget position
-			self._update_position()
+			# Trigger repaint and transform widget update
+			self.update()
+			if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
+				self.canvas_area.transform_widget.update()
 			event.accept()
 		else:
 			# Show open hand cursor when hovering and zoomed in
