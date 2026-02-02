@@ -967,8 +967,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			
 			# Crown aspect ratio: 128:80 = 1.6:1 (wider than tall)
 			# Crown bottom aligns with CoA top, crown extends upward
-			# Move up 5px
-			crown_offset = (5.0 / viewport_height) * 2.0
+			# Shift up 6px at size 115
+			crown_offset = (6.0 / viewport_height) * 2.0
 			crown_bottom = top + crown_offset
 			crown_top = top + crown_height + crown_offset
 			
@@ -997,8 +997,13 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.basic_shader.setUniformValue("textureSampler", 0)
 			
 			# Topframe is square (128x128), use full preview size
-			# Shift up by 12px (converted to NDC)
-			topframe_offset = (12.0 / viewport_height) * 2.0
+			# Topframe content starts ~7% from top of image (varies by size)
+			# Content start pixels: size 28:1px, 44:2px, 62:3px, 86:5px, 115:8px
+			# Position topframe so content sits just below crown (0px gap)
+			# Scale the offset based on size: 10px at 115 scales to other sizes
+			# Plus 6px upward shift
+			topframe_offset_px = (10.0 / 115.0) * self.preview_size + (6.0 / 115.0) * self.preview_size
+			topframe_offset = (topframe_offset_px / viewport_height) * 2.0
 			topframe_bottom = bottom + topframe_offset
 			topframe_top = top + topframe_offset
 			
@@ -1107,8 +1112,8 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			
 			# Crown aspect ratio: 128:80 = 1.6:1 (wider than tall)
 			# Crown bottom aligns with CoA top, crown extends upward
-			# Move up 5px
-			crown_offset = (5.0 / viewport_height) * 2.0
+			# Move crown up 3px at size 115
+			crown_offset = (4.0 / viewport_height) * 2.0
 			crown_bottom = top + crown_offset
 			crown_top = top + crown_height + crown_offset
 			
@@ -1139,7 +1144,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			self.basic_shader.setUniformValue("textureSampler", 0)
 			
 			# Apply 1.2x scale to title frame
-			scale_factor = 1.2
+			scale_factor = 1.1
 			frame_width = (right - left) * scale_factor
 			frame_height = (top - bottom) * scale_factor
 			frame_center_x = (left + right) / 2.0

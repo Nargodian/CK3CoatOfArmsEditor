@@ -87,16 +87,14 @@ class CanvasArea(QFrame):
 		layout.setContentsMargins(8, 4, 8, 4)
 		layout.setSpacing(8)
 		
-		# Government type dropdown
+		# Government type dropdown - auto-populated from mask files
 		government_label = QLabel("Government:")
 		government_label.setStyleSheet("font-size: 11px; border: none;")
 		layout.addWidget(government_label)
-		government_types = [
-			"Administrative", "Celestial", "Clan", "Herder",
-			"Japan Administrative", "Japan Feudal", "Landless Adventurer",
-			"Mandala", "Meritocratic", "Nomad", "Republic",
-			"Steppe Admin", "Theocracy", "Tribal", "Wanua"
-		]
+		
+		# Discover government types from realm_frames directory
+		government_types = self._discover_government_types()
+		
 		self.government_combo = self._create_combo_box(government_types)
 		self.government_combo.setMinimumWidth(180)
 		self.government_combo.currentIndexChanged.connect(self._on_government_changed)
@@ -135,6 +133,40 @@ class CanvasArea(QFrame):
 		
 		return preview_bar
 	
+	def _discover_government_types(self):
+		"""Discover government types from realm_frames mask files"""
+		from pathlib import Path
+		from utils.path_resolver import get_resource_path
+		
+		try:
+			realm_frames_dir = get_resource_path('..', 'ck3_assets', 'realm_frames')
+			if not Path(realm_frames_dir).exists():
+				# Fallback to hardcoded list if directory doesn't exist
+				return ["Feudal", "Clan"]
+			
+			# Find all mask files
+			governments = []
+			self.government_file_map = {}  # Map display name -> filename
+			
+			for mask_file in sorted(Path(realm_frames_dir).glob("*_mask.png")):
+				gov_key = mask_file.stem.replace("_mask", "")
+				
+				# Convert filename to display name
+				if gov_key == "_default":
+					display_name = "Feudal"
+				else:
+					# Remove _government suffix and convert to title case
+					display_name = gov_key.replace("_government", "").replace("_", " ").title()
+				
+				governments.append(display_name)
+				self.government_file_map[display_name] = gov_key
+			
+			return governments if governments else ["Feudal", "Clan"]
+			
+		except Exception as e:
+			print(f"Error discovering governments: {e}")
+			return ["Feudal", "Clan"]
+	
 	def _on_preview_toggle(self, checked):
 		"""Handle preview toggle"""
 		if self.canvas_widget:
@@ -143,26 +175,11 @@ class CanvasArea(QFrame):
 	def _on_government_changed(self, index):
 		"""Handle government type change"""
 		if self.canvas_widget:
-			# Map index to government name
-			government_map = {
-				0: "administrative_government",
-				1: "celestial_government",
-				2: "clan_government",
-				3: "herder_government",
-				4: "japan_administrative_government",
-				5: "japan_feudal_government",
-				6: "landless_adventurer_government",
-				7: "mandala_government",
-				8: "meritocratic_government",
-				9: "nomad_government",
-				10: "republic_government",
-				11: "steppe_admin_government",
-				12: "theocracy_government",
-				13: "tribal_government",
-				14: "wanua_government"
-			}
-			gov_name = government_map.get(index, "clan_government")
-			self.canvas_widget.set_preview_government(gov_name)
+			# Get display name from dropdown
+			display_name = self.government_combo.currentText()
+			# Map to file key
+			gov_key = self.government_file_map.get(display_name, "_default")
+			self.canvas_widget.set_preview_government(gov_key)
 	
 	def _on_rank_changed(self, index):
 		"""Handle rank change"""
