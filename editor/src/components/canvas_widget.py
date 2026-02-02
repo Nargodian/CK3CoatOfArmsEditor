@@ -578,8 +578,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		base_size = VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * safeMargin * self.zoom_level
 		
 		# Apply pan offset (convert from pixels to normalized coordinates)
-		pan_offset_x = self.pan_x / (self.width() / 2) if self.width() > 0 else 0
-		pan_offset_y = -self.pan_y / (self.height() / 2) if self.height() > 0 else 0
+		# Use square canvas_size to match coordinate conversion functions
+		canvas_size = min(self.width(), self.height())
+		pan_offset_x = self.pan_x / (canvas_size / 2) if canvas_size > 0 else 0
+		pan_offset_y = -self.pan_y / (canvas_size / 2) if canvas_size > 0 else 0
 		
 		# Texture coords: RTT renders Y-up (OpenGL standard), texture V=0 at bottom, V=1 at top
 		# Position Y=-1 (bottom) → V=0, Position Y=+1 (top) → V=1
@@ -710,8 +712,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		base_size = VIEWPORT_BASE_SIZE * self.zoom_level
 		
 		# Apply pan offset (convert to normalized coordinates)
-		pan_offset_x = self.pan_x / (width / 2)
-		pan_offset_y = -self.pan_y / (height / 2)
+		# Use square canvas_size to match coordinate conversion functions
+		canvas_size = min(width, height)
+		pan_offset_x = self.pan_x / (canvas_size / 2)
+		pan_offset_y = -self.pan_y / (canvas_size / 2)
 		
 		vertices = np.array([
 			-base_size + pan_offset_x, -base_size + pan_offset_y, 0.0,  u0, 1.0,
