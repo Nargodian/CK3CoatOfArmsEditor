@@ -98,6 +98,17 @@ class ShaderManager:
             parent: Parent QObject
             
         Returns:
-            QOpenGLShaderProgram for compositing RTT texture to viewport
+            QOpenGLShaderProgram for composite rendering
         """
         return self.create_program(parent, 'basic.vert', 'composite.frag', 'Composite')
+    
+    def create_picker_shader(self, parent):
+        """Create picker shader program for layer selection RTT
+        
+        Args:
+            parent: Parent QObject
+            
+        Returns:
+            QOpenGLShaderProgram for picker rendering
+        """
+        return self.create_program(parent, 'basic.vert', 'emblem_picker.frag', 'Picker')

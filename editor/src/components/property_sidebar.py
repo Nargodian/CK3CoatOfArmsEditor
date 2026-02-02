@@ -773,6 +773,7 @@ class PropertySidebar(QFrame):
 		if self.canvas_area:
 			self.canvas_area.update_transform_widget_for_layer()
 		if self.canvas_widget:
+			self.canvas_widget.on_coa_structure_changed()  # Invalidate picker RTT
 			self.canvas_widget.update()
 		# Save to history
 		if self.main_window and hasattr(self.main_window, '_save_state'):

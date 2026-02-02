@@ -7,6 +7,9 @@ from models.coa import CoA
 #COA INTEGRATION ACTION: Step 5 - Import Layer and CoA models for type hints and future use
 from models.coa import CoA, Layer
 
+# Canvas tools mixin
+from components.canvas_widgets.canvas_tools_mixin import CanvasToolsMixin
+
 # External library imports
 import OpenGL.GL as gl
 import numpy as np
@@ -137,7 +140,7 @@ def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0, zoom
 	return pos_x, pos_y
 
 
-class CoatOfArmsCanvas(QOpenGLWidget):
+class CoatOfArmsCanvas(CanvasToolsMixin, QOpenGLWidget):
 	"""OpenGL canvas for rendering coat of arms with shaders"""
 	
 	def __init__(self, parent=None):
@@ -199,6 +202,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# Store clear color for restoration after export
 		self.clear_color = (0.95, 0.95, 0.95, 0.0)  # Default, updated in initializeGL
 		
+		# Initialize tool system (from CanvasToolsMixin)
+		self._init_tools()
+		
 		# Preview system
 		self.preview_enabled = False
 		self.preview_government = "_default"  # Default government type
@@ -254,6 +260,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.design_shader = shader_manager.create_design_shader(self)
 		self.basic_shader = shader_manager.create_basic_shader(self)
 		self.composite_shader = shader_manager.create_composite_shader(self)
+		self.picker_shader = shader_manager.create_picker_shader(self)
 		
 		# Create RTT framebuffer
 		self.framebuffer_rtt = FramebufferRTT()
@@ -573,6 +580,17 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			gl.glActiveTexture(gl.GL_TEXTURE3)
 			gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
 			self.composite_shader.setUniformValue("noiseMaskSampler", 3)
+		
+		# Bind picker texture and set mouse UV
+		picker_texture_id = self._get_picker_texture_id()
+		if picker_texture_id:
+			gl.glActiveTexture(gl.GL_TEXTURE4)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, picker_texture_id)
+			self.composite_shader.setUniformValue("pickerTextureSampler", 4)
+		
+		# Set mouse UV (negative if not in picker mode)
+		mouse_uv = self._get_picker_mouse_uv()
+		self.composite_shader.setUniformValue("mouseUV", QVector2D(mouse_uv[0], mouse_uv[1]))
 		
 		# Set per-frame scale and offset uniforms
 		safeMargin = 1.0
@@ -2150,6 +2168,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		"""Handle mouse press for panning when zoomed"""
 		from PyQt5.QtCore import Qt
 		
+		# Tool mode takes priority
+		if self.active_tool and self._on_tool_mouse_press(event):
+			return
+		
 		# Enable panning when zoomed in (>100%) with left button
 		if event.button() == Qt.LeftButton and self.zoom_level > 1.0:
 			self.is_panning = True
@@ -2162,6 +2184,14 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 	def mouseMoveEvent(self, event):
 		"""Handle mouse move for panning"""
 		from PyQt5.QtCore import Qt
+		
+		# Always update mouse position for red dot tracker
+		self.last_picker_mouse_pos = event.pos()
+		self.update()  # Trigger repaint to show red dot
+		
+		# Tool mode hover handling
+		if self.active_tool:
+			self._on_tool_mouse_move(event)
 		
 		if self.is_panning and self.last_mouse_pos:
 			# Calculate delta using global coordinates

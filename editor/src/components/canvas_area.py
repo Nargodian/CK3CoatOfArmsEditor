@@ -284,6 +284,25 @@ class CanvasArea(QFrame):
 		self.minimal_transform_btn.toggled.connect(self.transform_widget.set_minimal_mode)
 		bottom_layout.addWidget(self.minimal_transform_btn)
 		
+		# Add layer picker tool button
+		self.picker_btn = QPushButton("🎯")
+		self.picker_btn.setCheckable(True)
+		self.picker_btn.setToolTip("Layer Picker Tool\nClick to select layer under mouse cursor")
+		self.picker_btn.setFixedSize(24, 20)
+		self.picker_btn.setStyleSheet("""
+			QPushButton { 
+				font-size: 14px; 
+				padding: 0px; 
+				border: 1px solid rgba(255, 255, 255, 40); 
+			}
+			QPushButton:checked {
+				background-color: rgba(100, 150, 255, 100);
+				border: 1px solid rgba(100, 150, 255, 180);
+			}
+		""")
+		self.picker_btn.toggled.connect(self._on_picker_button_toggled)
+		bottom_layout.addWidget(self.picker_btn)
+		
 		bottom_layout.addStretch()
 		
 		return bottom_bar
@@ -829,3 +848,10 @@ class CanvasArea(QFrame):
 	def _on_splendor_changed(self, index):
 		"""Handle splendor level change"""
 		self.canvas_widget.set_splendor(index)
+	
+	def _on_picker_button_toggled(self, checked):
+		"""Handle layer picker button toggle"""
+		if checked:
+			self.canvas_widget.set_tool_mode('layer_picker')
+		else:
+			self.canvas_widget.set_tool_mode(None)

@@ -1140,6 +1140,7 @@ class CoatOfArmsEditor(QMainWindow):
 			self.right_sidebar.layer_list_widget.update_selection_visuals()
 		
 		# Update canvas
+		self.canvas_area.canvas_widget.on_coa_structure_changed()  # Invalidate picker RTT
 		self.canvas_area.canvas_widget.update()
 		
 		# Trigger selection change callback to update properties and transform widget
