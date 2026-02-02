@@ -467,6 +467,25 @@ class CoatOfArmsCanvas(CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 				self.design_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
 				self.design_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
 				
+				# Determine if selection tint should be shown
+				# Show if: show_selection button is checked OR picker tool is active
+				show_tint = False
+				if hasattr(self, 'canvas_area') and self.canvas_area:
+					show_selection_checked = getattr(self.canvas_area, 'show_selection_btn', None) and self.canvas_area.show_selection_btn.isChecked()
+					picker_active = getattr(self.canvas_area, 'picker_btn', None) and self.canvas_area.picker_btn.isChecked()
+					show_tint = show_selection_checked or picker_active
+				
+				# Check if this layer is selected
+				is_selected = False
+				if show_tint and hasattr(self, 'canvas_area') and self.canvas_area:
+					if hasattr(self.canvas_area, 'main_window') and self.canvas_area.main_window:
+						if hasattr(self.canvas_area.main_window, 'right_sidebar'):
+							selected_uuids = self.canvas_area.main_window.right_sidebar.layer_list_widget.selected_layer_uuids
+							is_selected = layer_uuid in selected_uuids
+				
+				# Set selection tint uniform (1.0 if selected and tint enabled, 0.0 otherwise)
+				self.design_shader.setUniformValue("selectionTint", 1.0 if is_selected else 0.0)
+				
 				# Set pattern mask flag (shared by all instances)
 				mask = coa.get_layer_mask(layer_uuid)
 				if mask is None:

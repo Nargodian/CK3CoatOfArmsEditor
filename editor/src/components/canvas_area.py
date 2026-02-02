@@ -303,6 +303,26 @@ class CanvasArea(QFrame):
 		self.picker_btn.toggled.connect(self._on_picker_button_toggled)
 		bottom_layout.addWidget(self.picker_btn)
 		
+		# Add show selection toggle button
+		self.show_selection_btn = QPushButton("👁")
+		self.show_selection_btn.setCheckable(True)
+		self.show_selection_btn.setChecked(False)
+		self.show_selection_btn.setToolTip("Show Selection Tint\nHighlight selected layers in red")
+		self.show_selection_btn.setFixedSize(24, 20)
+		self.show_selection_btn.setStyleSheet("""
+			QPushButton { 
+				font-size: 14px; 
+				padding: 0px; 
+				border: 1px solid rgba(255, 255, 255, 40); 
+			}
+			QPushButton:checked {
+				background-color: rgba(255, 100, 100, 100);
+				border: 1px solid rgba(255, 100, 100, 180);
+			}
+		""")
+		self.show_selection_btn.toggled.connect(self._on_show_selection_toggled)
+		bottom_layout.addWidget(self.show_selection_btn)
+		
 		bottom_layout.addStretch()
 		
 		return bottom_bar
@@ -390,6 +410,11 @@ class CanvasArea(QFrame):
 		# Reset initial group state when selection changes (Task 3.6)
 		self._initial_group_center = None
 		self._initial_group_rotation = 0
+		
+		# Don't show transform widget if picker tool is active
+		if hasattr(self, 'picker_btn') and self.picker_btn.isChecked():
+			self.transform_widget.set_visible(False)
+			return
 		
 		if not self.property_sidebar:
 			self.transform_widget.set_visible(False)
@@ -855,3 +880,8 @@ class CanvasArea(QFrame):
 			self.canvas_widget.set_tool_mode('layer_picker')
 		else:
 			self.canvas_widget.set_tool_mode(None)
+	
+	def _on_show_selection_toggled(self, checked):
+		"""Handle show selection button toggle"""
+		# Trigger canvas update to show/hide selection tint
+		self.canvas_widget.update()

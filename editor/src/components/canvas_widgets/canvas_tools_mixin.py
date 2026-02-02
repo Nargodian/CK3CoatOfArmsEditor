@@ -104,10 +104,8 @@ class CanvasToolsMixin:
 		# Always regenerate picker RTT when activating (layers may have changed)
 		self._generate_picker_rtt()
 		
-		# Clear selection and hide transform widget
+		# Hide transform widget (but keep selection)
 		if hasattr(self, 'canvas_area') and self.canvas_area:
-			if hasattr(self.canvas_area, 'main_window') and self.canvas_area.main_window:
-				self.canvas_area.main_window.right_sidebar.clear_selection()
 			if hasattr(self.canvas_area, 'transform_widget'):
 				self.canvas_area.transform_widget.set_visible(False)
 	
@@ -579,24 +577,31 @@ class CanvasToolsMixin:
 			uuid = self._sample_picker_at_mouse(mouse_pos)
 			
 			if uuid:
-				# Select the layer
+				# Add layer to selection (instead of replacing)
 				if hasattr(self, 'canvas_area') and self.canvas_area:
 					if hasattr(self.canvas_area, 'main_window') and self.canvas_area.main_window:
 						main_window = self.canvas_area.main_window
-						main_window.right_sidebar.layer_list_widget.selected_layer_uuids = {uuid}
-						main_window.right_sidebar.layer_list_widget.last_selected_uuid = uuid
-						main_window.right_sidebar.layer_list_widget.update_selection_visuals()
+						layer_list = main_window.right_sidebar.layer_list_widget
+						
+						# Add to existing selection
+						layer_list.selected_layer_uuids.add(uuid)
+						layer_list.last_selected_uuid = uuid
+						layer_list.update_selection_visuals()
 						
 						# Update properties and transform widget
 						main_window.right_sidebar._on_layer_selection_changed()
 				
-				# Deactivate picker tool (one-shot mode)
-				self.set_tool_mode(None)
+				# Check if shift is held - if so, stay in picker mode
+				shift_held = event.modifiers() & Qt.ShiftModifier
 				
-				# Notify canvas_area to uncheck picker button
-				if hasattr(self, 'canvas_area') and self.canvas_area:
-					if hasattr(self.canvas_area, 'picker_btn'):
-						self.canvas_area.picker_btn.setChecked(False)
+				if not shift_held:
+					# Deactivate picker tool (one-shot mode)
+					self.set_tool_mode(None)
+					
+					# Notify canvas_area to uncheck picker button
+					if hasattr(self, 'canvas_area') and self.canvas_area:
+						if hasattr(self.canvas_area, 'picker_btn'):
+							self.canvas_area.picker_btn.setChecked(False)
 				
 				return True
 		

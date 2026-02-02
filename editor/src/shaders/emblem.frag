@@ -13,6 +13,8 @@ uniform vec3 primaryColor;
 uniform vec3 secondaryColor;
 uniform vec3 tertiaryColor;
 
+uniform float selectionTint; // 0.0 = no tint, 1.0 = full red tint for selected layers
+
 // Overlay blend function (per-channel)
 float overlayBlend(float base, float blend) {
 	return (blend < 0.5) ? (2.0 * base * blend) : (1.0 - 2.0 * (1.0 - base) * (1.0 - blend));
@@ -76,5 +78,8 @@ void main()
 	// Clamp pattern mask to valid range
 	patternMaskValue = clamp(patternMaskValue, 0.0, 1.0);
 	
-	FragColor = vec4(outputColour, textureMask.a * patternMaskValue);
+	// Apply selection tint (red overlay) if selected
+	vec3 finalColor = mix(outputColour, vec3(1.0, 0.3, 0.3), selectionTint * 0.5);
+	
+	FragColor = vec4(finalColor, textureMask.a * patternMaskValue);
 }
