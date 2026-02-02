@@ -10,6 +10,7 @@ from .fibonacci_generator import FibonacciGenerator
 from .radial_generator import RadialGenerator
 from .star_generator import StarGenerator
 from .vanilla_generator import VanillaGenerator
+from .ngon_generator import NgonGenerator
 
 __all__ = [
     'CircularGenerator',
@@ -22,4 +23,5 @@ __all__ = [
     'RadialGenerator',
     'StarGenerator',
     'VanillaGenerator',
+    'NgonGenerator',
 ]

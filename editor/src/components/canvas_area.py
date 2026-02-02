@@ -270,7 +270,17 @@ class CanvasArea(QFrame):
 		self.minimal_transform_btn.setCheckable(True)
 		self.minimal_transform_btn.setToolTip("Toggle minimal transform widget (M)\nShows faint box only, drag and wheel functions work")
 		self.minimal_transform_btn.setFixedSize(24, 20)
-		self.minimal_transform_btn.setStyleSheet("QPushButton { font-size: 14px; padding: 0px; border: none; }")
+		self.minimal_transform_btn.setStyleSheet("""
+			QPushButton { 
+				font-size: 14px; 
+				padding: 0px; 
+				border: 1px solid rgba(255, 255, 255, 40); 
+			}
+			QPushButton:checked {
+				background-color: rgba(100, 150, 255, 100);
+				border: 1px solid rgba(100, 150, 255, 180);
+			}
+		""")
 		self.minimal_transform_btn.toggled.connect(self.transform_widget.set_minimal_mode)
 		bottom_layout.addWidget(self.minimal_transform_btn)
 		

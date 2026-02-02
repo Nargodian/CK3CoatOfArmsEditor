@@ -71,7 +71,7 @@ from services.layer_generator import GeneratorPopup
 from services.layer_generator.generators import (
     CircularGenerator, LineGenerator, SpiralGenerator, ShapeGenerator,
     GridGenerator, DiamondGenerator, FibonacciGenerator,
-    RadialGenerator, StarGenerator, VanillaGenerator
+    RadialGenerator, StarGenerator, VanillaGenerator, NgonGenerator
 )
 
 
@@ -452,9 +452,9 @@ class CoatOfArmsEditor(QMainWindow):
 		spiral_action = path_menu.addAction("&Spiral")
 		spiral_action.triggered.connect(lambda: self._open_generator('spiral'))
 		
-		path_menu.addSeparator()
-		
-		# Shape submenu (dynamically populated with loaded SVGs)
+		ngon_action = path_menu.addAction("&N-gon")
+		ngon_action.triggered.connect(lambda: self._open_generator('ngon'))
+	
 		self.shape_menu = path_menu.addMenu("S&hape")
 		self._populate_shape_menu()
 		
@@ -1957,7 +1957,7 @@ class CoatOfArmsEditor(QMainWindow):
 		"""Open the generator popup with specified generator type.
 		
 		Args:
-			generator_type: Type of generator ('circular', 'line', 'spiral', 'shape', 
+			generator_type: Type of generator ('circular', 'line', 'spiral', 'ngon', 'shape', 
 			                'grid', 'diamond', 'fibonacci', 'radial', 'star')
 			shape_name: For 'shape' type, the name of the shape to use
 		"""
@@ -1970,6 +1970,8 @@ class CoatOfArmsEditor(QMainWindow):
 			generator = LineGenerator()
 		elif generator_type == 'spiral':
 			generator = SpiralGenerator()
+		elif generator_type == 'ngon':
+			generator = NgonGenerator()
 		elif generator_type == 'shape':
 			generator = ShapeGenerator(initial_shape=shape_name)
 		elif generator_type == 'grid':
@@ -2122,6 +2124,9 @@ class CoatOfArmsEditor(QMainWindow):
 			# Parse directly into main CoA (parser handles insertion)
 			new_uuids = self.coa.parse(layer_string, target_uuid=target_uuid)
 			
+			# Switch to Layers tab
+			self.right_sidebar.tab_widget.setCurrentIndex(1)
+			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()
 			self.canvas_area.canvas_widget.update()
@@ -2198,6 +2203,9 @@ class CoatOfArmsEditor(QMainWindow):
 				if new_uuids:
 					target_uuid = new_uuids[0]
 					created_uuids.extend(new_uuids)
+			
+			# Switch to Layers tab
+			self.right_sidebar.tab_widget.setCurrentIndex(1)
 			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()

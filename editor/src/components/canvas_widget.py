@@ -201,7 +201,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		
 		# Preview system
 		self.preview_enabled = False
-		self.preview_government = "clan_government"  # Default government type
+		self.preview_government = "_default"  # Default government type
 		self.preview_rank = "Duke"  # Default rank
 		self.preview_size = 86  # Default size in pixels
 		self.realm_frame_masks = {}  # government_name -> texture ID

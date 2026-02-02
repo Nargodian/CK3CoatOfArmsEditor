@@ -1,7 +1,7 @@
 """Line pattern generator - arranges instances along a straight line."""
 
 import numpy as np
-from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QDoubleSpinBox, QWidget, QSlider
+from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QDoubleSpinBox, QWidget, QSlider, QCheckBox
 from PyQt5.QtCore import Qt
 from ..base_generator import BaseGenerator
 
@@ -18,6 +18,7 @@ class LineGenerator(BaseGenerator):
     DEFAULT_BASE_ROTATION = 0.0
     DEFAULT_ARC_BEND = 0.0
     DEFAULT_MODE = 'count'
+    DEFAULT_USE_V_SHAPE = False
     
     def __init__(self):
         super().__init__()
@@ -35,6 +36,7 @@ class LineGenerator(BaseGenerator):
             'end_scale': self.DEFAULT_SCALE,
             'rotation_mode': self.DEFAULT_ROTATION_MODE,
             'base_rotation': self.DEFAULT_BASE_ROTATION,
+            'use_v_shape': self.DEFAULT_USE_V_SHAPE,
             'arc_bend': self.DEFAULT_ARC_BEND,
         }
     
@@ -94,9 +96,17 @@ class LineGenerator(BaseGenerator):
         arc_slider.valueChanged.connect(lambda v: self._on_param_changed('arc_bend', v/100))
         arc_layout.addWidget(arc_label)
         arc_layout.addWidget(arc_slider)
-        arc_layout.addWidget(arc_spin)
+        
+        # V-shape checkbox
+        v_shape_check = QCheckBox("Use V-shape")
+        v_shape_check.setChecked(self.settings['use_v_shape'])
+        v_shape_check.toggled.connect(lambda v: self._on_param_changed('use_v_shape', v))
+        arc_layout.addWidget(v_shape_check)
+        
         layout.addLayout(arc_layout)
         
+        self._controls['arc_bend'] = arc_slider
+        self._controls['v_shape_check'] = v_shape_check
         self._controls['arc_bend'] = arc_slider
         
         # Scale controls
@@ -143,6 +153,7 @@ class LineGenerator(BaseGenerator):
         # In text mode, use text length instead of count
         count = self.get_effective_count()
         
+        use_v_shape = kwargs.get('use_v_shape', self.settings['use_v_shape'])
         start_percent = kwargs.get('start_percent', self.settings['start_percent'])
         end_percent = kwargs.get('end_percent', self.settings['end_percent'])
         gradient_enabled = kwargs.get('gradient_enabled', self.settings['gradient_enabled'])
@@ -170,47 +181,73 @@ class LineGenerator(BaseGenerator):
         positions = np.zeros((count, 5))
         
         for i in range(count):
-            # Interpolate along line extent
+            # Interpolate along the VISIBLE portion of the path (start_t to end_t)
+            # Like drawing a curtain - the rail shape stays the same, we just reveal a portion
             if count == 1:
-                t = (start_t + end_t) / 2.0
+                t = (start_t + end_t) / 2  # Center of visible region
             else:
+                # Map instance index to position along full path
                 t = start_t + (i / (count - 1)) * (end_t - start_t)
             
-            # Base position on horizontal line
+            # Base position on horizontal line (full path coordinates)
             x = margin + t * line_length
             y = 0.5
             tangent_angle = 0.0  # Default for straight line
             
-            # Apply arc bend if non-zero
-            if abs(arc_bend) > 0.001:
+            # V-shape mode (takes precedence over arc)
+            if use_v_shape and abs(arc_bend) > 0.001:
+                # Create V or ^ shape based on arc_bend sign
+                # Positive: ^ (upward V)
+                # Negative: v (downward V)
+                
+                # t is already 0-1 within clipped region
+                # V-shape: two linear segments meeting at center
+                # Distance from center (0 at center, 0.5 at edges)
+                dist_from_center = abs(t - 0.5)
+                
+                # Height varies linearly from peak to edges
+                # At center: maximum displacement
+                # At edges: zero displacement
+                # Scale by arc_bend magnitude
+                max_displacement = abs(arc_bend) * 0.5
+                displacement = max_displacement * (1.0 - 2.0 * dist_from_center)
+                
+                # Tiny flat peak (0.01 width) for alignment
+                peak_width = 0.01
+                if abs(t - 0.5) < peak_width:
+                    displacement = max_displacement
+                
+                # Apply displacement
+                y = 0.5 - displacement * np.sign(arc_bend)
+                
+                # Calculate tangent angle for rotation
+                # Left half: angled up/down toward center
+                # Right half: angled down/up from center
+                if abs(t - 0.5) > peak_width:
+                    # Slope of V sides
+                    if t < 0.5:
+                        tangent_angle = np.arctan2(max_displacement, 0.5 - peak_width) * np.sign(arc_bend)
+                    else:
+                        tangent_angle = -np.arctan2(max_displacement, 0.5 - peak_width) * np.sign(arc_bend)
+                else:
+                    tangent_angle = 0.0  # Flat at peak
+            
+            # Apply arc bend if non-zero and V-shape not enabled
+            elif abs(arc_bend) > 0.001:
                 # Arc bend creates a circular arc
                 # Positive bend: arc upward (decrease y)
                 # Negative bend: arc downward (increase y)
                 # ±1 = semicircle (π radians)
                 
-                # Calculate radius for semicircle at bend=±1
-                # When bend=1, the line becomes a semicircle
-                # Arc length = π * radius for semicircle
-                # We want the arc to span the same horizontal distance as the line
-                span = (end_t - start_t) * line_length
-                if span > 0:
-                    radius = span / (np.pi * abs(arc_bend))
-                else:
-                    radius = line_length / (np.pi * abs(arc_bend))
+                # Calculate radius based on FULL line (the rail stays the same shape)
+                radius = line_length / (np.pi * abs(arc_bend))
                 
-                # Arc center
+                # Arc center (at center of FULL line)
                 center_x = 0.5
                 center_y = 0.5 + (radius if arc_bend > 0 else -radius)
                 
-                # Calculate angle for this position along arc
-                # Map t from start_t to end_t to angle from -π/2 to +π/2
-                if abs(end_t - start_t) > 0.001:
-                    normalized_t = (t - start_t) / (end_t - start_t)
-                else:
-                    normalized_t = 0.5
-                
-                # Angle sweeps from left to right
-                angle = (normalized_t - 0.5) * np.pi * arc_bend
+                # t is 0-1 along full path, angle maps full path coordinates
+                angle = (t - 0.5) * np.pi * arc_bend
                 
                 # Calculate position
                 x = center_x + radius * np.sin(angle)
@@ -219,10 +256,14 @@ class LineGenerator(BaseGenerator):
                 # Calculate tangent angle (perpendicular to radius)
                 tangent_angle = angle
             
-            # Scale
+            # Scale (gradient maps to visible portion)
             if gradient_enabled:
-                local_t = (t - start_t) / (end_t - start_t) if (end_t - start_t) > 0 else 0
-                scale = start_scale + local_t * (end_scale - start_scale)
+                # Map t from start_t..end_t to 0..1 for gradient
+                if abs(end_t - start_t) > 0.001:
+                    gradient_t = (t - start_t) / (end_t - start_t)
+                else:
+                    gradient_t = 0.5
+                scale = start_scale + gradient_t * (end_scale - start_scale)
             else:
                 scale = uniform_scale
             
@@ -231,7 +272,10 @@ class LineGenerator(BaseGenerator):
                 # Aligned: perpendicular to line (pointing along it)
                 if abs(arc_bend) > 0.001:
                     # Perpendicular to radius
-                    rotation = np.rad2deg(tangent_angle) + base_rotation
+                    if use_v_shape:
+                        rotation = np.rad2deg(-tangent_angle) + base_rotation
+                    else:
+                        rotation = np.rad2deg(tangent_angle*np.sign(arc_bend)) + base_rotation
                 else:
                     # Horizontal line: 0° (pointing up)
                     rotation = 0.0 + base_rotation
