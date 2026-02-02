@@ -1,5 +1,5 @@
 # PyQt5 imports
-from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSizePolicy, QMenu)
+from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSizePolicy, QMenu, QCheckBox)
 from PyQt5.QtCore import Qt
 
 # Local component imports
@@ -50,11 +50,15 @@ class CanvasArea(QFrame):
 		canvas_container_layout = QVBoxLayout(canvas_container)
 		canvas_container_layout.setContentsMargins(0, 0, 0, 0)
 		
+		# Top preview control bar
+		preview_bar = self._create_preview_bar()
+		canvas_container_layout.addWidget(preview_bar)
+		
 		# OpenGL canvas widget (fills entire container)
 		self.canvas_widget = CoatOfArmsCanvas(canvas_container)
 		self.canvas_widget.canvas_area = self  # Give canvas access to canvas_area
 		# Widget fills container - zoom handled by scaling rendering, not widget size
-		canvas_container_layout.addWidget(self.canvas_widget)
+		canvas_container_layout.addWidget(self.canvas_widget, stretch=1)
 		
 		# Transform widget (absolute positioned overlay)
 		# Parent to canvas_container (not canvas_widget) to avoid edge clipping
@@ -73,10 +77,88 @@ class CanvasArea(QFrame):
 		bottom_bar = self._create_bottom_bar()
 		layout.addWidget(bottom_bar)
 	
+	def _create_preview_bar(self):
+		"""Create the top preview control bar with government type and rank selection"""
+		preview_bar = QFrame()
+		preview_bar.setStyleSheet("QFrame { background-color: #2d2d2d; border: none; }")
+		preview_bar.setFixedHeight(40)
+		
+		layout = QHBoxLayout(preview_bar)
+		layout.setContentsMargins(8, 4, 8, 4)
+		layout.setSpacing(8)
+		
+		# Government type dropdown
+		government_label = QLabel("Government:")
+		government_label.setStyleSheet("font-size: 11px; border: none;")
+		layout.addWidget(government_label)
+		government_types = [
+			"Administrative", "Celestial", "Clan", "Herder",
+			"Japan Administrative", "Japan Feudal", "Landless Adventurer",
+			"Mandala", "Meritocratic", "Nomad", "Republic",
+			"Steppe Admin", "Theocracy", "Tribal", "Wanua"
+		]
+		self.government_combo = self._create_combo_box(government_types)
+		self.government_combo.setMinimumWidth(180)
+		self.government_combo.currentIndexChanged.connect(self._on_government_changed)
+		layout.addWidget(self.government_combo)
+		
+		# Rank dropdown
+		rank_label = QLabel("Rank:")
+		rank_label.setStyleSheet("font-size: 11px; border: none;")
+		layout.addWidget(rank_label)
+		ranks = ["Baron", "Count", "Duke", "King", "Emperor", "Hegemon"]
+		self.rank_combo = self._create_combo_box(ranks)
+		self.rank_combo.setMinimumWidth(120)
+		self.rank_combo.setCurrentIndex(2)  # Default to Duke
+		self.rank_combo.currentIndexChanged.connect(self._on_rank_changed)
+		layout.addWidget(self.rank_combo)
+		
+		# Size dropdown (pixel sizes)
+		size_label = QLabel("Size:")
+		size_label.setStyleSheet("font-size: 11px; border: none;")
+		layout.addWidget(size_label)
+		sizes = ["28px", "44px", "62px", "86px", "115px"]
+		self.size_combo = self._create_combo_box(sizes)
+		self.size_combo.setMinimumWidth(100)
+		self.size_combo.setCurrentIndex(3)  # Default to 86px
+		self.size_combo.currentIndexChanged.connect(self._on_size_changed)
+		layout.addWidget(self.size_combo)
+		
+		layout.addStretch()
+		
+		# Preview toggle checkbox (right-aligned)
+		self.preview_toggle = QCheckBox("Preview")
+		self.preview_toggle.setChecked(False)
+		self.preview_toggle.setStyleSheet("QCheckBox { color: #ffffff; }")
+		self.preview_toggle.toggled.connect(self._on_preview_toggle)
+		layout.addWidget(self.preview_toggle)
+		
+		return preview_bar
+	
+	def _on_preview_toggle(self, checked):
+		"""Handle preview toggle"""
+		# TODO: Implement preview overlay rendering
+		print(f"Preview toggle: {checked}")
+	
+	def _on_government_changed(self, index):
+		"""Handle government type change"""
+		# TODO: Update preview overlay
+		print(f"Government changed to index: {index}")
+	
+	def _on_rank_changed(self, index):
+		"""Handle rank change"""
+		# TODO: Update preview overlay
+		print(f"Rank changed to index: {index}")
+	
+	def _on_size_changed(self, index):
+		"""Handle size change"""
+		# TODO: Update preview overlay
+		print(f"Size changed to index: {index}")
+	
 	def _create_bottom_bar(self):
 		"""Create the bottom bar with frame and splendor dropdowns"""
 		bottom_bar = QFrame()
-		bottom_bar.setStyleSheet("QFrame { background-color: #353535; border-top: 1px solid; }")
+		bottom_bar.setStyleSheet("QFrame { background-color: #2d2d2d; border: none; }")
 		bottom_bar.setFixedHeight(50)
 		
 		bottom_layout = QHBoxLayout(bottom_bar)
@@ -149,7 +231,7 @@ class CanvasArea(QFrame):
 		self.minimal_transform_btn.setCheckable(True)
 		self.minimal_transform_btn.setToolTip("Toggle minimal transform widget (M)\nShows faint box only, drag and wheel functions work")
 		self.minimal_transform_btn.setFixedSize(24, 20)
-		self.minimal_transform_btn.setStyleSheet("QPushButton { font-size: 14px; padding: 0px; }")
+		self.minimal_transform_btn.setStyleSheet("QPushButton { font-size: 14px; padding: 0px; border: none; }")
 		self.minimal_transform_btn.toggled.connect(self.transform_widget.set_minimal_mode)
 		bottom_layout.addWidget(self.minimal_transform_btn)
 		
@@ -176,26 +258,45 @@ class CanvasArea(QFrame):
 		return mode_map.get(current_text, "both")
 	
 	def _create_combo_box(self, items):
-		"""Create a styled combo box"""
+		"""Create a styled combo box with unicode down arrow"""
 		combo = QComboBox()
 		combo.addItems(items)
 		combo.setStyleSheet("""
 			QComboBox {
 				padding: 5px 10px;
+				padding-right: 25px;
 				border-radius: 3px;
 				border: none;
 			}
 			QComboBox::drop-down {
 				border: none;
+				width: 20px;
 			}
 			QComboBox::down-arrow {
 				image: none;
-				border-left: 4px solid transparent;
-				border-right: 4px solid transparent;
-				border-top: 6px solid;
-				margin-right: 5px;
 			}
 		""")
+		
+		# Create a label with unicode down arrow and position it
+		from PyQt5.QtWidgets import QLabel
+		from PyQt5.QtCore import Qt
+		arrow_label = QLabel("▼", combo)
+		arrow_label.setStyleSheet("color: #aaa; font-size: 10px; background: transparent;")
+		arrow_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+		arrow_label.setAlignment(Qt.AlignCenter)
+		
+		# Position the arrow on the right side
+		def update_arrow_position():
+			arrow_label.setGeometry(combo.width() - 20, 0, 20, combo.height())
+		
+		# Override resizeEvent properly
+		original_resize = combo.resizeEvent
+		def resize_with_arrow(event):
+			original_resize(event)
+			update_arrow_position()
+		combo.resizeEvent = resize_with_arrow
+		update_arrow_position()
+		
 		return combo
 	
 	def set_property_sidebar(self, sidebar):
