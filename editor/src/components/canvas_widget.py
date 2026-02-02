@@ -913,9 +913,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
 			self.composite_shader.setUniformValue("noiseMaskSampler", 3)
 		
-		# Set CoA scale and offset (same as main rendering)
+		# Set CoA scale and offset
 		self.composite_shader.setUniformValue("coaScale", QVector2D(0.9, 0.9))
-		self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
+		self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.1))
 		self.composite_shader.setUniformValue("bleedMargin", 1.0)
 		
 		# Render quad
@@ -967,8 +967,9 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			
 			# Crown aspect ratio: 128:80 = 1.6:1 (wider than tall)
 			# Crown bottom aligns with CoA top, crown extends upward
-			# Shift up 6px at size 115
-			crown_offset = (6.0 / viewport_height) * 2.0
+			# Shift up 7.5px at size 115, scale proportionally
+			crown_offset_px = (7.5 / 115.0) * self.preview_size
+			crown_offset = (crown_offset_px / viewport_height) * 2.0
 			crown_bottom = top + crown_offset
 			crown_top = top + crown_height + crown_offset
 			
@@ -1112,8 +1113,12 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 			
 			# Crown aspect ratio: 128:80 = 1.6:1 (wider than tall)
 			# Crown bottom aligns with CoA top, crown extends upward
-			# Move crown up 3px at size 115
-			crown_offset = (4.0 / viewport_height) * 2.0
+			# Move crown up 1.5px at size 115, scale proportionally
+			# Additional adjustment: 0px at 115, -2px at 22 (linear interpolation)
+			base_offset_px = (1.5 / 115.0) * self.preview_size
+			size_adjustment = -2.0 * (115.0 - self.preview_size) / 93.0
+			crown_offset_px = base_offset_px + size_adjustment
+			crown_offset = (crown_offset_px / viewport_height) * 2.0
 			crown_bottom = top + crown_offset
 			crown_top = top + crown_height + crown_offset
 			
