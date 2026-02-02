@@ -9,6 +9,7 @@ from models.coa import CoA, Layer
 
 # Canvas tools mixin
 from components.canvas_widgets.canvas_tools_mixin import CanvasToolsMixin
+from components.canvas_widgets.canvas_preview_mixin import CanvasPreviewMixin
 
 # External library imports
 import OpenGL.GL as gl
@@ -140,7 +141,7 @@ def qt_pixels_to_layer_pos(qt_x, qt_y, canvas_size, offset_x=0, offset_y=0, zoom
 	return pos_x, pos_y
 
 
-class CoatOfArmsCanvas(CanvasToolsMixin, QOpenGLWidget):
+class CoatOfArmsCanvas(CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 	"""OpenGL canvas for rendering coat of arms with shaders"""
 	
 	def __init__(self, parent=None):
@@ -744,8 +745,13 @@ class CoatOfArmsCanvas(CanvasToolsMixin, QOpenGLWidget):
 		self.composite_shader.release()
 		self.vao.release()
 	
-	def _render_frame(self):
-		"""Render frame graphic on top of CoA"""
+	def _render_frame(self, viewport_size=None):
+		"""Render frame graphic on top of CoA
+		
+		Args:
+			viewport_size: Optional (width, height) tuple for export rendering.
+			              If None, uses widget dimensions.
+		"""
 		if self.current_frame_name not in self.frameTextures:
 			return
 		
@@ -768,8 +774,12 @@ class CoatOfArmsCanvas(CanvasToolsMixin, QOpenGLWidget):
 		
 		# Frame renders at VIEWPORT_BASE_SIZE (larger than composite which is scaled down)
 		# Apply zoom and pan to match composite positioning
-		width = self.width()
-		height = self.height()
+		# Use viewport_size for export, or widget dimensions for normal rendering
+		if viewport_size:
+			width, height = viewport_size
+		else:
+			width = self.width()
+			height = self.height()
 		base_size = VIEWPORT_BASE_SIZE * self.zoom_level
 		
 		# Calculate aspect ratio correction to keep frame square
@@ -844,7 +854,11 @@ class CoatOfArmsCanvas(CanvasToolsMixin, QOpenGLWidget):
 		gl.glColor4f(1.0, 1.0, 1.0, 1.0)
 		gl.glEnable(gl.GL_TEXTURE_2D)
 	
-	def _render_government_preview(self):
+	# Government and title preview methods moved to CanvasPreviewMixin
+	
+	# ========================================
+	# Texture Loading and Atlas Management
+	# ========================================
 		"""Render government preview in top-left corner"""
 		if not self.composite_shader or not self.vao:
 			return
@@ -1041,7 +1055,9 @@ class CoatOfArmsCanvas(CanvasToolsMixin, QOpenGLWidget):
 		
 		self.vao.release()
 	
-	def _render_title_preview(self):
+	# ========================================
+	# Texture Loading and Atlas Management
+	# ========================================
 		"""Render title preview in top-right corner"""
 		if not self.composite_shader or not self.vao:
 			return
@@ -2035,9 +2051,10 @@ class CoatOfArmsCanvas(CanvasToolsMixin, QOpenGLWidget):
 	
 	def export_to_png(self, filename):
 		"""Export the current CoA rendering to PNG with transparency
+		Also exports government and title previews as separate files.
 		
 		Args:
-			filename: Path to save PNG file
+			filename: Path to save main PNG file
 			
 		Returns:
 			True if successful, False otherwise
@@ -2046,8 +2063,9 @@ class CoatOfArmsCanvas(CanvasToolsMixin, QOpenGLWidget):
 			from PyQt5.QtGui import QImage, QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat
 			from PyQt5.QtCore import QSize
 			import numpy as np
+			import os
 			
-			# Use 512x512 for export
+			# Use 512x512 for main export
 			export_size = 512
 			
 			# Make this widget's context current
@@ -2097,14 +2115,31 @@ class CoatOfArmsCanvas(CanvasToolsMixin, QOpenGLWidget):
 			# Make a copy since the buffer will be deallocated
 			image = image.copy()
 			
+			# Save the main image
+			success = image.save(filename, "PNG")
+			
+			# Export government and title previews if preview mode is enabled
+			if self.preview_enabled:
+				base_name = os.path.splitext(filename)[0]
+				preview_export_size = 256
+				
+				# Export government preview
+				if self.realm_frame_masks.get(self.preview_government):
+					gov_filename = f"{base_name}_gov.png"
+					self._export_preview_to_png(gov_filename, 'government', preview_export_size, fbo_format)
+				
+				# Export title preview
+				if self.title_mask:
+					title_filename = f"{base_name}_title.png"
+					self._export_preview_to_png(title_filename, 'title', preview_export_size, fbo_format)
+			
 			# Restore normal viewport and clear color
 			gl.glViewport(0, 0, self.width(), self.height())
 			gl.glClearColor(*self.clear_color)
 			
 			self.doneCurrent()
 			
-			# Save the image
-			return image.save(filename, "PNG")
+			return success
 			
 		except Exception as e:
 			print(f"PNG export error: {e}")
@@ -2119,6 +2154,83 @@ class CoatOfArmsCanvas(CanvasToolsMixin, QOpenGLWidget):
 			except:
 				pass
 			
+			return False
+	
+	def _export_preview_to_png(self, filename, preview_type, export_size, fbo_format):
+		"""Export government or title preview to PNG
+		
+		Args:
+			filename: Path to save PNG file
+			preview_type: 'government' or 'title'
+			export_size: Size of export (e.g., 512)
+			fbo_format: QOpenGLFramebufferObjectFormat to use
+		
+		Returns:
+			True if successful, False otherwise
+		"""
+		try:
+			from PyQt5.QtGui import QImage, QOpenGLFramebufferObject
+			from PyQt5.QtCore import QSize
+			import numpy as np
+			
+			# Create framebuffer for preview export
+			fbo = QOpenGLFramebufferObject(QSize(export_size, export_size), fbo_format)
+			if not fbo.isValid():
+				print(f"Failed to create preview framebuffer for {preview_type}")
+				return False
+			
+			# Bind the framebuffer
+			fbo.bind()
+			
+			# Set viewport to export size
+			gl.glViewport(0, 0, export_size, export_size)
+			
+			# Enable alpha blending for transparency
+			gl.glEnable(gl.GL_BLEND)
+			gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+			
+			# Clear with transparent background
+			gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+			gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+			
+			# Render preview centered in the export frame
+			# Calculate center position (NDC coordinates)
+			dims = self.get_preview_dimensions(viewport_size=(export_size, export_size))
+			size_x, size_y = dims['size_ndc']
+			
+			# Center the preview
+			ndc_left = -size_x / 2.0
+			ndc_top = size_y / 2.0 + dims['crown_height_ndc']
+			
+			# Render appropriate preview
+			if preview_type == 'government':
+				self._render_government_preview_at(ndc_left, ndc_top, viewport_size=(export_size, export_size))
+			elif preview_type == 'title':
+				self._render_title_preview_at(ndc_left, ndc_top, viewport_size=(export_size, export_size))
+			
+			# Read pixels from framebuffer
+			gl.glReadBuffer(gl.GL_COLOR_ATTACHMENT0)
+			pixels = gl.glReadPixels(0, 0, export_size, export_size, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE)
+			
+			# Release framebuffer
+			fbo.release()
+			
+			# Convert to numpy array and flip vertically
+			arr = np.frombuffer(pixels, dtype=np.uint8).reshape(export_size, export_size, 4)
+			arr = np.flipud(arr).copy()
+			
+			# Create QImage from bytes
+			image = QImage(arr.tobytes(), export_size, export_size, export_size * 4, QImage.Format_RGBA8888)
+			image = image.copy()
+			
+			# Save the image
+			success = image.save(filename, "PNG")
+			return success
+			
+		except Exception as e:
+			print(f"Preview export error ({preview_type}): {e}")
+			import traceback
+			traceback.print_exc()
 			return False
 	
 	def _render_coa_for_export(self):
@@ -2140,9 +2252,9 @@ class CoatOfArmsCanvas(CanvasToolsMixin, QOpenGLWidget):
 		# Composite RTT texture to export FBO
 		self._composite_to_fbo(export_fbo)
 		
-		# Render frame on top if present
+		# Render frame on top if present (pass viewport size for correct aspect)
 		if self.frameTexture:
-			self._render_frame()
+			self._render_frame(viewport_size=(viewport[2], viewport[3]))
 	
 	# ========================================
 	# Mouse Event Handlers

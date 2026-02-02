@@ -1307,6 +1307,10 @@ class CoatOfArmsEditor(QMainWindow):
 		elif event.key() == Qt.Key_M and not event.modifiers():
 			self.canvas_area.minimal_transform_btn.toggle()
 			event.accept()
+		# P key for toggle picker tool
+		elif event.key() == Qt.Key_P and not event.modifiers():
+			self.canvas_area.picker_btn.toggle()
+			event.accept()
 		# R key for rotate -45 degrees
 		elif event.key() == Qt.Key_R and not event.modifiers():
 			if self.right_sidebar.get_selected_indices():
