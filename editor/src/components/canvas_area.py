@@ -12,7 +12,7 @@ class CanvasArea(QFrame):
 	
 	def __init__(self, parent=None):
 		super().__init__(parent)
-		self.setStyleSheet("QFrame { background-color: #0d0d0d; }")
+		self.setStyleSheet("QFrame { background-color: #141414; }")
 		self.setContextMenuPolicy(Qt.CustomContextMenu)
 		self.customContextMenuRequested.connect(self._show_context_menu)
 		self.setMinimumWidth(800)  # Ensure canvas area has enough space
@@ -46,7 +46,7 @@ class CanvasArea(QFrame):
 		
 		# Container to center the square canvas
 		canvas_container = QFrame()
-		canvas_container.setStyleSheet("QFrame { background-color: #0d0d0d; }")
+		canvas_container.setStyleSheet("QFrame { background-color: #141414; }")
 		canvas_container_layout = QVBoxLayout(canvas_container)
 		canvas_container_layout.setContentsMargins(0, 0, 0, 0)
 		
@@ -137,23 +137,45 @@ class CanvasArea(QFrame):
 	
 	def _on_preview_toggle(self, checked):
 		"""Handle preview toggle"""
-		# TODO: Implement preview overlay rendering
-		print(f"Preview toggle: {checked}")
+		if self.canvas_widget:
+			self.canvas_widget.set_preview_enabled(checked)
 	
 	def _on_government_changed(self, index):
 		"""Handle government type change"""
-		# TODO: Update preview overlay
-		print(f"Government changed to index: {index}")
+		if self.canvas_widget:
+			# Map index to government name
+			government_map = {
+				0: "administrative_government",
+				1: "celestial_government",
+				2: "clan_government",
+				3: "herder_government",
+				4: "japan_administrative_government",
+				5: "japan_feudal_government",
+				6: "landless_adventurer_government",
+				7: "mandala_government",
+				8: "meritocratic_government",
+				9: "nomad_government",
+				10: "republic_government",
+				11: "steppe_admin_government",
+				12: "theocracy_government",
+				13: "tribal_government",
+				14: "wanua_government"
+			}
+			gov_name = government_map.get(index, "clan_government")
+			self.canvas_widget.set_preview_government(gov_name)
 	
 	def _on_rank_changed(self, index):
 		"""Handle rank change"""
-		# TODO: Update preview overlay
-		print(f"Rank changed to index: {index}")
+		if self.canvas_widget:
+			self.canvas_widget.set_preview_rank(self.rank_combo.currentText())
 	
 	def _on_size_changed(self, index):
 		"""Handle size change"""
-		# TODO: Update preview overlay
-		print(f"Size changed to index: {index}")
+		if self.canvas_widget:
+			# Map index to size
+			size_map = {0: 28, 1: 44, 2: 62, 3: 86, 4: 115}
+			size = size_map.get(index, 86)
+			self.canvas_widget.set_preview_size(size)
 	
 	def _create_bottom_bar(self):
 		"""Create the bottom bar with frame and splendor dropdowns"""

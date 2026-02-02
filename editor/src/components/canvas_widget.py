@@ -198,6 +198,19 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		
 		# Store clear color for restoration after export
 		self.clear_color = (0.95, 0.95, 0.95, 0.0)  # Default, updated in initializeGL
+		
+		# Preview system
+		self.preview_enabled = False
+		self.preview_government = "clan_government"  # Default government type
+		self.preview_rank = "Duke"  # Default rank
+		self.preview_size = 86  # Default size in pixels
+		self.realm_frame_masks = {}  # government_name -> texture ID
+		self.realm_frame_frames = {}  # (government_name, size) -> texture ID
+		self.realm_frame_shadows = {}  # (government_name, size) -> texture ID
+		self.title_mask = None  # title_mask.png texture ID
+		self.crown_strips = {}  # size -> texture ID
+		self.title_frames = {}  # size -> texture ID  
+		self.topframes = {}  # size -> texture ID
 	
 	# ========================================
 	# Qt OpenGL Widget Overrides
@@ -227,7 +240,7 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		widget = self.parent().parent() if self.parent() and self.parent().parent() else self.parent()
 		if widget:
 			bg_color = widget.palette().color(QPalette.Window)
-			self.clear_color = (0.05, 0.05, 0.05, 1.0)
+			self.clear_color = (0.08, 0.08, 0.08, 1.0)  # Dark gray background
 		else:
 			self.clear_color = (0.95, 0.95, 0.95, 0.0)  # Light gray fallback
 		
@@ -307,6 +320,10 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		# Load noise texture for grain effect
 		self._load_noise_texture()
 		
+		# Load realm frames and title frames for preview system
+		self._load_realm_frame_textures()
+		self._load_title_frame_textures()
+		
 		# Initialize RTT framebuffer
 		self.framebuffer_rtt.initialize()
 		
@@ -341,6 +358,11 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		
 		# Render frame graphic on top
 		self._render_frame()
+		
+		# Render preview overlays if enabled
+		if self.preview_enabled:
+			self._render_government_preview()
+			self._render_title_preview()
 	
 	def _render_coa_to_framebuffer(self):
 		"""Render pattern and emblems to RTT framebuffer in canonical 512x512 space"""
@@ -804,6 +826,344 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		gl.glColor4f(1.0, 1.0, 1.0, 1.0)
 		gl.glEnable(gl.GL_TEXTURE_2D)
 	
+	def _render_government_preview(self):
+		"""Render government preview in top-left corner"""
+		if not self.composite_shader or not self.vao:
+			return
+		
+		# Get government mask
+		gov_mask = self.realm_frame_masks.get(self.preview_government)
+		if not gov_mask:
+			return
+		
+		# Calculate corner-anchored position (top-left with 20px padding)
+		# Size in pixels, then convert to NDC
+		preview_size_px = self.preview_size
+		viewport_width = self.width()
+		viewport_height = self.height()
+		
+		# Convert to NDC
+		size_x = preview_size_px / viewport_width
+		size_y = preview_size_px / viewport_height
+		
+		# 20px padding from corner
+		padding_x = 20.0 / viewport_width
+		padding_y = 20.0 / viewport_height
+		
+		# Position: top-left corner with padding
+		left = -1.0 + padding_x * 2.0
+		top = 1.0 - padding_y * 2.0
+		right = left + size_x * 2.0
+		bottom = top - size_y * 2.0
+		
+		# Shift entire preview down to accommodate crown above
+		crown_height = size_y * 2.0 * (80.0 / 128.0)
+		top -= crown_height
+		bottom -= crown_height
+		
+		# Render government shadow FIRST (behind everything, flipped vertically)
+		# TEMPORARILY DISABLED to debug ghosty layer
+		"""
+		gov_shadow = self.realm_frame_shadows.get((self.preview_government, self.preview_size))
+		if gov_shadow and self.basic_shader:
+			self.vao.bind()
+			self.basic_shader.bind()
+			
+			gl.glActiveTexture(gl.GL_TEXTURE0)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, gov_shadow)
+			self.basic_shader.setUniformValue("textureSampler", 0)
+			
+			# Flip V coordinates for shadow
+			shadow_verts = np.array([
+				left, bottom, 0.0,  0.0, 1.0,  # Flipped V
+				right, bottom, 0.0,  1.0, 1.0,
+				right, top, 0.0,  1.0, 0.0,
+				left, top, 0.0,  0.0, 0.0,
+			], dtype=np.float32)
+			
+			self.vbo.write(0, shadow_verts.tobytes(), shadow_verts.nbytes)
+			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			
+			self.basic_shader.release()
+			self.vao.release()
+		"""
+		
+		# Render CoA with government mask
+		self.vao.bind()
+		self.composite_shader.bind()
+		
+		# Bind RTT texture (same CoA)
+		gl.glActiveTexture(gl.GL_TEXTURE0)
+		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
+		self.composite_shader.setUniformValue("coaTextureSampler", 0)
+		
+		# Bind government mask
+		gl.glActiveTexture(gl.GL_TEXTURE1)
+		gl.glBindTexture(gl.GL_TEXTURE_2D, gov_mask)
+		self.composite_shader.setUniformValue("frameMaskSampler", 1)
+		
+		# Bind material and noise textures
+		if self.texturedMask:
+			gl.glActiveTexture(gl.GL_TEXTURE2)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
+			self.composite_shader.setUniformValue("texturedMaskSampler", 2)
+		
+		if self.noiseMask:
+			gl.glActiveTexture(gl.GL_TEXTURE3)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
+			self.composite_shader.setUniformValue("noiseMaskSampler", 3)
+		
+		# Set CoA scale and offset (same as main rendering)
+		self.composite_shader.setUniformValue("coaScale", QVector2D(0.9, 0.9))
+		self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
+		self.composite_shader.setUniformValue("bleedMargin", 1.0)
+		
+		# Render quad
+		vertices = np.array([
+			left, bottom, 0.0,  0.0, 0.0,
+			right, bottom, 0.0,  1.0, 0.0,
+			right, top, 0.0,  1.0, 1.0,
+			left, top, 0.0,  0.0, 1.0,
+		], dtype=np.float32)
+		
+		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+		
+		self.composite_shader.release()
+		
+		# Render government frame on top (flipped vertically)
+		gov_frame = self.realm_frame_frames.get((self.preview_government, self.preview_size))
+		if gov_frame and self.basic_shader:
+			self.basic_shader.bind()
+			
+			gl.glActiveTexture(gl.GL_TEXTURE0)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, gov_frame)
+			self.basic_shader.setUniformValue("textureSampler", 0)
+			
+			# Flip V coordinates
+			frame_verts = np.array([
+				left, bottom, 0.0,  0.0, 1.0,  # Flipped V
+				right, bottom, 0.0,  1.0, 1.0,
+				right, top, 0.0,  1.0, 0.0,
+				left, top, 0.0,  0.0, 0.0,
+			], dtype=np.float32)
+			
+			self.vbo.write(0, frame_verts.tobytes(), frame_verts.nbytes)
+			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			
+			self.basic_shader.release()
+		
+		# Render crown strip (rank-based UV from 7x1 atlas)
+		# Crown dimensions: 896x80 (each section 128x80, aspect ratio 1.6:1)
+		# Crown sits ABOVE the CoA, with crown bottom aligned to CoA top
+		crown_strip = self.crown_strips.get(self.preview_size)
+		if crown_strip and self.basic_shader:
+			u0, u1 = self._get_rank_uv(self.preview_rank)
+			self.basic_shader.bind()
+			
+			gl.glActiveTexture(gl.GL_TEXTURE0)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, crown_strip)
+			self.basic_shader.setUniformValue("textureSampler", 0)
+			
+			# Crown aspect ratio: 128:80 = 1.6:1 (wider than tall)
+			# Crown bottom aligns with CoA top, crown extends upward
+			# Move up 5px
+			crown_offset = (5.0 / viewport_height) * 2.0
+			crown_bottom = top + crown_offset
+			crown_top = top + crown_height + crown_offset
+			
+			# Use rank-specific UV coordinates, flipped vertically (V: 1.0 to 0.0)
+			crown_verts = np.array([
+				left, crown_bottom, 0.0,  u0, 1.0,  # Flipped V
+				right, crown_bottom, 0.0,  u1, 1.0,
+				right, crown_top, 0.0,  u1, 0.0,
+				left, crown_top, 0.0,  u0, 0.0,
+			], dtype=np.float32)
+			
+			self.vbo.write(0, crown_verts.tobytes(), crown_verts.nbytes)
+			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			
+			self.basic_shader.release()
+		
+		# Render topframe (rank-based UV from 7x1 atlas)
+		# Topframe dimensions: 896x128 (each section 128x128, aspect ratio 1:1)
+		topframe = self.topframes.get(self.preview_size)
+		if topframe and self.basic_shader:
+			u0, u1 = self._get_rank_uv(self.preview_rank)
+			self.basic_shader.bind()
+			
+			gl.glActiveTexture(gl.GL_TEXTURE0)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, topframe)
+			self.basic_shader.setUniformValue("textureSampler", 0)
+			
+			# Topframe is square (128x128), use full preview size
+			# Shift up by 12px (converted to NDC)
+			topframe_offset = (12.0 / viewport_height) * 2.0
+			topframe_bottom = bottom + topframe_offset
+			topframe_top = top + topframe_offset
+			
+			# Use rank-specific UV coordinates, flipped vertically
+			topframe_verts = np.array([
+				left, topframe_bottom, 0.0,  u0, 1.0,  # Flipped V
+				right, topframe_bottom, 0.0,  u1, 1.0,
+				right, topframe_top, 0.0,  u1, 0.0,
+				left, topframe_top, 0.0,  u0, 0.0,
+			], dtype=np.float32)
+			
+			self.vbo.write(0, topframe_verts.tobytes(), topframe_verts.nbytes)
+			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			
+			self.basic_shader.release()
+		
+		self.vao.release()
+	
+	def _render_title_preview(self):
+		"""Render title preview in top-right corner"""
+		if not self.composite_shader or not self.vao:
+			return
+		
+		# Get title mask
+		if not self.title_mask:
+			return
+		
+		# Calculate corner-anchored position (top-right with 20px padding)
+		preview_size_px = self.preview_size
+		viewport_width = self.width()
+		viewport_height = self.height()
+		
+		# Convert to NDC
+		size_x = preview_size_px / viewport_width
+		size_y = preview_size_px / viewport_height
+		
+		# 20px padding from corner
+		padding_x = 20.0 / viewport_width
+		padding_y = 20.0 / viewport_height
+		
+		# Position: top-right corner with padding
+		right = 1.0 - padding_x * 2.0
+		top = 1.0 - padding_y * 2.0
+		left = right - size_x * 2.0
+		bottom = top - size_y * 2.0
+		
+		# Shift entire preview down to accommodate crown above
+		crown_height = size_y * 2.0 * (80.0 / 128.0)
+		top -= crown_height
+		bottom -= crown_height
+		
+		# Render CoA with title mask
+		self.vao.bind()
+		self.composite_shader.bind()
+		
+		# Bind RTT texture (same CoA)
+		gl.glActiveTexture(gl.GL_TEXTURE0)
+		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
+		self.composite_shader.setUniformValue("coaTextureSampler", 0)
+		
+		# Bind title mask
+		gl.glActiveTexture(gl.GL_TEXTURE1)
+		gl.glBindTexture(gl.GL_TEXTURE_2D, self.title_mask)
+		self.composite_shader.setUniformValue("frameMaskSampler", 1)
+		
+		# Bind material and noise textures
+		if self.texturedMask:
+			gl.glActiveTexture(gl.GL_TEXTURE2)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
+			self.composite_shader.setUniformValue("texturedMaskSampler", 2)
+		
+		if self.noiseMask:
+			gl.glActiveTexture(gl.GL_TEXTURE3)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
+			self.composite_shader.setUniformValue("noiseMaskSampler", 3)
+		
+		# Set CoA scale and offset
+		self.composite_shader.setUniformValue("coaScale", QVector2D(0.9, 0.9))
+		self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
+		self.composite_shader.setUniformValue("bleedMargin", 1.0)
+		
+		# Render quad
+		vertices = np.array([
+			left, bottom, 0.0,  0.0, 0.0,
+			right, bottom, 0.0,  1.0, 0.0,
+			right, top, 0.0,  1.0, 1.0,
+			left, top, 0.0,  0.0, 1.0,
+		], dtype=np.float32)
+		
+		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+		
+		self.composite_shader.release()
+		
+		# Render crown strip (rank-based UV from 7x1 atlas)
+		# Crown dimensions: 896x80 (each section 128x80, aspect ratio 1.6:1)
+		# Crown sits ABOVE the CoA, with crown bottom aligned to CoA top
+		crown_strip = self.crown_strips.get(self.preview_size)
+		if crown_strip and self.basic_shader:
+			u0, u1 = self._get_rank_uv(self.preview_rank)
+			self.basic_shader.bind()
+			
+			gl.glActiveTexture(gl.GL_TEXTURE0)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, crown_strip)
+			self.basic_shader.setUniformValue("textureSampler", 0)
+			
+			# Crown aspect ratio: 128:80 = 1.6:1 (wider than tall)
+			# Crown bottom aligns with CoA top, crown extends upward
+			# Move up 5px
+			crown_offset = (5.0 / viewport_height) * 2.0
+			crown_bottom = top + crown_offset
+			crown_top = top + crown_height + crown_offset
+			
+			# Use rank-specific UV coordinates, flipped vertically (V: 1.0 to 0.0)
+			crown_verts = np.array([
+				left, crown_bottom, 0.0,  u0, 1.0,  # Flipped V
+				right, crown_bottom, 0.0,  u1, 1.0,
+				right, crown_top, 0.0,  u1, 0.0,
+				left, crown_top, 0.0,  u0, 0.0,
+			], dtype=np.float32)
+			
+			self.vbo.write(0, crown_verts.tobytes(), crown_verts.nbytes)
+			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			
+			self.basic_shader.release()
+		
+		# Title frame (flipped vertically, scaled 1.2x)
+		title_frame = self.title_frames.get(self.preview_size)
+		# Fallback: if title_115 missing, use title_86 scaled up
+		if not title_frame and self.preview_size == 115:
+			title_frame = self.title_frames.get(86)
+		
+		if title_frame and self.basic_shader:
+			self.basic_shader.bind()
+			
+			gl.glActiveTexture(gl.GL_TEXTURE0)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, title_frame)
+			self.basic_shader.setUniformValue("textureSampler", 0)
+			
+			# Apply 1.2x scale to title frame
+			scale_factor = 1.2
+			frame_width = (right - left) * scale_factor
+			frame_height = (top - bottom) * scale_factor
+			frame_center_x = (left + right) / 2.0
+			frame_center_y = (top + bottom) / 2.0
+			frame_left = frame_center_x - frame_width / 2.0
+			frame_right = frame_center_x + frame_width / 2.0
+			frame_bottom = frame_center_y - frame_height / 2.0
+			frame_top = frame_center_y + frame_height / 2.0
+			
+			# Flip V coordinates
+			title_frame_verts = np.array([
+				frame_left, frame_bottom, 0.0,  0.0, 1.0,  # Flipped V
+				frame_right, frame_bottom, 0.0,  1.0, 1.0,
+				frame_right, frame_top, 0.0,  1.0, 0.0,
+				frame_left, frame_top, 0.0,  0.0, 0.0,
+			], dtype=np.float32)
+			
+			self.vbo.write(0, title_frame_verts.tobytes(), title_frame_verts.nbytes)
+			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			
+			self.basic_shader.release()
+		
+		self.vao.release()
+	
 	# ========================================
 	# Texture Loading and Atlas Management
 	# ========================================
@@ -1124,6 +1484,182 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		except Exception as e:
 			print(f"Error loading noise texture: {e}")
 	
+	def _load_realm_frame_textures(self):
+		"""Load government-specific realm frame masks, frames, and shadows"""
+		try:
+			from utils.path_resolver import get_resource_path
+			realm_frames_dir = get_resource_path('..', 'ck3_assets', 'realm_frames')
+			
+			if not os.path.exists(realm_frames_dir):
+				print(f"Realm frames directory not found: {realm_frames_dir}")
+				return
+			
+			# Load masks (one per government type)
+			for mask_file in Path(realm_frames_dir).glob("*_mask.png"):
+				gov_name = mask_file.stem.replace("_mask", "")
+				
+				img = Image.open(mask_file).convert('RGBA')
+				img_data = np.array(img)
+				
+				texture_id = gl.glGenTextures(1)
+				gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+				gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, img.width, img.height,
+				               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data.tobytes())
+				
+				self.realm_frame_masks[gov_name] = texture_id
+			
+			# Load frames and shadows (per government + size)
+			for frame_file in Path(realm_frames_dir).glob("*_frame.png"):
+				# Parse filename: government_size_frame.png
+				stem = frame_file.stem.replace("_frame", "")
+				parts = stem.rsplit("_", 1)
+				if len(parts) == 2:
+					gov_name, size_str = parts
+					try:
+						size = int(size_str)
+						img = Image.open(frame_file).convert('RGBA')
+						img_data = np.array(img)
+						
+						texture_id = gl.glGenTextures(1)
+						gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id)
+						gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+						gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+						gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+						gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+						gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, img.width, img.height,
+						               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data.tobytes())
+						
+						self.realm_frame_frames[(gov_name, size)] = texture_id
+					except ValueError:
+						pass
+			
+			for shadow_file in Path(realm_frames_dir).glob("*_shadow.png"):
+				stem = shadow_file.stem.replace("_shadow", "")
+				parts = stem.rsplit("_", 1)
+				if len(parts) == 2:
+					gov_name, size_str = parts
+					try:
+						size = int(size_str)
+						img = Image.open(shadow_file).convert('RGBA')
+						img_data = np.array(img)
+						
+						texture_id = gl.glGenTextures(1)
+						gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id)
+						gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+						gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+						gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+						gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+						gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, img.width, img.height,
+						               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data.tobytes())
+						
+						self.realm_frame_shadows[(gov_name, size)] = texture_id
+					except ValueError:
+						pass
+			
+			print(f"Loaded {len(self.realm_frame_masks)} government masks, {len(self.realm_frame_frames)} frames, {len(self.realm_frame_shadows)} shadows")
+		except Exception as e:
+			print(f"Error loading realm frame textures: {e}")
+	
+	def _load_title_frame_textures(self):
+		"""Load title frame assets (title_mask, crown_strip, title, topframe)"""
+		try:
+			from utils.path_resolver import get_resource_path
+			title_frames_dir = get_resource_path('..', 'ck3_assets', 'title_frames')
+			
+			if not os.path.exists(title_frames_dir):
+				print(f"Title frames directory not found: {title_frames_dir}")
+				return
+			
+			# Load title mask
+			title_mask_path = Path(title_frames_dir) / "title_mask.png"
+			if title_mask_path.exists():
+				img = Image.open(title_mask_path).convert('RGBA')
+				img_data = np.array(img)
+				
+				self.title_mask = gl.glGenTextures(1)
+				gl.glBindTexture(gl.GL_TEXTURE_2D, self.title_mask)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+				gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+				gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, img.width, img.height,
+				               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data.tobytes())
+			
+			# Load crown strips (by size)
+			for crown_file in Path(title_frames_dir).glob("crown_strip_*.png"):
+				if "gameconcept" in crown_file.stem:
+					continue  # Skip gameconcept variant
+				size_str = crown_file.stem.replace("crown_strip_", "")
+				try:
+					size = int(size_str)
+					img = Image.open(crown_file).convert('RGBA')
+					img_data = np.array(img)
+					
+					texture_id = gl.glGenTextures(1)
+					gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id)
+					gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+					gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+					gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+					gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+					gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, img.width, img.height,
+					               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data.tobytes())
+					
+					self.crown_strips[size] = texture_id
+				except ValueError:
+					pass
+			
+			# Load title frames (by size)
+			for title_file in Path(title_frames_dir).glob("title_*.png"):
+				if title_file.name == "title_mask.png":
+					continue
+				size_str = title_file.stem.replace("title_", "")
+				try:
+					size = int(size_str)
+					img = Image.open(title_file).convert('RGBA')
+					img_data = np.array(img)
+					
+					texture_id = gl.glGenTextures(1)
+					gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id)
+					gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+					gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+					gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+					gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+					gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, img.width, img.height,
+					               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data.tobytes())
+					
+					self.title_frames[size] = texture_id
+				except ValueError:
+					pass
+			
+			# Load topframes (by size)
+			for topframe_file in Path(title_frames_dir).glob("topframe_*.png"):
+				size_str = topframe_file.stem.replace("topframe_", "")
+				try:
+					size = int(size_str)
+					img = Image.open(topframe_file).convert('RGBA')
+					img_data = np.array(img)
+					
+					texture_id = gl.glGenTextures(1)
+					gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id)
+					gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+					gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+					gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+					gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+					gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, img.width, img.height,
+					               0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data.tobytes())
+					
+					self.topframes[size] = texture_id
+				except ValueError:
+					pass
+			
+			print(f"Loaded title mask, {len(self.crown_strips)} crown strips, {len(self.title_frames)} title frames, {len(self.topframes)} topframes")
+		except Exception as e:
+			print(f"Error loading title frame textures: {e}")
+	
 	# ========================================
 	# Texture and Frame Management
 	# ========================================
@@ -1421,6 +1957,53 @@ class CoatOfArmsCanvas(QOpenGLWidget):
 		self.grid_divisions = divisions
 		if self.show_grid:
 			self.update()
+	
+	# ========================================
+	# Preview Control Methods
+	# ========================================
+	
+	def _get_rank_uv(self, rank_name):
+		"""Get UV coordinates for rank in 7x1 atlas (indices 1-6, no rank 0 unused)"""
+		rank_map = {
+			"Baron": 1,
+			"Count": 2,
+			"Duke": 3,
+			"King": 4,
+			"Emperor": 5,
+			"Hegemon": 6
+		}
+		rank_index = rank_map.get(rank_name, 3)  # Default to Duke
+		# Each rank is 1/7th of the width
+		u0 = rank_index / 7.0
+		u1 = (rank_index + 1) / 7.0
+		return u0, u1
+	
+	def set_preview_enabled(self, enabled):
+		"""Enable/disable preview overlays"""
+		self.preview_enabled = enabled
+		self.update()
+	
+	def set_preview_government(self, government):
+		"""Set government type for preview (e.g., 'clan_government')"""
+		self.preview_government = government
+		if self.preview_enabled:
+			self.update()
+	
+	def set_preview_rank(self, rank):
+		"""Set rank for preview (e.g., 'Duke')"""
+		self.preview_rank = rank
+		if self.preview_enabled:
+			self.update()
+	
+	def set_preview_size(self, size):
+		"""Set size for preview in pixels (28, 44, 62, 86, 115)"""
+		self.preview_size = size
+		if self.preview_enabled:
+			self.update()
+	
+	# ========================================
+	# Export
+	# ========================================
 	
 	def export_to_png(self, filename):
 		"""Export the current CoA rendering to PNG with transparency
