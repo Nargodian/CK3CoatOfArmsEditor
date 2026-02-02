@@ -468,7 +468,7 @@ class TransformWidget(QWidget):
 				self.duplicate_created = False  # Reset spam protection
 				
 				# Task 3.2: Set rotation flag and cache AABB
-				if self.active_handle == self.HANDLE_ROTATE:
+				if self.active_handle == self.HANDLE_ROTATE or self.active_handle == self.HANDLE_GIMBLE_ROTATE:
 					self.is_rotating = True
 					self.cached_aabb = (self.pos_x, self.pos_y, self.scale_x, self.scale_y)
 				
@@ -511,9 +511,10 @@ class TransformWidget(QWidget):
 		
 		if self.drag_start_pos:
 			# Check for Ctrl+drag duplication with 5-pixel threshold
+			# Works on any handle that moves the layer (center, gimble center, or axis arrows)
 			if (self.ctrl_pressed_at_drag_start and 
 				not self.duplicate_created and 
-				self.active_handle == self.HANDLE_CENTER):
+				self.active_handle in [self.HANDLE_CENTER, self.HANDLE_GIMBLE_CENTER, self.HANDLE_AXIS_X, self.HANDLE_AXIS_Y]):
 				# Check if mouse has moved at least 5 pixels from drag start
 				dx = event.pos().x() - self.drag_start_pos.x()
 				dy = event.pos().y() - self.drag_start_pos.y()
