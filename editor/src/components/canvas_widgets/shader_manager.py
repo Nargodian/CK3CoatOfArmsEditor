@@ -122,7 +122,8 @@ class ShaderManager:
         Returns:
             QOpenGLShaderProgram for main composite rendering
         """
-        return self.create_program(parent, 'basic.vert', 'main_composite.frag', 'MainComposite')
+        # return self.create_program(parent, 'quad.vert', 'main_composite.frag', 'MainComposite')
+        return self.create_program(parent, 'quad.vert', 'main_composite_DEBUG.frag', 'MainComposite')
     
     def create_tilesheet_shader(self, parent):
         """Create tilesheet shader program for rendering frame tilesheets

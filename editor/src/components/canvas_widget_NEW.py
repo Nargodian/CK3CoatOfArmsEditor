@@ -430,12 +430,31 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		if not self.vao:
 			return
 		
-		# Calculate composite transform parameters
-		size_x, size_y, pan_offset_x, pan_offset_y, aspect = self._calculate_composite_params()
+		# Calculate quad transform parameters (shared by both composite and frame)
+		width, height = self.width(), self.height()
+		base_size = VIEWPORT_BASE_SIZE * self.zoom_level
 		
-		# Render using main composite shader
+		aspect = width / height if height > 0 else 1.0
+		if aspect > 1.0:
+			size_x = base_size / aspect
+			size_y = base_size
+		else:
+			size_x = base_size
+			size_y = base_size * aspect
+		
+		# Pan offset
+		canvas_size = min(width, height)
+		pan_offset_x = self.pan_x / (canvas_size / 2) if canvas_size > 0 else 0
+		pan_offset_y = -self.pan_y / (canvas_size / 2) if canvas_size > 0 else 0
+		
+		if aspect > 1.0:
+			pan_offset_x /= aspect
+		else:
+			pan_offset_y *= aspect
+		
+		# Render using main composite shader (uses same quad transforms as frame)
 		self.vao.bind()
-		self._render_main_composite(size_x, size_y, pan_offset_x, pan_offset_y, aspect)
+		self._render_main_composite(size_x, size_y, pan_offset_x, pan_offset_y)
 		self.vao.release()
 	
 	def _get_frame_parameters(self):
@@ -476,7 +495,7 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		
 		return size_x, size_y, pan_offset_x, pan_offset_y, aspect
 	
-	def _render_main_composite(self, size_x, size_y, pan_offset_x, pan_offset_y, aspect):
+	def _render_main_composite(self, size_x, size_y, pan_offset_x, pan_offset_y):
 		"""Render using main composite shader with frame-aware positioning."""
 		if not self.main_composite_shader:
 			return
@@ -488,21 +507,30 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
 		self.main_composite_shader.setUniformValue("coaTextureSampler", 0)
 		
-		# Calculate CoA area in pixel coordinates
-		frame_scale, frame_offset = self.get_frame_transform()
-		coa_width = size_x * 2.0 * frame_scale[0]
-		coa_height = size_y * 2.0 * frame_scale[1]
-		coa_center_x = pan_offset_x + frame_offset[0] * size_x * 2.0
-		coa_center_y = pan_offset_y + frame_offset[1] * size_y * 2.0
+		# Set quad transform uniforms (IDENTICAL to frame rendering)
+		self.main_composite_shader.setUniformValue("position", QVector2D(pan_offset_x, pan_offset_y))
+		self.main_composite_shader.setUniformValue("scale", QVector2D(size_x, size_y))
+		self.main_composite_shader.setUniformValue("rotation", 0.0)
+		self.main_composite_shader.setUniformValue("uvOffset", QVector2D(0.0, 0.0))
+		self.main_composite_shader.setUniformValue("uvScale", QVector2D(1.0, 1.0))
+		self.main_composite_shader.setUniformValue("flipU", False)
+		self.main_composite_shader.setUniformValue("flipV", False)
 		
-		# Convert to pixel coordinates
+		# Calculate CoA sampling bounds in pixels (separate from quad size)
 		viewport_width = self.width()
 		viewport_height = self.height()
+		frame_scale, frame_offset = self.get_frame_transform()
 		
-		coa_left_px = (coa_center_x - coa_width / 2.0 + 1.0) / 2.0 * viewport_width
-		coa_right_px = (coa_center_x + coa_width / 2.0 + 1.0) / 2.0 * viewport_width
-		coa_bottom_px = (coa_center_y - coa_height / 2.0 + 1.0) / 2.0 * viewport_height
-		coa_top_px = (coa_center_y + coa_height / 2.0 + 1.0) / 2.0 * viewport_height
+		# CoA content area (smaller than quad, defined by frame parameters)
+		coa_width_px = size_x * viewport_width * frame_scale[0]
+		coa_height_px = size_y * viewport_height * frame_scale[1]
+		center_x_px = viewport_width / 2.0 + (pan_offset_x * viewport_width / 2.0) + (frame_offset[0] * viewport_width / 2.0)
+		center_y_px = viewport_height / 2.0 + (pan_offset_y * viewport_height / 2.0) + (frame_offset[1] * viewport_height / 2.0)
+		
+		coa_left_px = center_x_px - coa_width_px / 2.0
+		coa_right_px = center_x_px + coa_width_px / 2.0
+		coa_bottom_px = center_y_px - coa_height_px / 2.0
+		coa_top_px = center_y_px + coa_height_px / 2.0
 		
 		self.main_composite_shader.setUniformValue("coaTopLeft", coa_left_px, coa_top_px)
 		self.main_composite_shader.setUniformValue("coaBottomRight", coa_right_px, coa_bottom_px)
@@ -518,7 +546,8 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		if not self.tilesheet_shader or not self.vao:
 			return
 		
-		# Calculate frame quad size/position
+		# Use same transform calculation as composite (already calculated in _composite_to_viewport)
+		# Recalculate here for standalone frame rendering
 		width, height = viewport_size if viewport_size else (self.width(), self.height())
 		base_size = VIEWPORT_BASE_SIZE * self.zoom_level
 		
@@ -532,8 +561,8 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		
 		# Pan offset
 		canvas_size = min(width, height)
-		pan_offset_x = self.pan_x / (canvas_size / 2)
-		pan_offset_y = -self.pan_y / (canvas_size / 2)
+		pan_offset_x = self.pan_x / (canvas_size / 2) if canvas_size > 0 else 0
+		pan_offset_y = -self.pan_y / (canvas_size / 2) if canvas_size > 0 else 0
 		
 		if aspect > 1.0:
 			pan_offset_x /= aspect
@@ -553,7 +582,7 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		self.tilesheet_shader.setUniformValue("tileRows", 1)
 		self.tilesheet_shader.setUniformValue("tileIndex", max(0, min(5, self.prestige_level)))
 		
-		# Set transform uniforms
+		# Set transform uniforms (IDENTICAL to composite quad)
 		self.tilesheet_shader.setUniformValue("position", QVector2D(pan_offset_x, pan_offset_y))
 		self.tilesheet_shader.setUniformValue("scale", QVector2D(size_x, size_y))
 		self.tilesheet_shader.setUniformValue("rotation", 0.0)
