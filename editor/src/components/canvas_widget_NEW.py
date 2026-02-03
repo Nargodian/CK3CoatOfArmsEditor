@@ -59,8 +59,10 @@ COMPOSITE_SCALE = 0.75
 COMPOSITE_OFFSET_Y = 0.00
 
 # Pixel-based size constants
+FRAME_FUDGE_SCALE = 0.98 # Slightly shrink frame to avoid edge artifacts
+FRAME_COA_RATIO = 1.3  # Frame is 130% of CoA size
 COA_BASE_SIZE_PX = 256.0  # Base CoA size in pixels
-FRAME_SIZE_PX = COA_BASE_SIZE_PX * (4.0 / 3.0)  # Frame is 133.33% of CoA
+FRAME_SIZE_PX = COA_BASE_SIZE_PX * FRAME_COA_RATIO * FRAME_FUDGE_SCALE  # Frame is 130% of CoA, slightly shrunk
 
 
 class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
@@ -451,44 +453,7 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		self._render_main_composite(width, height, size_x_px, size_y_px, position_x_px, position_y_px)
 		self.vao.release()
 	
-	def _get_frame_parameters(self):
-		"""Get frame scale, offset, and bleed margin."""
-		if self.current_frame_name == "None":
-			return (1.0, 1.0), (0.0, 0.0), 1.0
-		elif self.current_frame_name in self.frame_scales:
-			scale = self.frame_scales[self.current_frame_name]
-			offset = self.frame_offsets.get(self.current_frame_name, (0.0, 0.04))
-			return scale, offset, 1.05
-		else:
-			return (0.9, 0.9), (0.0, 0.04), 1.05
-	
-	def _calculate_composite_params(self):
-		"""Calculate composite transform parameters (no vertices - GPU does it)."""
-		scale, offset, bleed_margin = self._get_frame_parameters()
-		base_size = VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * bleed_margin * self.zoom_level
-		
-		# Aspect ratio correction
-		aspect = self.width() / self.height() if self.height() > 0 else 1.0
-		if aspect > 1.0:
-			size_x = base_size / aspect
-			size_y = base_size
-		else:
-			size_x = base_size
-			size_y = base_size * aspect
-		
-		# Pan offset in normalized coordinates
-		canvas_size = min(self.width(), self.height())
-		pan_offset_x = (self.pan_x / (canvas_size / 2) if canvas_size > 0 else 0)
-		pan_offset_y = -(self.pan_y / (canvas_size / 2) if canvas_size > 0 else 0)
-		
-		# Scale pan by aspect correction
-		if aspect > 1.0:
-			pan_offset_x /= aspect
-		else:
-			pan_offset_y *= aspect
-		
-		return size_x, size_y, pan_offset_x, pan_offset_y, aspect
-	
+	# Legacy methods removed - using pixel-based coordinate system now	
 	def _render_main_composite(self, viewport_width, viewport_height, size_x_px, size_y_px, position_x_px, position_y_px):
 		"""Render using main composite shader with frame-aware positioning."""
 		if not self.main_composite_shader:
