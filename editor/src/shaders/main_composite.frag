@@ -28,8 +28,9 @@ void main() {
 	// Map fragment position to 0-1 range within CoA bounds
 	vec2 coaUV = (fragPos - vec2(minX, minY)) / (vec2(maxX, maxY) - vec2(minX, minY));
 	
-	// Clamp UVs to 0-1 range (creates edge bleed outside CoA area)
-	coaUV = clamp(coaUV, 0.0, 1.0);
+	// Clamp UVs with small inset to avoid edge artifacts
+	float inset = 0.005;
+	coaUV = clamp(coaUV, inset, 1.0 - inset);
 	
 	// Sample CoA texture
 	vec4 coaColor = texture(coaTextureSampler, coaUV);
