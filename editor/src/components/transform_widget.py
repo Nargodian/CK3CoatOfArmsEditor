@@ -841,8 +841,8 @@ class TransformWidget(QWidget):
 			
 		elif self.active_handle in [self.HANDLE_L, self.HANDLE_R]:
 			# Horizontal scale with zoom and pan
-			_, _, _, _, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
-			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, size, offset_x, offset_y, zoom_level, pan_x, pan_y)
+			_, _, width, height, size, offset_x, offset_y, zoom_level, pan_x, pan_y = self._get_canvas_rect()
+			center_x, center_y = layer_pos_to_qt_pixels(self.pos_x, self.pos_y, (width, height), offset_x, offset_y, zoom_level, pan_x, pan_y)
 			
 			if alt_pressed:
 				# Alt+drag: Anchor opposite edge

@@ -451,11 +451,15 @@ def merge_metadata_simple(base_dict: Dict, new_dict: Dict, source_name: str) -> 
         Merged dictionary (modifies base_dict in place and returns it)
     """
     for key, value in new_dict.items():
-        # Add source tracking if value is a dict
-        if isinstance(value, dict):
-            value['_source'] = source_name
-            if key in base_dict:
-                value['_overrides_base'] = True
+        # Only process dict values (emblem/pattern properties)
+        # Skip any non-dict values that shouldn't be in metadata
+        if not isinstance(value, dict):
+            continue
+            
+        # Add source tracking
+        value['_source'] = source_name
+        if key in base_dict:
+            value['_overrides_base'] = True
         
         # Simple override: last one wins
         base_dict[key] = value

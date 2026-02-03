@@ -67,8 +67,12 @@ class AssetSidebar(QFrame):
 		if emblems_json.exists():
 			with open(emblems_json, 'r', encoding='utf-8') as f:
 				data = json.load(f)
+				# Validate data is a dictionary
+				if not isinstance(data, dict):
+					print(f"Warning: Invalid emblem metadata format in {emblems_json}")
+					data = {}
 				for filename, properties in data.items():
-					if properties is None or filename == "\ufeff":
+					if properties is None or filename == "\ufeff" or not isinstance(properties, dict):
 						continue
 					# Convert .dds to .png
 					png_filename = filename.replace('.dds', '.png')
@@ -97,8 +101,12 @@ class AssetSidebar(QFrame):
 		if os.path.exists(textured_emblems_json):
 			with open(textured_emblems_json, 'r', encoding='utf-8') as f:
 				data = json.load(f)
+				# Validate data is a dictionary
+				if not isinstance(data, dict):
+					print(f"Warning: Invalid textured emblem metadata format")
+					data = {}
 				for filename, properties in data.items():
-					if properties is None or filename == "\ufeff":
+					if properties is None or filename == "\ufeff" or not isinstance(properties, dict):
 						continue
 					# Convert .dds to .png (textured emblems use legacy path, may not exist in new structure)
 					png_filename = filename.replace('.dds', '.png')
@@ -128,8 +136,12 @@ class AssetSidebar(QFrame):
 			asset_data["__Base_Patterns__"] = []  # Special key for base patterns
 			with open(patterns_json, 'r', encoding='utf-8') as f:
 				data = json.load(f)
+				# Validate data is a dictionary
+				if not isinstance(data, dict):
+					print(f"Warning: Invalid pattern metadata format in {patterns_json}")
+					data = {}
 				for filename, properties in data.items():
-					if properties is None or filename == "\ufeff":
+					if properties is None or filename == "\ufeff" or not isinstance(properties, dict):
 						continue
 					# Convert .dds to .png for display
 					png_filename = filename.replace('.dds', '.png')
@@ -308,7 +320,6 @@ class AssetSidebar(QFrame):
 					# Set icon size to fill the button
 					item.setIconSize(QSize(self.current_icon_size - 10, self.current_icon_size - 10))
 			
-			item.setCheckable(True)
 			item.setToolTip(asset.get("display_name", asset["filename"]))
 			item.setProperty("asset_data", asset)  # Store asset data with button
 			item.clicked.connect(lambda checked, b=item: self._select_asset(b))
@@ -326,17 +337,9 @@ class AssetSidebar(QFrame):
 					background-color: rgba(255, 255, 255, 30);
 					border: 1px solid rgba(255, 255, 255, 80);
 				}
-				QPushButton:checked {
-					border: 2px solid #5a8dbf;
-				}
 			""")
 			
 			self.assets_flow.addWidget(item)
-			for btn in self.asset_buttons:
-				asset_data = btn.property("asset_data")
-				if asset_data and "pattern__solid_designer" in asset_data.get("filename", ""):
-					btn.setChecked(True)
-					break
 	
 	def _get_filtered_assets(self):
 		"""Get assets filtered by current category and visibility"""
@@ -395,12 +398,7 @@ class AssetSidebar(QFrame):
 		self._resize_timer.start(100)  # 100ms debounce
 	
 	def _select_asset(self, selected_button):
-		"""Handle asset selection - uncheck all others and emit signal"""
-		for btn in self.asset_buttons:
-			if btn != selected_button:
-				btn.setChecked(False)
-		
-		# Emit signal with asset data
+		"""Handle asset selection - emit signal with asset data"""
 		asset_data = selected_button.property("asset_data")
 		if asset_data:
 			self.asset_selected.emit(asset_data)
