@@ -67,7 +67,7 @@ class ShaderManager:
         Returns:
             QOpenGLShaderProgram for base layer rendering
         """
-        return self.create_program(parent, 'basic.vert', 'pattern.frag', 'Base')
+        return self.create_program(parent, 'quad.vert', 'pattern_sheet.frag', 'Base')
     
     def create_design_shader(self, parent):
         """Create design/emblem layer shader program

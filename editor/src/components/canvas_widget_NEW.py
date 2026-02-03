@@ -77,7 +77,6 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		self.base_shader = None
 		self.design_shader = None
 		self.basic_shader = None
-		self.composite_shader = None
 		self.picker_shader = None
 		self.main_composite_shader = None
 		self.tilesheet_shader = None
@@ -177,7 +176,6 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		self.base_shader = shader_manager.create_base_shader(self)
 		self.design_shader = shader_manager.create_design_shader(self)
 		self.basic_shader = shader_manager.create_basic_shader(self)
-		self.composite_shader = shader_manager.create_composite_shader(self)
 		self.picker_shader = shader_manager.create_picker_shader(self)
 		self.main_composite_shader = shader_manager.create_main_composite_shader(self)
 		self.tilesheet_shader = shader_manager.create_tilesheet_shader(self)
@@ -429,77 +427,16 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		gl.glEnable(gl.GL_BLEND)
 		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 		
-		if not self.composite_shader or not self.vao:
+		if not self.vao:
 			return
 		
-		self.vao.bind()
-		self.composite_shader.bind()
-		
-		# Bind textures
-		self._bind_composite_textures()
-		
-		# Set frame-specific uniforms
-		self._set_composite_uniforms()
-		
-# Calculate composite transform parameters
+		# Calculate composite transform parameters
 		size_x, size_y, pan_offset_x, pan_offset_y, aspect = self._calculate_composite_params()
 		
-		# Set transform uniforms (no rotation for composite)
-		self.composite_shader.setUniformValue("position", QVector2D(pan_offset_x, pan_offset_y))
-		self.composite_shader.setUniformValue("scale", QVector2D(size_x, size_y))
-		self.composite_shader.setUniformValue("rotation", 0.0)
-		self.composite_shader.setUniformValue("uvOffset", QVector2D(0.0, 0.0))
-		self.composite_shader.setUniformValue("uvScale", QVector2D(1.0, 1.0))
-		self.composite_shader.setUniformValue("flipU", False)
-		self.composite_shader.setUniformValue("flipV", False)
-		
-		# OLD composite shader doesn't actually draw - skip to main composite
-		self.composite_shader.release()
+		# Render using main composite shader
+		self.vao.bind()
 		self._render_main_composite(size_x, size_y, pan_offset_x, pan_offset_y, aspect)
-		
 		self.vao.release()
-	
-	def _bind_composite_textures(self):
-		"""Bind all textures needed for compositing."""
-		# RTT texture
-		gl.glActiveTexture(gl.GL_TEXTURE0)
-		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
-		self.composite_shader.setUniformValue("coaTextureSampler", 0)
-		
-		# Frame mask
-		mask_texture = self.frame_masks.get(self.current_frame_name, self.default_mask_texture)
-		gl.glActiveTexture(gl.GL_TEXTURE1)
-		gl.glBindTexture(gl.GL_TEXTURE_2D, mask_texture)
-		self.composite_shader.setUniformValue("frameMaskSampler", 1)
-		
-		# Material texture
-		if self.texturedMask:
-			gl.glActiveTexture(gl.GL_TEXTURE2)
-			gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
-			self.composite_shader.setUniformValue("texturedMaskSampler", 2)
-		
-		# Noise texture
-		if self.noiseMask:
-			gl.glActiveTexture(gl.GL_TEXTURE3)
-			gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
-			self.composite_shader.setUniformValue("noiseMaskSampler", 3)
-		
-		# Picker texture
-		picker_texture_id = self._get_picker_texture_id()
-		if picker_texture_id:
-			gl.glActiveTexture(gl.GL_TEXTURE4)
-			gl.glBindTexture(gl.GL_TEXTURE_2D, picker_texture_id)
-			self.composite_shader.setUniformValue("pickerTextureSampler", 4)
-		
-		mouse_uv = self._get_picker_mouse_uv()
-		self.composite_shader.setUniformValue("mouseUV", QVector2D(mouse_uv[0], mouse_uv[1]))
-	
-	def _set_composite_uniforms(self):
-		"""Set frame-specific uniforms for compositing."""
-		scale, offset, bleed_margin = self._get_frame_parameters()
-		self.composite_shader.setUniformValue("coaScale", QVector2D(scale[0], scale[1]))
-		self.composite_shader.setUniformValue("coaOffset", QVector2D(offset[0], offset[1]))
-		self.composite_shader.setUniformValue("bleedMargin", bleed_margin)
 	
 	def _get_frame_parameters(self):
 		"""Get frame scale, offset, and bleed margin."""
