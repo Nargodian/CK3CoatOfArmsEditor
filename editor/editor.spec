@@ -17,7 +17,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('src/shaders', 'shaders'),  # Bundle shaders into executable
-        ('assets/noise.png', 'assets'),  # Bundle noise texture
+        ('assets', 'assets'),  # Bundle all assets (noise.png, SVGs, etc.)
     ],
     hiddenimports=[
         'PyQt5.sip',

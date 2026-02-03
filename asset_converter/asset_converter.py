@@ -399,10 +399,10 @@ def find_asset_files(source: ModAssetSource, asset_type: str) -> List[Path]:
     
     if asset_type == 'emblems':
         search_dir = base_path / "coat_of_arms" / "colored_emblems"
-        pattern = "ce_*.dds"
+        pattern = "*.dds"  # Changed from ce_*.dds to catch all DDS files
     elif asset_type == 'patterns':
         search_dir = base_path / "coat_of_arms" / "patterns"
-        pattern = "pattern_*.dds"
+        pattern = "*.dds"  # Changed from pattern_*.dds to catch all DDS files
     elif asset_type == 'frames':
         if source.is_base_game:
             search_dir = source.path / "game" / "gfx" / "interface" / "coat_of_arms" / "frames"
@@ -652,6 +652,7 @@ def load_dds_image(dds_path: Path) -> Optional[np.ndarray]:
             return None
             
     except Exception as e:
+        print(f"ERROR loading DDS {dds_path}: {type(e).__name__}: {str(e)}")
         return None
 
 
@@ -674,6 +675,12 @@ class ConversionWorker(QThread):
         
         # Build list of asset sources (base game + mods)
         self.asset_sources = build_asset_sources(self.ck3_dir, self.mod_dir)
+        
+        # Debug: Log asset source detection
+        for src in self.asset_sources:
+            print(f"DEBUG Source: {src.name}")
+            print(f"  Path: {src.path}")
+            print(f"  has_emblems={src.has_emblems}, has_patterns={src.has_patterns}, has_frames={src.has_frames}")
     
     def log_error(self, message: str):
         """Add error to log."""
@@ -784,15 +791,20 @@ class ConversionWorker(QThread):
             
             # Process each source
             for source in self.asset_sources:
+                self.progress.emit(f"Checking {source.name} for emblems... (has_emblems={source.has_emblems})", 0, 0)
+                
                 if not source.has_emblems:
+                    self.progress.emit(f"  Skipping {source.name} - no emblems detected", 0, 0)
                     continue
                 
                 self.progress.emit(f"Processing emblems from {source.name}...", 0, 0)
                 
                 dds_files = find_asset_files(source, 'emblems')
                 
+                self.progress.emit(f"  Found {len(dds_files)} emblem DDS files in {source.name}", 0, 0)
+                
                 if not dds_files:
-                    self.progress.emit(f"No emblem files found in {source.name}", 0, 0)
+                    self.progress.emit(f"  No emblem files found in {source.name}", 0, 0)
                     continue
                 
                 processed = 0
@@ -870,15 +882,20 @@ class ConversionWorker(QThread):
             
             # Process each source
             for source in self.asset_sources:
+                self.progress.emit(f"Checking {source.name} for patterns... (has_patterns={source.has_patterns})", 0, 0)
+                
                 if not source.has_patterns:
+                    self.progress.emit(f"  Skipping {source.name} - no patterns detected", 0, 0)
                     continue
                 
                 self.progress.emit(f"Processing patterns from {source.name}...", 0, 0)
                 
                 dds_files = find_asset_files(source, 'patterns')
                 
+                self.progress.emit(f"  Found {len(dds_files)} pattern DDS files in {source.name}", 0, 0)
+                
                 if not dds_files:
-                    self.progress.emit(f"No pattern files found in {source.name}", 0, 0)
+                    self.progress.emit(f"  No pattern files found in {source.name}", 0, 0)
                     continue
                 
                 processed = 0
@@ -948,15 +965,20 @@ class ConversionWorker(QThread):
             
             # Process each source
             for source in self.asset_sources:
+                self.progress.emit(f"Checking {source.name} for frames... (has_frames={source.has_frames})", 0, 0)
+                
                 if not source.has_frames:
+                    self.progress.emit(f"  Skipping {source.name} - no frames detected", 0, 0)
                     continue
                 
                 self.progress.emit(f"Processing frames from {source.name}...", 0, 0)
                 
                 dds_files = find_asset_files(source, 'frames')
                 
+                self.progress.emit(f"  Found {len(dds_files)} frame DDS files in {source.name}", 0, 0)
+                
                 if not dds_files:
-                    self.progress.emit(f"No frame files found in {source.name}", 0, 0)
+                    self.progress.emit(f"  No frame files found in {source.name}", 0, 0)
                     continue
                 
                 processed = 0
