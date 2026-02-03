@@ -348,7 +348,7 @@ class ClipboardActions:
 			pan_y = getattr(self.main_window.canvas_area.canvas_widget, 'pan_y', 0.0)
 			
 			# Convert Qt pixels to frame space using shared coordinate functions
-			from components.canvas_widget import qt_pixels_to_layer_pos
+			from utils.coordinate_transforms import qt_pixels_to_layer_pos
 			frame_x, frame_y = qt_pixels_to_layer_pos(
 				mouse_pos.x(), mouse_pos.y(),
 				canvas_size, canvas_offset_x, canvas_offset_y, zoom_level, pan_x, pan_y

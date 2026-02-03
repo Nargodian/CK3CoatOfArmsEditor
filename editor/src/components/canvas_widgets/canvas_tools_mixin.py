@@ -168,7 +168,7 @@ class CanvasToolsMixin:
 		import OpenGL.GL as gl
 		import numpy as np
 		from models.coa import CoA
-		from components.canvas_widget import layer_pos_to_opengl_coords
+		from utils.coordinate_transforms import layer_pos_to_opengl_coords
 		import math
 		
 		if not CoA.has_active():
@@ -413,7 +413,7 @@ class CanvasToolsMixin:
 		
 		# Get last mouse position and convert to UV
 		if hasattr(self, 'last_picker_mouse_pos') and self.last_picker_mouse_pos:
-			from components.canvas_widget import qt_pixels_to_layer_pos
+			from utils.coordinate_transforms import qt_pixels_to_layer_pos
 			
 			canvas_width = self.width()
 			canvas_height = self.height()

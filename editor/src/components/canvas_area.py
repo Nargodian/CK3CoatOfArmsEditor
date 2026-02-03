@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
 from PyQt5.QtCore import Qt
 
 # Local component imports
-from .canvas_widget import CoatOfArmsCanvas
+from .canvas_widget_NEW import CoatOfArmsCanvas
 from .transform_widget import TransformWidget
 
 

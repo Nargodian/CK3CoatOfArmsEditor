@@ -12,7 +12,7 @@ Direct imports for backwards compatibility:
 # Import existing top-level components for backwards compatibility
 from .asset_sidebar import AssetSidebar
 from .canvas_area import CanvasArea
-from .canvas_widget import CoatOfArmsCanvas
+from .canvas_widget_NEW import CoatOfArmsCanvas
 from .property_sidebar import PropertySidebar
 from .toolbar import create_toolbar
 from .transform_widget import TransformWidget

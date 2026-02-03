@@ -14,11 +14,9 @@ from PyQt5.QtCore import Qt, QPointF, QRectF, pyqtSignal, QEvent
 from PyQt5.QtGui import QPainter, QPen, QBrush, QColor, QTransform, QMouseEvent
 import math
 
-# Import coordinate conversion functions from canvas_widget
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from canvas_widget import layer_pos_to_qt_pixels, qt_pixels_to_layer_pos, VIEWPORT_BASE_SIZE, COMPOSITE_SCALE
+# Import coordinate conversion functions
+from utils.coordinate_transforms import layer_pos_to_qt_pixels, qt_pixels_to_layer_pos
+from components.canvas_widget_NEW import VIEWPORT_BASE_SIZE, COMPOSITE_SCALE
 
 
 class TransformWidget(QWidget):
