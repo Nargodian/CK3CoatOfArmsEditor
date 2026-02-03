@@ -26,7 +26,8 @@ void main() {
 	// Apply bleed margin, scale, and offset to CoA texture coordinates
 	// First scale around center (0.5, 0.5), then apply offset
 	vec2 centeredUV = vTexCoord - 0.5;
-	centeredUV /= (coaScale / bleedMargin);  // Apply both scale and bleed margin
+	centeredUV /= (coaScale);  // Apply both scale
+	centeredUV *= bleedMargin; // Apply bleed margin
 	vec2 coaUV = centeredUV + 0.5; // Recenter
 
 	coaUV -= coaOffset; // Apply offset after scaling

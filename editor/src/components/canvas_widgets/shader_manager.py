@@ -112,3 +112,14 @@ class ShaderManager:
             QOpenGLShaderProgram for picker rendering
         """
         return self.create_program(parent, 'basic.vert', 'emblem_picker.frag', 'Picker')
+    
+    def create_main_composite_shader(self, parent):
+        """Create main composite shader program for frame-aware CoA rendering
+        
+        Args:
+            parent: Parent QObject
+            
+        Returns:
+            QOpenGLShaderProgram for main composite rendering
+        """
+        return self.create_program(parent, 'basic.vert', 'main_composite.frag', 'MainComposite')

@@ -262,6 +262,7 @@ class CoatOfArmsCanvas(CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 		self.basic_shader = shader_manager.create_basic_shader(self)
 		self.composite_shader = shader_manager.create_composite_shader(self)
 		self.picker_shader = shader_manager.create_picker_shader(self)
+		self.main_composite_shader = shader_manager.create_main_composite_shader(self)
 		
 		# Create RTT framebuffer
 		self.framebuffer_rtt = FramebufferRTT()
@@ -675,9 +676,14 @@ class CoatOfArmsCanvas(CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 		
 		self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
 		
-		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+		# OLD COMPOSITE: Skip draw call - keeping setup for infrastructure
+		# gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 		
 		self.composite_shader.release()
+		
+		# NEW MAIN COMPOSITE: Render with frame-aware positioning
+		self._render_main_composite(vertices, size_x, size_y, pan_offset_x, pan_offset_y, aspect)
+		
 		self.vao.release()
 	
 	def _composite_to_fbo(self, fbo_handle):
@@ -1777,6 +1783,74 @@ class CoatOfArmsCanvas(CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 		else:
 			# Default for unlisted frames
 			return ((0.9, 0.9), (0.0, 0.04))
+	
+	def _render_main_composite(self, frame_vertices, size_x, size_y, pan_offset_x, pan_offset_y, aspect):
+		"""Render CoA using new main composite shader with frame-aware positioning
+		
+		Args:
+			frame_vertices: Frame quad vertices array
+			size_x: Half-width of frame quad in NDC
+			size_y: Half-height of frame quad in NDC
+			pan_offset_x: Pan offset in NDC X
+			pan_offset_y: Pan offset in NDC Y
+			aspect: Viewport aspect ratio
+		"""
+		if not self.main_composite_shader:
+			return
+		
+		self.main_composite_shader.bind()
+		
+		# Bind RTT texture
+		gl.glActiveTexture(gl.GL_TEXTURE0)
+		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
+		self.main_composite_shader.setUniformValue("coaTextureSampler", 0)
+		
+		# Get frame transform (scale and offset for CoA positioning)
+		frame_scale, frame_offset = self.get_frame_transform()
+		
+		# Calculate CoA render area in NDC space (same as frame quad space)
+		# Frame quad spans from -size_x to +size_x, -size_y to +size_y (in NDC)
+		# Apply frame scale and offset to get CoA area
+		coa_width = size_x * 2.0 * frame_scale[0]
+		coa_height = size_y * 2.0 * frame_scale[1]
+		coa_center_x = pan_offset_x + frame_offset[0] * size_x * 2.0
+		coa_center_y = pan_offset_y + frame_offset[1] * size_y * 2.0
+		
+		# Convert NDC corners to viewport pixel coordinates
+		viewport_width = self.width()
+		viewport_height = self.height()
+		
+		# NDC to pixels: NDC=0 is center, NDC=-1 is left/bottom, NDC=+1 is right/top
+		coa_left_ndc = coa_center_x - coa_width / 2.0
+		coa_right_ndc = coa_center_x + coa_width / 2.0
+		coa_bottom_ndc = coa_center_y - coa_height / 2.0
+		coa_top_ndc = coa_center_y + coa_height / 2.0
+		
+		# Convert to pixel coordinates (0,0 is bottom-left in OpenGL)
+		coa_left_px = (coa_left_ndc + 1.0) / 2.0 * viewport_width
+		coa_right_px = (coa_right_ndc + 1.0) / 2.0 * viewport_width
+		coa_bottom_px = (coa_bottom_ndc + 1.0) / 2.0 * viewport_height
+		coa_top_px = (coa_top_ndc + 1.0) / 2.0 * viewport_height
+		
+		# Set uniforms
+		self.main_composite_shader.setUniformValue("coaTopLeft", coa_left_px, coa_top_px)
+		self.main_composite_shader.setUniformValue("coaBottomRight", coa_right_px, coa_bottom_px)
+		
+		# DEBUG: Print values once
+		if not hasattr(self, '_debug_printed'):
+			print(f"DEBUG Main Composite:")
+			print(f"  Frame scale: {frame_scale}, offset: {frame_offset}")
+			print(f"  Viewport: {viewport_width}x{viewport_height}")
+			print(f"  NDC size_x: {size_x}, size_y: {size_y}")
+			print(f"  CoA NDC width: {coa_width}, height: {coa_height}")
+			print(f"  CoA center NDC: ({coa_center_x}, {coa_center_y})")
+			print(f"  CoA pixels: left={coa_left_px}, right={coa_right_px}, bottom={coa_bottom_px}, top={coa_top_px}")
+			self._debug_printed = True
+		
+		# Use same vertices as frame (already in VBO from composite setup)
+		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+		
+		self.main_composite_shader.release()
 	
 	def coa_to_frame_space(self, pos_x, pos_y):
 		"""Convert CoA space coordinates to frame-adjusted visual space
