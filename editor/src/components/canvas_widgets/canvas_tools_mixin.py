@@ -467,7 +467,7 @@ class CanvasToolsMixin:
 			return None
 		
 		# Import here to avoid circular dependency
-		from components.canvas_widget import qt_pixels_to_layer_pos
+		from utils.coordinate_transforms import qt_pixels_to_layer_pos
 		
 		canvas_width = self.width()
 		canvas_height = self.height()
