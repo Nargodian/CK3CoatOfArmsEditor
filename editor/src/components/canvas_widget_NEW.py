@@ -80,6 +80,7 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		self.composite_shader = None
 		self.picker_shader = None
 		self.main_composite_shader = None
+		self.tilesheet_shader = None
 		
 		# OpenGL objects
 		self.vao = None
@@ -179,6 +180,7 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		self.composite_shader = shader_manager.create_composite_shader(self)
 		self.picker_shader = shader_manager.create_picker_shader(self)
 		self.main_composite_shader = shader_manager.create_main_composite_shader(self)
+		self.tilesheet_shader = shader_manager.create_tilesheet_shader(self)
 		
 		# Create RTT framebuffer
 		self.framebuffer_rtt = FramebufferRTT()
@@ -576,7 +578,7 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		"""Render frame graphic on top of CoA."""
 		if self.current_frame_name not in self.frameTextures:
 			return
-		if not self.basic_shader or not self.vao:
+		if not self.tilesheet_shader or not self.vao:
 			return
 		
 		# Calculate frame quad size/position
@@ -601,31 +603,31 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		else:
 			pan_offset_y *= aspect
 		
-		# Frame UV coordinates (6x1 grid for prestige levels)
-		frame_index = max(0, min(5, self.prestige_level))
-		u0 = frame_index / 6.0
-		u1 = (frame_index + 1) / 6.0
-		
-		# Render quad
+		# Render quad with tilesheet shader (6x1 grid for prestige levels)
 		self.vao.bind()
-		self.basic_shader.bind()
+		self.tilesheet_shader.bind()
 		
 		gl.glActiveTexture(gl.GL_TEXTURE0)
 		gl.glBindTexture(gl.GL_TEXTURE_2D, self.frameTextures[self.current_frame_name])
-		self.basic_shader.setUniformValue("textureSampler", 0)
+		self.tilesheet_shader.setUniformValue("textureSampler", 0)
+		
+		# Set tilesheet uniforms
+		self.tilesheet_shader.setUniformValue("tileCols", 6)
+		self.tilesheet_shader.setUniformValue("tileRows", 1)
+		self.tilesheet_shader.setUniformValue("tileIndex", max(0, min(5, self.prestige_level)))
 		
 		# Set transform uniforms
-		self.basic_shader.setUniformValue("position", QVector2D(pan_offset_x, pan_offset_y))
-		self.basic_shader.setUniformValue("scale", QVector2D(size_x, size_y))
-		self.basic_shader.setUniformValue("rotation", 0.0)
-		self.basic_shader.setUniformValue("uvOffset", QVector2D(u0, 0.0))
-		self.basic_shader.setUniformValue("uvScale", QVector2D(u1 - u0, 1.0))
-		self.basic_shader.setUniformValue("flipU", False)
-		self.basic_shader.setUniformValue("flipV", True)
+		self.tilesheet_shader.setUniformValue("position", QVector2D(pan_offset_x, pan_offset_y))
+		self.tilesheet_shader.setUniformValue("scale", QVector2D(size_x, size_y))
+		self.tilesheet_shader.setUniformValue("rotation", 0.0)
+		self.tilesheet_shader.setUniformValue("uvOffset", QVector2D(0.0, 0.0))
+		self.tilesheet_shader.setUniformValue("uvScale", QVector2D(1.0, 1.0))
+		self.tilesheet_shader.setUniformValue("flipU", False)
+		self.tilesheet_shader.setUniformValue("flipV", False)
 		
 		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 		
-		self.basic_shader.release()
+		self.tilesheet_shader.release()
 		self.vao.release()
 	
 	# ========================================

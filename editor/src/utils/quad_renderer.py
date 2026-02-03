@@ -20,11 +20,12 @@ class QuadRenderer:
 			tuple: (vao, vbo, ebo) - OpenGL objects for the quad
 		"""
 		# Static unit quad vertices (never changes - GPU transforms it)
+		# V coordinates flipped: bottom=1.0, top=0.0 (OpenGL texture convention)
 		vertices = np.array([
-			-0.5, -0.5, 0.0,  0.0, 0.0,  # bottom-left
-			 0.5, -0.5, 0.0,  1.0, 0.0,  # bottom-right
-			 0.5,  0.5, 0.0,  1.0, 1.0,  # top-right
-			-0.5,  0.5, 0.0,  0.0, 1.0,  # top-left
+			-0.5, -0.5, 0.0,  0.0, 1.0,  # bottom-left
+			 0.5, -0.5, 0.0,  1.0, 1.0,  # bottom-right
+			 0.5,  0.5, 0.0,  1.0, 0.0,  # top-right
+			-0.5,  0.5, 0.0,  0.0, 0.0,  # top-left
 		], dtype=np.float32)
 		
 		indices = np.array([0, 1, 2, 2, 3, 0], dtype=np.uint32)
