@@ -5,8 +5,9 @@ layout(location = 1) in vec2 vertexUV;
 
 out vec2 fragUV;
 
-uniform vec2 position;    // Center position in NDC
-uniform vec2 scale;       // Half-width, half-height
+uniform vec2 screenRes;   // Viewport dimensions in pixels (width, height)
+uniform vec2 position;    // Center position in pixels from screen center
+uniform vec2 scale;       // Full width, full height in pixels
 uniform float rotation;   // Rotation in radians (0 if not needed)
 uniform vec2 uvOffset;    // UV offset (u0, v0)
 uniform vec2 uvScale;     // UV scale (u1-u0, v1-v0)
@@ -14,13 +15,17 @@ uniform bool flipU;       // Flip U coordinate
 uniform bool flipV;       // Flip V coordinate
 
 void main() {
-    // Start with unit quad vertex (-0.5 to 0.5, size = 1)
+    // Start with unit quad vertex (-0.5 to 0.5, total span = 1.0)
     vec2 vertex = vertexPosition.xy;
     
-    // CK3 Transform Order: FLIP (sign of scale) → ROTATE → SCALE (absolute) → TRANSLATE
-    // NOTE: This is unconventional - typically you'd scale-rotate-translate.
-    // CK3 encodes flip as the sign of scale, extracts it, applies before rotation,
-    // then uses absolute scale. Odd, but that's how CK3 works.
+    // Convert pixel-based inputs to normalized device coordinates
+    // scale is full width/height in pixels
+    // Normalized coords: screen spans 2.0 (-1 to +1), so screenRes pixels = 2.0 normalized
+    // Therefore: normalized = pixels / (screenRes / 2.0)
+    vec2 normalizedScale = abs(scale) / (screenRes / 2.0);
+    vec2 normalizedPosition = position / (screenRes / 2.0);
+    
+    // CK3 Transform Order: FLIP → ROTATE → SCALE → TRANSLATE
     
     // Step 1: Extract sign from scale for flipping
     vec2 flipSign = vec2(
@@ -43,11 +48,11 @@ void main() {
         vertex = rotated;
     }
     
-    // Step 3: SCALE (use absolute value)
-    vertex *= abs(scale);
+    // Step 3: SCALE (using normalized scale)
+    vertex *= normalizedScale;
     
-    // Step 4: TRANSLATE
-    vertex += position;
+    // Step 4: TRANSLATE (using normalized position)
+    vertex += normalizedPosition;
     
     gl_Position = vec4(vertex, 0.0, 1.0);
     
