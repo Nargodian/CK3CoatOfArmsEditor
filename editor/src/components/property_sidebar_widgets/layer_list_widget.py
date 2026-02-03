@@ -415,7 +415,8 @@ class LayerListWidget(QWidget):
 		icon_label = QLabel()
 		icon_label.setFixedSize(24, 24)
 		icon_label.setStyleSheet("border: none;")
-		folder_icon = QIcon(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'assets', 'folder.svg'))
+		from utils.path_resolver import get_resource_path
+		folder_icon = QIcon(str(get_resource_path('assets/folder.svg')))
 		icon_label.setPixmap(folder_icon.pixmap(20, 20))
 		btn_layout.addWidget(icon_label)
 		

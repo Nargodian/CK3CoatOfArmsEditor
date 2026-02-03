@@ -94,14 +94,17 @@ class TransformWidget(QWidget):
 		self.bounding_rect = QRectF()  # Initialize bounding rect
 		
 		# Position absolutely on top of parent
+		self.preview_bar = None  # Will be set by canvas_area to avoid covering top bar
 		if parent:
 			self.setGeometry(0, 0, parent.width(), parent.height())
 			parent.installEventFilter(self)
 	
 	def eventFilter(self, obj, event):
-		"""Handle parent resize to keep widget covering parent"""
+		"""Handle parent resize to keep widget covering parent (below preview bar)"""
 		if event.type() == event.Resize and obj == self.parent():
-			self.setGeometry(0, 0, obj.width(), obj.height())
+			# Calculate offset to avoid covering preview bar
+			y_offset = self.preview_bar.height() if self.preview_bar else 0
+			self.setGeometry(0, y_offset, obj.width(), obj.height() - y_offset)
 		return super().eventFilter(obj, event)
 	
 	def _get_canvas_rect(self):

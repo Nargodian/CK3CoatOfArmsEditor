@@ -51,8 +51,8 @@ class CanvasArea(QFrame):
 		canvas_container_layout.setContentsMargins(0, 0, 0, 0)
 		
 		# Top preview control bar
-		preview_bar = self._create_preview_bar()
-		canvas_container_layout.addWidget(preview_bar)
+		self.preview_bar = self._create_preview_bar()
+		canvas_container_layout.addWidget(self.preview_bar)
 		
 		# OpenGL canvas widget (fills entire container)
 		self.canvas_widget = CoatOfArmsCanvas(canvas_container)
@@ -69,13 +69,16 @@ class CanvasArea(QFrame):
 		self.transform_widget.transformEnded.connect(self._on_transform_ended)
 		self.transform_widget.nonUniformScaleUsed.connect(self._on_non_uniform_scale_used)
 		self.transform_widget.layerDuplicated.connect(self._on_layer_duplicated)
-		self.transform_widget.raise_()  # Ensure it's on top
+		
+		# Layer order: canvas_widget (bottom) → transform_widget → bars (top)
+		self.preview_bar.raise_()  # Ensure preview bar is on top
 		
 		layout.addWidget(canvas_container, stretch=1)
 		
 		# Bottom bar
-		bottom_bar = self._create_bottom_bar()
-		layout.addWidget(bottom_bar)
+		self.bottom_bar = self._create_bottom_bar()
+		self.bottom_bar.raise_()  # Ensure bottom bar is on top
+		layout.addWidget(self.bottom_bar)
 	
 	def _create_preview_bar(self):
 		"""Create the top preview control bar with government type and rank selection"""

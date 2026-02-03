@@ -1426,10 +1426,10 @@ class CoatOfArmsCanvas(CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 	def _load_official_frame_transforms(self):
 		"""Load official frame scales and offsets from CK3 culture files"""
 		try:
-			transform_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ck3_assets', 'frame_transforms.json')
-			transform_path = os.path.normpath(transform_path)
+			from utils.path_resolver import get_assets_dir
+			transform_path = get_assets_dir() / "frame_transforms.json"
 			
-			if os.path.exists(transform_path):
+			if transform_path.exists():
 				with open(transform_path, 'r') as f:
 					data = json.load(f)
 					self.official_frame_scales = data.get('frame_scales', {})

@@ -42,9 +42,6 @@ class CanvasToolsMixin:
 		Args:
 			tool_name: 'layer_picker', 'eyedropper', or None to deactivate
 		"""
-		if tool_name == self.active_tool:
-			return
-		
 		# Deactivate old tool
 		if self.active_tool:
 			self._deactivate_tool(self.active_tool)
@@ -730,7 +727,10 @@ class CanvasToolsMixin:
 		# Check for container
 		container_uuid = coa.get_layer_container(uuid)
 		if container_uuid:
-			container_name = coa.get_container_name(container_uuid)
+			# Parse container name from container_uuid
+			# Format: "container_{uuid}_{name}"
+			parts = container_uuid.split('_', 2)
+			container_name = parts[2] if len(parts) >= 3 else "Container"
 			if container_name:
 				return f"{layer_name} ({container_name})"
 		

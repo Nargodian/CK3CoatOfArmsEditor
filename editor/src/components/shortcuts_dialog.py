@@ -50,11 +50,35 @@ class ShortcutsDialog(QDialog):
         
         <h3>Layer Operations</h3>
         <table width="100%">
-        <tr><td width="30%"><b>Ctrl+A</b></td><td>Select all layers</td></tr>
+        <tr><td width="30%"><b>Click</b></td><td>(on layer) Select single layer</td></tr>
+        <tr><td><b>Shift+Click</b></td><td>(on layer) Select range of layers</td></tr>
+        <tr><td><b>Ctrl+Click</b></td><td>(on layer) Add/remove layer from selection</td></tr>
+        <tr><td><b>Ctrl+A</b></td><td>Select all layers</td></tr>
         <tr><td><b>Ctrl+C</b></td><td>Copy selected layer(s)</td></tr>
         <tr><td><b>Ctrl+V</b></td><td>Paste layer(s) from clipboard</td></tr>
         <tr><td><b>Ctrl+D</b></td><td>Duplicate selected layer(s)</td></tr>
         <tr><td><b>Delete</b></td><td>Delete selected layer(s)</td></tr>
+        <tr><td><b>R</b></td><td>Rotate selected layer(s) -45 degrees</td></tr>
+        <tr><td><b>Shift+R</b></td><td>Rotate selected layer(s) +45 degrees</td></tr>
+        </table>
+        
+        <h3>Transform Widget</h3>
+        <table width="100%">
+        <tr><td width="30%"><b>M</b></td><td>Cycle transform modes (Normal/Minimal/Gimble)</td></tr>
+        <tr><td><b>Shift</b></td><td>(while rotating) Snap rotation to 45° increments</td></tr>
+        <tr><td><b>Ctrl+Drag</b></td><td>(on transform handles) Duplicate layer while moving</td></tr>
+        <tr><td><b>Mouse Wheel</b></td><td>(while dragging) Adjust scale uniformly</td></tr>
+        <tr><td><b>Alt+Wheel</b></td><td>(while dragging) Adjust rotation in 5° increments</td></tr>
+        <tr><td><b>Ctrl+Wheel</b></td><td>(while dragging) Adjust scale X only</td></tr>
+        <tr><td><b>Shift+Wheel</b></td><td>(while dragging) Adjust scale Y only</td></tr>
+        </table>
+        
+        <h3>Picker Tool</h3>
+        <table width="100%">
+        <tr><td width="30%"><b>P</b></td><td>Toggle picker tool on/off</td></tr>
+        <tr><td><b>Click</b></td><td>(while picking) Select layer under cursor</td></tr>
+        <tr><td><b>Shift+Click</b></td><td>(while picking) Keep picker active for multi-select</td></tr>
+        <tr><td><b>Ctrl+Hold</b></td><td>(while picking) Paint select/deselect layers</td></tr>
         </table>
         
         <h3>Help</h3>

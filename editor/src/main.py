@@ -1940,11 +1940,11 @@ class CoatOfArmsEditor(QMainWindow):
 	def _preload_shapes(self):
 		"""Preload all SVG shapes at startup."""
 		# Get path to SVG directory
-		editor_dir = os.path.dirname(os.path.abspath(__file__))
-		svg_dir = os.path.join(os.path.dirname(editor_dir), 'assets', 'svg')
+		from utils.path_resolver import get_resource_path
+		svg_dir = get_resource_path('assets/svg')
 		
 		# Preload shapes into ShapeGenerator
-		ShapeGenerator.preload_shapes(svg_dir)
+		ShapeGenerator.preload_shapes(str(svg_dir))
 	
 	def _populate_shape_menu(self):
 		"""Populate the Shape submenu with loaded SVG shapes."""
