@@ -12,7 +12,8 @@ from PyQt5.QtGui import QOpenGLVertexArrayObject, QOpenGLBuffer
 class QuadRenderer:
 	"""Utility for rendering textured quads in OpenGL."""
 	
-	@stacreate_unit_quad():
+	@staticmethod
+	def create_unit_quad():
 		"""Create a static unit quad geometry (-0.5 to 0.5, size = 1).
 		
 		Returns:
@@ -57,7 +58,6 @@ class QuadRenderer:
 		return vao, vbo, ebo
 	
 	@staticmethod
-	def ticmethod
 	def render_textured_quad(vbo, bounds, uv_coords, flip_v=False):
 		"""Render a simple textured quad.
 		
