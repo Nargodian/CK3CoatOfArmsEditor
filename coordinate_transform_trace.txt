@@ -1,0 +1,492 @@
+COORDINATE TRANSFORMATION TRACE
+================================
+Complete data flow from Transform Widget → CoA Model → Transform Widget
+Tracking: Who touches coordinates, what transformations occur, and when
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PART 1: USER DRAGS HANDLE → MODEL UPDATE
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: TRANSFORM WIDGET - Mouse Drag
+────────────────────────────────────────
+File: transform_widget.py
+Methods: mousePressEvent(), mouseMoveEvent(), _handle_drag()
+
+INPUT COORDINATES:
+- event.pos() → Qt widget-local coordinates (top-left origin, pixels)
+- Example: QPoint(350, 200) = 350px from left edge, 200px from top edge
+
+TRANSFORMATIONS:
+1. Widget-local → Center-origin conversion
+   Method: _widget_to_center_origin(pos)
+   - Shifts origin from top-left to center of transform_widget
+   - start_mouse_x = pos.x() - widget.width()/2
+   - start_mouse_y = pos.y() - widget.height()/2
+
+2. Handle Polymorphic Drag Calculation
+   Method: active_handle.drag(curr_x, curr_y, start_x, start_y, ...)
+   - Each handle type (Corner, Edge, Rotation, etc.) has custom drag logic
+   - Works in center-origin pixel space
+   - Returns: (center_x, center_y, half_w, half_h, rotation)
+   - ALL VALUES IN PIXELS, center-origin coordinates
+
+OUTPUT COORDINATES:
+- self.center_x: Pixel X from canvas widget center (can be negative)
+- self.center_y: Pixel Y from canvas widget center (can be negative)
+- self.half_w: AABB half-width in pixels
+- self.half_h: AABB half-height in pixels
+- self.rotation: Degrees
+
+SIGNAL EMITTED:
+transformChanged.emit(center_x, center_y, half_w, half_h, rotation)
+→ Connected to canvas_area._on_transform_changed()
+
+
+STEP 2: CANVAS AREA - Convert Pixels to CoA Space
+────────────────────────────────────────
+File: canvas_area.py
+Method: _on_transform_changed(center_x, center_y, half_w, half_h, rotation)
+
+INPUT COORDINATES:
+- center_x, center_y: Pixels from canvas widget CENTER
+- half_w, half_h: Pixel AABB half-dimensions
+- rotation: Degrees
+
+TRANSFORMATIONS:
+A) Center-origin → Top-left origin
+   - center_x_topleft = center_x + canvas_widget.width() / 2
+   - center_y_topleft = center_y + canvas_widget.height() / 2
+   - Now in Qt-style top-left pixel coordinates
+
+B) Canvas pixels → CoA space (0-1 normalized)
+   Method: canvas_widget.canvas_to_coa(center_x_topleft, center_y_topleft)
+   
+   B1) Canvas pixels → Frame space
+       Method: CanvasCoordinateMixin.canvas_to_frame(x, y)
+       
+       Removes zoom/pan:
+       - width, height = canvas_widget.width(), canvas_widget.height()
+       - canvas_size = min(width, height)
+       - pixel_x = x - width/2 - pan_x
+       - pixel_y = y - height/2 - pan_y
+       - gl_x = pixel_x / (canvas_size/2) / zoom_level
+       - gl_y = -pixel_y / (canvas_size/2) / zoom_level
+       - frame_x = (gl_x + 1.0) / 2.0
+       - frame_y = (-gl_y + 1.0) / 2.0
+   
+   B2) Frame space → CoA space
+       Method: CanvasCoordinateMixin.frame_to_coa(frame_x, frame_y)
+       
+       Removes frame scale/offset:
+       - frame_scale, frame_offset = get_frame_transform()
+       - no_offset_x = frame_x + frame_offset[0] * frame_scale[0]
+       - no_offset_y = frame_y + frame_offset[1] * frame_scale[1]
+       - centered_x = no_offset_x - 0.5
+       - centered_y = no_offset_y - 0.5
+       - unscaled_x = centered_x / frame_scale[0]
+       - unscaled_y = centered_y / frame_scale[1]
+       - pos_x = unscaled_x + 0.5
+       - pos_y = unscaled_y + 0.5
+
+C) Pixel dimensions → CoA scale
+   Method: canvas_widget.pixels_to_coa_scale(half_w, half_h)
+   
+   C1) Pixels → Frame scale
+       Method: CanvasCoordinateMixin.pixels_to_frame_scale(half_w, half_h)
+       
+       - COA_BASE_SIZE_PX = 256 (constant from canvas_widget_NEW.py)
+       - frame_scale_x = (half_w * 2.0) / (COA_BASE_SIZE_PX * zoom_level)
+       - frame_scale_y = (half_h * 2.0) / (COA_BASE_SIZE_PX * zoom_level)
+   
+   C2) Frame scale → CoA scale
+       Method: CanvasCoordinateMixin.frame_scale_to_coa_scale(frame_scale_x, frame_scale_y)
+       
+       - frame_scales, _ = get_frame_transform()
+       - scale_x = frame_scale_x / frame_scales[0]
+       - scale_y = frame_scale_y / frame_scales[1]
+
+OUTPUT COORDINATES:
+- pos_x: CoA position (0-1, where 0.5 = center)
+- pos_y: CoA position (0-1, where 0.5 = center)
+- scale_x: CoA scale multiplier (1.0 = 100% size)
+- scale_y: CoA scale multiplier (1.0 = 100% size)
+- rotation: Degrees (unchanged)
+
+DATA WRITTEN TO MODEL:
+File: models/coa/coa.py (accessed via main_window.coa)
+
+For SINGLE SELECTION, SINGLE INSTANCE:
+- coa.set_layer_position(uuid, pos_x, pos_y)
+- coa.set_layer_scale(uuid, scale_x, scale_y)
+- coa.set_layer_rotation(uuid, rotation)
+
+For SINGLE SELECTION, MULTI-INSTANCE:
+- Uses group transform around AABB center
+- coa.transform_instances_as_group(uuid, pos_x, pos_y, scale_factor_x, scale_factor_y, rotation_delta)
+
+For MULTI-SELECTION:
+- Applies group transform to all selected layers
+- Each layer gets individual position/scale/rotation updates
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PART 2: MODEL UPDATE → TRANSFORM WIDGET DISPLAY
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 3: CANVAS AREA - Read from Model and Convert to Pixels
+────────────────────────────────────────────────────────────
+File: canvas_area.py
+Method: update_transform_widget_for_layer(layer_index=None)
+
+Trigger: Called when selection changes, or programmatically to refresh display
+
+INPUT COORDINATES (from CoA Model):
+For SINGLE SELECTION, SINGLE INSTANCE:
+- pos_x = coa.get_layer_pos_x(uuid)
+- pos_y = coa.get_layer_pos_y(uuid)
+- scale_x = coa.get_layer_scale_x(uuid)
+- scale_y = coa.get_layer_scale_y(uuid)
+- rotation = coa.get_layer_rotation(uuid)
+
+For SINGLE SELECTION, MULTI-INSTANCE:
+- bounds = coa.get_layer_bounds(uuid)
+- group_pos_x = bounds['center_x']
+- group_pos_y = bounds['center_y']
+- group_scale_x = bounds['width']
+- group_scale_y = bounds['height']
+- group_rotation = 0
+
+For MULTI-SELECTION:
+- Calculates AABB from all selected layers
+- Uses CoA methods to get bounds
+
+TRANSFORMATIONS:
+A) CoA space → Canvas pixels (top-left)
+   Method: canvas_widget.coa_to_canvas(pos_x, pos_y)
+   
+   A1) CoA space → Frame space
+       Method: CanvasCoordinateMixin.coa_to_frame(pos_x, pos_y)
+       
+       Applies frame scale/offset:
+       - frame_scale, frame_offset = get_frame_transform()
+       - centered_x = pos_x - 0.5
+       - centered_y = pos_y - 0.5
+       - scaled_x = centered_x * frame_scale[0]
+       - scaled_y = centered_y * frame_scale[1]
+       - uncentered_x = scaled_x + 0.5
+       - uncentered_y = scaled_y + 0.5
+       - frame_x = uncentered_x - frame_offset[0] * frame_scale[0]
+       - frame_y = uncentered_y - frame_offset[1] * frame_scale[1]
+   
+   A2) Frame space → Canvas pixels
+       Method: CanvasCoordinateMixin.frame_to_canvas(frame_x, frame_y)
+       
+       Applies zoom/pan:
+       - gl_x = frame_x * 2.0 - 1.0
+       - gl_y = -(frame_y * 2.0 - 1.0)  # Invert Y
+       - width, height = canvas_widget.width(), canvas_widget.height()
+       - canvas_size = min(width, height)
+       - pixel_x = gl_x * (canvas_size / 2) * zoom_level
+       - pixel_y = gl_y * (canvas_size / 2) * zoom_level
+       - x = width/2 + pixel_x + pan_x
+       - y = height/2 - pixel_y + pan_y  # Qt Y-down
+
+B) CoA scale → Pixel dimensions
+   Method: canvas_widget.coa_scale_to_pixels(scale_x, scale_y)
+   
+   B1) CoA scale → Frame scale
+       Method: CanvasCoordinateMixin.coa_scale_to_frame_scale(scale_x, scale_y)
+       
+       - frame_scales, _ = get_frame_transform()
+       - frame_scale_x = scale_x * frame_scales[0]
+       - frame_scale_y = scale_y * frame_scales[1]
+   
+   B2) Frame scale → Pixels
+       Method: CanvasCoordinateMixin.frame_scale_to_pixels(frame_scale_x, frame_scale_y)
+       
+       - COA_BASE_SIZE_PX = 256
+       - half_w = abs(frame_scale_x) * COA_BASE_SIZE_PX * zoom_level / 2.0
+       - half_h = abs(frame_scale_y) * COA_BASE_SIZE_PX * zoom_level / 2.0
+
+C) Top-left → Center-origin
+   - center_x = center_x_topleft - canvas_widget.width() / 2
+   - center_y = center_y_topleft - canvas_widget.height() / 2
+
+OUTPUT COORDINATES:
+- center_x: Pixel X from canvas widget center
+- center_y: Pixel Y from canvas widget center
+- half_w: AABB half-width in pixels
+- half_h: AABB half-height in pixels
+- rotation: Degrees (unchanged)
+
+
+STEP 4: TRANSFORM WIDGET - Display Update
+────────────────────────────────────────
+File: transform_widget.py
+Method: set_transform(center_x, center_y, half_w, half_h, rotation, is_multi_selection=False)
+
+INPUT COORDINATES:
+- center_x: Pixel X from canvas widget center
+- center_y: Pixel Y from canvas widget center
+- half_w: AABB half-width in pixels
+- half_h: AABB half-height in pixels
+- rotation: Degrees
+
+VALIDATION:
+import math
+if any(math.isnan(v) or math.isinf(v) for v in [center_x, center_y, half_w, half_h, rotation]):
+    loggerRaise(ValueError, "Invalid transform values")
+    return  # Don't update with invalid values
+
+STORAGE:
+self.center_x = center_x
+self.center_y = center_y
+self.half_w = half_w
+self.half_h = half_h
+self.rotation = rotation
+self.is_multi_selection = is_multi_selection
+
+DISPLAY:
+self.update() triggers paintEvent()
+
+RENDERING:
+- Handles are drawn using center_x, center_y, half_w, half_h, rotation
+- Each handle knows its position relative to AABB
+- Example: CornerHandle TL draws at (center_x - half_w, center_y - half_h)
+- Rotation is applied to handle positions using Qt transforms
+
+
+═══════════════════════════════════════════════════════════════════════════════
+COORDINATE SPACE SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+1. CoA Space (Model)
+   - Range: 0.0 to 1.0 (normalized)
+   - Origin: (0.5, 0.5) is center
+   - Purpose: Resolution-independent storage
+   - Who uses it: CoA model, save/load, game format
+
+2. Frame Space (Intermediate)
+   - Range: Approx 0.0 to 1.0 (with frame scaling)
+   - Origin: (0.5, 0.5) is center
+   - Purpose: Apply frame-specific scaling/offset (e.g., realm frames vs title frames)
+   - Who uses it: CanvasCoordinateMixin conversions only (internal step)
+
+3. Canvas Space (Display - Top-left origin)
+   - Range: 0 to width/height in pixels
+   - Origin: (0, 0) is top-left corner
+   - Purpose: Qt pixel coordinates for positioning
+   - Who uses it: CanvasArea coordinate conversion intermediates
+
+4. Canvas Space (Display - Center origin)
+   - Range: -width/2 to +width/2, -height/2 to +height/2 in pixels
+   - Origin: (0, 0) is center of canvas
+   - Purpose: Transform widget internal calculations
+   - Who uses it: TransformWidget storage and handle calculations
+   - Zoom/pan applied: Yes
+   - Frame scaling applied: Yes
+
+
+═══════════════════════════════════════════════════════════════════════════════
+KEY CONVERSION FACTORS
+═══════════════════════════════════════════════════════════════════════════════
+
+ZOOM LEVEL:
+- Stored in: canvas_widget.zoom_level (float, default 1.0)
+- Effect: Multiplies pixel dimensions (2.0 = 200% zoom)
+- Applied: In frame_to_canvas() and canvas_to_frame()
+
+PAN OFFSET:
+- Stored in: canvas_widget.pan_x, canvas_widget.pan_y (float, pixels)
+- Effect: Shifts canvas origin (positive = pan right/down)
+- Applied: In frame_to_canvas() and canvas_to_frame()
+
+FRAME TRANSFORM:
+- Source: canvas_widget.get_frame_transform() → (scale_tuple, offset_tuple)
+- Example: Realm frames have different scale than title frames
+- Applied: In coa_to_frame() and frame_to_coa()
+
+BASE SIZE CONSTANT:
+- COA_BASE_SIZE_PX = 256 (from canvas_widget_NEW.py)
+- Purpose: Reference size for CoA scale=1.0
+- Applied: In scale conversions (pixels ↔ CoA scale)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+DATA FLOW DIAGRAM
+═══════════════════════════════════════════════════════════════════════════════
+
+USER DRAGS HANDLE:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TransformWidget.mouseMoveEvent(event)                                       │
+│   Input: event.pos() = Qt widget-local pixels (top-left origin)            │
+│   ↓                                                                          │
+│   _widget_to_center_origin(pos) → (mouse_x, mouse_y) center-origin pixels  │
+│   ↓                                                                          │
+│   active_handle.drag(...) → Calculates new transform in center-origin pixels│
+│   ↓                                                                          │
+│   Output: (center_x, center_y, half_w, half_h, rotation) all in pixels     │
+│   ↓                                                                          │
+│   EMIT: transformChanged(center_x, center_y, half_w, half_h, rotation)     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ CanvasArea._on_transform_changed(center_x, center_y, half_w, half_h, ...)  │
+│   Input: Center-origin pixels from transform widget                         │
+│   ↓                                                                          │
+│   center_x_topleft = center_x + canvas_widget.width()/2  [Center→TopLeft]  │
+│   center_y_topleft = center_y + canvas_widget.height()/2                   │
+│   ↓                                                                          │
+│   canvas_widget.canvas_to_coa(center_x_topleft, center_y_topleft)          │
+│     ├─> canvas_to_frame(x, y) removes zoom/pan                             │
+│     └─> frame_to_coa(frame_x, frame_y) removes frame transform             │
+│   → (pos_x, pos_y) in CoA space (0-1)                                      │
+│   ↓                                                                          │
+│   canvas_widget.pixels_to_coa_scale(half_w, half_h)                        │
+│     ├─> pixels_to_frame_scale(half_w, half_h) ÷ (256 * zoom)              │
+│     └─> frame_scale_to_coa_scale(...) ÷ frame_scales                       │
+│   → (scale_x, scale_y) in CoA scale (1.0 = 100%)                           │
+│   ↓                                                                          │
+│   Output: (pos_x, pos_y, scale_x, scale_y, rotation) in CoA space          │
+│   ↓                                                                          │
+│   WRITE TO MODEL:                                                           │
+│     main_window.coa.set_layer_position(uuid, pos_x, pos_y)                 │
+│     main_window.coa.set_layer_scale(uuid, scale_x, scale_y)                │
+│     main_window.coa.set_layer_rotation(uuid, rotation)                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECTION CHANGES OR REFRESH:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ CanvasArea.update_transform_widget_for_layer()                              │
+│   ↓                                                                          │
+│   READ FROM MODEL:                                                          │
+│     pos_x = main_window.coa.get_layer_pos_x(uuid)                          │
+│     pos_y = main_window.coa.get_layer_pos_y(uuid)                          │
+│     scale_x = main_window.coa.get_layer_scale_x(uuid)                      │
+│     scale_y = main_window.coa.get_layer_scale_y(uuid)                      │
+│     rotation = main_window.coa.get_layer_rotation(uuid)                    │
+│   ↓                                                                          │
+│   Input: (pos_x, pos_y, scale_x, scale_y, rotation) in CoA space           │
+│   ↓                                                                          │
+│   canvas_widget.coa_to_canvas(pos_x, pos_y)                                │
+│     ├─> coa_to_frame(pos_x, pos_y) applies frame transform                │
+│     └─> frame_to_canvas(frame_x, frame_y) applies zoom/pan                │
+│   → (center_x_topleft, center_y_topleft) in Qt pixels (top-left origin)   │
+│   ↓                                                                          │
+│   canvas_widget.coa_scale_to_pixels(scale_x, scale_y)                      │
+│     ├─> coa_scale_to_frame_scale(...) × frame_scales                       │
+│     └─> frame_scale_to_pixels(...) × (256 * zoom) / 2                     │
+│   → (half_w, half_h) in pixels                                             │
+│   ↓                                                                          │
+│   center_x = center_x_topleft - canvas_widget.width()/2  [TopLeft→Center] │
+│   center_y = center_y_topleft - canvas_widget.height()/2                  │
+│   ↓                                                                          │
+│   Output: (center_x, center_y, half_w, half_h, rotation) in pixels         │
+│   ↓                                                                          │
+│   CALL: transform_widget.set_transform(center_x, center_y, ...)           │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TransformWidget.set_transform(center_x, center_y, half_w, half_h, rotation)│
+│   Input: Center-origin pixels                                              │
+│   ↓                                                                          │
+│   VALIDATE: Check for NaN/Inf values                                        │
+│   ↓                                                                          │
+│   STORE:                                                                    │
+│     self.center_x = center_x                                               │
+│     self.center_y = center_y                                               │
+│     self.half_w = half_w                                                   │
+│     self.half_h = half_h                                                   │
+│     self.rotation = rotation                                               │
+│   ↓                                                                          │
+│   self.update() → Triggers paintEvent() → Renders handles                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+EDIT LOCK SYSTEM (Decision 4)
+═══════════════════════════════════════════════════════════════════════════════
+
+PURPOSE: Prevent feedback loops during continuous transforms
+
+LOCK HOLDER: MainWindow (sits above Canvas Area and Properties Panel siblings)
+
+ACQUIRE:
+File: transform_widget.py → mousePressEvent()
+When: Handle clicked, before drag starts
+Code:
+    if self.main_window:
+        try:
+            self.main_window.acquire_edit_lock(self)
+        except RuntimeError:
+            # Lock already held - abort drag
+            self.active_handle = None
+            event.ignore()
+            return
+
+RELEASE:
+File: transform_widget.py → mouseReleaseEvent()
+When: Drag ends (guaranteed via try/finally)
+Code:
+    try:
+        # TODO: Sync widget display to model truth before releasing lock
+        pass
+    finally:
+        if self.main_window:
+            try:
+                self.main_window.release_edit_lock(self)
+            except RuntimeError:
+                pass  # Lock wasn't acquired
+
+PATTERN:
+1. Acquire lock on drag start
+2. Update model continuously during drag (via transformChanged signal)
+3. Sync display to model truth before release (ensures UI matches model values)
+4. Release lock in try/finally (guarantees release even on exception)
+
+BENEFITS:
+- Canvas area only writes to model when transform widget has lock
+- Property panel sliders/inputs are disabled when lock is held
+- No circular updates: widget → model → widget → model ...
+- Rounding errors become harmless visual glitches instead of data corruption
+
+
+═══════════════════════════════════════════════════════════════════════════════
+FILE REFERENCE SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+TRANSFORM WIDGET:
+File: editor/src/components/transform_widget.py
+Storage: Pure pixels (center-origin)
+Signals: transformChanged, transformEnded, nonUniformScaleUsed, layerDuplicated
+
+CANVAS AREA:
+File: editor/src/components/canvas_area.py
+Role: Coordinate conversion coordinator, signal connection hub
+Connects: transform_widget.transformChanged → _on_transform_changed()
+Calls: canvas_widget conversion methods, coa model setters/getters
+
+COORDINATE CONVERSIONS:
+File: editor/src/components/canvas_widgets/canvas_coordinate_mixin.py
+Methods:
+  Atomic: coa_to_frame, frame_to_coa, frame_to_canvas, canvas_to_frame
+  Composite: coa_to_canvas, canvas_to_coa
+  Scale: coa_scale_to_pixels, pixels_to_coa_scale (+ frame intermediates)
+Note: Mixed into canvas_widget_NEW.py via inheritance
+
+COA MODEL:
+File: editor/src/models/coa/ (multiple files, accessed via CoA.get_active())
+Storage: 0-1 normalized coordinates, scale multipliers
+Methods: get_layer_pos_x/y, set_layer_position, get_layer_scale_x/y, etc.
+
+MAIN WINDOW:
+File: editor/src/main.py
+Role: Edit lock manager
+Methods: acquire_edit_lock(), release_edit_lock(), is_edit_locked()
+Setup: Sets transform_widget.main_window = self during initialization
+
+
+═══════════════════════════════════════════════════════════════════════════════
+END OF TRACE
+═══════════════════════════════════════════════════════════════════════════════

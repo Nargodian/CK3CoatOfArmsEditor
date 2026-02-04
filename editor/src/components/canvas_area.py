@@ -464,12 +464,9 @@ class CanvasArea(QFrame):
 					# Convert CoA space to canvas pixels (Decision 3)
 					center_x_topleft, center_y_topleft = self.canvas_widget.coa_to_canvas(group_pos_x, group_pos_y)
 					half_w, half_h = self.canvas_widget.coa_scale_to_pixels(group_scale_x, group_scale_y)
-										# Convert from top-left to center-origin coordinates
-					center_x = center_x_topleft - self.canvas_widget.width() / 2
-					center_y = center_y_topleft - self.canvas_widget.height() / 2
-					
-					# Pass is_multi_selection=True for group behavior
-					self.transform_widget.set_transform(center_x, center_y, half_w, half_h, group_rotation, is_multi_selection=True)
+									# Convert from top-left to center-origin coordinates (use transform_widget dimensions!)
+				center_x = center_x_topleft - self.transform_widget.width() / 2
+				center_y = center_y_topleft - self.transform_widget.height() / 2
 					self.transform_widget.set_visible(True)
 					return
 				except ValueError:
@@ -491,13 +488,9 @@ class CanvasArea(QFrame):
 				center_x_topleft, center_y_topleft = self.canvas_widget.coa_to_canvas(pos_x, pos_y)
 				half_w, half_h = self.canvas_widget.coa_scale_to_pixels(scale_x, scale_y)
 				
-				# Convert from top-left to center-origin coordinates
-				center_x = center_x_topleft - self.canvas_widget.width() / 2
-				center_y = center_y_topleft - self.canvas_widget.height() / 2
-				
-				self.transform_widget.set_transform(center_x, center_y, half_w, half_h, rotation)
-				self.transform_widget.set_visible(True)
-				return
+			# Convert from top-left to center-origin coordinates (use transform_widget dimensions!)
+			center_x = center_x_topleft - self.transform_widget.width() / 2
+			center_y = center_y_topleft - self.transform_widget.height() / 2
 		
 		# MULTI-SELECTION: Calculate screen-space AABB using CoA
 		# If we have a drag_start_aabb (during active transform), use that to prevent scale compounding
@@ -544,13 +537,9 @@ class CanvasArea(QFrame):
 		center_x_topleft, center_y_topleft = self.canvas_widget.frame_to_canvas(frame_x, frame_y)
 		half_w, half_h = self.canvas_widget.coa_scale_to_pixels(group_scale_x, group_scale_y)
 		
-		# Convert from top-left to center-origin coordinates
-		center_x = center_x_topleft - self.canvas_widget.width() / 2
-		center_y = center_y_topleft - self.canvas_widget.height() / 2
-		
-		# Pass is_multi_selection=True to skip scale clamping (AABB can exceed 1.0)
-		self.transform_widget.set_transform(center_x, center_y, half_w, half_h, group_rotation, is_multi_selection=True)
-		self.transform_widget.set_visible(True)
+	# Convert from top-left to center-origin coordinates (use transform_widget dimensions!)
+	center_x = center_x_topleft - self.transform_widget.width() / 2
+	center_y = center_y_topleft - self.transform_widget.height() / 2
 	def _on_transform_changed(self, center_x, center_y, half_w, half_h, rotation):
 		"""Handle transform changes from the widget (pixel space → CoA space).
 		
@@ -565,13 +554,9 @@ class CanvasArea(QFrame):
 		if not selected_uuids:
 			return
 		
-		# Convert from center-origin to top-left coordinates first
-		center_x_topleft = center_x + self.canvas_widget.width() / 2
-		center_y_topleft = center_y + self.canvas_widget.height() / 2
-		
-		# Convert canvas pixels back to CoA space (Decision 3)
-		pos_x, pos_y = self.canvas_widget.canvas_to_coa(center_x_topleft, center_y_topleft)
-		scale_x, scale_y = self.canvas_widget.pixels_to_coa_scale(half_w, half_h)
+	# Convert from center-origin to top-left coordinates first (use transform_widget dimensions!)
+	center_x_topleft = center_x + self.transform_widget.width() / 2
+	center_y_topleft = center_y + self.transform_widget.height() / 2
 		
 		# Check if we're rotating (using rotation handle)
 		if hasattr(self.transform_widget, 'is_rotating') and self.transform_widget.is_rotating:
