@@ -7,12 +7,17 @@
  * No UV math - fragment shader calculates its own UVs from gl_FragCoord.
  */
 
-in vec2 vTexCoord;
+in vec2 fragUV;
 out vec4 FragColor;
 
-uniform sampler2D coaTextureSampler;  // RTT texture containing rendered CoA
+uniform sampler2D coaTextureSampler;   // RTT texture containing rendered CoA
+uniform sampler2D frameMaskSampler;    // Frame mask texture (alpha defines shape)
 uniform vec2 coaTopLeft;      // Top-left corner of CoA render area (viewport pixels)
 uniform vec2 coaBottomRight;  // Bottom-right corner of CoA render area (viewport pixels)
+
+const float FRAME_MASK_SCALE = 0.75;  // Scale factor for frame mask sampling
+const float FRAME_MASK_FUDGE = 1.10; // Fudge factor to push the mask UVs out slightly
+const float COA_CLAMP_INSET = 0.01;   // Inset for CoA UV clamping to avoid edge artifacts
 
 void main() {
 	// Get fragment position in viewport coordinates
@@ -24,16 +29,31 @@ void main() {
 	float minY = min(coaTopLeft.y, coaBottomRight.y);
 	float maxY = max(coaTopLeft.y, coaBottomRight.y);
 	
-	// Calculate UV coordinates from fragment position
+	// Calculate UV coordinates from fragment position for CoA sampling
 	// Map fragment position to 0-1 range within CoA bounds
 	vec2 coaUV = (fragPos - vec2(minX, minY)) / (vec2(maxX, maxY) - vec2(minX, minY));
 	
-	// Clamp UVs with small inset to avoid edge artifacts
-	float inset = 0.005;
-	coaUV = clamp(coaUV, inset, 1.0 - inset);
 	
-	// Sample CoA texture
+	// Clamp CoA UV with inset to avoid edge artifacts
+	coaUV = clamp(coaUV, COA_CLAMP_INSET, 1.0 - COA_CLAMP_INSET);
+	
+	// Sample CoA texture (RGB colors)
 	vec4 coaColor = texture(coaTextureSampler, coaUV);
 	
-	FragColor = coaColor;
+	// Calculate frame mask UV from frame quad UV (fragUV from vertex shader)
+	// Scale to sample from center portion of mask texture, then push out with fudge factor
+	vec2 frameMaskUV = ((fragUV - 0.5) / FRAME_MASK_FUDGE) / FRAME_MASK_SCALE + 0.5;
+	
+	// Check if frame mask UV is outside 0-1 range (beyond texture = 0 alpha)
+	float maskAlpha = 0.0;
+	if (frameMaskUV.x >= 0.0 && frameMaskUV.x <= 1.0 && 
+	    frameMaskUV.y >= 0.0 && frameMaskUV.y <= 1.0) {
+		// Sample frame mask texture
+		vec4 frameMask = texture(frameMaskSampler, frameMaskUV);
+		maskAlpha = frameMask.a;
+	}
+	
+	// NOTE: maskAlpha IS the final alpha, it completely replaces coaColor.a
+	// The frame mask defines the cutout shape, CoA provides only the RGB colors
+	FragColor = vec4(coaColor.rgb, maskAlpha);
 }

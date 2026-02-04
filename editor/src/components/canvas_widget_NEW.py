@@ -471,6 +471,13 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
 		self.main_composite_shader.setUniformValue("coaTextureSampler", 0)
 		
+		# Bind frame mask texture
+		frame_mask_id = self.frame_masks.get(self.current_frame_name, self.default_mask_texture)
+		if frame_mask_id:
+			gl.glActiveTexture(gl.GL_TEXTURE1)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, frame_mask_id)
+			self.main_composite_shader.setUniformValue("frameMaskSampler", 1)
+		
 		# Set quad transform uniforms (pixel-based, shader converts to normalized)
 		self.main_composite_shader.setUniformValue("screenRes", QVector2D(viewport_width, viewport_height))
 		self.main_composite_shader.setUniformValue("position", QVector2D(position_x_px, position_y_px))
