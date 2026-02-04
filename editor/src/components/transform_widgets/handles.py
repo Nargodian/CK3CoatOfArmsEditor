@@ -59,6 +59,15 @@ class Handle(ABC):
 			tuple: (new_center_x, new_center_y, new_half_w, new_half_h, new_rotation)
 		"""
 		pass
+	
+	@abstractmethod
+	def get_cursor(self):
+		"""Get the Qt cursor shape for this handle.
+		
+		Returns:
+			Qt.CursorShape: Cursor to display when hovering over this handle
+		"""
+		pass
 
 
 class CornerHandle(Handle):
@@ -157,6 +166,10 @@ class CornerHandle(Handle):
 		
 		# Fallback: no change
 		return (start_cx, start_cy, start_hw, start_hh, start_rot)
+	
+	def get_cursor(self):
+		"""Diagonal resize cursor for corner handles."""
+		return Qt.SizeFDiagCursor
 
 
 class EdgeHandle(Handle):
@@ -250,6 +263,13 @@ class EdgeHandle(Handle):
 		
 		# Fallback
 		return (start_cx, start_cy, start_hw, start_hh, start_rot)
+	
+	def get_cursor(self):
+		"""Horizontal or vertical resize cursor based on edge orientation."""
+		if self.edge_type in ['l', 'r']:
+			return Qt.SizeHorCursor
+		else:
+			return Qt.SizeVerCursor
 
 
 class RotationHandle(Handle):
@@ -315,6 +335,10 @@ class RotationHandle(Handle):
 			new_rot = round(new_rot / 45.0) * 45.0
 		
 		return (start_cx, start_cy, start_hw, start_hh, new_rot)
+	
+	def get_cursor(self):
+		"""Cross cursor for rotation."""
+		return Qt.CrossCursor
 
 
 class CenterHandle(Handle):
@@ -359,6 +383,10 @@ class CenterHandle(Handle):
 		dx = mouse_x - start_mouse_x
 		dy = mouse_y - start_mouse_y
 		return (start_cx + dx, start_cy + dy, start_hw, start_hh, start_rot)
+	
+	def get_cursor(self):
+		"""Move cursor for center/translation."""
+		return Qt.SizeAllCursor
 
 
 class ArrowHandle(Handle):
@@ -449,6 +477,13 @@ class ArrowHandle(Handle):
 		else:
 			# Y arrow: only move vertically
 			return (start_cx, start_cy + dy, start_hw, start_hh, start_rot)
+	
+	def get_cursor(self):
+		"""Horizontal or vertical cursor based on arrow axis."""
+		if self.axis == 'x':
+			return Qt.SizeHorCursor
+		else:
+			return Qt.SizeVerCursor
 
 
 class RingHandle(Handle):
@@ -497,6 +532,10 @@ class RingHandle(Handle):
 			new_rot = round(new_rot / 45.0) * 45.0
 		
 		return (start_cx, start_cy, start_hw, start_hh, new_rot)
+	
+	def get_cursor(self):
+		"""Cross cursor for rotation ring."""
+		return Qt.CrossCursor
 
 
 class GimbleCenterHandle(Handle):
@@ -530,3 +569,7 @@ class GimbleCenterHandle(Handle):
 		dx = mouse_x - start_mouse_x
 		dy = mouse_y - start_mouse_y
 		return (start_cx + dx, start_cy + dy, start_hw, start_hh, start_rot)
+	
+	def get_cursor(self):
+		"""Move cursor for gimble center."""
+		return Qt.SizeAllCursor

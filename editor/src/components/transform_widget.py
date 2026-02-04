@@ -33,6 +33,9 @@ class TransformWidget(QWidget):
 		# If not provided, assume parent is the canvas (backward compatibility)
 		self.canvas_widget = canvas_widget if canvas_widget else parent
 		
+		# Reference to main window for edit lock (set by canvas_area)
+		self.main_window = None
+		
 		# Transform state (PURE PIXEL SPACE - Decision 3)
 		self.center_x = 0.0  # Widget pixel X
 		self.center_y = 0.0  # Widget pixel Y
@@ -274,6 +277,16 @@ class TransformWidget(QWidget):
 			self.active_handle = self._get_handle_at_pos(event.pos())
 			
 			if self.active_handle:
+				# Acquire edit lock (Decision 4 - prevent feedback loops)
+				if self.main_window:
+					try:
+						self.main_window.acquire_edit_lock(self)
+					except RuntimeError:
+						# Lock already held - abort drag
+						self.active_handle = None
+						event.ignore()
+						return
+				
 				# Start drag
 				self.drag_start_pos = event.pos()
 				self.drag_start_transform = (self.center_x, self.center_y, self.half_w, self.half_h, self.rotation)
@@ -344,20 +357,8 @@ class TransformWidget(QWidget):
 		# Update cursor based on handle under mouse
 		handle = self._get_handle_at_pos(event.pos())
 		if handle:
-			# Use polymorphism via isinstance instead of string comparison
-			from .transform_widgets.handles import (RotationHandle, RingHandle, ArrowHandle,
-			                                         CenterHandle, GimbleCenterHandle)
-			if isinstance(handle, (CenterHandle, GimbleCenterHandle)):
-				self.setCursor(Qt.SizeAllCursor)
-			elif isinstance(handle, ArrowHandle):
-				if handle.axis == 'x':
-					self.setCursor(Qt.SizeHorCursor)
-				else:
-					self.setCursor(Qt.SizeVerCursor)
-			elif isinstance(handle, (RotationHandle, RingHandle)):
-				self.setCursor(Qt.CrossCursor)
-			else:
-				self.setCursor(Qt.SizeFDiagCursor)
+			# Use polymorphic get_cursor() method
+			self.setCursor(handle.get_cursor())
 		else:
 			self.setCursor(Qt.ArrowCursor)
 		
@@ -373,6 +374,18 @@ class TransformWidget(QWidget):
 		if event.button() == Qt.LeftButton and self.active_handle:
 			# Track if this was a duplicate drag for history
 			was_duplicate_drag = self.drag_context and self.drag_context.duplicate_created
+			
+			# Release edit lock in try/finally to guarantee release (Decision 4)
+			try:
+				# TODO: Sync widget display to model truth before releasing lock
+				# This ensures UI matches model values and catches conversion rounding errors
+				pass
+			finally:
+				if self.main_window:
+					try:
+						self.main_window.release_edit_lock(self)
+					except RuntimeError:
+						pass  # Lock wasn't acquired (e.g., main_window not set)
 			
 			# Clear drag state
 			self.active_handle = None

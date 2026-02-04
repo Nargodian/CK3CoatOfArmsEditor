@@ -148,6 +148,47 @@ class CoatOfArmsEditor(QMainWindow):
 		# Check for autosave recovery after UI is set up
 		# QTimer.singleShot(500, self._check_autosave_recovery)  # TODO: Fix autosave recovery
 	
+	# ============= Edit Lock System (Decision 4) =============
+	def acquire_edit_lock(self, requester):
+		"""Acquire exclusive edit lock for continuous numerical edits.
+		
+		Args:
+			requester: Object requesting the lock (for debugging)
+			
+		Raises:
+			RuntimeError: If lock is already held by another component
+		"""
+		from utils.logger import loggerRaise
+		if self._edit_lock_holder is not None:
+			e = RuntimeError(f"Edit lock already held by {self._edit_lock_holder}")
+			loggerRaise(e, f"Cannot acquire lock - already held by {self._edit_lock_holder}")
+		self._edit_lock_holder = requester
+	
+	def release_edit_lock(self, requester):
+		"""Release edit lock - only lock holder can release.
+		
+		Args:
+			requester: Object releasing the lock
+			
+		Raises:
+			RuntimeError: If requester doesn't own the lock
+		"""
+		from utils.logger import loggerRaise
+		if self._edit_lock_holder != requester:
+			e = RuntimeError(f"Lock held by {self._edit_lock_holder}, not {requester}")
+			loggerRaise(e, f"Cannot release lock - not owned by requester")
+		self._edit_lock_holder = None
+	
+	def is_edit_locked(self):
+		"""Check if edit lock is currently held.
+		
+		Returns:
+			bool: True if lock is held by any component
+		"""
+		return self._edit_lock_holder is not None
+	
+	# ============= UI Setup =============
+	
 	def setup_ui(self):
 		# Create menu bar (includes zoom controls)
 		self._create_menu_bar()
@@ -172,6 +213,8 @@ class CoatOfArmsEditor(QMainWindow):
 		#COA INTEGRATION ACTION: Step 4-5 - Pass CoA reference to canvas area and canvas widget
 		self.canvas_area.coa = self.coa
 		self.canvas_area.canvas_widget.coa = self.coa
+		# Connect transform widget to main window for edit lock access (Decision 4)
+		self.canvas_area.transform_widget.main_window = self
 		splitter.addWidget(self.canvas_area)
 		
 		# Right properties sidebar
