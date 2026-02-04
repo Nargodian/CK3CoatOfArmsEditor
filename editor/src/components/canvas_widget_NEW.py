@@ -252,6 +252,7 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 		
 		# Render base pattern
+		# Render base pattern
 		self._render_base_pattern()
 		
 		# Render emblem layers
@@ -263,6 +264,7 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 	def _render_base_pattern(self):
 		"""Render the base pattern layer."""
 		if not self.base_shader or not self.default_mask_texture:
+			print(f"Base pattern early return: shader={self.base_shader}, mask={self.default_mask_texture}")
 			return
 		
 		# Get pattern texture
@@ -272,6 +274,8 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 			atlas_index, u0, v0, u1, v1 = self.texture_uv_map[self.base_texture]
 			if 0 <= atlas_index < len(self.texture_atlases):
 				pattern_texture_id = self.texture_atlases[atlas_index]
+		
+		# Base pattern rendering
 		
 		# Render using static quad + shader transforms
 		self.vao.bind()
@@ -284,9 +288,10 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		self.base_shader.setUniformValue("color2", QVector3D(*self.base_colors[1]))
 		self.base_shader.setUniformValue("color3", QVector3D(*self.base_colors[2]))
 		
-		# Set transform uniforms (fill entire framebuffer)
+		# Set transform uniforms (fill entire 512×512 framebuffer)
+		self.base_shader.setUniformValue("screenRes", QVector2D(512.0, 512.0))
 		self.base_shader.setUniformValue("position", QVector2D(0.0, 0.0))
-		self.base_shader.setUniformValue("scale", QVector2D(1.0, 1.0))
+		self.base_shader.setUniformValue("scale", QVector2D(512.0, 512.0))
 		self.base_shader.setUniformValue("rotation", 0.0)
 		self.base_shader.setUniformValue("uvOffset", QVector2D(u0, v0))
 		self.base_shader.setUniformValue("uvScale", QVector2D(u1 - u0, v1 - v0))
@@ -498,9 +503,7 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		coa_bottom_px = center_y_px - coa_size_y / 2.0
 		coa_top_px = center_y_px + coa_size_y / 2.0
 		
-		print(f"\n=== COMPOSITE ===")
-		print(f"Quad: {size_x_px:.1f}x{size_y_px:.1f}px at ({position_x_px:.1f}, {position_y_px:.1f})")
-		print(f"CoA: {coa_size_x:.1f}x{coa_size_y:.1f}px, bounds: [{coa_left_px:.1f}-{coa_right_px:.1f}, {coa_bottom_px:.1f}-{coa_top_px:.1f}]")
+		# Debug output disabled
 		
 		self.main_composite_shader.setUniformValue("coaTopLeft", coa_left_px, coa_top_px)
 		self.main_composite_shader.setUniformValue("coaBottomRight", coa_right_px, coa_bottom_px)
@@ -550,7 +553,7 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		self.tilesheet_shader.setUniformValue("flipU", False)
 		self.tilesheet_shader.setUniformValue("flipV", False)
 		
-		print(f"Frame: {size_x_px:.1f}x{size_y_px:.1f}px at ({position_x_px:.1f}, {position_y_px:.1f})")
+		# Debug output disabled
 		
 		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 		

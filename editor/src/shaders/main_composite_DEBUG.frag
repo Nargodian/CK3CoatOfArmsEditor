@@ -34,16 +34,22 @@ void main() {
 		// Sample CoA texture
 		vec4 coaColor = texture(coaTextureSampler, coaUV);
 		
-		// Show CoA content with border highlight
-		bool onBorder = (fragPos.x < minX + 3.0 || fragPos.x > maxX - 3.0 ||
-		                 fragPos.y < minY + 3.0 || fragPos.y > maxY - 3.0);
-		
-		if (onBorder) {
-			FragColor = vec4(1.0, 1.0, 0.0, 1.0);  // Yellow border
+		// DEBUG: If texture is black, show magenta to distinguish from missing texture
+		if (coaColor.a < 0.01) {
+			FragColor = vec4(1.0, 0.0, 1.0, 1.0);  // Magenta = no alpha/empty texture
+		} else if (length(coaColor.rgb) < 0.01) {
+			FragColor = vec4(0.0, 1.0, 1.0, 1.0);  // Cyan = black texture with alpha
 		} else {
-			FragColor = coaColor;
-		}
-		FragColor=vec4(1.,1.,0.,1.);	
+			// Show CoA content with border highlight
+			bool onBorder = (fragPos.x < minX + 3.0 || fragPos.x > maxX - 3.0 ||
+			                 fragPos.y < minY + 3.0 || fragPos.y > maxY - 3.0);
+			
+			if (onBorder) {
+				FragColor = vec4(1.0, 1.0, 0.0, 1.0);  // Yellow border
+			} else {
+				FragColor = coaColor;
+			}
+		}	
 	} else {
 		// Red outside CoA bounds
 		FragColor = vec4(1.0, 0.0, 0.0, 1.0);
