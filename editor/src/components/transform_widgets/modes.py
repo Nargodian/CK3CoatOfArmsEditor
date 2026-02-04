@@ -27,12 +27,12 @@ class TransformMode:
 		"""Find which handle (if any) is at mouse position.
 		
 		Returns:
-			handle_type (str) or None
+			Handle object or None
 		"""
 		# Check handles in priority order
 		for handle_type, handle in self.handles.items():
 			if handle.hit_test(mouse_x, mouse_y, center_x, center_y, half_w, half_h, rotation):
-				return handle_type
+				return handle
 		return None
 
 
@@ -77,7 +77,8 @@ class BboxMode(TransformMode):
 		
 		for handle_type in check_order:
 			if self.handles[handle_type].hit_test(mouse_x, mouse_y, center_x, center_y, half_w, half_h, rotation):
-				return handle_type
+				return self.handles[handle_type]
+		return None
 		
 		return None
 
@@ -130,7 +131,7 @@ class GimbleMode(TransformMode):
 		
 		for handle_type in check_order:
 			if self.handles[handle_type].hit_test(mouse_x, mouse_y, center_x, center_y, half_w, half_h, rotation):
-				return handle_type
+				return self.handles[handle_type]
 		
 		return None
 

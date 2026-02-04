@@ -7,7 +7,7 @@ Each handle type is a class that knows:
 """
 
 from abc import ABC, abstractmethod
-from PyQt5.QtCore import QPointF
+from PyQt5.QtCore import QPointF, Qt
 from PyQt5.QtGui import QPainter, QPen, QBrush, QColor, QTransform
 import math
 
@@ -39,6 +39,24 @@ class Handle(ABC):
 			center_x, center_y: AABB center in widget pixels
 			half_w, half_h: AABB half-dimensions in pixels
 			rotation: Rotation in degrees
+		"""
+		pass
+	
+	@abstractmethod
+	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
+	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+		"""Handle drag operation for this handle type.
+		
+		Args:
+			mouse_x, mouse_y: Current mouse position in center-origin coordinates
+			start_mouse_x, start_mouse_y: Drag start mouse position in center-origin coordinates
+			start_cx, start_cy: Transform center at drag start (pixels, center-origin)
+			start_hw, start_hh: Half-dimensions at drag start (pixels)
+			start_rot: Rotation at drag start (degrees)
+			modifiers: Qt keyboard modifiers (for shift/alt behavior)
+			
+		Returns:
+			tuple: (new_center_x, new_center_y, new_half_w, new_half_h, new_rotation)
 		"""
 		pass
 
@@ -95,6 +113,50 @@ class CornerHandle(Handle):
 		painter.setPen(QPen(QColor(255, 255, 255), 2))
 		painter.setBrush(QBrush(QColor(100, 100, 255)))
 		painter.drawEllipse(QPointF(px, py), float(self.handle_size), float(self.handle_size))
+	
+	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
+	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+		"""Uniform diagonal scaling - maintains aspect ratio."""
+		from PyQt5.QtCore import Qt
+		
+		alt_pressed = modifiers and (modifiers & Qt.AltModifier)
+		
+		# Determine anchor point (opposite corner)
+		if alt_pressed:
+			# Alt: anchor opposite corner
+			anchor_map = {
+				'tl': (start_cx + start_hw, start_cy + start_hh),
+				'tr': (start_cx - start_hw, start_cy + start_hh),
+				'bl': (start_cx + start_hw, start_cy - start_hh),
+				'br': (start_cx - start_hw, start_cy - start_hh)
+			}
+			anchor_x, anchor_y = anchor_map[self.corner_type]
+			
+			# Distance from anchor
+			curr_dist = math.sqrt((mouse_x - anchor_x)**2 + (mouse_y - anchor_y)**2)
+			start_dist = math.sqrt((start_mouse_x - anchor_x)**2 + (start_mouse_y - anchor_y)**2)
+			
+			if start_dist > 0:
+				scale_factor = curr_dist / start_dist
+				new_hw = start_hw * scale_factor
+				new_hh = start_hh * scale_factor
+				# Reposition center to keep anchor fixed
+				new_cx = anchor_x + (start_cx - anchor_x) * scale_factor
+				new_cy = anchor_y + (start_cy - anchor_y) * scale_factor
+				return (new_cx, new_cy, new_hw, new_hh, start_rot)
+		else:
+			# Normal: scale from center
+			start_dist = math.sqrt((start_mouse_x - start_cx)**2 + (start_mouse_y - start_cy)**2)
+			curr_dist = math.sqrt((mouse_x - start_cx)**2 + (mouse_y - start_cy)**2)
+			
+			if start_dist > 0:
+				scale_factor = curr_dist / start_dist
+				new_hw = start_hw * scale_factor
+				new_hh = start_hh * scale_factor
+				return (start_cx, start_cy, new_hw, new_hh, start_rot)
+		
+		# Fallback: no change
+		return (start_cx, start_cy, start_hw, start_hh, start_rot)
 
 
 class EdgeHandle(Handle):
@@ -148,6 +210,46 @@ class EdgeHandle(Handle):
 		painter.setBrush(QBrush(QColor(100, 255, 100)))
 		painter.drawRect(int(px - self.handle_size/2), int(py - self.handle_size/2),
 		                 self.handle_size, self.handle_size)
+	
+	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
+	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+		"""Single-axis scaling - only changes width OR height."""
+		from PyQt5.QtCore import Qt
+		
+		alt_pressed = modifiers and (modifiers & Qt.AltModifier)
+		
+		# Determine which axis this edge controls
+		if self.edge_type in ['l', 'r']:
+			# Left/Right edges scale width
+			if alt_pressed:
+				anchor_x = start_cx + start_hw if self.edge_type == 'l' else start_cx - start_hw
+				new_hw = abs(mouse_x - anchor_x)
+				# Reposition center
+				new_cx = anchor_x + (start_cx - anchor_x) * (new_hw / start_hw) if start_hw > 0 else anchor_x
+				return (new_cx, start_cy, new_hw, start_hh, start_rot)
+			else:
+				start_dist = abs(start_mouse_x - start_cx)
+				curr_dist = abs(mouse_x - start_cx)
+				if start_dist > 0:
+					new_hw = start_hw * (curr_dist / start_dist)
+					return (start_cx, start_cy, new_hw, start_hh, start_rot)
+		else:
+			# Top/Bottom edges scale height
+			if alt_pressed:
+				anchor_y = start_cy + start_hh if self.edge_type == 't' else start_cy - start_hh
+				new_hh = abs(mouse_y - anchor_y)
+				# Reposition center
+				new_cy = anchor_y + (start_cy - anchor_y) * (new_hh / start_hh) if start_hh > 0 else anchor_y
+				return (start_cx, new_cy, start_hw, new_hh, start_rot)
+			else:
+				start_dist = abs(start_mouse_y - start_cy)
+				curr_dist = abs(mouse_y - start_cy)
+				if start_dist > 0:
+					new_hh = start_hh * (curr_dist / start_dist)
+					return (start_cx, start_cy, start_hw, new_hh, start_rot)
+		
+		# Fallback
+		return (start_cx, start_cy, start_hw, start_hh, start_rot)
 
 
 class RotationHandle(Handle):
@@ -193,6 +295,26 @@ class RotationHandle(Handle):
 		painter.setPen(QPen(QColor(255, 255, 255), 2))
 		painter.setBrush(QBrush(QColor(255, 100, 100)))
 		painter.drawEllipse(QPointF(px, py), float(self.handle_size), float(self.handle_size))
+	
+	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
+	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+		"""Rotate around center by calculating angle delta."""
+		from PyQt5.QtCore import Qt
+		
+		shift_pressed = modifiers and (modifiers & Qt.ShiftModifier)
+		
+		# Calculate angles from center
+		start_angle = math.degrees(math.atan2(start_mouse_y - start_cy, start_mouse_x - start_cx))
+		current_angle = math.degrees(math.atan2(mouse_y - start_cy, mouse_x - start_cx))
+		
+		angle_delta = current_angle - start_angle
+		new_rot = start_rot + angle_delta
+		
+		# Shift: snap to 45-degree increments
+		if shift_pressed:
+			new_rot = round(new_rot / 45.0) * 45.0
+		
+		return (start_cx, start_cy, start_hw, start_hh, new_rot)
 
 
 class CenterHandle(Handle):
@@ -230,6 +352,13 @@ class CenterHandle(Handle):
 		painter.drawRect(int(-half_w), int(-half_h), int(half_w * 2), int(half_h * 2))
 		
 		painter.restore()
+	
+	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
+	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+		"""Translate the entire transform by mouse delta."""
+		dx = mouse_x - start_mouse_x
+		dy = mouse_y - start_mouse_y
+		return (start_cx + dx, start_cy + dy, start_hw, start_hh, start_rot)
 
 
 class ArrowHandle(Handle):
@@ -307,6 +436,19 @@ class ArrowHandle(Handle):
 			painter.drawLine(0, end_y, head, end_y - head)
 		
 		painter.restore()
+	
+	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
+	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+		"""Axis-constrained translation - X arrow locks Y, Y arrow locks X."""
+		dx = mouse_x - start_mouse_x
+		dy = mouse_y - start_mouse_y
+		
+		if self.axis == 'x':
+			# X arrow: only move horizontally
+			return (start_cx + dx, start_cy, start_hw, start_hh, start_rot)
+		else:
+			# Y arrow: only move vertically
+			return (start_cx, start_cy + dy, start_hw, start_hh, start_rot)
 
 
 class RingHandle(Handle):
@@ -335,6 +477,26 @@ class RingHandle(Handle):
 		painter.setPen(QPen(QColor(255, 200, 100), 2))
 		painter.setBrush(QBrush())
 		painter.drawEllipse(QPointF(center_x, center_y), float(self.radius), float(self.radius))
+	
+	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
+	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+		"""Rotate around center - same behavior as RotationHandle."""
+		from PyQt5.QtCore import Qt
+		
+		shift_pressed = modifiers and (modifiers & Qt.ShiftModifier)
+		
+		# Calculate angles from center
+		start_angle = math.degrees(math.atan2(start_mouse_y - start_cy, start_mouse_x - start_cx))
+		current_angle = math.degrees(math.atan2(mouse_y - start_cy, mouse_x - start_cx))
+		
+		angle_delta = current_angle - start_angle
+		new_rot = start_rot + angle_delta
+		
+		# Shift: snap to 45-degree increments
+		if shift_pressed:
+			new_rot = round(new_rot / 45.0) * 45.0
+		
+		return (start_cx, start_cy, start_hw, start_hh, new_rot)
 
 
 class GimbleCenterHandle(Handle):
@@ -361,3 +523,10 @@ class GimbleCenterHandle(Handle):
 		painter.setPen(QPen(QColor(255, 255, 255), 2))
 		painter.setBrush(QBrush(QColor(150, 150, 255)))
 		painter.drawEllipse(QPointF(center_x, center_y), float(self.dot_radius), float(self.dot_radius))
+	
+	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
+	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+		"""Translate entire transform - same behavior as CenterHandle."""
+		dx = mouse_x - start_mouse_x
+		dy = mouse_y - start_mouse_y
+		return (start_cx + dx, start_cy + dy, start_hw, start_hh, start_rot)

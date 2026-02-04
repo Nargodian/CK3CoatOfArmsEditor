@@ -41,7 +41,7 @@ class TransformWidget(QWidget):
 		self.rotation = 0.0  # Degrees
 		
 		# Interaction state
-		self.active_handle = None  # Now stores handle_type string from mode
+		self.active_handle = None  # Now stores Handle object from mode
 		self.drag_start_pos = None
 		self.drag_start_transform = None  # (center_x, center_y, half_w, half_h, rotation)
 		self.visible = False
@@ -181,23 +181,65 @@ class TransformWidget(QWidget):
 		painter = QPainter(self)
 		painter.setRenderHint(QPainter.Antialiasing)
 		
+		# Translate painter to center-origin (handles expect center-origin coordinates)
+		painter.translate(self.width() / 2, self.height() / 2)
+		
 		# Widget stores pixels directly - no conversion needed
 		# Iterate mode's handles and call draw()
 		for handle in self.current_mode.handles.values():
 			handle.draw(painter, self.center_x, self.center_y, self.half_w, self.half_h, self.rotation)
 	
+	# ============= Coordinate Conversion Helpers (Decision 9) =============
+	def _widget_to_center_origin(self, pos):
+		"""Convert widget top-left coordinates to center-origin coordinates.
+		
+		Args:
+			pos: QPoint in widget coordinates
+			
+		Returns:
+			tuple: (x, y) in center-origin coordinates
+		"""
+		return (pos.x() - self.width() / 2, pos.y() - self.height() / 2)
+	
+	def _center_origin_to_widget(self, x, y):
+		"""Convert center-origin coordinates to widget top-left coordinates.
+		
+		Args:
+			x, y: Coordinates in center-origin space
+			
+		Returns:
+			QPoint in widget coordinates
+		"""
+		from PyQt5.QtCore import QPoint
+		return QPoint(int(x + self.width() / 2), int(y + self.height() / 2))
+	
+	# ============= Geometry Calculation Helpers =============
+	@staticmethod
+	def _calculate_distance(x1, y1, x2, y2):
+		"""Calculate Euclidean distance between two points."""
+		import math
+		return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+	
+	@staticmethod
+	def _calculate_angle(x1, y1, x2, y2):
+		"""Calculate angle in degrees from point 1 to point 2."""
+		import math
+		return math.degrees(math.atan2(y2 - y1, x2 - x1))
+	
+	# ============= Handle and Mode Interaction =============
 	def _get_handle_at_pos(self, pos):
 		"""Get which handle is at the given position - delegates to mode"""
 		if not self.visible:
 			return None
 		
-		# Convert widget-space mouse position to canvas-space (Decision 9)
-		mouse_x, mouse_y = self.canvas_widget.canvas_area.canvas_area_to_canvas_widget(pos.x(), pos.y())
+		# Convert mouse from widget top-left to center-origin coordinates
+		mouse_x, mouse_y = self._widget_to_center_origin(pos)
 		
 		# Delegate to current mode's get_handle_at_pos()
 		# Mode handles priority ordering internally
-		return self.current_mode.get_handle_at_pos(mouse_x, mouse_y, self.center_x, self.center_y, 
+		result = self.current_mode.get_handle_at_pos(mouse_x, mouse_y, self.center_x, self.center_y, 
 		                                           self.half_w, self.half_h, self.rotation)
+		return result
 	
 	def _forward_event_to_canvas(self, event):
 		"""Reusable event forwarding (Decision 7 - eliminates 15-line duplication).
@@ -238,6 +280,9 @@ class TransformWidget(QWidget):
 				
 				# Create DragContext (Decision 5)
 				from .transform_widgets import DragContext
+				from .transform_widgets.handles import (RotationHandle, RingHandle, CornerHandle, 
+				                                         EdgeHandle, ArrowHandle, CenterHandle, 
+				                                         GimbleCenterHandle)
 				modifiers = set()
 				if event.modifiers() & Qt.ControlModifier:
 					modifiers.add('ctrl')
@@ -246,18 +291,16 @@ class TransformWidget(QWidget):
 				if event.modifiers() & Qt.ShiftModifier:
 					modifiers.add('shift')
 				
-				# Determine operation type from handle
-				if self.active_handle in ['rotate', 'ring']:
+				# Determine operation type from handle class
+				if isinstance(self.active_handle, (RotationHandle, RingHandle)):
 					operation = 'rotate'
-				elif self.active_handle in ['tl', 'tr', 'bl', 'br']:
+				elif isinstance(self.active_handle, CornerHandle):
 					operation = 'scale_corner'
-				elif self.active_handle in ['t', 'b', 'l', 'r']:
+				elif isinstance(self.active_handle, EdgeHandle):
 					operation = 'scale_edge'
-				elif self.active_handle == 'axis_x':
-					operation = 'axis_x'
-				elif self.active_handle == 'axis_y':
-					operation = 'axis_y'
-				else:  # center handles
+				elif isinstance(self.active_handle, ArrowHandle):
+					operation = 'axis_x' if self.active_handle.axis == 'x' else 'axis_y'
+				else:  # CenterHandle, GimbleCenterHandle
 					operation = 'translate'
 				
 				self.drag_context = DragContext(
@@ -417,107 +460,30 @@ class TransformWidget(QWidget):
 			event.accept()
 	
 	def _handle_drag(self, current_pos, modifiers=None):
-		"""Handle dragging in pure pixel space - no coordinate conversions needed"""
-		if not self.drag_start_pos or not self.drag_start_transform:
+		"""Delegate drag handling to the active handle's polymorphic drag() method."""
+		if not self.drag_start_pos or not self.drag_start_transform or not self.active_handle:
 			return
 		
-		# Pixel deltas (widget already in pixel space)
-		dx = current_pos.x() - self.drag_start_pos.x()
-		dy = current_pos.y() - self.drag_start_pos.y()
+		# Convert mouse positions to center-origin coordinates
+		start_mouse_x, start_mouse_y = self._widget_to_center_origin(self.drag_start_pos)
+		curr_mouse_x, curr_mouse_y = self._widget_to_center_origin(current_pos)
 		
-		start_cx, start_cy, start_hw, start_hh, start_rot = self.drag_start_transform
+		# Delegate to handle's drag method (polymorphism!)
+		new_transform = self.active_handle.drag(
+			curr_mouse_x, curr_mouse_y,
+			start_mouse_x, start_mouse_y,
+			*self.drag_start_transform,
+			modifiers
+		)
 		
-		# Check modifiers
-		alt_pressed = modifiers and (modifiers & Qt.AltModifier)
-		shift_pressed = modifiers and (modifiers & Qt.ShiftModifier)
+		# Unpack and update
+		self.center_x, self.center_y, self.half_w, self.half_h, self.rotation = new_transform
 		
-		# Translation handles (center, axis_x, axis_y, gimble_center)
-		if self.active_handle in ['center', 'gimble_center']:
-			self.center_x = start_cx + dx
-			self.center_y = start_cy + dy
-		
-		elif self.active_handle == 'axis_x':
-			self.center_x = start_cx + dx
-			# Y locked
-		
-		elif self.active_handle == 'axis_y':
-			self.center_y = start_cy + dy
-			# X locked
-		
-		# Rotation handles
-		elif self.active_handle in ['rotate', 'ring']:
-			start_angle = math.degrees(math.atan2(self.drag_start_pos.y() - start_cy, 
-			                                       self.drag_start_pos.x() - start_cx))
-			current_angle = math.degrees(math.atan2(current_pos.y() - start_cy,
-			                                         current_pos.x() - start_cx))
-			angle_delta = current_angle - start_angle
-			self.rotation = start_rot + angle_delta
-			
-			if shift_pressed:
-				self.rotation = round(self.rotation / 45.0) * 45.0
-		
-		# Corner scale handles (uniform)
-		elif self.active_handle in ['tl', 'tr', 'bl', 'br']:
-			if alt_pressed:
-				# Alt: anchor opposite corner
-				anchor_map = {'tl': (start_cx + start_hw, start_cy + start_hh),
-				              'tr': (start_cx - start_hw, start_cy + start_hh),
-				              'bl': (start_cx + start_hw, start_cy - start_hh),
-				              'br': (start_cx - start_hw, start_cy - start_hh)}
-				anchor_x, anchor_y = anchor_map[self.active_handle]
-				
-				curr_dist = math.sqrt((current_pos.x() - anchor_x)**2 + (current_pos.y() - anchor_y)**2)
-				start_dist = math.sqrt((self.drag_start_pos.x() - anchor_x)**2 + (self.drag_start_pos.y() - anchor_y)**2)
-				
-				if start_dist > 0:
-					scale_factor = curr_dist / start_dist
-					self.half_w = start_hw * scale_factor
-					self.half_h = start_hh * scale_factor
-					# Reposition center to keep anchor fixed
-					self.center_x = anchor_x + (start_cx - anchor_x) * scale_factor
-					self.center_y = anchor_y + (start_cy - anchor_y) * scale_factor
-			else:
-				# Normal: scale from center
-				start_dist = math.sqrt((self.drag_start_pos.x() - start_cx)**2 + (self.drag_start_pos.y() - start_cy)**2)
-				curr_dist = math.sqrt((current_pos.x() - start_cx)**2 + (current_pos.y() - start_cy)**2)
-				
-				if start_dist > 0:
-					scale_factor = curr_dist / start_dist
-					self.half_w = start_hw * scale_factor
-					self.half_h = start_hh * scale_factor
-		
-		# Edge scale handles (non-uniform)
-		elif self.active_handle in ['l', 'r']:
-			if alt_pressed:
-				anchor_x = start_cx + start_hw if self.active_handle == 'l' else start_cx - start_hw
-				new_width_px = abs(current_pos.x() - anchor_x)
-				self.half_w = new_width_px
-				# Reposition center
-				self.center_x = anchor_x + (start_cx - anchor_x) * (new_width_px / start_hw) if start_hw > 0 else anchor_x
-			else:
-				start_dist = abs(self.drag_start_pos.x() - start_cx)
-				curr_dist = abs(current_pos.x() - start_cx)
-				if start_dist > 0:
-					self.half_w = start_hw * (curr_dist / start_dist)
+		# Emit signal for non-uniform scaling (edge handles)
+		from .transform_widgets.handles import EdgeHandle
+		if isinstance(self.active_handle, EdgeHandle):
 			self.nonUniformScaleUsed.emit()
 		
-		elif self.active_handle in ['t', 'b']:
-			if alt_pressed:
-				anchor_y = start_cy + start_hh if self.active_handle == 't' else start_cy - start_hh
-				new_height_px = abs(current_pos.y() - anchor_y)
-				self.half_h = new_height_px
-				# Reposition center
-				self.center_y = anchor_y + (start_cy - anchor_y) * (new_height_px / start_hh) if start_hh > 0 else anchor_y
-			else:
-				start_dist = abs(self.drag_start_pos.y() - start_cy)
-				curr_dist = abs(current_pos.y() - start_cy)
-				if start_dist > 0:
-					self.half_h = start_hh * (curr_dist / start_dist)
-			self.nonUniformScaleUsed.emit()
-		
-		# Clamp scale for single selection (not multi-selection groups)
-		# Note: Clamping now happens in canvas_area after converting back to CoA space
-		
-		# Emit signal with current pixel values
+		# Emit transform change signal with current pixel values
 		self.transformChanged.emit(self.center_x, self.center_y, self.half_w, self.half_h, self.rotation)
 		self.update()

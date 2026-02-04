@@ -462,8 +462,11 @@ class CanvasArea(QFrame):
 					group_rotation = 0
 					
 					# Convert CoA space to canvas pixels (Decision 3)
-					center_x, center_y = self.canvas_widget.coa_to_canvas(group_pos_x, group_pos_y)
+					center_x_topleft, center_y_topleft = self.canvas_widget.coa_to_canvas(group_pos_x, group_pos_y)
 					half_w, half_h = self.canvas_widget.coa_scale_to_pixels(group_scale_x, group_scale_y)
+										# Convert from top-left to center-origin coordinates
+					center_x = center_x_topleft - self.canvas_widget.width() / 2
+					center_y = center_y_topleft - self.canvas_widget.height() / 2
 					
 					# Pass is_multi_selection=True for group behavior
 					self.transform_widget.set_transform(center_x, center_y, half_w, half_h, group_rotation, is_multi_selection=True)
@@ -485,8 +488,12 @@ class CanvasArea(QFrame):
 					return
 				
 				# Convert CoA space to canvas pixels (Decision 3)
-				center_x, center_y = self.canvas_widget.coa_to_canvas(pos_x, pos_y)
+				center_x_topleft, center_y_topleft = self.canvas_widget.coa_to_canvas(pos_x, pos_y)
 				half_w, half_h = self.canvas_widget.coa_scale_to_pixels(scale_x, scale_y)
+				
+				# Convert from top-left to center-origin coordinates
+				center_x = center_x_topleft - self.canvas_widget.width() / 2
+				center_y = center_y_topleft - self.canvas_widget.height() / 2
 				
 				self.transform_widget.set_transform(center_x, center_y, half_w, half_h, rotation)
 				self.transform_widget.set_visible(True)
@@ -533,8 +540,16 @@ class CanvasArea(QFrame):
 		# For multi-selection, start rotation at 0
 		group_rotation = 0
 		
+		# Convert to canvas pixels then to center-origin
+		center_x_topleft, center_y_topleft = self.canvas_widget.frame_to_canvas(frame_x, frame_y)
+		half_w, half_h = self.canvas_widget.coa_scale_to_pixels(group_scale_x, group_scale_y)
+		
+		# Convert from top-left to center-origin coordinates
+		center_x = center_x_topleft - self.canvas_widget.width() / 2
+		center_y = center_y_topleft - self.canvas_widget.height() / 2
+		
 		# Pass is_multi_selection=True to skip scale clamping (AABB can exceed 1.0)
-		self.transform_widget.set_transform(frame_x, frame_y, frame_scale_x, frame_scale_y, group_rotation, is_multi_selection=True)
+		self.transform_widget.set_transform(center_x, center_y, half_w, half_h, group_rotation, is_multi_selection=True)
 		self.transform_widget.set_visible(True)
 	def _on_transform_changed(self, center_x, center_y, half_w, half_h, rotation):
 		"""Handle transform changes from the widget (pixel space → CoA space).
@@ -544,14 +559,18 @@ class CanvasArea(QFrame):
 		For single selection with one instance: direct transform
 		For multi-selection: applies group transform to all selected layers
 		
-		Note: Widget sends canvas pixels, convert back to CoA space (Decision 3)
+		Note: Widget sends canvas center-origin pixels, convert to top-left then to CoA space (Decision 3)
 		"""
 		selected_uuids = self.property_sidebar.get_selected_uuids() if self.property_sidebar else []
 		if not selected_uuids:
 			return
 		
+		# Convert from center-origin to top-left coordinates first
+		center_x_topleft = center_x + self.canvas_widget.width() / 2
+		center_y_topleft = center_y + self.canvas_widget.height() / 2
+		
 		# Convert canvas pixels back to CoA space (Decision 3)
-		pos_x, pos_y = self.canvas_widget.canvas_to_coa(center_x, center_y)
+		pos_x, pos_y = self.canvas_widget.canvas_to_coa(center_x_topleft, center_y_topleft)
 		scale_x, scale_y = self.canvas_widget.pixels_to_coa_scale(half_w, half_h)
 		
 		# Check if we're rotating (using rotation handle)
