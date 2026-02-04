@@ -610,6 +610,90 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		else:
 			return ((0.9, 0.9), (0.0, 0.04))
 	
+	# ========================================
+	# Coordinate Conversion Methods
+	# ========================================
+	
+	def coa_to_canvas(self, pos_x, pos_y, clamp=False):
+		"""Convert CoA space (0-1) to canvas pixel coordinates.
+		
+		Applies frame transforms, zoom, pan, and viewport scaling.
+		Fetches all state (zoom, pan, size, frame) from self.
+		
+		Args:
+			pos_x: CoA X position (0-1, where 0.5 is center)
+			pos_y: CoA Y position (0-1, where 0.5 is center)
+			clamp: If True, clamp result to canvas bounds
+			
+		Returns:
+			(x, y): Canvas pixel coordinates
+		"""
+		# Apply frame transformation first
+		frame_scale, frame_offset = self.get_frame_transform()
+		frame_x, frame_y = coa_to_frame_space(pos_x, pos_y, frame_scale, frame_offset)
+		
+		# Convert to OpenGL coords
+		gl_x = frame_x * 2.0 - 1.0
+		gl_y = -(frame_y * 2.0 - 1.0)  # Invert Y
+		
+		# Get current canvas size
+		width, height = self.width(), self.height()
+		canvas_size = min(width, height)
+		
+		# Convert to canvas pixels with zoom and scaling
+		pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * self.zoom_level
+		pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * self.zoom_level
+		
+		# Canvas center + pan
+		x = width / 2 + pixel_x + self.pan_x
+		y = height / 2 - pixel_y + self.pan_y  # Qt Y-down
+		
+		if clamp:
+			x = max(0, min(width, x))
+			y = max(0, min(height, y))
+		
+		return x, y
+	
+	def canvas_to_coa(self, x, y, clamp=False):
+		"""Convert canvas pixel coordinates to CoA space (0-1).
+		
+		Reverses zoom, pan, viewport scaling, and frame transforms.
+		Fetches all state from self.
+		
+		Args:
+			x: Canvas pixel X coordinate
+			y: Canvas pixel Y coordinate
+			clamp: If True, clamp result to 0-1 range
+			
+		Returns:
+			(pos_x, pos_y): CoA position (0-1 range)
+		"""
+		# Get current canvas size
+		width, height = self.width(), self.height()
+		canvas_size = min(width, height)
+		
+		# Remove pan and center offset
+		pixel_x = x - width / 2 - self.pan_x
+		pixel_y = y - height / 2 - self.pan_y
+		
+		# Convert to OpenGL normalized space
+		gl_x = pixel_x / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / self.zoom_level
+		gl_y = -pixel_y / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / self.zoom_level
+		
+		# Convert to frame space
+		frame_x = (gl_x + 1.0) / 2.0
+		frame_y = (-gl_y + 1.0) / 2.0
+		
+		# Remove frame transformation
+		frame_scale, frame_offset = self.get_frame_transform()
+		pos_x, pos_y = frame_to_coa_space(frame_x, frame_y, frame_scale, frame_offset)
+		
+		if clamp:
+			pos_x = max(0.0, min(1.0, pos_x))
+			pos_y = max(0.0, min(1.0, pos_y))
+		
+		return pos_x, pos_y
+	
 	def set_prestige(self, level):
 		"""Set prestige/splendor level (0-5)."""
 		if 0 <= level <= 5:

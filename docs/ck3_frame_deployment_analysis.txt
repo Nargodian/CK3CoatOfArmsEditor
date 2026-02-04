@@ -1,0 +1,329 @@
+CK3 HOUSE FRAME DEPLOYMENT ANALYSIS
+=====================================
+Focus: Frame-to-CoA size relationship across 5 GUI instances
+Date: Investigation of actual CK3 GUI usage patterns
+
+DEPLOYMENT INSTANCES FOUND
+===========================
+
+1. DYNASTY/HOUSE VIEWER - coa_house_big (window_dynasty_house.gui line 84)
+   Usage: Main dynasty/house header display
+   Outer widget size: 120 × 120
+   Frame widget size: 112 × 112  (coa_house_frame)
+   CoA icon size: 86 × 86        (coat_of_arms_icon)
+   Texture request: GetTexture('(int32)172','(int32)172')
+   
+   KEYS USED:
+   - coat_of_arms = "[DynastyHouse.GetHouseCoA.GetTexture('(int32)172','(int32)172')]"
+   - coat_of_arms_slot = "[DynastyHouse.GetHouseCoA.GetSlot('(int32)172','(int32)172')]"
+   - coat_of_arms_mask = "[CultureTemplateData.GetCultureHouseCoAMask]"
+   - coat_of_arms_offset = "[CultureTemplateData.GetCultureHouseCoAOffset]"
+   - coat_of_arms_scale = "[CultureTemplateData.GetCultureHouseCoAScale]"
+   
+   WHO DEFINES:
+   - CultureTemplateData (from culture system)
+   - GetCultureHouseCoAMask, GetCultureHouseCoAFrame, GetCultureHouseCoAOffset, GetCultureHouseCoAScale
+   
+   RELATIONSHIP:
+   - Frame = 112 px (outer container for frame graphic)
+   - CoA icon = 86 px (visible CoA rendering area)
+   - Ratio: 86/112 = 76.8% (CoA is 76.8% of frame size)
+   - Texture is 2× icon size: 172 = 86 × 2
+
+
+2. DYNASTY/HOUSE VIEWER - coa_dynasty_medium (window_dynasty_house.gui line 943)
+   Usage: Dynasty members list, smaller display
+   [Type defined in coat_of_arms.gui line 945]
+   
+   (Pattern same as coa_house variants - different sizes)
+
+
+3. COA DESIGNER - coa_preview_house_huge (coa_designer.gui line 95)
+   Usage: Main preview in CoA designer window
+   Type defined: coat_of_arms.gui line 2539
+   
+   Outer widget size: 160 × 160
+   Frame widget size: 156 × 156  (coa_house_frame)
+   CoA icon size: 120 × 120      (coat_of_arms_icon)
+   Texture request: GetTexture('(int32)230','(int32)230')
+   
+   KEYS USED:
+   - coat_of_arms = "[CoatOfArms.GetTexture('(int32)230','(int32)230')]"
+   - coat_of_arms_slot = "[CoatOfArms.GetSlot('(int32)230','(int32)230')]"
+   - coat_of_arms_mask = "[Culture.GetCultureHouseCoAMask]"
+   - coat_of_arms_offset = "[Culture.GetCultureHouseCoAOffset]"
+   - coat_of_arms_scale = "[Culture.GetCultureHouseCoAScale]"
+   
+   WHO DEFINES:
+   - Culture (selected culture in designer)
+   - Same culture-based methods as dynasty viewer
+   
+   RELATIONSHIP:
+   - Frame = 156 px
+   - CoA icon = 120 px
+   - Ratio: 120/156 = 76.9% (CoA is 76.9% of frame size)
+   - Texture is 2× icon size: 230 ≈ 120 × 2 (rounded from 240)
+
+
+4. COA DESIGNER - coa_preview_dynasty_huge (coa_designer.gui line 89)
+   Usage: Dynasty preview (if showing dynasty CoA alongside house CoA)
+   Type defined: coat_of_arms.gui line 2496
+   
+   (Uses dynasty frame system, not house frame - different keys)
+
+
+5. CHARACTER WINDOW - coa_house_big (window_character.gui line 1249)
+   Usage: Character's house display in character info panel
+   
+   Same as #1 (Dynasty/House Viewer coa_house_big):
+   - Outer: 120 × 120
+   - Frame: 112 × 112
+   - CoA icon: 86 × 86
+   - Texture: 172 × 172
+
+
+COMPLETE SIZE PATTERNS TABLE
+=============================
+
+Type              | Outer | Frame | Icon | Texture | Icon/Frame Ratio
+------------------|-------|-------|------|---------|------------------
+coa_house_small   |  64   |  56   |  44  |   88    | 78.6% (44/56)
+coa_house_medium  |  88   |  80   |  64  |  124    | 80.0% (64/80)
+coa_house_big     | 120   | 112   |  86  |  172    | 76.8% (86/112)
+coa_house_huge    | 160   | 156   | 120  |  230    | 76.9% (120/156)
+preview_huge      | 160   | 156   | 120  |  230    | 76.9% (120/156)
+
+OBSERVATIONS:
+- Outer widget includes margin (typically 4px or 5px on each side)
+- Frame size = Outer - (2 × margin)
+- Icon size consistently ~77-80% of frame size
+- Texture size = Icon size × 2 (approximately, with rounding)
+
+
+CRITICAL KEYS USED IN ALL INSTANCES
+====================================
+
+1. coat_of_arms = "[X.GetTexture('(int32)W','(int32)H')]"
+   - Requests rendered CoA texture at W×H resolution
+   - Always requested at 2× the icon display size
+   
+2. coat_of_arms_slot = "[X.GetSlot('(int32)W','(int32)H')]"
+   - Matching slot request (same size as texture)
+   
+3. coat_of_arms_mask = "[Culture.GetCultureHouseCoAMask]"
+   - Returns frame mask texture path (160×160 .dds file)
+   - Example: "gfx/interface/coat_of_arms/house_frame_06_mask.dds"
+   - This is THE FRAME MASK (160×160 pixels)
+   
+4. coat_of_arms_offset = "[Culture.GetCultureHouseCoAOffset]"
+   - Returns { x y } offset for centering CoA within frame
+   - Normalized coordinates
+   - Example: { 0.0 0.04 } from culture files
+   
+5. coat_of_arms_scale = "[Culture.GetCultureHouseCoAScale]"
+   - Returns { x y } scale multiplier for CoA size
+   - Example: { 0.85 0.85 } (Berber), { 1.0 1.0 } (Baltic)
+   - This is house_coa_mask_scale from culture/*.txt files
+
+
+WHO DEFINES THESE KEYS
+=======================
+
+Culture System (common/culture/cultures/*.txt):
+  house_coa_frame = house_frame_06
+  house_coa_mask_scale = { 0.85 0.85 }  # How much of frame mask to fill
+  house_coa_mask_offset = { 0.0 0.04 }  # Offset from center
+
+Culture Template Data (runtime):
+  GetCultureHouseCoAFrame → Returns "gfx/interface/coat_of_arms/house_frame_06.dds"
+  GetCultureHouseCoAMask → Returns "gfx/interface/coat_of_arms/house_frame_06_mask.dds"
+  GetCultureHouseCoAScale → Returns { 0.85 0.85 }
+  GetCultureHouseCoAOffset → Returns { 0.0 0.04 }
+
+CoA System (runtime):
+  GetTexture(W,H) → Renders CoA at W×H pixels
+  GetSlot(W,H) → Returns texture slot reference
+
+
+FRAME-TO-COA SIZE RELATIONSHIP
+===============================
+
+THE FUNDAMENTAL RELATIONSHIP:
+
+1. Frame Mask Space: 160×160 pixels (the .dds mask texture)
+   - This is the CANONICAL COORDINATE SPACE
+   - All frame masks are 160×160 regardless of display size
+   
+2. GUI Display Size: Variable (56, 80, 112, 156 pixels)
+   - How large the frame appears on screen
+   - Example: coa_house_big displays frame at 112×112
+   
+3. CoA Icon Display Size: ~77% of GUI frame size
+   - Example: coa_house_big shows CoA at 86×86
+   - Ratio: 86/112 = 76.8%
+   
+4. CoA Rendered Size: 2× Icon Display Size
+   - Example: coa_house_big requests texture at 172×172
+   - This is for quality/anti-aliasing
+   
+5. CoA Scale Within Frame Mask: Culture-specific (0.85 - 1.0)
+   - How much of the 160×160 frame mask the CoA fills
+   - Example: Berber (0.85) → CoA fills 136×136 of the 160×160 mask
+   - Example: Baltic (1.0) → CoA fills 160×160 of the 160×160 mask
+
+
+THE ACTUAL FORMULA:
+
+Frame mask space (canonical): 160×160 px
+CoA size in mask space: 160 × coat_of_arms_scale
+  Example: 160 × 0.85 = 136 px (for Berber frame)
+  Example: 160 × 1.0 = 160 px (for Baltic frame)
+
+When displayed on screen:
+  GUI frame size: Variable (56, 80, 112, 156)
+  CoA display size: GUI_frame_size × (Icon/Frame ratio) × coat_of_arms_scale
+  
+  Example for coa_house_big with Berber (0.85):
+    Frame displayed at: 112 px
+    Icon area: 86 px (defined in GUI)
+    With 0.85 scale: 86 × 0.85 = 73.1 px effective CoA size
+    
+  But texture is requested at 172×172 (2× the icon size)
+  The shader/renderer then applies the 0.85 scale within that space
+
+
+CRITICAL INSIGHT FOR EDITOR
+============================
+
+The 160×160 frame mask is the FUNDAMENTAL coordinate space.
+Everything else scales relative to this.
+
+Editor should:
+1. Render CoA at high resolution (512×512 or similar for quality)
+2. Apply frame mask at same resolution (scaled up from 160×160)
+3. Apply coat_of_arms_scale to control CoA size within mask
+4. Apply coat_of_arms_offset to position CoA within mask
+5. Display result at whatever GUI size needed
+
+The frame mask ISN'T about pixels - it's about the RELATIONSHIP:
+- Frame mask defines the bounds (160×160 canonical)
+- CoA scale defines how much of those bounds to fill (0.85 - 1.0)
+- Display size is independent (56, 80, 112, 156, etc.)
+
+
+TEXTURE REQUEST PATTERN
+========================
+
+All instances follow:
+  GetTexture(display_size × 2, display_size × 2)
+
+Examples:
+  Icon 44px → Texture 88×88
+  Icon 64px → Texture 124×124 (rounded from 128)
+  Icon 86px → Texture 172×172
+  Icon 120px → Texture 230×230 (rounded from 240)
+
+This 2× oversampling is for rendering quality.
+The shader then composites this texture within the masked region.
+
+
+SHADER ANALYSIS
+===============
+
+Key file: ./gfx/FX/gui_coatofarms.shader
+
+Critical UV transformation code:
+```glsl
+float2 UV = ((Input.UV.xy - 0.5) / CoAOffset_Scale.zw + 0.5) + CoAOffset_Scale.xy;
+```
+
+Where CoAOffset_Scale contains:
+- .xy = coat_of_arms_offset (from culture)
+- .zw = coat_of_arms_scale (from culture)
+
+The division by scale (e.g., /0.85) ENLARGES the sampling area, making the CoA appear smaller within the widget.
+At scale 1.0, no transformation occurs - CoA fills the widget completely.
+
+
+ATLAS CONFIGURATION
+===================
+
+Key file: ./common/coat_of_arms/options/atlases.txt
+
+UI Texture Atlases:
+- 230×230 tiles: For icons displayed at 120px (huge)
+- 172×172 tiles: For icons displayed at 86px (big)
+- 124×124 tiles: For icons displayed at 64px (medium) 
+- 88×88 tiles: For icons displayed at 44px (small)
+- 56×56 tiles: For icons displayed at 28px (tiny)
+- 80×80 tiles: CoA designer previews (40px)
+- 345×345 tiles: Screenshot saving
+- 256×256 tiles: Unit/character portraits
+
+The `actual_size` field defines LOD levels:
+  actual_size = { {low low} {low low} {high high} {high high} }
+
+Pattern: Texture size is approximately 2× the display icon size (with rounding).
+
+
+CULTURE SCALE VALUES
+=====================
+
+From ./common/culture/cultures/*.txt:
+
+All cultures use one of exactly 4 scale values:
+- house_coa_mask_scale = { 0.85 0.85 }  (smallest - Berber, etc.)
+- house_coa_mask_scale = { 0.9 0.9 }    (most common)
+- house_coa_mask_scale = { 0.95 0.95 }  (rare)
+- house_coa_mask_scale = { 1.0 1.0 }    (largest - Baltic, etc.)
+
+Total occurrences: 284 definitions across all culture files.
+
+
+FRAME-TO-COA RATIO AT SCALE 1.0
+================================
+
+From GUI widget analysis:
+
+Type            | Frame Size | Icon Size | Ratio       | Simplified
+----------------|------------|-----------|-------------|------------
+coa_house_small |     56     |    44     | 1.2727...   | ~14/11
+coa_house_medium|     80     |    64     | 1.25        | 5/4
+coa_house_big   |    112     |    86     | 1.3023...   | ~56/43
+coa_house_huge  |    156     |   120     | 1.30        | 13/10
+
+Observed range: 1.25 to 1.30
+Average ratio: ~1.29
+Most common (big/huge): 1.30 (13/10)
+
+Editor current value: 4/3 = 1.333 (2.5% too large)
+
+
+CONCLUSION
+==========
+
+Frame to CoA relationship in CK3:
+
+FRAME MASK: 160×160 pixels (texture file, defines sampling bounds)
+  ↓
+CULTURE SCALE: 0.85 - 1.0 (shader divides by this, making CoA smaller/larger)
+  ↓  
+COA EFFECTIVE SIZE: Depends on both frame widget size AND culture scale
+  ↓
+DISPLAY SIZES: GUI widgets at 56, 80, 112, 156 (frame sizes)
+               Icons at 44, 64, 86, 120 (CoA display areas)
+  ↓
+TEXTURE RENDERING: Requested at ~2× icon display size via GetTexture()
+                   Actual atlas tiles: 56, 88, 124, 172, 230
+
+AT SCALE 1.0 (no culture adjustment):
+- Frame widget contains icon widget at ratio ~1.3:1
+- For 256px internal CoA: Frame should be 256 × 1.3 = 332.8px
+- Current editor uses 256 × 4/3 = 341.33px (off by +2.5%)
+
+RECOMMENDATION:
+Change FRAME_SIZE_PX = COA_BASE_SIZE_PX × 1.3 (or 13/10)
+This matches CK3's coa_house_huge/big ratios more accurately.
+
+The relationship is NOT a universal constant.
+It's widget-layout-specific and modified by culture-specific mask scaling.

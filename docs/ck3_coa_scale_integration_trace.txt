@@ -1,0 +1,255 @@
+CK3 COAT OF ARMS SCALE INTEGRATION TRACE
+=========================================
+
+This document traces how house_coa_mask_scale flows from culture definition to final rendering.
+
+STEP 1: CULTURE DEFINITION
+===========================
+Location: ./common/culture/cultures/*.txt
+Example: ./common/culture/cultures/00_berber.txt
+
+```
+berber = {
+    ...
+    house_coa_frame = house_frame_06
+    house_coa_mask_offset = { 0.0 0.0 }
+    house_coa_mask_scale = { 0.85 0.85 }
+}
+```
+
+These define THREE properties per culture:
+- house_coa_frame: Which frame graphic to use (house_frame_XX)
+- house_coa_mask_offset: X/Y offset in normalized coords
+- house_coa_mask_scale: X/Y scale multiplier (0.85 - 1.0 range)
+
+The scale value determines HOW MUCH of the frame mask the CoA fills.
+
+
+STEP 2: CULTURE TEMPLATE DATA (C++ Runtime)
+============================================
+The culture data is loaded into C++ objects that provide accessor methods:
+
+CultureTemplateData.GetCultureHouseCoAFrame()  → Returns frame texture path
+CultureTemplateData.GetCultureHouseCoAMask()   → Returns mask texture path  
+CultureTemplateData.GetCultureHouseCoAOffset() → Returns offset { x y }
+CultureTemplateData.GetCultureHouseCoAScale()  → Returns scale { x y }
+
+Example runtime values:
+- Berber: scale = { 0.85, 0.85 }, offset = { 0.0, 0.0 }, frame = "house_frame_06"
+- Baltic: scale = { 1.0, 1.0 }, offset = { 0.0, 0.055 }, frame = "house_frame_21"
+
+
+STEP 3: GUI WIDGET DEFINITION
+==============================
+Location: ./gui/shared/coat_of_arms.gui
+Example: type coa_house_big (line ~1306)
+
+```
+coat_of_arms_icon = {
+    parentanchor = center
+    size = { 86 86 }
+    coat_of_arms = "[DynastyHouse.GetHouseCoA.GetTexture('(int32)172','(int32)172')]"
+    coat_of_arms_slot = "[DynastyHouse.GetHouseCoA.GetSlot('(int32)172','(int32)172')]"
+    coat_of_arms_mask = "[CultureTemplateData.GetCultureHouseCoAMask]"
+    coat_of_arms_offset = "[CultureTemplateData.GetCultureHouseCoAOffset]"
+    coat_of_arms_scale = "[CultureTemplateData.GetCultureHouseCoAScale]"
+}
+```
+
+The GUI system:
+1. Calls GetCultureHouseCoAScale() to get scale value
+2. Passes it to the rendering system as "coat_of_arms_scale" property
+3. Also provides coat_of_arms_mask (texture path) and coat_of_arms_offset
+
+
+STEP 4: SHADER CONSTANT BUFFER
+===============================
+Location: ./gfx/FX/gui_coatofarms.shader (line ~7)
+
+```glsl
+ConstantBuffer( 2 )
+{
+    float3 HighlightColor;
+    float4 CoALeftTop_WidthHeight;   // Atlas position + size
+    float4 CoAOffset_Scale;           // .xy = offset, .zw = scale
+};
+```
+
+The rendering engine takes the GUI properties and packs them into shader uniforms:
+- coat_of_arms_offset → CoAOffset_Scale.xy
+- coat_of_arms_scale → CoAOffset_Scale.zw
+
+Example values for Berber culture:
+- CoAOffset_Scale = { 0.0, 0.0, 0.85, 0.85 }
+
+
+STEP 5: PIXEL SHADER UV TRANSFORMATION
+=======================================
+Location: ./gfx/FX/gui_coatofarms.shader (line ~118)
+
+```glsl
+PDX_MAIN
+{
+    float2 UV = ((Input.UV.xy - 0.5) / CoAOffset_Scale.zw + 0.5) + CoAOffset_Scale.xy;
+    
+    // Clamping to prevent sampling outside texture bounds
+    UV = clamp(UV, Input.TexelSize / 2, float2(1.0, 1.0) - Input.TexelSize / 2);
+    
+    // Map to atlas coordinates
+    UV = CoALeftTop_WidthHeight.xy + UV.xy * CoALeftTop_WidthHeight.zw;
+    
+    // Sample CoA texture
+    float4 OutColor = PdxTex2D( CoA, UV.xy );
+    ...
+}
+```
+
+CRITICAL TRANSFORMATION BREAKDOWN:
+
+Input.UV.xy: Widget-space coordinates (0.0 - 1.0 across the icon widget)
+For coa_house_big, this is the 86×86 pixel icon area.
+
+Step-by-step for Berber (scale 0.85):
+
+1. `Input.UV.xy - 0.5`
+   Centers the coords to -0.5 to 0.5 range
+
+2. `/ CoAOffset_Scale.zw`  (divide by { 0.85, 0.85 })
+   This is THE KEY OPERATION!
+   Dividing by 0.85 gives range: -0.588 to 0.588
+   This ENLARGES the sampling area by 1/0.85 = 1.176×
+   
+3. `+ 0.5`
+   Re-centers to 0.0 - 1.176 range (overshoots 1.0!)
+
+4. `+ CoAOffset_Scale.xy` (add { 0.0, 0.0 })
+   Applies offset (Berber has no offset)
+
+5. `clamp(UV, ...)`
+   Clamps to valid 0.0-1.0 range
+   This is why the CoA appears smaller - we're sampling a LARGER area
+   but clamping prevents us from seeing beyond the texture bounds
+
+6. `CoALeftTop_WidthHeight.xy + UV.xy * CoALeftTop_WidthHeight.zw`
+   Maps the 0.0-1.0 range to the actual atlas tile coordinates
+
+
+VISUAL EXPLANATION OF SCALE
+============================
+
+When scale = 1.0 (Baltic):
+- Division by 1.0 does nothing
+- UV range stays -0.5 to 0.5 (becomes 0.0 to 1.0 after +0.5)
+- Samples ENTIRE CoA texture
+- CoA fills the full icon widget (86×86 pixels for coa_house_big)
+
+When scale = 0.85 (Berber):
+- Division by 0.85 gives -0.588 to 0.588 (becomes -0.088 to 1.088 after +0.5)
+- After clamping: samples 0.0 to 1.0 (entire texture)
+- BUT the widget only displays 85% of that range
+- CoA appears SMALLER, filling only 85% of the icon widget
+- Visual size: 86 × 0.85 = 73.1 pixels
+
+The "missing" pixels come from the clamping:
+- We try to sample outside [0,1] range
+- Clamp forces it back to edges
+- Creates the appearance of shrinking
+
+
+FRAME MASK INTERACTION
+=======================
+
+The frame mask (160×160 texture) defines the VISIBLE REGION.
+
+Process:
+1. CoA texture is rendered at full resolution (e.g., 172×172 for coa_house_big)
+2. Scale transformation applied via shader (shrinks to 85% if Berber)
+3. Frame mask texture (160×160) used to clip the visible region
+4. Final composited result shown in icon widget (86×86)
+
+The mask is sampled at Input.RelativePos (before scaling), so it's independent
+of the CoA scale transformation.
+
+
+OFFSET INTEGRATION
+===================
+
+Example: Baltic has offset { 0.0, 0.055 }
+
+After the scaling division, the offset is ADDED:
+```glsl
+UV = ((Input.UV.xy - 0.5) / scale + 0.5) + offset
+```
+
+With offset { 0.0, 0.055 }:
+- X: no change
+- Y: shifts UP by 0.055 (5.5% of the texture height)
+
+This centers the CoA vertically within the frame mask for Baltic's frame design.
+
+
+SUMMARY OF DATA FLOW
+=====================
+
+Culture File (TXT)
+    ↓
+    house_coa_mask_scale = { 0.85 0.85 }
+    ↓
+C++ Culture System
+    ↓
+    GetCultureHouseCoAScale() → { 0.85, 0.85 }
+    ↓
+GUI Widget (coat_of_arms_icon)
+    ↓
+    coat_of_arms_scale property
+    ↓
+Rendering Engine
+    ↓
+    Packs into CoAOffset_Scale.zw uniform
+    ↓
+Pixel Shader
+    ↓
+    UV = ((Input.UV.xy - 0.5) / CoAOffset_Scale.zw + 0.5) + CoAOffset_Scale.xy
+    ↓
+    Division by scale ENLARGES sampling range
+    ↓
+    Clamping constrains to valid texture bounds
+    ↓
+    CoA appears SMALLER in final render (fills scale% of icon widget)
+
+
+SCALE VALUES FOUND IN GAME
+===========================
+
+Only 4 scale values exist across all 284 culture definitions:
+- 0.85 (smallest, e.g., Berber with house_frame_06)
+- 0.90 (most common)
+- 0.95 (rare)
+- 1.00 (largest, e.g., Baltic with house_frame_21)
+
+The scale is CULTURE-SPECIFIC, not frame-specific.
+Different cultures using the same frame may have different scales.
+
+
+EDITOR IMPLICATIONS
+===================
+
+For the editor to match CK3's rendering:
+
+1. Read scale/offset from frame transform data (per-frame basis)
+   Or default to scale=1.0, offset={0,0} for testing
+
+2. In the composite shader, apply the SAME transformation:
+   ```glsl
+   vec2 uv = ((fragCoord.xy / iconSize - 0.5) / scale + 0.5) + offset;
+   ```
+
+3. Sample CoA texture with transformed UV
+   Clamp to prevent out-of-bounds sampling
+
+4. Apply frame mask at original (untransformed) coordinates
+   The mask should NOT be affected by scale/offset
+
+5. Composite frame graphic on top
+
+This ensures the CoA size within the frame matches CK3's culture-specific behavior.

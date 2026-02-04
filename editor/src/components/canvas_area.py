@@ -5,6 +5,7 @@ from PyQt5.QtCore import Qt
 # Local component imports
 from .canvas_widget_NEW import CoatOfArmsCanvas
 from .transform_widget import TransformWidget
+from utils.coordinate_transforms import coa_to_frame_space, frame_to_coa_space
 
 
 class CanvasArea(QFrame):
@@ -461,7 +462,7 @@ class CanvasArea(QFrame):
 					group_rotation = 0
 					
 					# Convert CoA space to frame-adjusted visual space
-					frame_x, frame_y = self.canvas_widget.coa_to_frame_space(group_pos_x, group_pos_y)
+					frame_x, frame_y = coa_to_frame_space(group_pos_x, group_pos_y, *self.canvas_widget.get_frame_transform())
 					frame_scale, _ = self.canvas_widget.get_frame_transform()
 					frame_scale_x = group_scale_x * frame_scale[0]
 					frame_scale_y = group_scale_y * frame_scale[1]
@@ -486,7 +487,7 @@ class CanvasArea(QFrame):
 					return
 				
 				# Convert CoA space to frame-adjusted visual space
-				frame_x, frame_y = self.canvas_widget.coa_to_frame_space(pos_x, pos_y)
+				frame_x, frame_y = coa_to_frame_space(pos_x, pos_y, *self.canvas_widget.get_frame_transform())
 				
 				# Apply frame scale to the emblem scale as well
 				frame_scale, _ = self.canvas_widget.get_frame_transform()
@@ -525,7 +526,7 @@ class CanvasArea(QFrame):
 				return
 		
 		# Convert CoA space group AABB to frame-adjusted visual space
-		frame_x, frame_y = self.canvas_widget.coa_to_frame_space(group_pos_x, group_pos_y)
+		frame_x, frame_y = coa_to_frame_space(group_pos_x, group_pos_y, *self.canvas_widget.get_frame_transform())
 		frame_scale, _ = self.canvas_widget.get_frame_transform()
 		frame_scale_x = group_scale_x * frame_scale[0]
 		frame_scale_y = group_scale_y * frame_scale[1]
@@ -555,7 +556,8 @@ class CanvasArea(QFrame):
 			return
 		
 		# Convert frame-adjusted visual space back to CoA space
-		coa_x, coa_y = self.canvas_widget.frame_to_coa_space(pos_x, pos_y)
+		frame_scale, frame_offset = self.canvas_widget.get_frame_transform()
+		coa_x, coa_y = frame_to_coa_space(pos_x, pos_y, frame_scale, frame_offset)
 		frame_scale, _ = self.canvas_widget.get_frame_transform()
 		coa_scale_x = scale_x / frame_scale[0]
 		coa_scale_y = scale_y / frame_scale[1]
@@ -902,3 +904,39 @@ class CanvasArea(QFrame):
 		"""Handle transform mode dropdown change"""
 		mode = ["normal", "minimal", "gimble"][index]
 		self.transform_widget.set_transform_mode(mode)
+	
+	# ========================================
+	# Coordinate Conversion Methods
+	# ========================================
+	
+	def canvas_area_to_canvas(self, x, y):
+		"""Convert CanvasArea pixel coordinates to Canvas widget pixel coordinates.
+		
+		Args:
+			x: X coordinate in CanvasArea space (Qt widget pixels)
+			y: Y coordinate in CanvasArea space (Qt widget pixels)
+			
+		Returns:
+			(canvas_x, canvas_y): Canvas widget pixel coordinates
+		"""
+		# Get canvas widget position within CanvasArea
+		canvas_geometry = self.canvas_widget.geometry()
+		canvas_x = x - canvas_geometry.x()
+		canvas_y = y - canvas_geometry.y()
+		return canvas_x, canvas_y
+	
+	def canvas_to_canvas_area(self, canvas_x, canvas_y):
+		"""Convert Canvas widget pixel coordinates to CanvasArea pixel coordinates.
+		
+		Args:
+			canvas_x: X coordinate in Canvas widget space
+			canvas_y: Y coordinate in Canvas widget space
+			
+		Returns:
+			(x, y): CanvasArea pixel coordinates
+		"""
+		# Get canvas widget position within CanvasArea
+		canvas_geometry = self.canvas_widget.geometry()
+		x = canvas_x + canvas_geometry.x()
+		y = canvas_y + canvas_geometry.y()
+		return x, y

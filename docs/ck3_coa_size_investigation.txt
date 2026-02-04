@@ -1,0 +1,221 @@
+# CK3 Coat of Arms Size Investigation
+## Investigation Date: 2026-02-03
+
+### Question: What is the full/base CoA size in CK3?
+
+## Known Display Sizes (UI)
+From game files, CoA appears at these UI sizes:
+- 28px
+- 44px
+- 62px
+- 86px
+- 115px
+
+## Texture Resolutions Found
+Pattern: UI_Size × 2 = Texture_Size
+
+| UI Size | Texture Size | Source |
+|---------|--------------|--------|
+| 28      | 56           | coat_of_arms.gui |
+| 44      | 88           | coat_of_arms.gui |
+| 62      | 124          | coat_of_arms.gui |
+| 86      | 172          | coat_of_arms.gui (title_big_crown) |
+| 115     | 230          | coat_of_arms.gui (realm_huge_crown) |
+| 128     | 256          | frontend_bookmarks.gui (special case) |
+
+**Base CoA Texture: 230×230** (most common in-game)
+**Maximum CoA Texture: 256×256** (bookmarks/frontend only)
+
+## CoA Designer Preview (gui/shared/coa_designer.gui)
+The designer shows 4 CoA previews side-by-side:
+
+| Preview Type       | Container | CoA Icon | Texture | Notes |
+|--------------------|-----------|----------|---------|-------|
+| dynasty_huge       | 172×172   | 128×128  | 230×230 | Dynasty frame |
+| house_huge         | 160×160   | 120×120  | 230×230 | House frame |
+| title_big_crown    | 96×96     | 86×86    | 172×172 | Title with crown |
+| realm_huge_crown   | 128×128   | 128×128  | 230×230 | Government with crown |
+
+## House Frame Relationship
+From gui/shared/coat_of_arms.gui, house preview sizes show:
+
+- **house_huge**: Container 160×160, Icon 120×120
+- **Ratio**: 120/160 = 0.75 (75%)
+
+**Initial Theory**: CoA is 75% of house frame container
+- This gives: Frame = CoA × (4/3) = CoA × 1.3333...
+- Or: CoA = Frame × 0.75
+
+## House Frame Scales (from culture files)
+However, each house frame has its own scale modifier:
+
+| Frame           | Scale | Culture Example |
+|----------------|-------|-----------------|
+| house_frame_06 | 0.85  | Berber |
+| house_frame_07 | 0.90  | Bantu |
+| house_frame_10 | 0.90  | Arabic |
+| house_frame_13 | 0.95  | Arabic |
+| house_frame_21 | 1.00  | Baltic |
+| house_frame_24 | 0.90  | Brythonic |
+| house_frame_29 | 0.95  | Akan |
+
+Example from common/culture/cultures/00_berber.txt:
+```
+house_coa_frame = house_frame_06
+house_coa_mask_offset = { 0.0 0.0 }
+house_coa_mask_scale = { 0.85 0.85 }
+```
+
+## Calculated CoA Size (with frame scale)
+For house_frame_06:
+- Frame container: 160px (at huge size)
+- Base CoA: 160 × 0.75 = 120px
+- Scaled CoA: 120 × 0.85 = **102px**
+- **Final ratio**: 102/160 = 63.75% of frame container
+
+## PROBLEM IDENTIFIED
+User reports that 133.33% (4/3) relationship doesn't match in-game appearance.
+
+**Possible Issues:**
+1. Frame graphics may be pre-scaled (actual graphic != container size)
+2. Additional offsets or transforms not accounted for
+3. Different coordinate systems between GUI layout and rendered CoA
+4. Frame mask textures may define different bounds than container
+
+## BREAKTHROUGH: Frame Texture vs Rendered Size
+
+### House Frame Files (from gfx/interface/coat_of_arms/frames/):
+- **house_frame_XX.dds**: 960×160 (6 prestige levels in a row, 160×160 each)
+- **house_frame_XX_mask.dds**: 160×160 (defines CoA rendering area)
+
+### House Frame GUI Definition (type coa_house_frame):
+```
+framesize = { 160 160 }  // Size of each tile in the 960×160 tilesheet
+size = { 156 156 }       // Actual rendered size on screen!
+```
+
+**The frame texture is 160×160 but rendered at 156×156!**
+
+### Corrected Size Analysis (house_huge):
+```
+Outer container:  160×160
+  Margin:         { 3 5 } (left/right 3px, top/bottom 5px)
+  Inner widget:   156×156
+    ├─ CoA icon:  120×120 (texture 230×230)
+    └─ Frame:     156×156 (from 160×160 texture, downscaled)
+```
+
+### TRUE Frame-to-CoA Relationship:
+- **Frame source texture**: 160×160
+- **Frame rendered size**: 156×156
+- **CoA icon size**: 120×120
+- **Ratio (CoA/Frame-rendered)**: 120/156 = **76.92%** ≈ **77%**
+- **Ratio (CoA/Frame-texture)**: 120/160 = **75%** ✓
+
+### Why User's 133.33% Doesn't Match
+The user likely measured the CoA against the **rendered frame visual** (156px),
+not the underlying texture size (160px) or outer container (160px).
+
+**If measuring in-game:**
+- Frame appears to be: 156px
+- CoA appears to be: 120px
+- Ratio: Frame/CoA = 156/120 = **1.30** (130%), NOT 133.33%!
+
+**The 4/3 (133.33%) ratio is between:**
+- Frame SOURCE TEXTURE (160px) vs CoA (120px)
+- 160/120 = 1.333... ✓
+
+But in-game, the frame is rendered 2.5% smaller (156 instead of 160).
+
+## FINAL ANSWER: What Size Should the Editor Use?
+
+### For Accurate CK3 Rendering:
+
+1. **Base CoA Texture Resolution**: **230×230** (standard) or **256×256** (max)
+   - Use 230×230 for in-game accuracy
+   - Use 256×256 if you want extra resolution headroom
+
+2. **Frame Container Size**: **160×160** (texture size)
+   - This is the source size of frame graphics
+   - Editor should use this for the "frame space"
+
+3. **Frame Rendered Size**: **156×156** (in-game display)
+   - 2.5% smaller than texture due to margins
+   - This is what players actually see
+
+4. **CoA Icon Default Size**: **120×120** (before frame scale applied)
+   - This is 75% of the 160×160 frame texture
+   - This is 76.92% of the 156×156 rendered size
+
+5. **CoA with Frame Scale**: **120 × frame_scale**
+   - Example: house_frame_06 uses 0.85 scale
+   - Final CoA: 120 × 0.85 = **102px**
+
+## CRITICAL: What We Actually Know vs Assumptions
+
+### ✓ CONFIRMED FACTS:
+1. **CoA Coordinate System**: Normalized 0.0-1.0 (from save files)
+   - position = { 0.5 0.5 } = center
+   - scale = { 1.0 1.0 } = full size
+   - Coordinate system is resolution-independent
+
+2. **Texture Resolutions Used**: From GetTexture() calls in GUI
+   - 56, 88, 124, 172, 230, 256
+   - Pattern: DisplaySize × 2 (for UI sizes 28, 44, 62, 86, 115, 128)
+
+3. **Frame Files**:
+   - house_frame_XX.dds: 960×160 (6 tiles @ 160×160 each)
+   - house_frame_XX_mask.dds: 160×160
+
+4. **GUI Rendering** (house_huge example):
+   - Container: 160×160
+   - Rendered widget: 156×156 (2.5% smaller due to margins)
+   - CoA icon: 120×120
+   - Texture requested: 230×230
+
+### ❌ ASSUMPTIONS (NOT PROVEN):
+1. **120/160 = 75% relationship** - This is only observed in ONE size (house_huge)
+   - May not apply to other sizes or contexts
+   - Could be specific to GUI layout, not fundamental rendering
+
+2. **256 or 230 as "base" size** - These are texture resolutions, not coordinate space
+   - The actual CoA is rendered in 0.0-1.0 normalized space
+   - Texture size is just output resolution, not the fundamental size
+
+3. **Frame size = CoA × 4/3** - Observed in GUI but not necessarily universal
+
+### WHAT WE DON'T KNOW:
+- What resolution does the game engine render CoA at internally?
+- Is there a "canonical" pixel size for the 0.0-1.0 coordinate space?
+- What determines the actual rendered size at runtime?
+- How does the mask texture relate to the coordinate system?
+
+### ✓ SOURCE TEXTURE DIMENSIONS (from game files):
+
+**Patterns**: Mostly **256×256**, some 128×128
+- pattern_barry_06.dds: 256×256
+- pattern__solid_designer.dds: 128×128
+- pattern_checkers_01.dds: 128×128
+
+**Emblems**: Mix of **128×128** and **256×256**
+- ce_african_bird.dds: 256×256
+- ce_aegishjalmr.dds: 128×128
+- ce__empty_designer.dds: 256×256
+
+**CONCLUSION**: Source assets are 256×256 maximum, some 128×128.
+The 230px size we saw is the REQUEST size for UI rendering, not the source texture size!
+
+### ACTUAL ANSWER:
+
+**The "base" CoA size is the coordinate system: 0.0-1.0 normalized space.**
+
+When the game needs to display a CoA:
+1. It uses the **normalized 0.0-1.0 coordinate system** (resolution-independent)
+2. It samples from **256×256 source textures** (patterns and emblems)
+3. It renders to whatever size is needed via GetTexture(width, height)
+4. Common request sizes: 56, 88, 124, 172, **230**, 256
+
+**For the editor:**
+- Render CoA in normalized 0.0-1.0 space (like CK3 does)
+- Use 256×256 as RTT resolution (matches source assets)
+- The frame relationship (4/3) is just GUI layout, not fundamental

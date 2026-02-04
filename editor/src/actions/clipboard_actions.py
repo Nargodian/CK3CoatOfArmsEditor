@@ -323,39 +323,20 @@ class ClipboardActions:
 			if not temp_coa or temp_coa.get_layer_count() == 0:
 				return
 			
-			# Convert canvas_area coordinates to canvas_widget coordinates
-			# Account for the canvas_container margins (10px)
-			canvas_offset = self.main_window.canvas_area.canvas_widget.mapTo(
-				self.main_window.canvas_area, 
-				QPoint(0, 0)
-			)
-			canvas_x = mouse_pos.x() - canvas_offset.x()
-			canvas_y = mouse_pos.y() - canvas_offset.y()
+			# Get mouse position relative to canvas widget
+			mouse_pos = QCursor.pos()
+			canvas_geometry = self.main_window.canvas_area.canvas_widget.geometry()
 			
-			# Get canvas widget size
-			canvas_width = self.main_window.canvas_area.canvas_widget.width()
-			canvas_height = self.main_window.canvas_area.canvas_widget.height()
-			canvas_size = (canvas_width, canvas_height)
+			# Convert global mouse position to CanvasArea coords
+			canvas_area_pos = self.main_window.canvas_area.mapFromGlobal(mouse_pos)
 			
-			# Get canvas offset within parent for qt_pixels_to_layer_pos
-			# Add centering padding like _get_canvas_rect does
-			size = min(canvas_width, canvas_height)
-			canvas_offset_x = canvas_geometry.x() + (canvas_width - size) / 2
-			canvas_offset_y = canvas_geometry.y() + (canvas_height - size) / 2
-			# Get zoom level and pan offsets
-			zoom_level = getattr(self.main_window.canvas_area.canvas_widget, 'zoom_level', 1.0)
-			pan_x = getattr(self.main_window.canvas_area.canvas_widget, 'pan_x', 0.0)
-			pan_y = getattr(self.main_window.canvas_area.canvas_widget, 'pan_y', 0.0)
-			
-			# Convert Qt pixels to frame space using shared coordinate functions
-			from utils.coordinate_transforms import qt_pixels_to_layer_pos
-			frame_x, frame_y = qt_pixels_to_layer_pos(
-				mouse_pos.x(), mouse_pos.y(),
-				canvas_size, canvas_offset_x, canvas_offset_y, zoom_level, pan_x, pan_y
+			# Convert CanvasArea coords to Canvas widget coords
+			canvas_x, canvas_y = self.main_window.canvas_area.canvas_area_to_canvas(
+				canvas_area_pos.x(), canvas_area_pos.y()
 			)
 			
-			# Convert frame space to CoA space
-			norm_x, norm_y = self.main_window.canvas_area.canvas_widget.frame_to_coa_space(frame_x, frame_y)
+			# Convert canvas pixels to CoA space using instance method
+			norm_x, norm_y = self.main_window.canvas_area.canvas_widget.canvas_to_coa(canvas_x, canvas_y)
 			
 			# Get all UUIDs from temp CoA
 			temp_uuids = [temp_coa.get_layer_uuid_by_index(i) for i in range(temp_coa.get_layer_count())]
