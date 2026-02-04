@@ -204,10 +204,6 @@ SLIDER_SCALE_MAX = 1.0
 SLIDER_ROTATION_MIN = 0
 SLIDER_ROTATION_MAX = 359
 
-# Transform widget handle sizes
-TRANSFORM_HANDLE_SIZE = 8
-TRANSFORM_ROTATION_HANDLE_OFFSET = 30
-
 # Layer list item height
 LAYER_ITEM_HEIGHT = 60
 
@@ -240,3 +236,23 @@ PASTE_OFFSET_Y = 0.02
 # Group transforms don't clamp AABB scale (can exceed 1.0)
 # Individual emblems still clamped to [0.01, 1.0]
 GROUP_AABB_SCALE_UNLIMITED = True
+
+# ======================================================================
+# TRANSFORM WIDGET CONSTANTS
+# ======================================================================
+
+# Handle visual appearance
+TRANSFORM_HANDLE_SIZE = 8  # Handle circle/square radius (pixels)
+TRANSFORM_ROTATION_HANDLE_OFFSET = 30  # Distance above top edge (pixels)
+TRANSFORM_HIT_TOLERANCE = 4  # Extra pixels for handle hit detection
+
+# Gimble Mode Constants
+TRANSFORM_GIMBLE_ARROW_START_OFFSET = 15  # Distance from center to arrow start (pixels)
+TRANSFORM_GIMBLE_ARROW_LENGTH = 50  # Length of axis arrows (pixels)
+TRANSFORM_GIMBLE_ARROW_HEAD_SIZE = 8  # Size of arrow head triangle (pixels)
+TRANSFORM_GIMBLE_RING_RADIUS = 80  # Rotation ring radius - beyond arrow tips (pixels)
+TRANSFORM_GIMBLE_RING_HIT_TOLERANCE = 8  # Hit tolerance for rotation ring (pixels)
+TRANSFORM_GIMBLE_CENTER_DOT_RADIUS = 6  # Center dot radius in gimble mode (pixels)
+
+# Interaction Constants
+TRANSFORM_DUPLICATE_DRAG_THRESHOLD = 5  # Pixels to drag before Ctrl+drag duplicates layer

@@ -1,0 +1,549 @@
+Transform Widget Refactor Plan
+================================
+
+GOAL: Eliminate repeated position/scale calculations and make handles data-driven
+
+
+CURRENT PROBLEMS
+----------------
+1. Position/scale calculations duplicated across:
+   - paintEvent() 
+   - _get_handle_at_pos()
+   - _handle_drag()
+
+2. Handle logic scattered - adding a handle requires editing multiple methods
+
+3. Three paint methods with overlapping logic (_paint_normal_mode, etc.)
+
+
+CORE CONCEPTS (Agreed)
+-----------------------
+
+1. ALL MODES OPERATE IN SAME AABB SPACE
+   - Even gimble mode that ignores the box visually still uses it for positioning
+   - Rotation ring radius could be "1.5x AABB radius" or similar
+   - Everything relative to the same bounding box
+
+2. HANDLES AS DECLARATIVE DATA
+   Each handle defined by:
+   - Render instructions (shape, color, position)
+   - Event capture instructions (hit area, shape)
+   - Behavior (what happens on drag)
+
+3. ABSTRACT HANDLE POSITIONING
+   Position widget elements (handles) in abstract/normalized space
+   - Define positions conceptually: top-left = (-1, -1), center = (0, 0), etc.
+   - Actual pixel offsets calculated dynamically at render time
+   - No hardcoded pixel coordinates - all positions relative to current AABB
+   Example: "top-left corner handle" → dynamically becomes (center_x - half_w, center_y - half_h)
+   Note: Widget stores PIXELS (Decision 3), handles position using abstract coordinates
+
+4. DYNAMIC OFFSET CALCULATION
+   One function converts abstract coords → actual pixel offsets
+   Uses current AABB dimensions (center_x, center_y, half_w, half_h)
+   Recalculates every frame - no caching needed for handle positions
+
+5. REUSABLE PLACEMENT METHODS
+   Instead of inline calculations, use helper methods
+
+6. REUSABLE INPUT HANDLING
+   Break apart giant _handle_drag() conditional
+
+
+BENEFITS
+--------
+- Calculate AABB once per frame instead of 3+ times
+- Visual and hit area guaranteed to align (same position calculation)
+- Adding handles becomes easier
+- Mode switching = swapping active handle list
+
+
+DECISIONS MADE
+--------------
+
+1. MODE NAMING
+   - "normal" → "bbox" (bounding box mode)
+   - "minimal" → "minimal_bbox"
+   Reason: More descriptive, clarifies structure
+
+2. HIT AREA SHAPES
+   - Full AABB: Rectangular hit area for center/translate (click anywhere in box)
+   - Arrows (gimble X/Y): Rectangular hit areas along shaft
+   - Rotation ring: Ring hit area (annular region at radius with tolerance)
+   - Corner/edge handles: Circle or rectangle as appropriate
+
+3. COORDINATE SPACE ARCHITECTURE (Major Change!)
+   Widget works in PURE PIXEL SPACE:
+   - Widget stores: center_x (px), center_y (px), half_w (px), half_h (px), rotation (degrees)
+   - Canvas Area owns ALL conversions: CoA space ↔ Pixel space
+   - Widget is reactive but unaware (doesn't know why coordinates changed)
+   
+   Data flow:
+   - Update: CoA Model → Canvas Area converts → widget.set_transform(pixels) → Widget draws
+   - Drag: Widget reports pixel delta → Canvas Area converts → CoA Model updates
+   
+   Conversion layers (CanvasCoordinateMixin):
+   Position conversions (already exist):
+   - coa_to_frame(pos_x, pos_y) → (frame_x, frame_y)
+   - frame_to_canvas(frame_x, frame_y) → (pixel_x, pixel_y)
+   - canvas_to_frame(pixel_x, pixel_y) → (frame_x, frame_y)
+   - frame_to_coa(frame_x, frame_y) → (pos_x, pos_y)
+   
+   Scale conversions (NEW - add to mixin):
+   ```python
+   def coa_scale_to_frame_scale(self, scale_x, scale_y):
+       """Convert CoA scale to frame-adjusted scale
+       
+       Args:
+           scale_x, scale_y: CoA scale multipliers (1.0 = normal)
+       
+       Returns:
+           (frame_scale_x, frame_scale_y): Frame-adjusted scale
+       """
+       frame_scales, _ = self.get_frame_transform()
+       return scale_x * frame_scales[0], scale_y * frame_scales[1]
+   
+   def frame_scale_to_pixels(self, frame_scale_x, frame_scale_y):
+       """Convert frame-adjusted scale to pixel AABB half-dimensions
+       
+       Args:
+           frame_scale_x, frame_scale_y: Frame-adjusted scale multipliers
+       
+       Returns:
+           (half_w, half_h): Pixel radius of AABB
+       """
+       from components.canvas_widget_NEW import COA_BASE_SIZE_PX
+       
+       half_w = abs(frame_scale_x) * COA_BASE_SIZE_PX * self.zoom_level / 2.0
+       half_h = abs(frame_scale_y) * COA_BASE_SIZE_PX * self.zoom_level / 2.0
+       
+       return half_w, half_h
+   
+   def coa_scale_to_pixels(self, scale_x, scale_y):
+       """Convert CoA scale to pixel AABB half-dimensions (composite)
+       
+       Chains coa_scale_to_frame_scale() → frame_scale_to_pixels()
+       """
+       frame_scale_x, frame_scale_y = self.coa_scale_to_frame_scale(scale_x, scale_y)
+       return self.frame_scale_to_pixels(frame_scale_x, frame_scale_y)
+   
+   def pixels_to_frame_scale(self, half_w, half_h):
+       """Convert pixel AABB half-dimensions to frame-adjusted scale"""
+       from components.canvas_widget_NEW import COA_BASE_SIZE_PX
+       
+       frame_scale_x = (half_w * 2.0) / (COA_BASE_SIZE_PX * self.zoom_level)
+       frame_scale_y = (half_h * 2.0) / (COA_BASE_SIZE_PX * self.zoom_level)
+       
+       return frame_scale_x, frame_scale_y
+   
+   def frame_scale_to_coa_scale(self, frame_scale_x, frame_scale_y):
+       """Convert frame-adjusted scale back to CoA scale"""
+       frame_scales, _ = self.get_frame_transform()
+       return frame_scale_x / frame_scales[0], frame_scale_y / frame_scales[1]
+   
+   def pixels_to_coa_scale(self, half_w, half_h):
+       """Convert pixel AABB half-dimensions to CoA scale (composite)
+       
+       Chains pixels_to_frame_scale() → frame_scale_to_coa_scale()
+       """
+       frame_scale_x, frame_scale_y = self.pixels_to_frame_scale(half_w, half_h)
+       return self.frame_scale_to_coa_scale(frame_scale_x, frame_scale_y)
+   ```
+   
+   Usage in Canvas Area:
+   ```python
+   # Model → Widget
+   # (canvas_widget inherits CanvasCoordinateMixin, so these methods are available)
+   center_x, center_y = self.canvas_widget.coa_to_canvas(pos_x, pos_y)
+   half_w, half_h = self.canvas_widget.coa_scale_to_pixels(scale_x, scale_y)
+   self.transform_widget.set_transform(center_x, center_y, half_w, half_h, rotation)
+   
+   # Widget → Model
+   pos_x, pos_y = self.canvas_widget.canvas_to_coa(center_x, center_y)
+   scale_x, scale_y = self.canvas_widget.pixels_to_coa_scale(half_w, half_h)
+   self.coa.set_layer_transform(uuid, pos_x, pos_y, scale_x, scale_y, rotation)
+   ```
+   
+   Benefits:
+   - Widget has no frame/zoom/pan coupling
+   - No rescale_for_frame_change() needed (just another set_transform call)
+   - Canvas Area is single source of truth for coordinate conversions
+   - Simpler caching (cache pixel values only)
+   - Consistent conversion pattern (position and scale use same style)
+   - All conversion math lives in CanvasCoordinateMixin
+
+4. COA MODEL EDIT LOCK (Feedback Loop Prevention)
+   System-wide mutex prevents feedback loops during continuous numerical edits.
+   
+   Lock Owner: MainWindow (sits above Canvas Area and Properties Panel siblings)
+   
+   Implementation:
+   ```python
+   from utils.logger import loggerRaise
+   
+   class MainWindow:
+       def __init__(self):
+           self._edit_lock_holder = None  # Tracks who owns lock
+       
+       def acquire_edit_lock(self, requester):
+           """Called by any component starting continuous edit"""
+           if self._edit_lock_holder is not None:
+               e = RuntimeError(f"Lock already held by {self._edit_lock_holder}")
+               loggerRaise(e, f"Cannot acquire lock - already held by {self._edit_lock_holder}")
+           self._edit_lock_holder = requester
+       
+       def release_edit_lock(self, requester):
+           """Only lock holder can release"""
+           if self._edit_lock_holder != requester:
+               e = RuntimeError(f"Lock held by {self._edit_lock_holder}, not {requester}")
+               loggerRaise(e, f"Cannot release lock - not owned by requester")
+           self._edit_lock_holder = None
+       
+       def is_edit_locked(self):
+           """All components check before writing to model"""
+           return self._edit_lock_holder is not None
+   ```
+   
+   Lock applies to ALL continuous CoA numerical edits:
+   - Transform widget dragging (position, scale, rotation)
+   - Position/scale/rotation sliders
+   - Color pickers
+   - Instance count sliders
+   - Any numerical property being adjusted
+   
+   Standard Pattern for all continuous editors:
+   1. Acquire lock on drag/edit start (mousePressEvent, sliderPressed, etc.)
+   2. Update CoA model continuously during interaction
+   3. **CRITICAL:** Read back from model and sync own display state
+   4. Release lock (ensures UI matches model truth before unlock)
+   5. Use try/finally to guarantee release even on exception
+   
+   Example (Transform Widget):
+   ```python
+   def mousePressEvent(self, event):
+       self.main_window.acquire_edit_lock(self)
+       # ... drag handling ...
+   
+   def mouseReleaseEvent(self, event):
+       try:
+           # Sync widget display to model truth
+           # (converts model values back to pixels and updates widget state)
+           self.sync_to_model()
+       finally:
+           self.main_window.release_edit_lock(self)
+   ```
+   
+   Benefits:
+   - Prevents feedback loops: No component can write while another is editing
+   - Separates visual bugs from data corruption:
+     * Conversion rounding errors → widget position jumps (harmless visual glitch)
+     * NOT → corrupted transform values or infinite feedback loops
+   - Single consistent pattern across entire UI
+   - Lock holder exceptions prevent stuck locks
+   - Reading model is always allowed (display updates during drag are fine)
+   - Write-blocking only (sliders disabled, color pickers non-interactive, etc.)
+
+5. DRAG STATE MANAGEMENT
+   Replace 4 separate boolean flags with unified DragContext object.
+   
+   Current Problems:
+   - is_rotating: Prevents AABB recalc during rotation
+   - ctrl_pressed_at_drag_start: Duplication eligibility tracking
+   - duplicate_created: Prevents duplicate spam
+   - is_multi_selection: Changes scale clamping behavior
+   - Fragile state machine with interacting flags
+   
+   Solution - DragContext dataclass:
+   ```python
+   from dataclasses import dataclass, field
+   
+   @dataclass
+   class DragContext:
+       operation: str  # 'translate', 'scale_corner', 'scale_edge', 'rotate', 'axis_x', 'axis_y'
+       modifiers: set = field(default_factory=set)  # {'ctrl', 'alt', 'shift'}
+       duplicate_created: bool = False
+       is_multi_selection: bool = False
+       cached_aabb: tuple = None  # (pos_x, pos_y, scale_x, scale_y) for rotation
+       # Future-proof: add fields as needed without breaking existing code
+       metadata: dict = field(default_factory=dict)
+   ```
+   
+   Usage:
+   ```python
+   def mousePressEvent(self, event):
+       modifiers = set()
+       if event.modifiers() & Qt.ControlModifier:
+           modifiers.add('ctrl')
+       if event.modifiers() & Qt.AltModifier:
+           modifiers.add('alt')
+       if event.modifiers() & Qt.ShiftModifier:
+           modifiers.add('shift')
+       
+       self.drag_context = DragContext(
+           operation=self._operation_from_handle(handle),
+           modifiers=modifiers,
+           is_multi_selection=self.is_multi_selection
+       )
+   
+   def mouseReleaseEvent(self, event):
+       self.drag_context = None  # Clear state
+   ```
+   
+   Benefits:
+   - Single object to check/clear instead of 4+ flags
+   - Extensible without breaking existing code
+   - Clear state ownership (None = not dragging)
+   - Easier to debug (inspect one object)
+
+6. CONSTANTS CONFIGURATION
+   Move all magic numbers to constants.py for maintainability.
+   
+   Add to editor/src/constants.py:
+   ```python
+   # Transform Widget Constants
+   TRANSFORM_HANDLE_SIZE = 8  # Handle circle/square radius
+   TRANSFORM_ROTATION_HANDLE_OFFSET = 30  # Distance above top edge
+   TRANSFORM_HIT_TOLERANCE = 4  # Extra pixels for handle hit detection
+   
+   # Gimble Mode Constants
+   TRANSFORM_GIMBLE_ARROW_START_OFFSET = 15
+   TRANSFORM_GIMBLE_ARROW_LENGTH = 50
+   TRANSFORM_GIMBLE_ARROW_HEAD_SIZE = 8
+   TRANSFORM_GIMBLE_RING_RADIUS = 80  # Beyond arrow tips
+   TRANSFORM_GIMBLE_RING_HIT_TOLERANCE = 8
+   TRANSFORM_GIMBLE_CENTER_DOT_RADIUS = 6
+   
+   # Interaction Constants
+   TRANSFORM_DUPLICATE_DRAG_THRESHOLD = 5  # Pixels before Ctrl+drag duplicates
+   ```
+   
+   Import in transform_widget.py:
+   ```python
+   from constants import (
+       TRANSFORM_HANDLE_SIZE,
+       TRANSFORM_ROTATION_HANDLE_OFFSET,
+       # ... etc
+   )
+   ```
+
+7. EVENT FORWARDING PATTERN
+   Mouse events must forward to canvas when not over handles (for panning).
+   
+   Pattern (keep existing behavior):
+   ```python
+   def mousePressEvent(self, event):
+       handle = self._get_handle_at_pos(event.pos())
+       if handle != HANDLE_NONE:
+           # Handle transform drag
+           self.drag_context = DragContext(...)
+           return
+       
+       # Forward to canvas for panning
+       self._forward_event_to_canvas(event)
+   
+   def _forward_event_to_canvas(self, event):
+       """Reusable event forwarding (eliminates 15-line duplication)"""
+       if self.canvas_widget:
+           canvas_pos = self.canvas_widget.mapFromGlobal(self.mapToGlobal(event.pos()))
+           canvas_event = QMouseEvent(
+               event.type(),
+               canvas_pos,
+               event.globalPos(),
+               event.button(),
+               event.buttons(),
+               event.modifiers()
+           )
+           # Dispatch based on event type
+           if event.type() == QEvent.MouseButtonPress:
+               self.canvas_widget.mousePressEvent(canvas_event)
+           elif event.type() == QEvent.MouseMove:
+               self.canvas_widget.mouseMoveEvent(canvas_event)
+           elif event.type() == QEvent.MouseButtonRelease:
+               self.canvas_widget.mouseReleaseEvent(canvas_event)
+   ```
+   
+   Eliminates duplication in press/move/release handlers.
+
+8. TRANSFORM VALIDATION
+   Centralize validation in set_transform() instead of scattered checks.
+   
+   Current Problem: NaN check only in paintEvent (line 228)
+   
+   Solution:
+   ```python
+   def set_transform(self, center_x, center_y, half_w, half_h, rotation, is_multi_selection=False):
+       """Set transform values with validation"""
+       import math
+       
+       # Validate all inputs
+       if any(math.isnan(v) or math.isinf(v) for v in [center_x, center_y, half_w, half_h, rotation]):
+           # Log error but don't crash
+           from utils.logger import loggerRaise
+           e = ValueError(f"Invalid transform values: {center_x}, {center_y}, {half_w}, {half_h}, {rotation}")
+           loggerRaise(e, "set_transform received invalid values")
+           return  # Skip update with invalid values
+       
+       self.is_multi_selection = is_multi_selection
+       self.center_x = center_x
+       self.center_y = center_y
+       self.half_w = half_w
+       self.half_h = half_h
+       self.rotation = rotation
+       self.update()
+   ```
+   
+   Benefits:
+   - Single validation point
+   - Prevents invalid state from entering widget
+   - paintEvent can trust values are valid
+   - Logged errors help debug coordinate conversion bugs
+
+9. WIDGET PARENT HIERARCHY
+   Keep canvas_container as conceptual boundary between content and UI chrome.
+   
+   Final Structure:
+   ```
+   CanvasArea (QFrame with QVBoxLayout)
+   ├── preview_bar (QFrame) ← UI chrome in main layout
+   ├── canvas_container (QFrame) ← PURE CONCEPTUAL BARRIER (no properties)
+   │   └── QVBoxLayout
+   │       ├── canvas_widget (CoatOfArmsCanvas, stretch=1)
+   │       └── transform_widget (TransformWidget, parented for absolute positioning)
+   └── bottom_bar (QFrame) ← UI chrome in main layout
+   ```
+   
+   canvas_container requirements:
+   - **MINIMAL WIDGET** - just a QFrame with QVBoxLayout, nothing else
+   - NO styling, NO background color, NO borders, NO margins
+   - NO special properties or behaviors
+   - Exists ONLY as mathematical/organizational boundary
+   - Pure parent container - transparent to user
+   
+   Mathematical assumption (CRITICAL):
+   - canvas_container.width() == canvas_widget.width()
+   - canvas_container.height() == canvas_widget.height()
+   - canvas_widget fills 100% of canvas_container (stretch=1, no margins/padding)
+   - Transform widget parented to canvas_container can use container dimensions
+   
+   Coordinate system:
+   - canvas_widget uses CENTER-ORIGIN system: (0,0) is at (width/2, height/2)
+   - All CoA rendering math works from center, not top-left
+   - Transform widget must account for this when converting to/from pixels
+   - Widget pixel coordinates are Qt-style (top-left origin)
+   - Canvas pixel space is center-origin (graphics coordinate system)
+   
+   Origin conversion (CanvasArea responsibility):
+   CanvasArea provides helper methods to bridge the origin gap:
+   
+   ```python
+   def canvas_area_to_canvas_widget(self, x, y):
+       """Convert CanvasArea top-left coords to canvas_widget CENTER-ORIGIN coords"""
+       canvas_geom = self.canvas_widget.geometry()
+       
+       # Translate to canvas_widget local space
+       local_x = x - canvas_geom.x()
+       local_y = y - canvas_geom.y()
+       
+       # Shift origin from top-left to center
+       center_x = local_x - canvas_geom.width() / 2
+       center_y = local_y - canvas_geom.height() / 2
+       
+       return center_x, center_y
+   
+   def canvas_widget_to_canvas_area(self, center_x, center_y):
+       """Convert canvas_widget CENTER-ORIGIN coords to CanvasArea top-left coords"""
+       canvas_geom = self.canvas_widget.geometry()
+       
+       # Shift origin from center back to top-left
+       local_x = center_x + canvas_geom.width() / 2
+       local_y = center_y + canvas_geom.height() / 2
+       
+       # Translate to CanvasArea space
+       return local_x + canvas_geom.x(), local_y + canvas_geom.y()
+   ```
+   
+   These methods handle BOTH:
+   1. Position translation (CanvasArea → canvas_widget local space)
+   2. Origin shift (Qt top-left → graphics center-origin)
+   
+   Use case: Transform widget receives Qt events in top-left coords, needs to convert
+   to center-origin coords for calculations, then convert back for display.
+   
+   Why canvas_container exists:
+   - Conceptual barrier separating "content area" from UI controls
+   - Provides clean parent for both canvas and transform widget
+   - Transform widget can overlay full content area without overlaying bars
+   - Mathematical boundary: bars are UI chrome, container is coordinate space
+   - Keeps transform widget calculations isolated from bar positioning
+   
+   Why preview_bar moves to main layout:
+   - Currently inside canvas_container's layout (inconsistent with bottom_bar)
+   - Should be sibling to bottom_bar at CanvasArea level
+   - Both bars are UI chrome, not content
+   
+   Transform widget parenting:
+   - Parented to canvas_container (via setParent(), not added to layout)
+   - Uses absolute positioning to overlay the container's entire area
+   - Handles can extend beyond canvas edges without clipping
+   - Not constrained by layout manager - manually positioned/sized to match container
+   
+   Benefits:
+   - Clean separation: UI chrome vs content area
+   - Transform handles can extend freely without clipping
+   - Consistent bar placement (both in main layout)
+   - Container is invisible organizational boundary (no visual impact)
+   - Transform calculations never need to account for bar heights/positions
+
+
+HANDLE ARCHITECTURE
+-------------------
+
+1. BASE CLASS INTERFACE (Python ABC)
+   ```python
+   class Handle(ABC):
+       @abstractmethod
+       def hit_test(self, mouse_x, mouse_y) -> bool:
+           pass
+       
+       @abstractmethod
+       def draw(self, painter, center_x, center_y, half_w, half_h, rotation):
+           pass
+   ```
+
+2. ONE CLASS PER HANDLE TYPE
+   - CornerHandle (TL, TR, BL, BR)
+   - EdgeHandle (T, R, B, L)
+   - RotationHandle (circle/dot on bbox)
+   - ArrowHandle (gimble X/Y arrows)
+   - RingHandle (gimble rotation ring)
+   - CenterHandle (gimble center dot)
+   
+   Each implements its own shape rendering and hit testing
+
+3. WIDGET STORES OBJECT LIST
+   - Widget has list of handle objects (not classes)
+   - Each mode creates its specific handle instances
+   - Example: bbox mode creates 8 corners + 4 edges + 1 rotation handle
+
+4. MODE SYSTEM
+   - Class-based modes (BboxMode, MinimalBboxMode, GimbleMode)
+   - Each mode defines which handle objects it uses
+   - Switching modes = swapping active handle list
+
+5. RENDERING STRATEGY
+   - NO CACHING - recalculate every paintEvent
+   - Simple, no invalidation logic needed
+   - Performance fine for small handle count
+   - Widget stores only pixel values (center_x, center_y, half_w, half_h, rotation)
+
+
+NEXT STEPS
+----------
+1. Design Handle base class and concrete implementations
+2. Design Mode classes and handle registration
+3. Design Canvas Area conversion layer (CoA space → pixels)
+4. Update widget to store pixel values only
+5. Remove rescale_for_frame_change() method
+6. Implement new paintEvent flow with handle objects
+7. Update mouse event handlers to use handle.hit_test()
+8. Design widget signal interface for reporting pixel deltas back to Canvas Area

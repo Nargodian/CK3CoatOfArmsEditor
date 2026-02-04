@@ -101,6 +101,9 @@ class CoatOfArmsEditor(QMainWindow):
 		# Flag to prevent saving state during undo/redo
 		self._is_applying_history = False
 		
+		# COA Model Edit Lock (Decision 4 - prevents feedback loops)
+		self._edit_lock_holder = None  # Tracks which component owns the lock
+		
 		# Track current file and saved state
 		self.current_file_path = None
 		self.is_saved = True
@@ -220,7 +223,7 @@ class CoatOfArmsEditor(QMainWindow):
 		menubar = self.menuBar()
 		
 		# Add zoom controls to the right of menu bar
-		from components.zoom_toolbar import ZoomToolbar
+		from components.gui_widgets import ZoomToolbar
 		self.zoom_toolbar = ZoomToolbar(self)
 		self.zoom_toolbar.zoom_changed.connect(self._on_zoom_changed)
 		menubar.setCornerWidget(self.zoom_toolbar, Qt.TopRightCorner)
@@ -561,7 +564,7 @@ class CoatOfArmsEditor(QMainWindow):
 	
 	def _show_shortcuts(self):
 		"""Show keyboard shortcuts help dialog"""
-		from components.shortcuts_dialog import ShortcutsDialog
+		from components.gui_widgets import ShortcutsDialog
 		dialog = ShortcutsDialog(self)
 		dialog.exec_()
 	
@@ -1351,6 +1354,50 @@ class CoatOfArmsEditor(QMainWindow):
 		
 		# Save to history
 		self._save_state(f"Rotate {'+' if angle_delta > 0 else ''}{angle_delta}°")
+	
+	# ========================================
+	# COA Model Edit Lock (Decision 4)
+	# ========================================
+	
+	def acquire_edit_lock(self, requester):
+		"""Called by any component starting continuous edit.
+		
+		Args:
+			requester: The component requesting the lock (for tracking)
+			
+		Raises:
+			RuntimeError: If lock is already held by another component
+		"""
+		if self._edit_lock_holder is not None:
+			e = RuntimeError(f"Lock already held by {self._edit_lock_holder}")
+			loggerRaise(e, f"Cannot acquire lock - already held by {self._edit_lock_holder}")
+		self._edit_lock_holder = requester
+	
+	def release_edit_lock(self, requester):
+		"""Only lock holder can release.
+		
+		Args:
+			requester: The component releasing the lock
+			
+		Raises:
+			RuntimeError: If requester doesn't own the lock
+		"""
+		if self._edit_lock_holder != requester:
+			e = RuntimeError(f"Lock held by {self._edit_lock_holder}, not {requester}")
+			loggerRaise(e, f"Cannot release lock - not owned by requester")
+		self._edit_lock_holder = None
+	
+	def is_edit_locked(self):
+		"""All components check before writing to model.
+		
+		Returns:
+			bool: True if edit lock is currently held
+		"""
+		return self._edit_lock_holder is not None
+	
+	# ========================================
+	# History Management
+	# ========================================
 	
 	def _capture_current_state(self):
 		"""Capture the current state for history"""

@@ -197,3 +197,97 @@ class CanvasCoordinateMixin:
 			pos_y = max(0.0, min(1.0, pos_y))
 		
 		return pos_x, pos_y
+	
+	# ========================================
+	# Scale transformations (atomic + composite)
+	# ========================================
+	
+	def coa_scale_to_frame_scale(self, scale_x, scale_y):
+		"""Convert CoA scale to frame-adjusted scale.
+		
+		Args:
+			scale_x: CoA scale multiplier (1.0 = normal size)
+			scale_y: CoA scale multiplier (1.0 = normal size)
+			
+		Returns:
+			(frame_scale_x, frame_scale_y): Frame-adjusted scale multipliers
+		"""
+		frame_scales, _ = self.get_frame_transform()
+		return scale_x * frame_scales[0], scale_y * frame_scales[1]
+	
+	def frame_scale_to_pixels(self, frame_scale_x, frame_scale_y):
+		"""Convert frame-adjusted scale to pixel AABB half-dimensions.
+		
+		Args:
+			frame_scale_x: Frame-adjusted scale multiplier
+			frame_scale_y: Frame-adjusted scale multiplier
+			
+		Returns:
+			(half_w, half_h): Pixel radius of AABB (half width, half height)
+		"""
+		from components.canvas_widget_NEW import COA_BASE_SIZE_PX
+		
+		half_w = abs(frame_scale_x) * COA_BASE_SIZE_PX * self.zoom_level / 2.0
+		half_h = abs(frame_scale_y) * COA_BASE_SIZE_PX * self.zoom_level / 2.0
+		
+		return half_w, half_h
+	
+	def coa_scale_to_pixels(self, scale_x, scale_y):
+		"""Convert CoA scale to pixel AABB half-dimensions (composite).
+		
+		Chains coa_scale_to_frame_scale() → frame_scale_to_pixels()
+		
+		Args:
+			scale_x: CoA scale multiplier (1.0 = normal size)
+			scale_y: CoA scale multiplier (1.0 = normal size)
+			
+		Returns:
+			(half_w, half_h): Pixel radius of AABB
+		"""
+		frame_scale_x, frame_scale_y = self.coa_scale_to_frame_scale(scale_x, scale_y)
+		return self.frame_scale_to_pixels(frame_scale_x, frame_scale_y)
+	
+	def pixels_to_frame_scale(self, half_w, half_h):
+		"""Convert pixel AABB half-dimensions to frame-adjusted scale.
+		
+		Args:
+			half_w: Pixel AABB half-width
+			half_h: Pixel AABB half-height
+			
+		Returns:
+			(frame_scale_x, frame_scale_y): Frame-adjusted scale multipliers
+		"""
+		from components.canvas_widget_NEW import COA_BASE_SIZE_PX
+		
+		frame_scale_x = (half_w * 2.0) / (COA_BASE_SIZE_PX * self.zoom_level)
+		frame_scale_y = (half_h * 2.0) / (COA_BASE_SIZE_PX * self.zoom_level)
+		
+		return frame_scale_x, frame_scale_y
+	
+	def frame_scale_to_coa_scale(self, frame_scale_x, frame_scale_y):
+		"""Convert frame-adjusted scale back to CoA scale.
+		
+		Args:
+			frame_scale_x: Frame-adjusted scale multiplier
+			frame_scale_y: Frame-adjusted scale multiplier
+			
+		Returns:
+			(scale_x, scale_y): CoA scale multipliers (1.0 = normal)
+		"""
+		frame_scales, _ = self.get_frame_transform()
+		return frame_scale_x / frame_scales[0], frame_scale_y / frame_scales[1]
+	
+	def pixels_to_coa_scale(self, half_w, half_h):
+		"""Convert pixel AABB half-dimensions to CoA scale (composite).
+		
+		Chains pixels_to_frame_scale() → frame_scale_to_coa_scale()
+		
+		Args:
+			half_w: Pixel AABB half-width
+			half_h: Pixel AABB half-height
+			
+		Returns:
+			(scale_x, scale_y): CoA scale multipliers (1.0 = normal)
+		"""
+		frame_scale_x, frame_scale_y = self.pixels_to_frame_scale(half_w, half_h)
+		return self.frame_scale_to_coa_scale(frame_scale_x, frame_scale_y)

@@ -44,23 +44,27 @@ class CanvasArea(QFrame):
 		layout.setContentsMargins(0, 0, 0, 0)
 		layout.setSpacing(0)
 		
-		# Container to center the square canvas
+		# Top preview control bar (UI chrome in main layout)
+		self.preview_bar = self._create_preview_bar()
+		self.preview_bar.raise_()  # Ensure preview bar is on top
+		layout.addWidget(self.preview_bar)
+		
+		# Container - PURE CONCEPTUAL BARRIER (no styling, no properties)
+		# Exists ONLY as mathematical/organizational boundary
+		# Mathematical assumption: container dimensions == canvas_widget dimensions
 		canvas_container = QFrame()
-		canvas_container.setStyleSheet("QFrame { background-color: #141414; }")
 		canvas_container_layout = QVBoxLayout(canvas_container)
 		canvas_container_layout.setContentsMargins(0, 0, 0, 0)
+		canvas_container_layout.setSpacing(0)
 		
-		# Top preview control bar
-		self.preview_bar = self._create_preview_bar()
-		canvas_container_layout.addWidget(self.preview_bar)
-		
-		# OpenGL canvas widget (fills entire container)
+		# OpenGL canvas widget (fills 100% of container - stretch=1, no margins)
 		self.canvas_widget = CoatOfArmsCanvas(canvas_container)
 		self.canvas_widget.canvas_area = self  # Give canvas access to canvas_area
 		# Widget fills container - zoom handled by scaling rendering, not widget size
 		canvas_container_layout.addWidget(self.canvas_widget, stretch=1)
 		
-		# Transform widget (absolute positioned overlay)
+		# Transform widget (parented to canvas_container, absolute positioned overlay)
+		# NOT added to layout - manually positioned/sized to overlay container's area
 		# Parent to canvas_container (not canvas_widget) to avoid edge clipping
 		# Pass canvas_widget as reference for coordinate calculations
 		self.transform_widget = TransformWidget(canvas_container, self.canvas_widget)
@@ -70,15 +74,11 @@ class CanvasArea(QFrame):
 		self.transform_widget.nonUniformScaleUsed.connect(self._on_non_uniform_scale_used)
 		self.transform_widget.layerDuplicated.connect(self._on_layer_duplicated)
 		
-		# Layer order: canvas_widget (bottom) → transform_widget → bars (top)
-		self.preview_bar.raise_()  # Ensure preview bar is on top
-		
 		layout.addWidget(canvas_container, stretch=1)
 		
-		# Bottom bar
-		self.bottom_bar = self._create_bottom_bar()
-		self.bottom_bar.raise_()  # Ensure bottom bar is on top
-		layout.addWidget(self.bottom_bar)
+		# Bottom bar (UI chrome in main layout)
+		bottom_bar = self._create_bottom_bar()
+		layout.addWidget(bottom_bar)
 	
 	def _create_preview_bar(self):
 		"""Create the top preview control bar with government type and rank selection"""
@@ -413,9 +413,10 @@ class CanvasArea(QFrame):
 		self._drag_start_aabb = None
 		
 		# Abort any active drag operation on the widget (prevents old drags from continuing)
-		self.transform_widget.active_handle = self.transform_widget.HANDLE_NONE
+		self.transform_widget.active_handle = None
 		self.transform_widget.drag_start_pos = None
 		self.transform_widget.drag_start_transform = None
+		self.transform_widget.drag_context = None
 		
 		# Reset initial group state when selection changes (Task 3.6)
 		self._initial_group_center = None
@@ -460,14 +461,12 @@ class CanvasArea(QFrame):
 					group_scale_y = bounds['height']
 					group_rotation = 0
 					
-					# Convert CoA space to frame-adjusted visual space
-					frame_x, frame_y = self.canvas_widget.coa_to_frame(group_pos_x, group_pos_y)
-					frame_scale, _ = self.canvas_widget.get_frame_transform()
-					frame_scale_x = group_scale_x * frame_scale[0]
-					frame_scale_y = group_scale_y * frame_scale[1]
+					# Convert CoA space to canvas pixels (Decision 3)
+					center_x, center_y = self.canvas_widget.coa_to_canvas(group_pos_x, group_pos_y)
+					half_w, half_h = self.canvas_widget.coa_scale_to_pixels(group_scale_x, group_scale_y)
 					
 					# Pass is_multi_selection=True for group behavior
-					self.transform_widget.set_transform(frame_x, frame_y, frame_scale_x, frame_scale_y, group_rotation, is_multi_selection=True)
+					self.transform_widget.set_transform(center_x, center_y, half_w, half_h, group_rotation, is_multi_selection=True)
 					self.transform_widget.set_visible(True)
 					return
 				except ValueError:
@@ -485,15 +484,11 @@ class CanvasArea(QFrame):
 					self.transform_widget.set_visible(False)
 					return
 				
-				# Convert CoA space to frame-adjusted visual space
-				frame_x, frame_y = self.canvas_widget.coa_to_frame(pos_x, pos_y)
+				# Convert CoA space to canvas pixels (Decision 3)
+				center_x, center_y = self.canvas_widget.coa_to_canvas(pos_x, pos_y)
+				half_w, half_h = self.canvas_widget.coa_scale_to_pixels(scale_x, scale_y)
 				
-				# Apply frame scale to the emblem scale as well
-				frame_scale, _ = self.canvas_widget.get_frame_transform()
-				frame_scale_x = scale_x * frame_scale[0]
-				frame_scale_y = scale_y * frame_scale[1]
-				
-				self.transform_widget.set_transform(frame_x, frame_y, frame_scale_x, frame_scale_y, rotation)
+				self.transform_widget.set_transform(center_x, center_y, half_w, half_h, rotation)
 				self.transform_widget.set_visible(True)
 				return
 		
@@ -541,27 +536,23 @@ class CanvasArea(QFrame):
 		# Pass is_multi_selection=True to skip scale clamping (AABB can exceed 1.0)
 		self.transform_widget.set_transform(frame_x, frame_y, frame_scale_x, frame_scale_y, group_rotation, is_multi_selection=True)
 		self.transform_widget.set_visible(True)
-	def _on_transform_changed(self, pos_x, pos_y, scale_x, scale_y, rotation):
-		"""Handle transform changes from the widget		
+	def _on_transform_changed(self, center_x, center_y, half_w, half_h, rotation):
+		"""Handle transform changes from the widget (pixel space → CoA space).
+		
 		For rotation: routes through CoA.rotate_selection() using rotation mode dropdown
 		For single selection with multiple instances: group transform around AABB center
 		For single selection with one instance: direct transform
 		For multi-selection: applies group transform to all selected layers
 		
-		Note: Widget sends frame-adjusted coordinates, convert back to CoA space
+		Note: Widget sends canvas pixels, convert back to CoA space (Decision 3)
 		"""
 		selected_uuids = self.property_sidebar.get_selected_uuids() if self.property_sidebar else []
 		if not selected_uuids:
 			return
 		
-		# Convert frame-adjusted visual space back to CoA space
-		coa_x, coa_y = self.canvas_widget.frame_to_coa(pos_x, pos_y)
-		frame_scale, _ = self.canvas_widget.get_frame_transform()
-		coa_scale_x = scale_x / frame_scale[0]
-		coa_scale_y = scale_y / frame_scale[1]
-		
-		# Use CoA space coordinates for all operations below
-		pos_x, pos_y, scale_x, scale_y = coa_x, coa_y, coa_scale_x, coa_scale_y
+		# Convert canvas pixels back to CoA space (Decision 3)
+		pos_x, pos_y = self.canvas_widget.canvas_to_coa(center_x, center_y)
+		scale_x, scale_y = self.canvas_widget.pixels_to_coa_scale(half_w, half_h)
 		
 		# Check if we're rotating (using rotation handle)
 		if hasattr(self.transform_widget, 'is_rotating') and self.transform_widget.is_rotating:
@@ -938,3 +929,52 @@ class CanvasArea(QFrame):
 		x = canvas_x + canvas_geometry.x()
 		y = canvas_y + canvas_geometry.y()
 		return x, y
+	
+	def canvas_area_to_canvas_widget(self, x, y):
+		"""Convert CanvasArea top-left coords to canvas_widget CENTER-ORIGIN coords.
+		
+		Handles BOTH:
+		1. Position translation (CanvasArea → canvas_widget local space)
+		2. Origin shift (Qt top-left → graphics center-origin)
+		
+		Args:
+			x: X coordinate in CanvasArea space (Qt widget, top-left origin)
+			y: Y coordinate in CanvasArea space (Qt widget, top-left origin)
+			
+		Returns:
+			(center_x, center_y): Canvas widget center-origin coordinates
+		"""
+		canvas_geom = self.canvas_widget.geometry()
+		
+		# Translate to canvas_widget local space
+		local_x = x - canvas_geom.x()
+		local_y = y - canvas_geom.y()
+		
+		# Shift origin from top-left to center
+		center_x = local_x - canvas_geom.width() / 2
+		center_y = local_y - canvas_geom.height() / 2
+		
+		return center_x, center_y
+	
+	def canvas_widget_to_canvas_area(self, center_x, center_y):
+		"""Convert canvas_widget CENTER-ORIGIN coords to CanvasArea top-left coords.
+		
+		Handles BOTH:
+		1. Origin shift (graphics center-origin → Qt top-left)
+		2. Position translation (canvas_widget local space → CanvasArea)
+		
+		Args:
+			center_x: X coordinate in canvas_widget center-origin space
+			center_y: Y coordinate in canvas_widget center-origin space
+			
+		Returns:
+			(x, y): CanvasArea top-left origin coordinates
+		"""
+		canvas_geom = self.canvas_widget.geometry()
+		
+		# Shift origin from center back to top-left
+		local_x = center_x + canvas_geom.width() / 2
+		local_y = center_y + canvas_geom.height() / 2
+		
+		# Translate to CanvasArea space
+		return local_x + canvas_geom.x(), local_y + canvas_geom.y()

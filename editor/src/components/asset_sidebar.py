@@ -7,7 +7,7 @@ from PyQt5.QtCore import Qt, QTimer, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
 
 # Component imports
-from .flow_layout import FlowLayout
+from .asset_widgets import FlowLayout
 
 # Standard library imports
 import json
