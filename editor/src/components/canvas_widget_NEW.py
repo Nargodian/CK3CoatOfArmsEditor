@@ -26,13 +26,6 @@ from constants import (
 )
 
 # Import utility tools
-from utils.coordinate_transforms import (
-	layer_pos_to_opengl_coords,
-	layer_pos_to_qt_pixels,
-	qt_pixels_to_layer_pos,
-	coa_to_frame_space,
-	frame_to_coa_space
-)
 from services.texture_loader import TextureLoader
 from utils.quad_renderer import QuadRenderer
 from utils.path_resolver import (
@@ -47,6 +40,7 @@ from components.canvas_widgets.canvas_tools_mixin import CanvasToolsMixin
 from components.canvas_widgets.canvas_preview_mixin import CanvasPreviewMixin
 from components.canvas_widgets.canvas_texture_loader_mixin import CanvasTextureLoaderMixin
 from components.canvas_widgets.canvas_zoom_pan_mixin import CanvasZoomPanMixin
+from components.canvas_widgets.canvas_coordinate_mixin import CanvasCoordinateMixin
 from services.framebuffer_rtt import FramebufferRTT
 
 
@@ -65,7 +59,7 @@ COA_BASE_SIZE_PX = 256.0  # Base CoA size in pixels
 FRAME_SIZE_PX = COA_BASE_SIZE_PX * FRAME_COA_RATIO * FRAME_FUDGE_SCALE  # Frame is 130% of CoA, slightly shrunk
 
 
-class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
+class CoatOfArmsCanvas(CanvasCoordinateMixin, CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 	"""OpenGL canvas for rendering coat of arms with shaders."""
 	
 	def __init__(self, parent=None):
@@ -418,12 +412,15 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 		
 		for instance_idx in range(instance_count):
 			instance = coa.get_layer_instance(layer_uuid, instance_idx)
-			center = layer_pos_to_opengl_coords(instance.pos_x, instance.pos_y)
+			# Convert layer position (0-1 range) to OpenGL normalized coordinates
+			# CK3 uses Y-down, OpenGL uses Y-up - invert Y
+			center_x = instance.pos_x * 2.0 - 1.0  # Map [0,1] to [-1,+1]
+			center_y = -(instance.pos_y * 2.0 - 1.0)  # Invert Y
 			# Negate rotation: CK3 uses Y-down (clockwise positive), OpenGL uses Y-up (counterclockwise positive)
 			rotation_rad = math.radians(-instance.rotation)
 			
 			# Set transform uniforms
-			self.design_shader.setUniformValue("position", QVector2D(center[0], center[1]))
+			self.design_shader.setUniformValue("position", QVector2D(center_x, center_y))
 			self.design_shader.setUniformValue("scale", QVector2D(instance.scale_x, instance.scale_y))
 			self.design_shader.setUniformValue("rotation", rotation_rad)
 			self.design_shader.setUniformValue("uvOffset", QVector2D(u0, v0))
@@ -613,86 +610,13 @@ class CoatOfArmsCanvas(CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPrevi
 	# ========================================
 	# Coordinate Conversion Methods
 	# ========================================
+	# (Now provided by CanvasCoordinateMixin)
 	
-	def coa_to_canvas(self, pos_x, pos_y, clamp=False):
-		"""Convert CoA space (0-1) to canvas pixel coordinates.
-		
-		Applies frame transforms, zoom, pan, and viewport scaling.
-		Fetches all state (zoom, pan, size, frame) from self.
-		
-		Args:
-			pos_x: CoA X position (0-1, where 0.5 is center)
-			pos_y: CoA Y position (0-1, where 0.5 is center)
-			clamp: If True, clamp result to canvas bounds
-			
-		Returns:
-			(x, y): Canvas pixel coordinates
-		"""
-		# Apply frame transformation first
-		frame_scale, frame_offset = self.get_frame_transform()
-		frame_x, frame_y = coa_to_frame_space(pos_x, pos_y, frame_scale, frame_offset)
-		
-		# Convert to OpenGL coords
-		gl_x = frame_x * 2.0 - 1.0
-		gl_y = -(frame_y * 2.0 - 1.0)  # Invert Y
-		
-		# Get current canvas size
-		width, height = self.width(), self.height()
-		canvas_size = min(width, height)
-		
-		# Convert to canvas pixels with zoom and scaling
-		pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * self.zoom_level
-		pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * self.zoom_level
-		
-		# Canvas center + pan
-		x = width / 2 + pixel_x + self.pan_x
-		y = height / 2 - pixel_y + self.pan_y  # Qt Y-down
-		
-		if clamp:
-			x = max(0, min(width, x))
-			y = max(0, min(height, y))
-		
-		return x, y
+	# ========================================
 	
-	def canvas_to_coa(self, x, y, clamp=False):
-		"""Convert canvas pixel coordinates to CoA space (0-1).
-		
-		Reverses zoom, pan, viewport scaling, and frame transforms.
-		Fetches all state from self.
-		
-		Args:
-			x: Canvas pixel X coordinate
-			y: Canvas pixel Y coordinate
-			clamp: If True, clamp result to 0-1 range
-			
-		Returns:
-			(pos_x, pos_y): CoA position (0-1 range)
-		"""
-		# Get current canvas size
-		width, height = self.width(), self.height()
-		canvas_size = min(width, height)
-		
-		# Remove pan and center offset
-		pixel_x = x - width / 2 - self.pan_x
-		pixel_y = y - height / 2 - self.pan_y
-		
-		# Convert to OpenGL normalized space
-		gl_x = pixel_x / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / self.zoom_level
-		gl_y = -pixel_y / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / self.zoom_level
-		
-		# Convert to frame space
-		frame_x = (gl_x + 1.0) / 2.0
-		frame_y = (-gl_y + 1.0) / 2.0
-		
-		# Remove frame transformation
-		frame_scale, frame_offset = self.get_frame_transform()
-		pos_x, pos_y = frame_to_coa_space(frame_x, frame_y, frame_scale, frame_offset)
-		
-		if clamp:
-			pos_x = max(0.0, min(1.0, pos_x))
-			pos_y = max(0.0, min(1.0, pos_y))
-		
-		return pos_x, pos_y
+	# ========================================
+	# Prestige/Splendor
+	# ========================================
 	
 	def set_prestige(self, level):
 		"""Set prestige/splendor level (0-5)."""

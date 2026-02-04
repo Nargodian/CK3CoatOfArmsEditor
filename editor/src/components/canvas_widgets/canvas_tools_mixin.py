@@ -168,7 +168,6 @@ class CanvasToolsMixin:
 		import OpenGL.GL as gl
 		import numpy as np
 		from models.coa import CoA
-		from utils.coordinate_transforms import layer_pos_to_opengl_coords
 		import math
 		
 		if not CoA.has_active():
@@ -273,7 +272,10 @@ class CanvasToolsMixin:
 				scale_y = instance.scale_y
 				rotation = instance.rotation
 				
-				center_x, center_y = layer_pos_to_opengl_coords(pos_x, pos_y)
+				# Convert layer position (0-1 range) to OpenGL normalized coordinates
+				# CK3 uses Y-down, OpenGL uses Y-up - invert Y
+				center_x = pos_x * 2.0 - 1.0  # Map [0,1] to [-1,+1]
+				center_y = -(pos_y * 2.0 - 1.0)  # Invert Y
 				
 				angle_rad = math.radians(-rotation)
 				cos_a = math.cos(angle_rad)
@@ -413,26 +415,11 @@ class CanvasToolsMixin:
 		
 		# Get last mouse position and convert to UV
 		if hasattr(self, 'last_picker_mouse_pos') and self.last_picker_mouse_pos:
-			from utils.coordinate_transforms import qt_pixels_to_layer_pos
-			
-			canvas_width = self.width()
-			canvas_height = self.height()
-			canvas_size = (canvas_width, canvas_height)
-			
-			size = min(canvas_width, canvas_height)
-			canvas_offset_x = (canvas_width - size) / 2
-			canvas_offset_y = (canvas_height - size) / 2
-			
-			zoom_level = getattr(self, 'zoom_level', 1.0)
-			pan_x = getattr(self, 'pan_x', 0.0)
-			pan_y = getattr(self, 'pan_y', 0.0)
-			
-			coa_x, coa_y = qt_pixels_to_layer_pos(
-				self.last_picker_mouse_pos.x(), self.last_picker_mouse_pos.y(),
-				canvas_size, canvas_offset_x, canvas_offset_y,
-				zoom_level, pan_x, pan_y
+			# Convert canvas pixels to CoA space using instance method
+			coa_x, coa_y = self.canvas_to_coa(
+				self.last_picker_mouse_pos.x(), 
+				self.last_picker_mouse_pos.y()
 			)
-			
 			return (coa_x, coa_y)
 		
 		return (-1.0, -1.0)
@@ -466,28 +453,8 @@ class CanvasToolsMixin:
 		if not self.picker_rtt or not self.picker_rtt_valid:
 			return None
 		
-		# Import here to avoid circular dependency
-		from utils.coordinate_transforms import qt_pixels_to_layer_pos
-		
-		canvas_width = self.width()
-		canvas_height = self.height()
-		canvas_size = (canvas_width, canvas_height)
-		
-		# Get canvas offset (centered)
-		size = min(canvas_width, canvas_height)
-		canvas_offset_x = (canvas_width - size) / 2
-		canvas_offset_y = (canvas_height - size) / 2
-		
-		zoom_level = getattr(self, 'zoom_level', 1.0)
-		pan_x = getattr(self, 'pan_x', 0.0)
-		pan_y = getattr(self, 'pan_y', 0.0)
-		
-		# Convert to CoA space (0.0-1.0)
-		coa_x, coa_y = qt_pixels_to_layer_pos(
-			mouse_pos.x(), mouse_pos.y(),
-			canvas_size, canvas_offset_x, canvas_offset_y,
-			zoom_level, pan_x, pan_y
-		)
+		# Convert canvas pixels to CoA space using instance method
+		coa_x, coa_y = self.canvas_to_coa(mouse_pos.x(), mouse_pos.y())
 		
 		# Convert CoA space to RTT pixel coords
 		# Add 0.5 to round to nearest pixel (OpenGL texture centers are at pixel+0.5)
