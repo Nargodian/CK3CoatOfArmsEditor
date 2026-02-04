@@ -247,6 +247,29 @@ class CanvasCoordinateMixin:
 		frame_scale_x, frame_scale_y = self.coa_scale_to_frame_scale(scale_x, scale_y)
 		return self.frame_scale_to_pixels(frame_scale_x, frame_scale_y)
 	
+	def coa_to_transform_widget_coords(self, pos_x, pos_y, scale_x, scale_y):
+		"""Convert CoA space to transform widget center-origin coordinates.
+		
+		Combines position + scale conversion and applies center-origin shift
+		for transform widget (which uses center=0,0 coordinate system).
+		
+		Args:
+			pos_x, pos_y: CoA position (0-1)
+			scale_x, scale_y: CoA scale multiplier
+			
+		Returns:
+			(center_x, center_y, half_w, half_h): Transform widget coordinates
+		"""
+		# Convert to canvas top-left pixels
+		canvas_x, canvas_y = self.coa_to_canvas(pos_x, pos_y)
+		half_w, half_h = self.coa_scale_to_pixels(scale_x, scale_y)
+		
+		# Shift to center-origin (transform widget coordinate system)
+		center_x = canvas_x - self.width() / 2
+		center_y = canvas_y - self.height() / 2
+		
+		return center_x, center_y, half_w, half_h
+	
 	def pixels_to_frame_scale(self, half_w, half_h):
 		"""Convert pixel AABB half-dimensions to frame-adjusted scale.
 		

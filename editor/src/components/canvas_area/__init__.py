@@ -1,0 +1,1 @@
+# Canvas area package
