@@ -10,10 +10,6 @@ Coordinate spaces:
 - Canvas: Qt pixel coordinates with zoom/pan applied
 """
 
-# Canvas rendering constants (must match canvas_widget_NEW)
-VIEWPORT_BASE_SIZE = 0.8
-COMPOSITE_SCALE = 0.75
-
 
 class CanvasCoordinateMixin:
 	"""Mixin providing coordinate transformation methods.
@@ -23,7 +19,6 @@ class CanvasCoordinateMixin:
 	- self.zoom_level (float)
 	- self.pan_x, self.pan_y (float)
 	- self.width(), self.height() (methods returning int)
-	- Constants: VIEWPORT_BASE_SIZE, COMPOSITE_SCALE (from parent module scope)
 	"""
 	
 	# ========================================
@@ -115,9 +110,9 @@ class CanvasCoordinateMixin:
 		width, height = self.width(), self.height()
 		canvas_size = min(width, height)
 		
-		# Convert to canvas pixels with zoom and scaling
-		pixel_x = gl_x * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * self.zoom_level
-		pixel_y = gl_y * (canvas_size / 2) * VIEWPORT_BASE_SIZE * COMPOSITE_SCALE * self.zoom_level
+		# Convert to canvas pixels with zoom (pure pixel-based)
+		pixel_x = gl_x * (canvas_size / 2) * self.zoom_level
+		pixel_y = gl_y * (canvas_size / 2) * self.zoom_level
 		
 		# Canvas center + pan
 		x = width / 2 + pixel_x + self.pan_x
@@ -149,9 +144,9 @@ class CanvasCoordinateMixin:
 		pixel_x = x - width / 2 - self.pan_x
 		pixel_y = y - height / 2 - self.pan_y
 		
-		# Convert to OpenGL normalized space
-		gl_x = pixel_x / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / self.zoom_level
-		gl_y = -pixel_y / (canvas_size / 2) / VIEWPORT_BASE_SIZE / COMPOSITE_SCALE / self.zoom_level
+		# Convert to OpenGL normalized space (pure pixel-based)
+		gl_x = pixel_x / (canvas_size / 2) / self.zoom_level
+		gl_y = -pixel_y / (canvas_size / 2) / self.zoom_level
 		
 		# Convert to frame space
 		frame_x = (gl_x + 1.0) / 2.0

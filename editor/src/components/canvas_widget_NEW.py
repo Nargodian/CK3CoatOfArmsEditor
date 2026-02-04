@@ -48,10 +48,6 @@ from services.framebuffer_rtt import FramebufferRTT
 # Constants
 # ========================================
 
-VIEWPORT_BASE_SIZE = 0.8
-COMPOSITE_SCALE = 0.75
-COMPOSITE_OFFSET_Y = 0.00
-
 # Pixel-based size constants
 FRAME_FUDGE_SCALE = 0.98 # Slightly shrink frame to avoid edge artifacts
 FRAME_COA_RATIO = 1.3  # Frame is 130% of CoA size
