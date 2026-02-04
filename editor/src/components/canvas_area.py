@@ -464,9 +464,8 @@ class CanvasArea(QFrame):
 					# Convert CoA space to canvas pixels (Decision 3)
 					center_x_topleft, center_y_topleft = self.canvas_widget.coa_to_canvas(group_pos_x, group_pos_y)
 					half_w, half_h = self.canvas_widget.coa_scale_to_pixels(group_scale_x, group_scale_y)
-									# Convert from top-left to center-origin coordinates (use transform_widget dimensions!)
-				center_x = center_x_topleft - self.transform_widget.width() / 2
-				center_y = center_y_topleft - self.transform_widget.height() / 2
+				# Convert from top-left to center-origin coordinates
+				center_x, center_y = self._topleft_to_center_origin(center_x_topleft, center_y_topleft)
 					self.transform_widget.set_visible(True)
 					return
 				except ValueError:
@@ -488,19 +487,16 @@ class CanvasArea(QFrame):
 				center_x_topleft, center_y_topleft = self.canvas_widget.coa_to_canvas(pos_x, pos_y)
 				half_w, half_h = self.canvas_widget.coa_scale_to_pixels(scale_x, scale_y)
 				
-			# Convert from top-left to center-origin coordinates (use transform_widget dimensions!)
-			center_x = center_x_topleft - self.transform_widget.width() / 2
-			center_y = center_y_topleft - self.transform_widget.height() / 2
-		
-		# MULTI-SELECTION: Calculate screen-space AABB using CoA
-		# If we have a drag_start_aabb (during active transform), use that to prevent scale compounding
-		if hasattr(self, '_drag_start_aabb') and self._drag_start_aabb is not None:
-			# Use cached original AABB from transform cache
-			group_pos_x = self._drag_start_aabb['center_x']
-			group_pos_y = self._drag_start_aabb['center_y']
-			group_scale_x = self._drag_start_aabb['scale_x']
-			group_scale_y = self._drag_start_aabb['scale_y']
-		else:
+			# Convert from top-left to center-origin coordinates
+			center_x, center_y = self._topleft_to_center_origin(center_x_topleft, center_y_topleft)
+			
+			self.transform_widget.set_transform(center_x, center_y, half_w, half_h, rotation)
+			self.transform_widget.set_visible(True)
+			return
+	
+	# MULTI-SELECTION: Calculate screen-space AABB using CoA
+	# If we have a drag_start_aabb (during active transform), use that to prevent scale compounding
+	if hasattr(self, '_drag_start_aabb') and self._drag_start_aabb is not None:
 			# Get UUIDs for selected layers directly
 			selected_uuids = self.property_sidebar.get_selected_uuids()
 			
@@ -554,13 +550,8 @@ class CanvasArea(QFrame):
 		if not selected_uuids:
 			return
 		
-	# Convert from center-origin to top-left coordinates first (use transform_widget dimensions!)
-	center_x_topleft = center_x + self.transform_widget.width() / 2
-	center_y_topleft = center_y + self.transform_widget.height() / 2
-		
-		# Check if we're rotating (using rotation handle)
-		if hasattr(self.transform_widget, 'is_rotating') and self.transform_widget.is_rotating:
-			# ROTATION: Apply from cached state for dynamic preview
+	# Convert from center-origin to top-left coordinates first
+	center_x_topleft, center_y_topleft = self._center_origin_to_topleft(center_x, center_y)
 			if not hasattr(self, '_rotation_start') or self._rotation_start is None:
 				# First rotation frame - cache state
 				self._rotation_start = rotation
