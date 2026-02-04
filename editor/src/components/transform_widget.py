@@ -344,13 +344,17 @@ class TransformWidget(QWidget):
 		# Update cursor based on handle under mouse
 		handle = self._get_handle_at_pos(event.pos())
 		if handle:
-			if handle in ['center', 'gimble_center']:
+			# Use polymorphism via isinstance instead of string comparison
+			from .transform_widgets.handles import (RotationHandle, RingHandle, ArrowHandle,
+			                                         CenterHandle, GimbleCenterHandle)
+			if isinstance(handle, (CenterHandle, GimbleCenterHandle)):
 				self.setCursor(Qt.SizeAllCursor)
-			elif handle == 'axis_x':
-				self.setCursor(Qt.SizeHorCursor)
-			elif handle == 'axis_y':
-				self.setCursor(Qt.SizeVerCursor)
-			elif handle in ['rotate', 'ring']:
+			elif isinstance(handle, ArrowHandle):
+				if handle.axis == 'x':
+					self.setCursor(Qt.SizeHorCursor)
+				else:
+					self.setCursor(Qt.SizeVerCursor)
+			elif isinstance(handle, (RotationHandle, RingHandle)):
 				self.setCursor(Qt.CrossCursor)
 			else:
 				self.setCursor(Qt.SizeFDiagCursor)
