@@ -1,5 +1,4 @@
-"""Transform handling mixin for CanvasArea - refactored from 243-line monolith"""
-import math
+"""Transform handling mixin for CanvasArea - thin coordinator that delegates to CoA model"""
 
 
 class CanvasAreaTransformMixin:
@@ -187,144 +186,78 @@ class CanvasAreaTransformMixin:
 	
 	def _apply_multi_selection_transform(self, pos_x, pos_y, scale_x, scale_y, rotation):
 		"""Apply group transform to all selected layers.
+		by delegating to CoA model methods.
+		
+		Delegates all geometric math to CoA - mixin only does coordinate conversion.
 		
 		Args:
 			pos_x, pos_y: New group center in CoA space
 			scale_x, scale_y: New group size in CoA space
 			rotation: Rotation angle in degrees
 		"""
-		# Use cached original AABB
+		selected_uuids = list(self._drag_start_aabb.keys()) if hasattr(self, '_drag_start_aabb') and isinstance(self._drag_start_aabb, dict) else [layer['uuid'] for layer in self._drag_start_layers]
+		
+		# Get original AABB
 		original_center_x = self._drag_start_aabb['center_x']
 		original_center_y = self._drag_start_aabb['center_y']
 		original_scale_x = self._drag_start_aabb['scale_x']
 		original_scale_y = self._drag_start_aabb['scale_y']
 		
-		# Calculate transform deltas
+		# Calculate scale factors
+		scale_factor_x = scale_x / original_scale_x if original_scale_x > 0.001 else 1.0
+		scale_factor_y = scale_y / original_scale_y if original_scale_y > 0.001 else 1.0
+		
+		# Calculate position delta
 		position_delta_x = pos_x - original_center_x
 		position_delta_y = pos_y - original_center_y
-		rotation_delta = rotation - getattr(self, '_initial_group_rotation', 0)
 		
-		# Apply transforms to all selected layers
+		# Apply transforms per layer using CoA methods with cached state
 		for layer_state in self._drag_start_layers:
 			uuid = layer_state['uuid']
+			cached = self.main_window.coa.get_cached_transform(uuid)
+			if not cached:
+				continue
 			
-			# Get original positions from cache
-			pos_x_orig = layer_state['pos_x']
-			pos_y_orig = layer_state['pos_y']
-			scale_x_orig = layer_state['scale_x']
-			scale_y_orig = layer_state['scale_y']
+			# Calculate ferris wheel transform: offset from center, scale it, translate it
+			offset_x = cached['pos_x'] - original_center_x
+			offset_y = cached['pos_y'] - original_center_y
 			
-			# Calculate offset from original group center
-			offset_x = pos_x_orig - original_center_x
-			offset_y = pos_y_orig - original_center_y
+			new_offset_x = offset_x * scale_factor_x
+			new_offset_y = offset_y * scale_factor_y
 			
-			# Calculate new position and scale based on transform type
-			if self.transform_widget.is_rotating:
-				new_pos_x, new_pos_y, new_scale_x, new_scale_y = self._apply_rotation_to_layer(
-					offset_x, offset_y, scale_x_orig, scale_y_orig,
-					rotation_delta, original_center_x, original_center_y, position_delta_x, position_delta_y
-				)
-			else:
-				new_pos_x, new_pos_y, new_scale_x, new_scale_y = self._apply_scale_to_layer(
-					offset_x, offset_y, scale_x_orig, scale_y_orig,
-					original_scale_x, original_scale_y, scale_x, scale_y,
-					original_center_x, original_center_y, position_delta_x, position_delta_y
-				)
+			new_pos_x = original_center_x + new_offset_x + position_delta_x
+			new_pos_y = original_center_y + new_offset_y + position_delta_y
+			new_scale_x = cached['scale_x'] * scale_factor_x
+			new_scale_y = cached['scale_y'] * scale_factor_y
 			
-			# Clamp positions to valid range
+			# Clamp
 			new_pos_x = max(0.0, min(1.0, new_pos_x))
 			new_pos_y = max(0.0, min(1.0, new_pos_y))
+			new_scale_x = max(0.01, min(1.0, new_scale_x))
+			new_scale_y = max(0.01, min(1.0, new_scale_y))
 			
-			# Clamp scales (but not during rotation)
-			if not self.transform_widget.is_rotating:
-				new_scale_x = max(0.01, min(1.0, new_scale_x))
-				new_scale_y = max(0.01, min(1.0, new_scale_y))
-			
-			# Update layer
-			self._update_layer_transform(
-				uuid, new_pos_x, new_pos_y, new_scale_x, new_scale_y,
-				scale_x_orig, scale_y_orig, layer_state.get('is_multi_instance', False)
-			)
+			# Apply using CoA method
+			if layer_state.get('is_multi_instance', False):
+				# Multi-instance: use instance group transform
+				bounds = self.main_window.coa.get_layer_bounds(uuid)
+				orig_scale_x = bounds['width']
+				orig_scale_y = bounds['height']
+				inst_scale_factor_x = new_scale_x / orig_scale_x if orig_scale_x > 0.001 else 1.0
+				inst_scale_factor_y = new_scale_y / orig_scale_y if orig_scale_y > 0.001 else 1.0
+				
+				if uuid not in self._instance_transforms:
+					self.main_window.coa.begin_instance_group_transform(uuid)
+					self._instance_transforms.add(uuid)
+				
+				self.main_window.coa.transform_instances_as_group(
+					uuid, new_pos_x, new_pos_y, inst_scale_factor_x, inst_scale_factor_y, 0.0
+				)
+			else:
+				# Single instance: direct set
+				self.main_window.coa.apply_transform_group(uuid, new_pos_x, new_pos_y, new_scale_x, new_scale_y, None)
 		
-		# Update canvas for live preview
+		# Update canvas
 		self.canvas_widget.update()
-	
-	def _apply_rotation_to_layer(self, offset_x, offset_y, scale_x, scale_y,
-	                              rotation_delta, center_x, center_y, delta_x, delta_y):
-		"""Apply rotation to a layer's offset (ferris wheel behavior).
-		
-		Returns:
-			(new_pos_x, new_pos_y, new_scale_x, new_scale_y)
-		"""
-		# Rotate offset around group center
-		rotation_rad = math.radians(rotation_delta)
-		cos_r = math.cos(rotation_rad)
-		sin_r = math.sin(rotation_rad)
-		new_offset_x = offset_x * cos_r - offset_y * sin_r
-		new_offset_y = offset_x * sin_r + offset_y * cos_r
-		
-		# Apply position delta
-		new_pos_x = center_x + new_offset_x + delta_x
-		new_pos_y = center_y + new_offset_y + delta_y
-		
-		# Keep scales unchanged during rotation
-		return new_pos_x, new_pos_y, scale_x, scale_y
-	
-	def _apply_scale_to_layer(self, offset_x, offset_y, scale_x, scale_y,
-	                           orig_group_scale_x, orig_group_scale_y,
-	                           new_group_scale_x, new_group_scale_y,
-	                           center_x, center_y, delta_x, delta_y):
-		"""Apply scale/position transform to a layer.
-		
-		Returns:
-			(new_pos_x, new_pos_y, new_scale_x, new_scale_y)
-		"""
-		# Calculate scale factors
-		scale_factor_x = new_group_scale_x / orig_group_scale_x if orig_group_scale_x > 0.001 else 1.0
-		scale_factor_y = new_group_scale_y / orig_group_scale_y if orig_group_scale_y > 0.001 else 1.0
-		
-		# Scale offset
-		new_offset_x = offset_x * scale_factor_x
-		new_offset_y = offset_y * scale_factor_y
-		
-		# Apply position delta
-		new_pos_x = center_x + new_offset_x + delta_x
-		new_pos_y = center_y + new_offset_y + delta_y
-		
-		# Scale layer size
-		new_scale_x = scale_x * scale_factor_x
-		new_scale_y = scale_y * scale_factor_y
-		
-		return new_pos_x, new_pos_y, new_scale_x, new_scale_y
-	
-	def _update_layer_transform(self, uuid, pos_x, pos_y, scale_x, scale_y,
-	                             orig_scale_x, orig_scale_y, is_multi_instance):
-		"""Update a single layer's transform in the CoA model.
-		
-		Args:
-			uuid: Layer UUID
-			pos_x, pos_y: New position
-			scale_x, scale_y: New scale
-			orig_scale_x, orig_scale_y: Original scale (for multi-instance)
-			is_multi_instance: Whether this is a multi-instance layer
-		"""
-		if is_multi_instance:
-			# Multi-instance layer: transform all instances as a group
-			scale_factor_x = scale_x / orig_scale_x if orig_scale_x > 0.001 else 1.0
-			scale_factor_y = scale_y / orig_scale_y if orig_scale_y > 0.001 else 1.0
-			
-			# Begin instance transform if not already begun
-			if uuid not in self._instance_transforms:
-				self.main_window.coa.begin_instance_group_transform(uuid)
-				self._instance_transforms.add(uuid)
-			
-			self.main_window.coa.transform_instances_as_group(
-				uuid, pos_x, pos_y, scale_factor_x, scale_factor_y, 0.0
-			)
-		else:
-			# Single instance layer: direct transform
-			self.main_window.coa.set_layer_position(uuid, pos_x, pos_y)
-			self.main_window.coa.set_layer_scale(uuid, scale_x, scale_y)
 	
 	def _handle_multi_selection_transform(self, pos_x, pos_y, scale_x, scale_y, rotation, selected_uuids):
 		"""Handle group transform for multiple selected layers.
