@@ -1,6 +1,6 @@
 #version 330 core
 
-in vec2 vTexCoord;
+in vec2 fragUV;
 out vec4 FragColor;
 
 uniform sampler2D emblemMaskSampler;        // 8192×8192 emblem atlas with 256 tiles (16×16 grid, 512×512 per tile)
@@ -13,7 +13,7 @@ uniform vec3 indexColor; // Emblem picker index color
 
 void main()
 {
-	vec4 textureMask = texture(emblemMaskSampler, vTexCoord);
+	vec4 textureMask = texture(emblemMaskSampler, fragUV);
 	//generate a unique colour based on index - use exact byte values, no interpolation
 
 	

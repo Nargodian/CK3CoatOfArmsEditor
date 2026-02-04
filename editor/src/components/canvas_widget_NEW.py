@@ -408,16 +408,28 @@ class CoatOfArmsCanvas(CanvasCoordinateMixin, CanvasZoomPanMixin, CanvasTextureL
 		
 		for instance_idx in range(instance_count):
 			instance = coa.get_layer_instance(layer_uuid, instance_idx)
-			# Convert layer position (0-1 range) to OpenGL normalized coordinates
-			# CK3 uses Y-down, OpenGL uses Y-up - invert Y
-			center_x = instance.pos_x * 2.0 - 1.0  # Map [0,1] to [-1,+1]
-			center_y = -(instance.pos_y * 2.0 - 1.0)  # Invert Y
+			
+			# quad.vert expects pixel-based coordinates in 512×512 framebuffer
+			# Convert CoA space (0-1) to pixel position (0-512)
+			center_x_coa = instance.pos_x - 0.5  # Center around 0
+			center_y_coa = instance.pos_y - 0.5  # Center around 0
+			
+			# Convert to pixels (CoA center is at 256, 256)
+			center_x_px = center_x_coa * 512.0  # Offset from center in pixels
+			center_y_px = -center_y_coa * 512.0  # Invert Y, offset from center in pixels
+			
+			# Scale is in CoA coordinates (0-1 range = full width/height)
+			# Convert to pixels: scale * 512
+			scale_x_px = instance.scale_x * 512.0
+			scale_y_px = instance.scale_y * 512.0
+			
 			# Negate rotation: CK3 uses Y-down (clockwise positive), OpenGL uses Y-up (counterclockwise positive)
 			rotation_rad = math.radians(-instance.rotation)
 			
-			# Set transform uniforms
-			self.design_shader.setUniformValue("position", QVector2D(center_x, center_y))
-			self.design_shader.setUniformValue("scale", QVector2D(instance.scale_x, instance.scale_y))
+			# Set transform uniforms for quad.vert (pixel-based)
+			self.design_shader.setUniformValue("screenRes", QVector2D(512.0, 512.0))
+			self.design_shader.setUniformValue("position", QVector2D(center_x_px, center_y_px))
+			self.design_shader.setUniformValue("scale", QVector2D(scale_x_px, scale_y_px))
 			self.design_shader.setUniformValue("rotation", rotation_rad)
 			self.design_shader.setUniformValue("uvOffset", QVector2D(u0, v0))
 			self.design_shader.setUniformValue("uvScale", QVector2D(u1 - u0, v1 - v0))

@@ -1,6 +1,6 @@
 #version 330 core
 
-in vec2 vTexCoord;
+in vec2 fragUV;
 out vec4 FragColor;
 
 uniform sampler2D emblemMaskSampler;        // 8192×8192 emblem atlas with 256 tiles (16×16 grid, 512×512 per tile)
@@ -31,7 +31,7 @@ vec3 applyOverlay(vec3 base, vec3 blend, float strength) {
 
 void main()
 {
-	vec4 textureMask = texture(emblemMaskSampler, vTexCoord);
+	vec4 textureMask = texture(emblemMaskSampler, fragUV);
 	vec3 outputColour = vec3(0.);
 	outputColour = mix(primaryColor, secondaryColor, textureMask.g);
 	outputColour = mix(outputColour, tertiaryColor, textureMask.r);
