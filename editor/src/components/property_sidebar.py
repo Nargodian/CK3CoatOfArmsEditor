@@ -602,18 +602,13 @@ class PropertySidebar(QFrame):
 			if self.canvas_widget:
 				self.canvas_widget.update()
 			
-	# Color Management (Base & Emblem)
-	# ========================================
-	
-	def set_base_color_count(self, count):
-		"""Show/hide base color swatches based on asset color count (1, 2, or 3)"""
-		if not hasattr(self, 'color_buttons'):
-			return
+			# Rebuild layer list to update thumbnails
+			self._rebuild_layer_list()
+			
+			# Save to history
+			if self.main_window and hasattr(self.main_window, '_save_state'):
+				self.main_window._save_state(f"Change emblem color {color_idx+1}")
 		
-		for i, btn in enumerate(self.color_buttons):
-			if i < count:
-				btn.show()
-			else:
 				btn.hide()
 	
 	def get_base_colors(self):
