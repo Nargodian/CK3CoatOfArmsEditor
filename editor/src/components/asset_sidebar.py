@@ -506,8 +506,9 @@ class AssetSidebar(QFrame):
 	
 	def _get_current_layer_colors(self):
 		"""Get colors from currently selected layer for preview compositing"""
-		if not self.right_sidebar or not hasattr(self.right_sidebar, 'layers'):
-			# Return default colors
+		# Get background colors from base color buttons (always from Base tab)
+		if not self.right_sidebar:
+			# Fallback to defaults only if right_sidebar doesn't exist
 			return {
 				'color1': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb']),
 				'color2': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb']),
@@ -517,7 +518,6 @@ class AssetSidebar(QFrame):
 				'background3': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'])
 			}
 		
-		# Get background colors from base color buttons (always from Base tab)
 		base_colors = self.right_sidebar.get_base_colors()
 		background1 = tuple(base_colors[0]) if len(base_colors) > 0 else tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb'])
 		background2 = tuple(base_colors[1]) if len(base_colors) > 1 else tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb'])
