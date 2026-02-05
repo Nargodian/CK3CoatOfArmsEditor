@@ -94,20 +94,12 @@ class CornerHandle(Handle):
 	
 	def _get_pixel_pos(self, center_x, center_y, half_w, half_h, rotation):
 		"""Calculate actual pixel position from abstract position."""
-		# Local position relative to AABB
+		# Local position relative to AABB (no rotation - axis-aligned)
 		local_x = self.norm_x * half_w
 		local_y = self.norm_y * half_h
 		
-		# Apply rotation
-		rad = math.radians(rotation)
-		cos_r = math.cos(rad)
-		sin_r = math.sin(rad)
-		
-		rotated_x = local_x * cos_r - local_y * sin_r
-		rotated_y = local_x * sin_r + local_y * cos_r
-		
-		# Translate to widget space
-		return center_x + rotated_x, center_y + rotated_y
+		# Translate to widget space (no rotation applied)
+		return center_x + local_x, center_y + local_y
 	
 	def hit_test(self, mouse_x, mouse_y, center_x, center_y, half_w, half_h, rotation):
 		px, py = self._get_pixel_pos(center_x, center_y, half_w, half_h, rotation)
@@ -199,15 +191,8 @@ class EdgeHandle(Handle):
 		local_x = self.norm_x * half_w
 		local_y = self.norm_y * half_h
 		
-		# Apply rotation
-		rad = math.radians(rotation)
-		cos_r = math.cos(rad)
-		sin_r = math.sin(rad)
-		
-		rotated_x = local_x * cos_r - local_y * sin_r
-		rotated_y = local_x * sin_r + local_y * cos_r
-		
-		return center_x + rotated_x, center_y + rotated_y
+		# No rotation applied - keep edges axis-aligned
+		return center_x + local_x, center_y + local_y
 	
 	def hit_test(self, mouse_x, mouse_y, center_x, center_y, half_w, half_h, rotation):
 		px, py = self._get_pixel_pos(center_x, center_y, half_w, half_h, rotation)
@@ -288,19 +273,12 @@ class RotationHandle(Handle):
 	
 	def _get_pixel_pos(self, center_x, center_y, half_w, half_h, rotation):
 		"""Calculate rotation handle position."""
-		# Start at top edge
+		# Start at top edge (axis-aligned, no rotation)
 		local_x = 0
 		local_y = -half_h - self.offset
 		
-		# Apply rotation
-		rad = math.radians(rotation)
-		cos_r = math.cos(rad)
-		sin_r = math.sin(rad)
-		
-		rotated_x = local_x * cos_r - local_y * sin_r
-		rotated_y = local_x * sin_r + local_y * cos_r
-		
-		return center_x + rotated_x, center_y + rotated_y
+		# No rotation applied - keep handle at top of axis-aligned bbox
+		return center_x + local_x, center_y + local_y
 	
 	def hit_test(self, mouse_x, mouse_y, center_x, center_y, half_w, half_h, rotation):
 		px, py = self._get_pixel_pos(center_x, center_y, half_w, half_h, rotation)
@@ -361,21 +339,12 @@ class CenterHandle(Handle):
 		return abs(local_x) <= half_w and abs(local_y) <= half_h
 	
 	def draw(self, painter, center_x, center_y, half_w, half_h, rotation):
-		"""Draw bounding box (not a handle circle)."""
-		painter.save()
-		
-		# Transform to rotated space
-		transform = QTransform()
-		transform.translate(center_x, center_y)
-		transform.rotate(rotation)
-		painter.setTransform(transform)
-		
-		# Draw box
+		"""Draw axis-aligned bounding box."""
+		# Draw box without rotation - axis-aligned AABB
 		painter.setPen(QPen(QColor(100, 150, 255), 2))
 		painter.setBrush(QBrush())
-		painter.drawRect(int(-half_w), int(-half_h), int(half_w * 2), int(half_h * 2))
-		
-		painter.restore()
+		painter.drawRect(int(center_x - half_w), int(center_y - half_h), 
+		                 int(half_w * 2), int(half_h * 2))
 	
 	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
 	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):

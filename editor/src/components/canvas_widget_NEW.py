@@ -592,17 +592,9 @@ class CoatOfArmsCanvas(CanvasCoordinateMixin, CanvasZoomPanMixin, CanvasTextureL
 			self.update()
 		
 		# Notify transform widget of scale change
-		new_scale, new_offset = self.get_frame_transform()
+		# Update transform widget for new frame (recalculates pixel positions)
 		if self.canvas_area and hasattr(self.canvas_area, 'transform_widget') and self.canvas_area.transform_widget.visible:
-			scale_ratio_x = new_scale[0] / old_scale[0] if old_scale[0] != 0 else 1.0
-			scale_ratio_y = new_scale[1] / old_scale[1] if old_scale[1] != 0 else 1.0
-			offset_delta_x = new_offset[0] - old_offset[0]
-			offset_delta_y = new_offset[1] - old_offset[1]
-			self.canvas_area.transform_widget.rescale_for_frame_change(
-				scale_ratio_x, scale_ratio_y, 
-				offset_delta_x, offset_delta_y,
-				new_scale[0], new_scale[1]
-			)
+			self.canvas_area.update_transform_widget_for_layer()
 	
 	def get_frame_transform(self):
 		"""Get current frame's scale and offset."""

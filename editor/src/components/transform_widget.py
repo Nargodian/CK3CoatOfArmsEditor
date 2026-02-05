@@ -54,6 +54,9 @@ class TransformWidget(QWidget):
 		# Multi-selection state
 		self.is_multi_selection = False  # Flag to skip scale clamping for group transforms
 		
+		# Rotation state (for AABB caching)
+		self.is_rotating = False  # Flag to prevent AABB recalculation during rotation
+		
 		# Drag context (Decision 5)
 		from .transform_widgets import DragContext
 		self.drag_context = None
@@ -190,9 +193,15 @@ class TransformWidget(QWidget):
 		painter.translate(self.width() / 2, self.height() / 2)
 		
 		# Widget stores pixels directly - no conversion needed
-		# Iterate mode's handles and call draw()
-		for handle in self.current_mode.handles.values():
-			handle.draw(painter, self.center_x, self.center_y, self.half_w, self.half_h, self.rotation)
+		# Draw bounding box FIRST (so handles appear on top)
+		if 'center' in self.current_mode.handles:
+			self.current_mode.handles['center'].draw(painter, self.center_x, self.center_y, 
+			                                          self.half_w, self.half_h, self.rotation)
+		
+		# Then draw all other handles on top
+		for handle_type, handle in self.current_mode.handles.items():
+			if handle_type != 'center':  # Skip center - already drawn
+				handle.draw(painter, self.center_x, self.center_y, self.half_w, self.half_h, self.rotation)
 	
 	# ============= Coordinate Conversion Helpers (Decision 9) =============
 	def _widget_to_center_origin(self, pos):
@@ -318,6 +327,9 @@ class TransformWidget(QWidget):
 				else:  # CenterHandle, GimbleCenterHandle
 					operation = 'translate'
 				
+				# Set is_rotating flag for rotation operations (used by canvas_area to cache AABB)
+				self.is_rotating = (operation == 'rotate')
+				
 				self.drag_context = DragContext(
 					operation=operation,
 					modifiers=modifiers,
@@ -394,6 +406,7 @@ class TransformWidget(QWidget):
 			self.drag_start_pos = None
 			self.drag_start_transform = None
 			self.drag_context = None
+			self.is_rotating = False  # Clear rotation flag
 			
 			# Emit signal for history saving
 			self.transformEnded.emit()

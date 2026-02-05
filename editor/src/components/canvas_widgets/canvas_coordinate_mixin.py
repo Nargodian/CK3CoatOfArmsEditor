@@ -224,11 +224,12 @@ class CanvasCoordinateMixin:
 		# Apply frame scale
 		frame_pos = Vec2(frame_pos.x * frame_scales[0], frame_pos.y * frame_scales[1])
 		
-		# Apply frame offset
-		frame_pos = Vec2(frame_pos.x + frame_offsets[0], frame_pos.y + frame_offsets[1])
-		
 		# Move back from origin
 		frame_pos = Vec2(frame_pos.x + 0.5, frame_pos.y + 0.5)
+		
+		# Apply frame offset (subtract to shift content)
+		frame_pos = Vec2(frame_pos.x - frame_offsets[0] * frame_scales[0], 
+		                 frame_pos.y - frame_offsets[1] * frame_scales[1])
 		
 		return frame_pos
 	
@@ -246,8 +247,9 @@ class CanvasCoordinateMixin:
 		# Move to origin
 		coa_pos = Vec2(frame_pos.x - 0.5, frame_pos.y - 0.5)
 		
-		# Remove frame offset
-		coa_pos = Vec2(coa_pos.x - frame_offsets[0], coa_pos.y - frame_offsets[1])
+		# Remove frame offset (add back to reverse subtraction)
+		coa_pos = Vec2(coa_pos.x + frame_offsets[0] * frame_scales[0], 
+		               coa_pos.y + frame_offsets[1] * frame_scales[1])
 		
 		# Remove frame scale
 		coa_pos = Vec2(coa_pos.x / frame_scales[0], coa_pos.y / frame_scales[1])
