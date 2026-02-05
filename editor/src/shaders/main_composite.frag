@@ -14,10 +14,10 @@ uniform sampler2D coaTextureSampler;   // RTT texture containing rendered CoA
 uniform sampler2D frameMaskSampler;    // Frame mask texture (alpha defines shape)
 uniform vec2 coaTopLeft;      // Top-left corner of CoA render area (viewport pixels)
 uniform vec2 coaBottomRight;  // Bottom-right corner of CoA render area (viewport pixels)
+uniform bool useMask;    // Whether to smear to a mask or just clip beyond the mask bounds (for debugging)
 
 const float FRAME_MASK_SCALE = 0.75;  // Scale factor for frame mask sampling
 const float FRAME_MASK_FUDGE = 1.10; // Fudge factor to push the mask UVs out slightly
-const float COA_CLAMP_INSET = 0.01;   // Inset for CoA UV clamping to avoid edge artifacts
 
 void main() {
 	// Get fragment position in viewport coordinates
@@ -33,10 +33,6 @@ void main() {
 	// Map fragment position to 0-1 range within CoA bounds
 	vec2 coaUV = (fragPos - vec2(minX, minY)) / (vec2(maxX, maxY) - vec2(minX, minY));
 	
-	
-	// Clamp CoA UV with inset to avoid edge artifacts
-	coaUV = clamp(coaUV, COA_CLAMP_INSET, 1.0 - COA_CLAMP_INSET);
-	
 	// Sample CoA texture (RGB colors)
 	vec4 coaColor = texture(coaTextureSampler, coaUV);
 	
@@ -51,6 +47,13 @@ void main() {
 		// Sample frame mask texture
 		vec4 frameMask = texture(frameMaskSampler, frameMaskUV);
 		maskAlpha = frameMask.a;
+	}
+	if (!useMask) {
+		maskAlpha = 1.0; // Ignore mask alpha, just use the CoA colors within the frame bounds
+		if (minX > fragPos.x || fragPos.x > maxX || minY > fragPos.y || fragPos.y > maxY) 
+		{
+			maskAlpha = 0.0;
+		}
 	}
 	
 	// NOTE: maskAlpha IS the final alpha, it completely replaces coaColor.a

@@ -259,6 +259,13 @@ class CanvasToolsMixin:
 			gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_index])
 			self.picker_shader.setUniformValue("emblemMaskSampler", 0)
 			
+			# Set emblem tile index (32×32 grid)
+			tile_index_loc = self.picker_shader.uniformLocation("emblemTileIndex")
+			if tile_index_loc != -1:
+				tile_x = int(u0 * 32.0)
+				tile_y = int(v0 * 32.0)
+				gl.glUniform2ui(tile_index_loc, tile_x, tile_y)
+			
 			# Get pattern mask info from layer
 			mask_data = layer.mask  # Returns [r, g, b] or None
 			if mask_data and len(mask_data) >= 4:
@@ -273,72 +280,24 @@ class CanvasToolsMixin:
 						gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[pattern_atlas_idx])
 						self.picker_shader.setUniformValue("patternMaskSampler", 1)
 					
-					self.picker_shader.setUniformValue("patternUV", pu0, pv0, pu1, pv1)
+					# Set pattern tile index (32×32 grid)
+					pattern_tile_index_loc = self.picker_shader.uniformLocation("patternTileIndex")
+					if pattern_tile_index_loc != -1:
+						ptile_x = int(pu0 * 32.0)
+						ptile_y = int(pv0 * 32.0)
+						gl.glUniform2ui(pattern_tile_index_loc, ptile_x, ptile_y)
+					
 					# Pattern flag: sum of enabled channels (r=1, g=2, b=4)
 					pattern_flag = (mask_data[0] * 1) + (mask_data[1] * 2) + (mask_data[2] * 4)
 					self.picker_shader.setUniformValue("patternFlag", pattern_flag)
 				else:
-					self.picker_shader.setUniformValue("patternUV", 0.0, 0.0, 1.0, 1.0)
 					self.picker_shader.setUniformValue("patternFlag", 7)
 			else:
-				self.picker_shader.setUniformValue("patternUV", 0.0, 0.0, 1.0, 1.0)
 				self.picker_shader.setUniformValue("patternFlag", 7)
 			
-			# Get layer transforms from layer object
-			flip_x = layer.flip_x
-			flip_y = layer.flip_y
-			scale_sign_x = -1 if flip_x else 1
-			scale_sign_y = -1 if flip_y else 1
-			
-			# Render all instances
-			instance_count = layer.instance_count
-			for instance_idx in range(instance_count):
-				instance = layer.get_instance(instance_idx)
-				pos_x = instance.pos.x
-				pos_y = instance.pos.y
-				scale_x = instance.scale.x
-				scale_y = instance.scale.y
-				rotation = instance.rotation
-				
-				# Convert layer position (0-1 range) to OpenGL normalized coordinates
-				# CK3 uses Y-down, OpenGL uses Y-up - invert Y
-				center_x = pos_x * 2.0 - 1.0  # Map [0,1] to [-1,+1]
-				center_y = -(pos_y * 2.0 - 1.0)  # Invert Y
-				
-				angle_rad = math.radians(-rotation)
-				cos_a = math.cos(angle_rad)
-				sin_a = math.sin(angle_rad)
-				
-				half_width = scale_x
-				half_height = scale_y
-				
-				unit_corners = [
-					(-1.0, -1.0),
-					( 1.0, -1.0),
-					( 1.0,  1.0),
-					(-1.0,  1.0),
-				]
-				
-				transformed = []
-				for ux, uy in unit_corners:
-					fx = ux * scale_sign_x
-					fy = uy * scale_sign_y
-					rx = fx * cos_a - fy * sin_a
-					ry = fx * sin_a + fy * cos_a
-					sx = rx * half_width
-					sy = ry * half_height
-					transformed.append((sx + center_x, sy + center_y))
-				
-				vertices = np.array([
-					transformed[0][0], transformed[0][1], 0.0,  u0, v1,
-					transformed[1][0], transformed[1][1], 0.0,  u1, v1,
-					transformed[2][0], transformed[2][1], 0.0,  u1, v0,
-					transformed[3][0], transformed[3][1], 0.0,  u0, v0,
-				], dtype=np.float32)
-				
-				self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
-				gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-		
+			# Render layer instances using shared rendering method
+			# (delegates transform math to shader via uniforms instead of CPU-side rogue math)
+			self._render_layer_instances(coa, layer_uuid, (u0, v0, u1, v1), self.picker_shader)
 		gl.glFlush()
 		
 		# Read pixels from picker framebuffer

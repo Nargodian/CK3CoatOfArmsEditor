@@ -285,7 +285,7 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 			pattern_flag |= 2
 		if len(mask) > 2 and mask[2] != 0:
 			pattern_flag |= 4
-		retuglDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 	
 	def _composite_to_viewport(self):
 		"""Composite RTT texture to viewport with zoom and frame."""
@@ -369,9 +369,13 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 		self.main_composite_shader.setUniformValue("coaTopLeft", coa_left_px, coa_top_px)
 		self.main_composite_shader.setUniformValue("coaBottomRight", coa_right_px, coa_bottom_px)
 		
+		# Set useMask based on whether a frame is selected
+		use_mask = self.current_frame_name != "None"
+		self.main_composite_shader.setUniformValue("useMask", use_mask)
+		# Draw the quad
 		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-		
 		self.main_composite_shader.release()
+
 	def _render_frame(self, viewport_size=None):
 		"""Render frame graphic on top of CoA."""
 		if self.current_frame_name not in self.frameTextures:
@@ -387,7 +391,20 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 		size_x_px = frame_size
 		size_y_px = frame_size
 		
-		# Postilesheet_shader.setUniformValue("tileCols", 6)
+		# Position in pixels (pan is already in pixels, centered at screen center)
+		position_x_px = self.pan_x
+		position_y_px = -self.pan_y  # Flip Y for OpenGL
+		
+		self.vao.bind()
+		self.tilesheet_shader.bind()
+		
+		# Bind frame texture
+		gl.glActiveTexture(gl.GL_TEXTURE0)
+		gl.glBindTexture(gl.GL_TEXTURE_2D, self.frameTexture)
+		self.tilesheet_shader.setUniformValue("tilesheetSampler", 0)
+		
+		# Set tilesheet properties
+		self.tilesheet_shader.setUniformValue("tileCols", 6)
 		self.tilesheet_shader.setUniformValue("tileRows", 1)
 		self.tilesheet_shader.setUniformValue("tileIndex", max(0, min(5, self.prestige_level)))
 		

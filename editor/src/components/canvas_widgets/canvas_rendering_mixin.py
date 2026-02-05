@@ -30,7 +30,7 @@ class CanvasRenderingMixin:
 			if 0 <= atlas_index < len(self.texture_atlases):
 				pattern_texture_id = self.texture_atlases[atlas_index]
 		
-		# Render using static quad + shader transforms
+		# Render full-screen quad (no transforms needed)
 		self.vao.bind()
 		self.base_shader.bind()
 		
@@ -41,15 +41,12 @@ class CanvasRenderingMixin:
 		self.base_shader.setUniformValue("color2", QVector3D(*self.base_colors[1]))
 		self.base_shader.setUniformValue("color3", QVector3D(*self.base_colors[2]))
 		
-		# Set transform uniforms (fill entire 512×512 framebuffer)
-		self.base_shader.setUniformValue("screenRes", QVector2D(512.0, 512.0))
-		self.base_shader.setUniformValue("position", QVector2D(0.0, 0.0))
-		self.base_shader.setUniformValue("scale", QVector2D(512.0, 512.0))
-		self.base_shader.setUniformValue("rotation", 0.0)
-		self.base_shader.setUniformValue("uvOffset", QVector2D(u0, v0))
-		self.base_shader.setUniformValue("uvScale", QVector2D(u1 - u0, v1 - v0))
-		self.base_shader.setUniformValue("flipU", False)
-		self.base_shader.setUniformValue("flipV", False)
+		# Calculate tile index from UV offset (32x32 grid)
+		tile_x = int(u0 * 32.0)
+		tile_y = int(v0 * 32.0)
+		tile_index_loc = self.base_shader.uniformLocation("tileIndex")
+		if tile_index_loc != -1:
+			gl.glUniform2ui(tile_index_loc, tile_x, tile_y)
 		
 		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 		
@@ -86,15 +83,22 @@ class CanvasRenderingMixin:
 			gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
 			self.design_shader.setUniformValue("emblemMaskSampler", 0)
 			
-			# Set layer properties
-			self._set_layer_uniforms(coa, layer_uuid)
-			
-			# Render all instances
-			self._render_layer_instances(coa, layer_uuid, (u0, v0, u1, v1), self.design_shader)
+		# Set emblem tile index (32×32 grid)
+		tile_index_loc = self.design_shader.uniformLocation("emblemTileIndex")
+		if tile_index_loc != -1:
+			tile_x = int(u0 * 32.0)
+			tile_y = int(v0 * 32.0)
+			gl.glUniform2ui(tile_index_loc, tile_x, tile_y)
 		
+		# Set layer properties
+		self._set_layer_uniforms(coa, layer_uuid)
+		
+		# Render all instances
+		self._render_layer_instances(coa, layer_uuid, (u0, v0, u1, v1), self.design_shader)
+	
 		self.design_shader.release()
 		self.vao.release()
-	
+
 	def _bind_pattern_for_masks(self):
 		"""Bind pattern texture for emblem mask channels."""
 		if self.base_texture and self.base_texture in self.texture_uv_map:
@@ -104,8 +108,13 @@ class CanvasRenderingMixin:
 				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[pattern_atlas_idx])
 				if self.design_shader.uniformLocation("patternMaskSampler") != -1:
 					self.design_shader.setUniformValue("patternMaskSampler", 2)
-				if self.design_shader.uniformLocation("patternUV") != -1:
-					self.design_shader.setUniformValue("patternUV", QVector4D(p_u0, p_v0, p_u1, p_v1))
+				
+				# Use tileIndex instead of patternUV (32×32 grid for patterns)
+				tile_index_loc = self.design_shader.uniformLocation("patternTileIndex")
+				if tile_index_loc != -1:
+					tile_x = int(p_u0 * 32.0)
+					tile_y = int(p_v0 * 32.0)
+					gl.glUniform2ui(tile_index_loc, tile_x, tile_y)
 	
 	def _set_layer_uniforms(self, coa, layer_uuid):
 		"""Set shader uniforms for a layer."""
@@ -178,14 +187,16 @@ class CanvasRenderingMixin:
 			# Negate rotation: CK3 uses Y-down (clockwise positive), OpenGL uses Y-up (counterclockwise positive)
 			rotation_rad = math.radians(-instance.rotation)
 			
-			# Set transform uniforms for quad.vert (pixel-based)
-			shader.setUniformValue("screenRes", QVector2D(512.0, 512.0))
-			shader.setUniformValue("position", QVector2D(center_x_px, center_y_px))
-			shader.setUniformValue("scale", QVector2D(scale_x_px, scale_y_px))
-			shader.setUniformValue("rotation", rotation_rad)
-			shader.setUniformValue("uvOffset", QVector2D(u0, v0))
-			shader.setUniformValue("uvScale", QVector2D(u1 - u0, v1 - v0))
-			shader.setUniformValue("flipU", flip_x)
-			shader.setUniformValue("flipV", flip_y)
+			# Apply flip via negative scale (per layer, applies to all instances)
+			if flip_x:
+				scale_x_px = -scale_x_px
+			if flip_y:
+				scale_y_px = -scale_y_px
 			
-			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+# Set transform uniforms for emblem.vert (pixel-based)
+		shader.setUniformValue("screenRes", QVector2D(512.0, 512.0))
+		shader.setUniformValue("position", QVector2D(center_x_px, center_y_px))
+		shader.setUniformValue("scale", QVector2D(scale_x_px, scale_y_px))
+		shader.setUniformValue("rotation", rotation_rad)
+		
+		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)

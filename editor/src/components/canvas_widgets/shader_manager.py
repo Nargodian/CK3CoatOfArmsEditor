@@ -67,7 +67,7 @@ class ShaderManager:
         Returns:
             QOpenGLShaderProgram for base layer rendering
         """
-        return self.create_program(parent, 'quad.vert', 'pattern.frag', 'Base')
+        return self.create_program(parent, 'coa/pattern.vert', 'coa/pattern.frag', 'Base')
     
     def create_design_shader(self, parent):
         """Create design/emblem layer shader program
@@ -78,7 +78,7 @@ class ShaderManager:
         Returns:
             QOpenGLShaderProgram for emblem layer rendering
         """
-        return self.create_program(parent, 'quad.vert', 'emblem.frag', 'Design')
+        return self.create_program(parent, 'coa/emblem.vert', 'coa/emblem.frag', 'Design')
     
     def create_basic_shader(self, parent):
         """Create basic shader program for frame rendering
@@ -111,7 +111,7 @@ class ShaderManager:
         Returns:
             QOpenGLShaderProgram for picker rendering
         """
-        return self.create_program(parent, 'quad.vert', 'emblem_picker.frag', 'Picker')
+        return self.create_program(parent, 'coa/emblem.vert', 'coa/emblem_picker.frag', 'Picker')
     
     def create_main_composite_shader(self, parent):
         """Create main composite shader program for frame-aware CoA rendering

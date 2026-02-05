@@ -1,13 +1,14 @@
 #version 330 core
 
-in vec2 fragUV;
+in vec2 fragUV;  // Per-instance UV from vertex shader (0-1 range)
 out vec4 FragColor;
 
-uniform sampler2D emblemMaskSampler;        // 8192×8192 emblem atlas with 256 tiles (16×16 grid, 512×512 per tile)
-uniform sampler2D patternMaskSampler;       // 8192×8192 pattern atlas with 256 tiles (16×16 grid, 512×512 per tile)
+uniform sampler2D emblemMaskSampler;        // 8192×8192 emblem atlas with 1024 tiles (32×32 grid, 256×256 per tile)
+uniform sampler2D patternMaskSampler;       // 8192×8192 pattern atlas with 1024 tiles (32×32 grid, 256×256 per tile)
 
+uniform uvec2 emblemTileIndex;  // Emblem tile index in 32×32 grid
 uniform int patternFlag; // Flag to enable pattern overlay
-uniform vec4 patternUV; // Pattern atlas UV coordinates (u0, v0, u1, v1)
+uniform uvec2 patternTileIndex; // Pattern tile index in 32×32 grid
 
 uniform vec3 primaryColor;
 uniform vec3 secondaryColor;
@@ -31,7 +32,21 @@ vec3 applyOverlay(vec3 base, vec3 blend, float strength) {
 
 void main()
 {
-	vec4 textureMask = texture(emblemMaskSampler, fragUV);
+	// Calculate emblem tile bounds from tile index (32×32 grid)
+	const float emblemTileSize = 1.0 / 32.0;  // 0.03125 for 32×32 grid
+	vec2 emblemTileMin = vec2(emblemTileIndex) * emblemTileSize;
+	vec2 emblemTileMax = emblemTileMin + emblemTileSize;
+	
+	// Inset by ~0.8 pixels at 8192 resolution to avoid edge bleeding
+	float emblemInset = 0.0001;
+	vec2 emblemClampMin = emblemTileMin + emblemInset;
+	vec2 emblemClampMax = emblemTileMax - emblemInset;
+	
+	// Map per-instance UV (0-1) to emblem tile in atlas
+	vec2 emblemAtlasUV = mix(emblemTileMin, emblemTileMax, fragUV);
+	emblemAtlasUV = clamp(emblemAtlasUV, emblemClampMin, emblemClampMax);
+	
+	vec4 textureMask = texture(emblemMaskSampler, emblemAtlasUV);
 	vec3 outputColour = vec3(0.);
 	outputColour = mix(primaryColor, secondaryColor, textureMask.g);
 	outputColour = mix(outputColour, tertiaryColor, textureMask.r);
@@ -39,12 +54,24 @@ void main()
 	// Apply blue channel as overlay shading (CK3 uses ~0.7 strength for aggressive shading)
 	outputColour = applyOverlay(outputColour, vec3(textureMask.b), 0.7);
 	
-	// When rendering to RTT framebuffer at 512×512, fragment coords map directly to normalized space
+	// Calculate CoA UV from fragment coords (512×512 RTT framebuffer)
 	vec2 coaUV = gl_FragCoord.xy / vec2(512.0, 512.0);
 	coaUV.y = 1.0 - coaUV.y;  // Flip Y (OpenGL bottom-up to texture top-down)
 	
-	// Map normalized coordinates to pattern UV atlas space for emblem-specific masking
-	vec2 patternCoord = mix(patternUV.xy, patternUV.zw, coaUV);
+	// Calculate pattern tile bounds from tile index (32×32 grid)
+	const float tileSize = 1.0 / 32.0;  // 0.03125 for 32×32 grid
+	vec2 tileMin = vec2(patternTileIndex) * tileSize;
+	vec2 tileMax = tileMin + tileSize;
+	
+	// Inset by ~0.8 pixels at 8192 resolution to avoid edge bleeding
+	float inset = 0.0001;
+	vec2 clampMin = tileMin + inset;
+	vec2 clampMax = tileMax - inset;
+	
+	// Map coaUV to pattern atlas space and clamp
+	vec2 patternCoord = mix(tileMin, tileMax, coaUV);
+	patternCoord = clamp(patternCoord, clampMin, clampMax);
+	
 	vec4 patternMask = texture(patternMaskSampler, patternCoord);
 	// flags
 	// 0 mask off
