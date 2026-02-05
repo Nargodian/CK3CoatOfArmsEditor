@@ -663,7 +663,10 @@ class PropertySidebar(QFrame):
 		
 		# Update asset sidebar pattern previews with new background colors
 		if self.main_window and hasattr(self.main_window, 'left_sidebar'):
+			print(f"DEBUG: Calling update_asset_colors from set_base_colors")
 			self.main_window.left_sidebar.update_asset_colors()
+		else:
+			print(f"DEBUG: Cannot update asset colors - main_window={self.main_window}, has_left_sidebar={hasattr(self.main_window, 'left_sidebar') if self.main_window else False}")
 	
 	def set_emblem_color_count(self, count):
 		"""Show/hide emblem color swatches based on asset color count (1, 2, or 3)"""
