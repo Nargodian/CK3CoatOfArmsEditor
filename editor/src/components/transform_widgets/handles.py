@@ -111,8 +111,8 @@ class CornerHandle(Handle):
 	def draw(self, painter, center_x, center_y, half_w, half_h, rotation):
 		px, py = self._get_pixel_pos(center_x, center_y, half_w, half_h, rotation)
 		
-		painter.setPen(QPen(QColor(255, 255, 255), 2))
-		painter.setBrush(QBrush(QColor(100, 100, 255)))
+		painter.setPen(QPen(QColor(255, 255, 255), 1))
+		painter.setBrush(QBrush(QColor(90, 141, 191)))
 		painter.drawEllipse(QPointF(px, py), float(self.handle_size), float(self.handle_size))
 	
 	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
@@ -204,8 +204,8 @@ class EdgeHandle(Handle):
 	def draw(self, painter, center_x, center_y, half_w, half_h, rotation):
 		px, py = self._get_pixel_pos(center_x, center_y, half_w, half_h, rotation)
 		
-		painter.setPen(QPen(QColor(255, 255, 255), 2))
-		painter.setBrush(QBrush(QColor(100, 255, 100)))
+		painter.setPen(QPen(QColor(255, 255, 255), 1))
+		painter.setBrush(QBrush(QColor(90, 141, 191)))
 		painter.drawRect(int(px - self.handle_size/2), int(py - self.handle_size/2),
 		                 self.handle_size, self.handle_size)
 	
@@ -290,8 +290,8 @@ class RotationHandle(Handle):
 	def draw(self, painter, center_x, center_y, half_w, half_h, rotation):
 		px, py = self._get_pixel_pos(center_x, center_y, half_w, half_h, rotation)
 		
-		painter.setPen(QPen(QColor(255, 255, 255), 2))
-		painter.setBrush(QBrush(QColor(255, 100, 100)))
+		painter.setPen(QPen(QColor(255, 255, 255), 1))
+		painter.setBrush(QBrush(QColor(90, 141, 191)))
 		painter.drawEllipse(QPointF(px, py), float(self.handle_size), float(self.handle_size))
 	
 	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
@@ -339,12 +339,20 @@ class CenterHandle(Handle):
 		return abs(local_x) <= half_w and abs(local_y) <= half_h
 	
 	def draw(self, painter, center_x, center_y, half_w, half_h, rotation):
-		"""Draw axis-aligned bounding box."""
+		"""Draw axis-aligned bounding box with center X mark."""
 		# Draw box without rotation - axis-aligned AABB
-		painter.setPen(QPen(QColor(100, 150, 255), 2))
+		painter.setPen(QPen(QColor(90, 141, 191, 200), 2))
 		painter.setBrush(QBrush())
 		painter.drawRect(int(center_x - half_w), int(center_y - half_h), 
 		                 int(half_w * 2), int(half_h * 2))
+		
+		# Draw center X mark
+		x_size = 5  # Size of the X mark
+		painter.setPen(QPen(QColor(90, 141, 191, 150), 2))
+		painter.drawLine(int(center_x - x_size), int(center_y - x_size),
+		                 int(center_x + x_size), int(center_y + x_size))
+		painter.drawLine(int(center_x - x_size), int(center_y + x_size),
+		                 int(center_x + x_size), int(center_y - x_size))
 	
 	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
 	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
@@ -377,62 +385,65 @@ class ArrowHandle(Handle):
 		self.hit_tolerance = hit_tolerance
 	
 	def hit_test(self, mouse_x, mouse_y, center_x, center_y, half_w, half_h, rotation):
-		"""Rectangular hit area along arrow shaft."""
-		# Transform mouse to local space
-		dx = mouse_x - center_x
-		dy = mouse_y - center_y
-		
-		rad = -math.radians(rotation)
-		cos_r = math.cos(rad)
-		sin_r = math.sin(rad)
-		
-		local_x = dx * cos_r - dy * sin_r
-		local_y = dx * sin_r + dy * cos_r
-		
-		# Check hit area based on axis
+		"""Rectangular hit area along arrow shaft (axis-aligned, no rotation)."""
+		# Check hit area in screen space (arrows are axis-aligned)
 		if self.axis == 'x':
 			# Arrow extends right from center
-			in_shaft = (self.start_offset <= local_x <= self.start_offset + self.length and
-			            abs(local_y) <= self.hit_tolerance)
+			start_x = center_x + self.start_offset
+			end_x = center_x + self.start_offset + self.length
+			in_shaft = (start_x <= mouse_x <= end_x and
+			            abs(mouse_y - center_y) <= self.hit_tolerance)
 			return in_shaft
 		else:  # y axis
 			# Arrow extends down from center
-			in_shaft = (self.start_offset <= local_y <= self.start_offset + self.length and
-			            abs(local_x) <= self.hit_tolerance)
+			start_y = center_y + self.start_offset
+			end_y = center_y + self.start_offset + self.length
+			in_shaft = (start_y <= mouse_y <= end_y and
+			            abs(mouse_x - center_x) <= self.hit_tolerance)
 			return in_shaft
 	
 	def draw(self, painter, center_x, center_y, half_w, half_h, rotation):
-		"""Draw axis arrow."""
-		painter.save()
+		"""Draw axis-aligned arrow with solid triangle tip."""
+		from PyQt5.QtGui import QPolygonF
 		
-		transform = QTransform()
-		transform.translate(center_x, center_y)
-		transform.rotate(rotation)
-		painter.setTransform(transform)
-		
-		color = QColor(255, 100, 100) if self.axis == 'x' else QColor(100, 255, 100)
-		painter.setPen(QPen(color, 2))
+		color = QColor(255, 80, 80) if self.axis == 'x' else QColor(80, 255, 80)
+		painter.setPen(QPen(color, 3))
+		painter.setBrush(QBrush(color))  # Solid fill for arrow head
 		
 		if self.axis == 'x':
-			# X arrow (red, right)
-			start_x = int(self.start_offset)
-			end_x = int(self.start_offset + self.length)
+			# X arrow (red, pointing right) - axis-aligned
+			start_x = int(center_x + self.start_offset)
+			end_x = int(center_x + self.start_offset + self.length)
+			y = int(center_y)
 			head = int(self.head_size)
-			painter.drawLine(start_x, 0, end_x, 0)
-			# Arrow head
-			painter.drawLine(end_x, 0, end_x - head, -head)
-			painter.drawLine(end_x, 0, end_x - head, head)
+			
+			# Draw shaft
+			painter.drawLine(start_x, y, end_x, y)
+			
+			# Draw solid triangle arrow head
+			arrow_tip = QPolygonF([
+				QPointF(end_x, y),                    # Tip
+				QPointF(end_x - head, y - head),      # Top
+				QPointF(end_x - head, y + head)       # Bottom
+			])
+			painter.drawPolygon(arrow_tip)
 		else:
-			# Y arrow (green, down)
-			start_y = int(self.start_offset)
-			end_y = int(self.start_offset + self.length)
+			# Y arrow (green, pointing down) - axis-aligned
+			start_y = int(center_y + self.start_offset)
+			end_y = int(center_y + self.start_offset + self.length)
+			x = int(center_x)
 			head = int(self.head_size)
-			painter.drawLine(0, start_y, 0, end_y)
-			# Arrow head
-			painter.drawLine(0, end_y, -head, end_y - head)
-			painter.drawLine(0, end_y, head, end_y - head)
-		
-		painter.restore()
+			
+			# Draw shaft
+			painter.drawLine(x, start_y, x, end_y)
+			
+			# Draw solid triangle arrow head
+			arrow_tip = QPolygonF([
+				QPointF(x, end_y),                    # Tip
+				QPointF(x - head, end_y - head),      # Left
+				QPointF(x + head, end_y - head)       # Right
+			])
+			painter.drawPolygon(arrow_tip)
 	
 	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
 	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
