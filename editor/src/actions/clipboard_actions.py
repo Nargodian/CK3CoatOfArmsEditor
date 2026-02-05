@@ -1,5 +1,6 @@
 """Clipboard operations - copy/paste CoA and layers"""
 from PyQt5.QtWidgets import QMessageBox, QApplication
+from PyQt5.QtGui import QCursor
 from models.coa import Layer
 from utils.logger import loggerRaise
 from constants import PASTE_OFFSET_X, PASTE_OFFSET_Y

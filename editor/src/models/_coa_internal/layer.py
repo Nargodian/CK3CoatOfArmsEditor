@@ -18,8 +18,8 @@ Usage:
     layer = Layer(data, caller='canvas_area')
     
     # Access properties (automatically uses selected instance)
-	x = layer.pos.x
-	layer.pos = Vec2(0.6, layer.pos.y)
+    x = layer.pos.x
+    layer.pos = Vec2(0.6, layer.pos.y)
     
     # Export back to dict
     data = layer.to_dict()
@@ -485,9 +485,11 @@ class Layer:
         
         # Get defaults from current instance
         if pos_x is None:
-			pos_x = self.pos.x
-		if pos_y is None:
-			pos_y = self.pos.y
+            pos_x = self.pos.x
+        if pos_y is None:
+            pos_y = self.pos.y
+        
+        new_instance = Instance({
             'pos_x': pos_x,
             'pos_y': pos_y,
             'scale_x': DEFAULT_SCALE_X,
@@ -805,7 +807,7 @@ class Layer:
             for inst in duplicated['instances']:
                 # Instances in duplicated dict are still Instance objects after deepcopy
                 if isinstance(inst, Instance):
-					inst.pos = Vec2(inst.pos.x + offset_x, inst.pos.y + offset_y)  # setter handles clamping
+                    inst.pos = Vec2(inst.pos.x + offset_x, inst.pos.y + offset_y)  # setter handles clamping
         return f"Layer(uuid='{self.uuid}', filename='{self.filename}', instances={self.instance_count})"
 
 

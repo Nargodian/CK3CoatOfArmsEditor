@@ -14,7 +14,7 @@ from PyQt5.QtCore import Qt, QPointF, QRectF, pyqtSignal, QEvent
 from PyQt5.QtGui import QPainter, QPen, QBrush, QColor, QTransform, QMouseEvent
 import math
 
-from models.transform import Transform
+from models.transform import Transform, Vec2
 
 
 class TransformWidget(QWidget):
@@ -470,8 +470,10 @@ class TransformWidget(QWidget):
 				self.drag_start_pos = event.pos()
 			
 			# Emit signal and update
-			self.transformChanged.emit(WidgetTransform(
-				self.center_x, self.center_y, self.half_w, self.half_h, self.rotation
+			self.transformChanged.emit(Transform(
+				Vec2(self.center_x, self.center_y),
+				Vec2(self.half_w, self.half_h),
+				self.rotation
 			))
 			self.update()
 			event.accept()
@@ -507,6 +509,8 @@ class TransformWidget(QWidget):
 		
 		# Emit transform change signal with current pixel values
 		self.transformChanged.emit(Transform(
-			self.center_x, self.center_y, self.half_w, self.half_h, self.rotation
+			Vec2(self.center_x, self.center_y),
+			Vec2(self.half_w, self.half_h),
+			self.rotation
 		))
 		self.update()

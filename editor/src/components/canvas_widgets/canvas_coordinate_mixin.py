@@ -89,10 +89,11 @@ class CanvasCoordinateMixin:
 		Returns:
 			Vec2 normalized by viewport size (still zoomed)
 		"""
-		canvas_size = min(self.width(), self.height())
+		from components.canvas_widget_NEW import COA_BASE_SIZE_PX
+		# Use COA_BASE_SIZE_PX as reference, not viewport size, to match compositing shader
 		return Vec2(
-			viewport_pos.x / (canvas_size / 2),
-			-viewport_pos.y / (canvas_size / 2)  # Flip Y (Qt Y-down)
+			viewport_pos.x / (COA_BASE_SIZE_PX / 2),
+			-viewport_pos.y / (COA_BASE_SIZE_PX / 2)  # Flip Y (Qt Y-down)
 		)
 	
 	def denormalize_by_viewport(self, normalized_pos):
@@ -106,10 +107,11 @@ class CanvasCoordinateMixin:
 		Returns:
 			Vec2 pixels from center
 		"""
-		canvas_size = min(self.width(), self.height())
+		from components.canvas_widget_NEW import COA_BASE_SIZE_PX
+		# Use COA_BASE_SIZE_PX as reference, not viewport size, to match compositing shader
 		return Vec2(
-			normalized_pos.x * (canvas_size / 2),
-			-normalized_pos.y * (canvas_size / 2)  # Flip Y
+			normalized_pos.x * (COA_BASE_SIZE_PX / 2),
+			-normalized_pos.y * (COA_BASE_SIZE_PX / 2)  # Flip Y
 		)
 	
 	def undo_zoom(self, normalized_pos):
@@ -206,7 +208,7 @@ class CanvasCoordinateMixin:
 	# ========================================
 	
 	def coa_to_frame(self, coa_pos):
-		"""Convert CoA space to frame-adjusted space (HELPER - uses atomics only).
+		"""Convert CoA space to frame-adjusted space (ATOMIC).
 		
 		Args:
 			coa_pos: Vec2 in CoA space (0-1)
@@ -231,7 +233,7 @@ class CanvasCoordinateMixin:
 		return frame_pos
 	
 	def frame_to_coa(self, frame_pos):
-		"""Convert frame-adjusted space back to CoA space (HELPER - uses atomics only).
+		"""Convert frame-adjusted space back to CoA space (ATOMIC).
 		
 		Args:
 			frame_pos: Vec2 in frame space (0-1)

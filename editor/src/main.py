@@ -2189,7 +2189,7 @@ class CoatOfArmsEditor(QMainWindow):
 				if generated_instances is not None and len(generated_instances) > 0:
 					self._create_generated_layer(generated_instances, emblem_texture=asset_texture)
 	
-	def _create_generated_layer(self, instances: 'np.ndarray', emblem_texture: str = None):
+	def _create_generated_layer(self, instances, emblem_texture: str = None):
 		"""Create a layer from generated instance transforms.
 		
 		Args:
@@ -2244,7 +2244,7 @@ class CoatOfArmsEditor(QMainWindow):
 		except Exception as e:
 			loggerRaise(e, f"Failed to create generated layer: {str(e)}")
 	
-	def _create_text_layers(self, text: str, positions: 'np.ndarray', emblem_texture: str = None):
+	def _create_text_layers(self, text: str, positions, emblem_texture: str = None):
 		"""Create multiple layers for text mode (one layer per character).
 		
 		Args:

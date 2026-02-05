@@ -56,10 +56,11 @@ class CoAQueryMixin:
             instance = layer.get_instance(i, caller='CoA')
             
             # Get position and scale
-			x = instance.pos.x
-			y = instance.pos.y
-			sx = instance.scale.x
-			sy = instance.scale.y
+            x = instance.pos.x
+            y = instance.pos.y
+            sx = instance.scale.x
+            sy = instance.scale.y
+            half_w = abs(sx) / 2.0
             half_h = abs(sy) / 2.0
             
             # Update bounds

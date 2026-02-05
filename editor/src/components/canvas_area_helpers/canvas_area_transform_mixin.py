@@ -15,17 +15,15 @@ class CanvasAreaTransformMixin:
 			Transform in CoA space (0-1 normalized)
 		"""
 		# Convert origin (transform widget uses center, canvas_to_coa expects top-left)
-		topleft_x, topleft_y = self.canvas_widget.center_origin_to_topleft(
-			widget_transform.pos.x, widget_transform.pos.y
-		)
+		topleft_pos = self.canvas_widget.center_origin_to_topleft(widget_transform.pos)
 		
 		# Convert pixels to CoA space
-		pos_x, pos_y = self.canvas_widget.canvas_to_coa(topleft_x, topleft_y)
+		coa_pos = self.canvas_widget.canvas_to_coa(topleft_pos)
 		scale_x, scale_y = self.canvas_widget.pixels_to_coa_scale(
 			widget_transform.scale.x, widget_transform.scale.y
 		)
 		
-		return Transform(Vec2(pos_x, pos_y), Vec2(scale_x, scale_y), widget_transform.rotation)
+		return Transform(Vec2(coa_pos.x, coa_pos.y), Vec2(scale_x, scale_y), widget_transform.rotation)
 	
 	def _handle_rotation_transform(self, selected_uuids, rotation):
 		"""Handle rotation-only transforms (rotation handle dragged).

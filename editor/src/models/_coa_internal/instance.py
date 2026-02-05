@@ -34,7 +34,12 @@ class Instance:
         self._scale = Vec2(
             data.get('scale_x', DEFAULT_SCALE_X),
             data.get('scale_y', DEFAULT_SCALE_Y)
-        imary Properties (Vec2)
+        )
+        self._rotation = float(data.get('rotation', DEFAULT_ROTATION))
+        self._depth = float(data.get('depth', 0.0))
+    
+    # ========================================
+    # Primary Properties (Vec2)
     # ========================================
     
     @property
@@ -102,12 +107,7 @@ class Instance:
     @scale_y.setter
     def scale_y(self, value: float):
         """Set Y scale factor - legacy access"""
-        self._scale = Vec2(self._scale.x, float(value)
-    
-    @scale_y.setter
-    def scale_y(self, value: float):
-        """Set Y scale factor"""
-        self._scale_y = float(value)
+        self._scale = Vec2(self._scale.x, float(value))
     
     @property
     def rotation(self) -> float:

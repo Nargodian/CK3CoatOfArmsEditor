@@ -24,7 +24,7 @@ applyTo: '**'
 - Identify layers by **UUID**, never by index
 - Use specific methods (`get_layer_name`, `set_layer_opacity`) not generic getters/setters
 - Never access `coa._layers` directly - use CoA methods
-- Use property access (`.pos_x`) not dictionary lookup (`['pos_x']`)
+- Use Vec2 properties (`.pos`, `.scale`) not legacy component access (see Vec2/Transform Rules below)
 
 ### Module Imports
 Import from `models.coa` only:
@@ -37,6 +37,127 @@ from models.coa.coa_parser import *
 from models.coa.layer import *
 ```
 Everything in `models/coa/` is private. Use CoA API methods only.
+
+## Vec2 and Transform Rules
+
+### NO BACKWARD COMPATIBILITY - SCORCHED EARTH
+All legacy position/scale component properties have been **completely removed**. There is no backward compatibility.
+
+### Vec2 Dataclass
+```python
+@dataclass
+class Vec2:
+    x: float
+    y: float
+    
+    def __iter__(self):
+        return iter((self.x, self.y))  # Allows tuple unpacking
+```
+
+### Transform Dataclass
+```python
+@dataclass
+class Transform:
+    pos: Vec2      # Position vector (NOT pos_x/pos_y)
+    scale: Vec2    # Scale vector (NOT scale_x/scale_y)
+    rotation: float
+```
+
+### Instance and Layer Properties
+**ONLY Vec2 properties exist:**
+```python
+# ✅ CORRECT - Use Vec2 properties
+instance.pos       # Vec2(x, y)
+instance.scale     # Vec2(x, y)
+layer.pos          # Vec2(x, y) - proxies to instance
+layer.scale        # Vec2(x, y) - proxies to instance
+
+# ❌ FORBIDDEN - These properties DO NOT EXIST
+instance.pos_x     # AttributeError!
+instance.pos_y     # AttributeError!
+instance.scale_x   # AttributeError!
+instance.scale_y   # AttributeError!
+layer.pos_x        # AttributeError!
+layer.pos_y        # AttributeError!
+```
+
+### Usage Patterns
+
+**Reading Position/Scale:**
+```python
+# ✅ CORRECT - Access Vec2 components
+x = instance.pos.x
+y = instance.pos.y
+sx = instance.scale.x
+sy = instance.scale.y
+
+# ✅ CORRECT - Unpack entire Vec2
+x, y = instance.pos
+sx, sy = instance.scale
+
+# ❌ WRONG - Legacy component access
+x = instance.pos_x  # Does not exist!
+```
+
+**Setting Position/Scale:**
+```python
+# ✅ CORRECT - Assign entire Vec2
+instance.pos = Vec2(0.5, 0.3)
+instance.scale = Vec2(1.2, 1.2)
+
+# ✅ CORRECT - Modify existing Vec2 (creates new instance)
+instance.pos = Vec2(instance.pos.x + delta, instance.pos.y)
+
+# ❌ WRONG - Legacy component assignment
+instance.pos_x = 0.5      # Does not exist!
+instance.pos_y = 0.3      # Does not exist!
+```
+
+**CoA API Methods:**
+```python
+# ✅ CORRECT - CoA methods return Vec2
+pos = coa.get_layer_pos(uuid)          # Returns Vec2
+scale = coa.get_layer_scale(uuid)      # Returns Vec2
+x, y = coa.get_layer_position(uuid)    # Returns tuple (for convenience)
+
+# ✅ CORRECT - CoA methods accept components or Vec2
+coa.set_layer_position(uuid, 0.5, 0.3)           # Individual components
+coa.set_layer_pos(uuid, Vec2(0.5, 0.3))          # Vec2 object
+```
+
+**Transform Construction:**
+```python
+# ✅ CORRECT - Always use Vec2 for Transform
+transform = Transform(Vec2(x, y), Vec2(sx, sy), rotation)
+
+# ✅ CORRECT - From layer properties
+pos = coa.get_layer_pos(uuid)
+scale = coa.get_layer_scale(uuid)
+rotation = coa.get_layer_rotation(uuid)
+transform = Transform(pos, scale, rotation)
+
+# ❌ WRONG - Passing individual components
+transform = Transform(x, y, sx, sy, rotation)  # Type error!
+```
+
+**Unpacking for Function Calls:**
+```python
+# ✅ CORRECT - Unpack Vec2 when needed
+widget.set_position(transform.pos.x, transform.pos.y)
+
+# ✅ CORRECT - Use tuple unpacking
+x, y = transform.pos
+widget.set_position(x, y)
+```
+
+### Migration Checklist
+When working with position/scale code:
+- [ ] Import Vec2 from models.transform
+- [ ] Replace all `.pos_x/.pos_y` with `.pos.x/.pos.y`
+- [ ] Replace all `.scale_x/.scale_y` with `.scale.x/.scale.y`
+- [ ] Use `Vec2(x, y)` constructor for assignments
+- [ ] Update Transform construction to use Vec2
+- [ ] Never access legacy properties (they don't exist)
 
 ## Component Responsibility
 
