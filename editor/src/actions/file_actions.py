@@ -151,13 +151,11 @@ class FileActions:
 				# Update UI - layers are accessed through CoA model now
 				self.main_window.right_sidebar.tab_widget.setCurrentIndex(1)
 				self.main_window.right_sidebar._rebuild_layer_list()
-				if self.main_window.coa.get_layer_count() > 0:
-					# Select first layer by getting its UUID
-					first_uuid = self.main_window.coa.get_uuid_at_index(0)
-					if first_uuid:
-						self.main_window.right_sidebar.layer_list_widget.selected_layer_uuids = {first_uuid}
-						self.main_window.right_sidebar.layer_list_widget.last_selected_uuid = first_uuid
-						self.main_window.right_sidebar.layer_list_widget.update_selection_visuals()
+				# Clear any selection from previous CoA
+				self.main_window.right_sidebar.layer_list_widget.selected_layer_uuids.clear()
+				self.main_window.right_sidebar.layer_list_widget.last_selected_uuid = None
+				self.main_window.right_sidebar.layer_list_widget.update_selection_visuals()
+				self.main_window.right_sidebar._on_layer_selection_changed()
 				
 				# Update canvas with CoA model
 				self.main_window.canvas_area.canvas_widget.update()

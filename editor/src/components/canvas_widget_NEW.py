@@ -258,8 +258,10 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 		"""Check if selection tint should be shown."""
 		if not hasattr(self, 'canvas_area') or not self.canvas_area:
 			return False
-		show_selection = getattr(self.canvas_area, 'show_selection_btn', None)
-		picker_active = getattr(self.canvas_area, 'picker_btn', None)
+		if not hasattr(self.canvas_area, 'bottom_bar'):
+			return False
+		show_selection = getattr(self.canvas_area.bottom_bar, 'show_selection_btn', None)
+		picker_active = getattr(self.canvas_area.bottom_bar, 'picker_btn', None)
 		return ((show_selection and show_selection.isChecked()) or 
 		        (picker_active and picker_active.isChecked()))
 	
@@ -342,29 +344,8 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 		self.main_composite_shader.setUniformValue("flipU", False)
 		self.main_composite_shader.setUniformValue("flipV", False)
 		
-		# Calculate CoA sampling bounds in pixels
-		frame_scale, frame_offset = self.get_frame_transform()
-		
-		# CoA size in pixels (full width/height)
-		coa_size_x = COA_BASE_SIZE_PX * self.zoom_level * frame_scale[0]
-		coa_size_y = COA_BASE_SIZE_PX * self.zoom_level * frame_scale[1]
-		
-		# Center position: screen center + pan + per-frame offset (all in pixels from center)
-		# Frame offset is in normalized coords, convert to pixels (based on CoA base size, not scaled)
-		frame_offset_x_px = frame_offset[0] * COA_BASE_SIZE_PX
-		frame_offset_y_px = frame_offset[1] * COA_BASE_SIZE_PX
-		center_x_from_center = position_x_px + frame_offset_x_px
-		center_y_from_center = position_y_px - frame_offset_y_px	
-	# Convert to gl_FragCoord space (bottom-left origin)
-		center_x_px = viewport_width / 2.0 + center_x_from_center
-		center_y_px = viewport_height / 2.0 - center_y_from_center  # Flip Y
-		# Calculate bounds for fragment shader
-		coa_left_px = center_x_px - coa_size_x / 2.0
-		coa_right_px = center_x_px + coa_size_x / 2.0
-		coa_bottom_px = center_y_px - coa_size_y / 2.0
-		coa_top_px = center_y_px + coa_size_y / 2.0
-		
-		# Debug output disabled
+		# Get CoA viewport bounds from coordinate mixin
+		coa_left_px, coa_right_px, coa_bottom_px, coa_top_px = self.get_coa_viewport_bounds()
 		
 		self.main_composite_shader.setUniformValue("coaTopLeft", coa_left_px, coa_top_px)
 		self.main_composite_shader.setUniformValue("coaBottomRight", coa_right_px, coa_bottom_px)
@@ -372,6 +353,32 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 		# Set useMask based on whether a frame is selected
 		use_mask = self.current_frame_name != "None"
 		self.main_composite_shader.setUniformValue("useMask", use_mask)
+		
+		# Set picker overlay uniforms if picker tool is active
+		if self.active_tool == 'layer_picker' and hasattr(self, 'picker_rtt') and self.picker_rtt:
+			# Bind picker texture
+			gl.glActiveTexture(gl.GL_TEXTURE2)
+			gl.glBindTexture(gl.GL_TEXTURE_2D, self.picker_framebuffer.get_texture())
+			self.main_composite_shader.setUniformValue("pickerTextureSampler", 2)
+			
+			# Calculate mouse UV in CoA RTT space
+			if hasattr(self, 'last_picker_mouse_pos') and self.last_picker_mouse_pos:
+				# Convert mouse position to CoA RTT UV (0-1 range)
+				mouse_x = self.last_picker_mouse_pos.x()
+				mouse_y = self.last_picker_mouse_pos.y()
+				
+				# Mouse in viewport, need to map to CoA bounds
+				if coa_left_px <= mouse_x <= coa_right_px and coa_bottom_px <= mouse_y <= coa_top_px:
+					mouse_uv_x = (mouse_x - coa_left_px) / (coa_right_px - coa_left_px)
+					mouse_uv_y = (mouse_y - coa_bottom_px) / (coa_top_px - coa_bottom_px)
+					self.main_composite_shader.setUniformValue("mouseUV", QVector2D(mouse_uv_x, mouse_uv_y))
+				else:
+					self.main_composite_shader.setUniformValue("mouseUV", QVector2D(-1.0, -1.0))
+			else:
+				self.main_composite_shader.setUniformValue("mouseUV", QVector2D(-1.0, -1.0))
+		else:
+			self.main_composite_shader.setUniformValue("mouseUV", QVector2D(-1.0, -1.0))
+		
 		# Draw the quad
 		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 		self.main_composite_shader.release()

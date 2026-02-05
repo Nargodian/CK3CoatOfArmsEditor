@@ -1,0 +1,394 @@
+"""
+CoA Serialization Mixin
+
+Provides serialization and parsing methods for the CoA model:
+- Parsing CK3 format strings into CoA data
+- Serializing CoA data to CK3 format strings
+- Layer-specific serialization for clipboard operations
+
+Extracted from coa.py to improve code organization and maintainability.
+"""
+
+import re
+import logging
+from typing import List, Optional
+import uuid as uuid_module
+
+from ._internal.layer import Layer
+from ._internal.instance import Instance
+from constants import (
+    DEFAULT_PATTERN_TEXTURE,
+    DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
+    DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3
+)
+
+
+class CoASerializationMixin:
+    """Mixin providing serialization and parsing methods for CoA model"""
+    
+    def parse(self, ck3_text: str, target_uuid: Optional[str] = None) -> List[str]:
+        """Parse CK3 format string and insert layers
+        
+        Intelligently handles two cases:
+        1. Full CoA (has 'pattern' key) → Replaces entire CoA (ignores target_uuid)
+        2. Loose layers (just colored_emblem blocks) → Inserts at target_uuid position
+        
+        Args:
+            ck3_text: CK3 format string (full CoA or loose layers)
+            target_uuid: If provided, insert loose layers below this UUID (in front of it)
+                        Ignored if parsing full CoA.
+        
+        Returns:
+            List of UUIDs for newly created/parsed layers
+            
+        Example full CoA:
+            {
+                pattern = "pattern_solid.dds"
+                color1 = "white"
+                colored_emblem = { ... }
+            }
+            
+        Example loose layers:
+            colored_emblem = { texture = "emblem_cross.dds" ... }
+            colored_emblem = { texture = "emblem_star.dds" ... }
+        """
+        from ._internal.coa_parser import CoAParser
+        from utils.color_utils import color_name_to_rgb
+        
+        parser = CoAParser()
+        try:
+            parsed = parser.parse_string(ck3_text)
+        except Exception as e:
+            self._logger.error(f"Failed to parse: {e}")
+            raise ValueError(f"Invalid CK3 format: {e}")
+        
+        if not parsed:
+            self._logger.warning("Empty parse result")
+            return []
+        
+        coa_key = list(parsed.keys())[0]
+        coa_obj = parsed[coa_key]
+        
+        # Detect if this is a full CoA (has pattern) or loose layers (only colored_emblem)
+        is_full_coa = 'pattern' in coa_obj
+        
+        new_uuids = []
+        
+        if is_full_coa:
+            # Full CoA: Replace everything (ignore target_uuid)
+            self._layers.clear(caller='CoA')
+            
+            # Set base pattern and colors
+            self._pattern = coa_obj.get('pattern', DEFAULT_PATTERN_TEXTURE)
+            
+            # Parse colors
+            for color_num in [1, 2, 3]:
+                color_key = f'color{color_num}'
+                color_raw = coa_obj.get(color_key, [DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3][color_num - 1])
+                
+                if isinstance(color_raw, str):
+                    if color_raw.startswith('rgb'):
+                        rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color_raw)
+                        if rgb_match:
+                            rgb = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
+                            setattr(self, f'_pattern_color{color_num}', rgb)
+                            setattr(self, f'_pattern_color{color_num}_name', None)
+                    else:
+                        setattr(self, f'_pattern_color{color_num}', color_name_to_rgb(color_raw))
+                        setattr(self, f'_pattern_color{color_num}_name', color_raw)
+            
+            # Parse layers
+            emblems = coa_obj.get('colored_emblem', [])
+            for emblem in emblems:
+                try:
+                    layer = Layer.parse(emblem, caller='CoA')
+                    self.add_layer_object(layer, at_front=False)
+                    new_uuids.append(layer.uuid)
+                except Exception as e:
+                    self._logger.error(f"Failed to parse layer: {e}")
+                    continue
+            
+            self._logger.debug(f"Parsed full CoA with {len(new_uuids)} layers")
+        
+        else:
+            # Loose layers: Insert at target_uuid position
+            # Always regenerate UUIDs for loose layers (paste operations)
+            emblems = coa_obj.get('colored_emblem', [])
+            
+            for emblem in emblems:
+                try:
+                    layer = Layer.parse(emblem, caller='CoA', regenerate_uuid=True)
+                    self.add_layer_object(layer, target_uuid=target_uuid, at_front=(target_uuid is None))
+                    new_uuids.append(layer.uuid)
+                    # Stack subsequent layers on top of each other
+                    target_uuid = layer.uuid
+                except Exception as e:
+                    self._logger.error(f"Failed to parse layer: {e}")
+                    continue
+            
+            self._logger.debug(f"Inserted {len(new_uuids)} loose layers")
+        
+        # Track last added for auto-selection
+        if new_uuids:
+            self._last_added_uuid = new_uuids[-1]
+            self._last_added_uuids = new_uuids
+        
+        return new_uuids
+    
+    @classmethod
+    def from_string(cls, ck3_text: str) -> 'CoA':
+        """Convenience factory: create CoA and parse from CK3 format string
+        
+        Args:
+            ck3_text: CK3 coat of arms definition
+            
+        Returns:
+            New CoA instance populated with parsed data
+        """
+        coa = cls()
+        coa.parse(ck3_text)
+        return coa
+    
+    @classmethod
+    def from_layers_string(cls, ck3_text: str) -> 'CoA':
+        """Parse colored_emblem blocks into a new CoA with default pattern/colors
+        
+        This is for clipboard operations where only layer data is copied,
+        not the full CoA structure.
+        
+        Args:
+            ck3_text: CK3 colored_emblem blocks
+            
+        Returns:
+            New CoA instance with default pattern and parsed layers
+        """
+        from ._internal.coa_parser import CoAParser
+        from utils.color_utils import color_name_to_rgb
+        import uuid as uuid_module
+        
+        coa = cls()
+        
+        # Quick validation: check if text looks like CoA data
+        if not ck3_text or 'colored_emblem' not in ck3_text:
+            coa._logger.debug(f"Text does not contain colored_emblem blocks, skipping parse")
+            return coa  # Return empty CoA
+        
+        # Wrap the layers in a minimal CoA structure for parsing
+        wrapped_text = f"coa_export = {{\n\tpattern = \"{DEFAULT_PATTERN_TEXTURE}\"\n\tcolor1 = \"{DEFAULT_BASE_COLOR1}\"\n\tcolor2 = \"{DEFAULT_BASE_COLOR2}\"\n\tcolor3 = \"{DEFAULT_BASE_COLOR3}\"\n\t{ck3_text}\n}}"
+        
+        # Parse using the standard parser
+        parser = CoAParser()
+        try:
+            parsed = parser.parse_string(wrapped_text)
+        except Exception as e:
+            coa._logger.debug(f"Failed to parse layers: {e}")
+            return coa  # Return empty CoA
+        
+        # Extract colored_emblem blocks
+        if not parsed:
+            return coa
+        
+        coa_key = list(parsed.keys())[0]
+        coa_obj = parsed[coa_key]
+        emblems = coa_obj.get('colored_emblem', [])
+        
+        # Collect all layers with depth for sorting
+        layers_with_depth = []
+        
+        for emblem in emblems:
+            filename = emblem.get('texture', '')
+            
+            # Parse colors
+            color1_raw = emblem.get('color1', DEFAULT_EMBLEM_COLOR1)
+            color2_raw = emblem.get('color2', DEFAULT_EMBLEM_COLOR2)
+            color3_raw = emblem.get('color3', DEFAULT_EMBLEM_COLOR3)
+            
+            # Helper to parse color
+            def parse_color(color_raw, default_name):
+                if isinstance(color_raw, str):
+                    if color_raw.startswith('rgb'):
+                        rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color_raw)
+                        if rgb_match:
+                            return ([int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))], None)
+                    return (color_name_to_rgb(color_raw), color_raw)
+                return (color_name_to_rgb(default_name), default_name)
+            
+            color1, color1_name = parse_color(color1_raw, DEFAULT_EMBLEM_COLOR1)
+            color2, color2_name = parse_color(color2_raw, DEFAULT_EMBLEM_COLOR2)
+            color3, color3_name = parse_color(color3_raw, DEFAULT_EMBLEM_COLOR3)
+            
+            # Parse mask
+            mask_raw = emblem.get('mask')
+            mask = None
+            if mask_raw:
+                if isinstance(mask_raw, list) and len(mask_raw) == 3:
+                    mask = mask_raw
+            
+            # Parse instances
+            instances = emblem.get('instance', [])
+            if not instances:
+                instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0, 'depth': 0}]
+            
+            # Always generate new UUID for paste operations (avoid duplicate UUIDs)
+            layer_uuid = str(uuid_module.uuid4())
+            
+            # Parse container_uuid (preserve if present)
+            container_uuid = emblem.get('container_uuid')
+            
+            # Parse name (preserve if present, will default in Layer.__init__ if missing)
+            layer_name = emblem.get('name', '')
+            
+            # Create layer data
+            layer_data = {
+                'uuid': layer_uuid,
+                'container_uuid': container_uuid,
+                'name': layer_name,
+                'filename': filename,
+                'colors': 3,
+                'color1': color1,
+                'color2': color2,
+                'color3': color3,
+                'color1_name': color1_name,
+                'color2_name': color2_name,
+                'color3_name': color3_name,
+                'mask': mask,
+                'instances': [],
+                'selected_instance': 0,
+                'flip_x': False,
+                'flip_y': False
+            }
+            
+            # Parse instances
+            for inst in instances:
+                position = inst.get('position', [0.5, 0.5])
+                scale = inst.get('scale', [1.0, 1.0])
+                rotation = inst.get('rotation', 0)
+                depth = inst.get('depth', 0)
+                
+                pos_x = float(position[0]) if len(position) > 0 else 0.5
+                pos_y = float(position[1]) if len(position) > 1 else 0.5
+                scale_x = float(scale[0]) if len(scale) > 0 else 1.0
+                scale_y = float(scale[1]) if len(scale) > 1 else 1.0
+                
+                instance_obj = Instance({
+                    'pos_x': pos_x,
+                    'pos_y': pos_y,
+                    'scale_x': scale_x,
+                    'scale_y': scale_y,
+                    'rotation': float(rotation),
+                    'depth': float(depth)
+                })
+                layer_data['instances'].append(instance_obj)
+            
+            # Store layer with depth for sorting
+            max_depth = max(inst.depth for inst in layer_data['instances'])
+            layers_with_depth.append((max_depth, layer_data))
+        
+        # Sort by depth (higher depth = further back = first in list)
+        layers_with_depth.sort(key=lambda x: x[0], reverse=True)
+        
+        # Add layers to model (back to front)
+        for _, layer_data in layers_with_depth:
+            # Remove depth from instances (set to 0 since Instance requires it)
+            for inst in layer_data['instances']:
+                inst.depth = 0.0
+            
+            # Create Layer and add to collection
+            layer = Layer(layer_data, caller='CoA')
+            coa.insert_layer_at_index(0, layer)
+        
+        coa._logger.debug(f"Parsed {coa.get_layer_count()} layers from colored_emblem blocks")
+        return coa
+    
+    def serialize(self) -> str:
+        """Export CoA to CK3 format string
+        
+        Uses mature serialization matching the running application's format.
+        Includes mask field support and proper depth ordering.
+        
+        Returns:
+            CK3 coat of arms definition
+        """
+        from utils.color_utils import rgb_to_color_name
+        
+        # Helper to normalize RGB [0-255] to [0-1] range expected by rgb_to_color_name
+        def normalize_rgb(rgb):
+            """Convert [0-255] range to [0-1] range"""
+            if not rgb:
+                return [1.0, 1.0, 1.0]
+            return [rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0]
+        
+        # Helper to format color (add quotes if it's a named color)
+        def format_color(rgb, color_name):
+            normalized = normalize_rgb(rgb)
+            color_str = rgb_to_color_name(normalized, color_name)
+            if color_str.startswith('rgb'):
+                return color_str  # Already formatted as "rgb { R G B }"
+            else:
+                return f'"{color_str}"'  # Named color, add quotes
+        
+        lines = []
+        lines.append("coa_export = {")
+        
+        # Pattern and colors
+        lines.append(f'\tpattern = "{self._pattern}"')
+        
+        # Pattern color 1
+        lines.append(f'\tcolor1 = {format_color(self._pattern_color1, self._pattern_color1_name)}')
+        
+        # Pattern color 2
+        lines.append(f'\tcolor2 = {format_color(self._pattern_color2, self._pattern_color2_name)}')
+        
+        # Pattern color 3
+        lines.append(f'\tcolor3 = {format_color(self._pattern_color3, self._pattern_color3_name)}')
+        
+        # Colored emblems (layers) - use Layer.serialize()
+        for layer in self._layers:
+            lines.append(layer.serialize(caller='CoA'))
+        
+        lines.append("}")
+        return '\n'.join(lines)
+    
+    def to_string(self) -> str:
+        """Alias for serialize() - export CoA to CK3 format string
+        
+        Returns:
+            CK3 coat of arms definition
+        """
+        return self.serialize()
+    
+    def serialize_layers_to_string(self, uuids: list, strip_container_uuid: bool = True) -> str:
+        """Export specific layers to CK3 format string
+        
+        Serializes only the layers with the given UUIDs. Useful for clipboard operations.
+        
+        Args:
+            uuids: List of layer UUIDs to serialize
+            strip_container_uuid: If True, remove container_uuid from serialized layers (default for individual copy).
+                                  If False, preserve container_uuid (for whole container copy).
+            
+        Returns:
+            CK3 format string containing only the specified layers
+        """
+        lines = []
+        lines.append("layers_export = {")
+        
+        # Filter and serialize only specified layers using Layer.serialize()
+        for layer_uuid in uuids:
+            layer = self.get_layer_by_uuid(layer_uuid)
+            if not layer:
+                continue
+            
+            # Serialize the layer
+            layer_string = layer.serialize(caller='CoA')
+            
+            # Strip container_uuid if requested
+            if strip_container_uuid:
+                # Remove the container_uuid line from serialization
+                import re
+                layer_string = re.sub(r'\s*container_uuid\s*=\s*"[^"]*"\s*\n', '', layer_string)
+            
+            lines.append(layer_string)
+        
+        lines.append("}")
+        return '\n'.join(lines)

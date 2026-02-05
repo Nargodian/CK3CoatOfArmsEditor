@@ -298,6 +298,37 @@ class CanvasCoordinateMixin:
 		return coa_pos
 	
 	# ========================================
+	# HELPERS: Viewport bounds (chains atomics only)
+	# ========================================
+	
+	def get_coa_viewport_bounds(self):
+		"""Get viewport pixel bounds of CoA rendering area (HELPER - uses atomics only).
+		
+		Calculates the AABB where CoA RTT (0-1 space) appears in viewport pixels.
+		
+		Returns:
+			tuple: (left_px, right_px, bottom_px, top_px) in viewport pixels (OpenGL origin)
+		"""
+		# CoA corners in CoA space (0-1 range)
+		top_left_coa = Vec2(0.0, 0.0)
+		bottom_right_coa = Vec2(1.0, 1.0)
+		
+		# Convert to canvas pixels using existing helper
+		top_left_canvas = self.coa_to_canvas(top_left_coa)
+		bottom_right_canvas = self.coa_to_canvas(bottom_right_coa)
+		
+		# Extract bounds (canvas is Qt top-left origin, need to flip to OpenGL bottom-left)
+		left_px = top_left_canvas.x
+		right_px = bottom_right_canvas.x
+		
+		# Flip Y to OpenGL coordinates (bottom-left origin)
+		viewport_height = self.height()
+		top_px = viewport_height - top_left_canvas.y
+		bottom_px = viewport_height - bottom_right_canvas.y
+		
+		return (left_px, right_px, bottom_px, top_px)
+	
+	# ========================================
 	# Scale transformations (atomic + composite)
 	# ========================================
 	

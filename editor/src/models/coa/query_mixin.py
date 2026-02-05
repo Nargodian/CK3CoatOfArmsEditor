@@ -13,7 +13,7 @@ All query methods follow these conventions:
 """
 
 from typing import Dict, List, Optional, Any
-from .layer import Layer
+from ._internal.layer import Layer
 from models.transform import Vec2
 
 

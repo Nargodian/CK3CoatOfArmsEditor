@@ -83,19 +83,18 @@ class CanvasRenderingMixin:
 			gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
 			self.design_shader.setUniformValue("emblemMaskSampler", 0)
 			
-		# Set emblem tile index (32×32 grid)
-		tile_index_loc = self.design_shader.uniformLocation("emblemTileIndex")
-		if tile_index_loc != -1:
-			tile_x = int(u0 * 32.0)
-			tile_y = int(v0 * 32.0)
-			gl.glUniform2ui(tile_index_loc, tile_x, tile_y)
-		
-		# Set layer properties
-		self._set_layer_uniforms(coa, layer_uuid)
-		
-		# Render all instances
-		self._render_layer_instances(coa, layer_uuid, (u0, v0, u1, v1), self.design_shader)
-	
+			# Set emblem tile index (32×32 grid)
+			tile_index_loc = self.design_shader.uniformLocation("emblemTileIndex")
+			if tile_index_loc != -1:
+				tile_x = int(u0 * 32.0)
+				tile_y = int(v0 * 32.0)
+				gl.glUniform2ui(tile_index_loc, tile_x, tile_y)
+			
+			# Set layer properties
+			self._set_layer_uniforms(coa, layer_uuid)
+			
+			# Render all instances
+			self._render_layer_instances(coa, layer_uuid, (u0, v0, u1, v1), self.design_shader)
 		self.design_shader.release()
 		self.vao.release()
 
