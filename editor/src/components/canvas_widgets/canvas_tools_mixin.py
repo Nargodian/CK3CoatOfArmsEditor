@@ -576,62 +576,32 @@ class CanvasToolsMixin:
 			# Sample UUID at click position
 			uuid = self._sample_picker_at_mouse(mouse_pos)
 			
-			if uuid:
-				if hasattr(self, 'canvas_area') and self.canvas_area:
-					if hasattr(self.canvas_area, 'main_window') and self.canvas_area.main_window:
-						main_window = self.canvas_area.main_window
-						layer_list = main_window.right_sidebar.layer_list_widget
-						
-						# Check if ctrl is held - enter paint select mode
-						ctrl_held = modifiers & Qt.ControlModifier
-						
-						if ctrl_held:
-							# Start paint selection - toggle first layer and track mode
-							self.paint_selecting = True
-							self.paint_selected_uuids = {uuid}  # Track this UUID as processed
-							
-							if uuid in layer_list.selected_layer_uuids:
-								# First click was on selected layer - paint deselect mode
-								self.paint_select_mode = 'deselect'
-								layer_list.selected_layer_uuids.remove(uuid)
-							else:
-								# First click was on unselected layer - paint select mode
-								self.paint_select_mode = 'select'
-								layer_list.selected_layer_uuids.add(uuid)
-								layer_list.last_selected_uuid = uuid
-							
-							layer_list.update_selection_visuals()
-							main_window.right_sidebar._on_layer_selection_changed()
-						
-						else:
-							# Regular click - toggle if already selected, otherwise add
-							if uuid in layer_list.selected_layer_uuids:
-								# Toggle off (unselect)
-								layer_list.selected_layer_uuids.remove(uuid)
-								if layer_list.last_selected_uuid == uuid:
-									layer_list.last_selected_uuid = None
-							else:
-								# Add to selection
-								layer_list.selected_layer_uuids.add(uuid)
-								layer_list.last_selected_uuid = uuid
-							
-							layer_list.update_selection_visuals()
-							main_window.right_sidebar._on_layer_selection_changed()
-							
-							# Check if shift is held - if so, stay in picker mode
-							shift_held = modifiers & Qt.ShiftModifier
-							
-							if not shift_held:
-								# Deactivate picker tool (one-shot mode)
-								self.set_tool_mode(None)
-								
-								# Notify canvas_area to uncheck picker button
-								if hasattr(self.canvas_area, 'picker_btn'):
-									self.canvas_area.picker_btn.setChecked(False)
-								
-								# Re-enable transform widget now that picker is done
-								self.canvas_area.update_transform_widget_for_layer()
-				
+			# Get modifiers
+			ctrl_held = modifiers & Qt.ControlModifier
+			shift_held = modifiers & Qt.ShiftModifier
+			
+			# Handle click (if we hit a layer)
+			if uuid and hasattr(self, 'canvas_area') and self.canvas_area:
+				if hasattr(self.canvas_area, 'main_window') and self.canvas_area.main_window:
+					main_window = self.canvas_area.main_window
+					layer_list = main_window.right_sidebar.layer_list_widget
+					
+					if ctrl_held:
+						# PAINT MODE - stay active, track paint state
+						self._start_paint_selection(uuid, layer_list, main_window)
+						return True  # Keep picker active
+					else:
+						# REGULAR SELECT - toggle layer selection
+						self._toggle_layer_selection(uuid, layer_list, main_window)
+						# Fall through to deactivation check below
+			
+			# Deactivation check (after selection is handled)
+			if shift_held:
+				# PERSISTENT MODE - keep picker active
+				return True
+			else:
+				# ONE-SHOT MODE - deactivate picker
+				self._deactivate_picker()
 				return True
 		
 		elif self.active_tool == 'eyedropper':
@@ -664,6 +634,60 @@ class CanvasToolsMixin:
 				return True
 		
 		return False
+	
+	def _start_paint_selection(self, uuid, layer_list, main_window):
+		"""Start ctrl+click paint selection mode
+		
+		Args:
+			uuid: UUID of clicked layer
+			layer_list: Layer list widget
+			main_window: Main window reference
+		"""
+		self.paint_selecting = True
+		self.paint_selected_uuids = {uuid}
+		
+		if uuid in layer_list.selected_layer_uuids:
+			self.paint_select_mode = 'deselect'
+			layer_list.selected_layer_uuids.remove(uuid)
+		else:
+			self.paint_select_mode = 'select'
+			layer_list.selected_layer_uuids.add(uuid)
+			layer_list.last_selected_uuid = uuid
+		
+		layer_list.update_selection_visuals()
+		main_window.right_sidebar._on_layer_selection_changed()
+	
+	def _toggle_layer_selection(self, uuid, layer_list, main_window):
+		"""Toggle layer selection for regular click
+		
+		Args:
+			uuid: UUID of clicked layer
+			layer_list: Layer list widget
+			main_window: Main window reference
+		"""
+		if uuid in layer_list.selected_layer_uuids:
+			layer_list.selected_layer_uuids.remove(uuid)
+			if layer_list.last_selected_uuid == uuid:
+				layer_list.last_selected_uuid = None
+		else:
+			layer_list.selected_layer_uuids.add(uuid)
+			layer_list.last_selected_uuid = uuid
+		
+		layer_list.update_selection_visuals()
+		main_window.right_sidebar._on_layer_selection_changed()
+	
+	def _deactivate_picker(self):
+		"""Deactivate picker tool and update UI"""
+		self.set_tool_mode(None)
+		
+		if hasattr(self, 'canvas_area') and self.canvas_area:
+			if hasattr(self.canvas_area, 'bottom_bar') and hasattr(self.canvas_area.bottom_bar, 'picker_btn'):
+				btn = self.canvas_area.bottom_bar.picker_btn
+				btn.blockSignals(True)
+				btn.setChecked(False)
+				btn.blockSignals(False)
+			
+			self.canvas_area.update_transform_widget_for_layer()
 	
 	def _get_layer_display_name(self, uuid):
 		"""Get display name for layer tooltip
