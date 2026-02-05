@@ -608,8 +608,10 @@ class PropertySidebar(QFrame):
 			# Save to history
 			if self.main_window and hasattr(self.main_window, '_save_state'):
 				self.main_window._save_state(f"Change emblem color {color_idx+1}")
-		
-				btn.hide()
+	
+	# ========================================
+	# Color Management (Base & Emblem)
+	# ========================================
 	
 	def get_base_colors(self):
 		"""Get base colors as RGB float arrays [0.0-1.0]"""
