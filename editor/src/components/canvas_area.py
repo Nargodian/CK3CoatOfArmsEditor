@@ -3,11 +3,12 @@ from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
 from PyQt5.QtCore import Qt
 
 # Local component imports
+from models.transform import Transform
 from .canvas_widget_NEW import CoatOfArmsCanvas
 from .transform_widget import TransformWidget
-from .canvas_area.canvas_area_transform_mixin import CanvasAreaTransformMixin
-from .canvas_area.preview_bar import PreviewBar
-from .canvas_area.bottom_bar import BottomBar
+from .canvas_area_helpers.canvas_area_transform_mixin import CanvasAreaTransformMixin
+from .canvas_area_helpers.preview_bar import PreviewBar
+from .canvas_area_helpers.bottom_bar import BottomBar
 from services.government_discovery import GovernmentDiscovery
 
 
@@ -151,20 +152,29 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
 			self.transform_widget.set_visible(False)
 			return
 		
-		center_x, center_y, half_w, half_h = self.canvas_widget.coa_to_transform_widget_coords(
-			pos_x, pos_y, scale_x, scale_y
+		coa_transform = Transform(pos_x, pos_y, scale_x, scale_y, rotation)
+		widget_transform = self.canvas_widget.coa_to_transform_widget(coa_transform)
+		self.transform_widget.set_transform(
+			widget_transform.pos_x, widget_transform.pos_y, 
+			widget_transform.scale_x, widget_transform.scale_y, 
+			widget_transform.rotation, is_multi_selection=False
 		)
-		self.transform_widget.set_transform(center_x, center_y, half_w, half_h, rotation, is_multi_selection=False)
 		self.transform_widget.set_visible(True)
 	
 	def _update_multi_instance_selection(self, uuid):
 		"""Update transform widget for multi-instance layer (AABB)"""
 		try:
 			bounds = self.main_window.coa.get_layer_bounds(uuid)
-			center_x, center_y, half_w, half_h = self.canvas_widget.coa_to_transform_widget_coords(
-				bounds['center_x'], bounds['center_y'], bounds['width'], bounds['height']
+			coa_transform = Transform(
+				bounds['center_x'], bounds['center_y'], 
+				bounds['width'], bounds['height'], 0
 			)
-			self.transform_widget.set_transform(center_x, center_y, half_w, half_h, 0, is_multi_selection=True)
+			widget_transform = self.canvas_widget.coa_to_transform_widget(coa_transform)
+			self.transform_widget.set_transform(
+				widget_transform.pos_x, widget_transform.pos_y, 
+				widget_transform.scale_x, widget_transform.scale_y, 
+				widget_transform.rotation, is_multi_selection=True
+			)
 			self.transform_widget.set_visible(True)
 		except ValueError:
 			self.transform_widget.set_visible(False)
@@ -193,30 +203,32 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
 			self._initial_group_center = (group_pos_x, group_pos_y)
 			self._initial_group_rotation = 0
 		
-		center_x, center_y, half_w, half_h = self.canvas_widget.coa_to_transform_widget_coords(
-			group_pos_x, group_pos_y, group_scale_x, group_scale_y
+		coa_transform = Transform(group_pos_x, group_pos_y, group_scale_x, group_scale_y, 0)
+		widget_transform = self.canvas_widget.coa_to_transform_widget(coa_transform)
+		self.transform_widget.set_transform(
+			widget_transform.pos_x, widget_transform.pos_y, 
+			widget_transform.scale_x, widget_transform.scale_y, 
+			widget_transform.rotation, is_multi_selection=True
 		)
-		self.transform_widget.set_transform(center_x, center_y, half_w, half_h, 0, is_multi_selection=True)
 		self.transform_widget.set_visible(True)
 	
 	
-	def _on_transform_changed(self, center_x, center_y, half_w, half_h, rotation):
+	def _on_transform_changed(self, widget_transform):
 		"""Handle transform changes from the widget (pixel space → CoA space).
 		
-		Refactored to use focused helper methods from CanvasAreaTransformMixin.
+		Args:
+			widget_transform: Transform object with pixel coordinates (widget space)
 		"""
 		selected_uuids = self.property_sidebar.get_selected_uuids() if self.property_sidebar else []
 		if not selected_uuids:
 			return
 		
 		# Convert widget coordinates to CoA space
-		pos_x, pos_y, scale_x, scale_y = self._convert_widget_to_coa_coords(
-			center_x, center_y, half_w, half_h
-		)
+		coa_transform = self._convert_widget_to_coa_coords(widget_transform)
 		
 		# Handle rotation (rotation handle dragged)
 		if hasattr(self.transform_widget, 'is_rotating') and self.transform_widget.is_rotating:
-			self._handle_rotation_transform(selected_uuids, rotation)
+			self._handle_rotation_transform(selected_uuids, coa_transform.rotation)
 			return
 		
 		# Handle single selection
@@ -226,14 +238,14 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
 			
 			if instance_count > 1:
 				# Multi-instance layer: group transform
-				self._handle_multi_instance_transform(uuid, pos_x, pos_y, scale_x, scale_y, rotation)
+				self._handle_multi_instance_transform(uuid, coa_transform)
 			else:
-				# Single instance: direct transform
-				self._handle_single_instance_transform(uuid, pos_x, pos_y, scale_x, scale_y, rotation)
+				# Single-instance layer: direct transform
+				self._handle_single_instance_transform(uuid, coa_transform)
 			return
 		
 		# Handle multi-selection
-		self._handle_multi_selection_transform(pos_x, pos_y, scale_x, scale_y, rotation, selected_uuids)
+		self._handle_multi_selection_transform(coa_transform, selected_uuids)
 	
 	def _on_transform_ended(self):
 		"""Handle transform widget drag end"""
@@ -295,17 +307,3 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
 				context_menu.addAction(action)
 		
 		context_menu.exec_(self.mapToGlobal(pos))
-	
-	# ========================================
-	# Coordinate Conversion Methods
-	# ========================================
-	
-	def canvas_area_to_canvas(self, x, y):
-		"""Convert CanvasArea pixel coordinates to Canvas widget pixel coordinates.
-		
-		Used by clipboard_actions for paste positioning.
-		"""
-		canvas_geometry = self.canvas_widget.geometry()
-		canvas_x = x - canvas_geometry.x()
-		canvas_y = y - canvas_geometry.y()
-		return canvas_x, canvas_y

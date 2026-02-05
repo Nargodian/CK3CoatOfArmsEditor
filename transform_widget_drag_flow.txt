@@ -1,0 +1,721 @@
+================================================================================
+TRANSFORM WIDGET DRAG FLOW - Complete Call Chain Analysis
+================================================================================
+
+This document traces the complete call chain from when a user drags the 
+transform widget all the way down to how the data updates in the CoA model.
+
+================================================================================
+PART 1: MOUSE EVENT HANDLING (User Interaction → Widget)
+================================================================================
+
+FILE: editor/src/components/transform_widget.py
+CLASS: TransformWidget
+
+Step 1: User Presses Mouse Button
+----------------------------------
+METHOD: mousePressEvent(self, event)
+LINE: ~281
+
+WHAT HAPPENS:
+1. Checks if left mouse button was clicked
+2. Calls _get_handle_at_pos(event.pos()) to determine which handle was clicked
+   - Delegates to self.current_mode.get_handle_at_pos()
+   - Returns a Handle object (CenterHandle, CornerHandle, EdgeHandle, RotationHandle, etc.)
+
+3. If a handle was clicked:
+   a. Acquires edit lock from main_window to prevent feedback loops
+      - self.main_window.acquire_edit_lock(self)
+   
+   b. Stores drag state:
+      - self.active_handle = Handle object
+      - self.drag_start_pos = event.pos()
+      - self.drag_start_transform = (center_x, center_y, half_w, half_h, rotation)
+   
+   c. Creates DragContext object with:
+      - operation type ('translate', 'scale_corner', 'scale_edge', 'rotate', 'axis_x', 'axis_y')
+      - modifiers (ctrl, alt, shift)
+      - duplicate_created flag (for Ctrl+drag duplication)
+      - is_multi_selection flag
+      - cached_aabb data
+
+4. If no handle clicked, forwards event to canvas_widget for panning
+
+
+Step 2: User Moves Mouse (Dragging)
+------------------------------------
+METHOD: mouseMoveEvent(self, event)
+LINE: ~333
+
+WHAT HAPPENS:
+1. Checks if currently dragging (self.drag_start_pos exists)
+
+2. Checks for Ctrl+drag duplication:
+   - If Ctrl held, operation is translate/axis, and distance > threshold
+   - Emits self.layerDuplicated signal (connected to canvas_area._on_layer_duplicated)
+   - Sets drag_context.duplicate_created = True
+
+3. Calls _handle_drag(event.pos(), event.modifiers())
+
+
+Step 3: Handle Drag Processing
+-------------------------------
+METHOD: _handle_drag(self, current_pos, modifiers=None)
+LINE: ~469
+
+WHAT HAPPENS:
+1. Converts mouse positions from widget coordinates to center-origin coordinates:
+   - start_mouse_x, start_mouse_y = self._widget_to_center_origin(self.drag_start_pos)
+   - curr_mouse_x, curr_mouse_y = self._widget_to_center_origin(current_pos)
+
+2. **KEY POLYMORPHIC DELEGATION**: Calls active handle's drag() method:
+   ```python
+   new_transform = self.active_handle.drag(
+       curr_mouse_x, curr_mouse_y,      # Current mouse position (center-origin)
+       start_mouse_x, start_mouse_y,    # Start mouse position (center-origin)
+       *self.drag_start_transform,       # (center_x, center_y, half_w, half_h, rotation)
+       modifiers
+   )
+   ```
+   
+   The handle's drag() method calculates the new transform values based on:
+   - Handle type (CenterHandle, CornerHandle, EdgeHandle, etc.)
+   - Mouse movement delta
+   - Original transform state
+   - Modifiers (Shift for uniform scaling, Alt for rotation, etc.)
+
+3. Unpacks new transform values:
+   ```python
+   self.center_x, self.center_y, self.half_w, self.half_h, self.rotation = new_transform
+   ```
+
+4. Checks if EdgeHandle was used (emits nonUniformScaleUsed signal if so)
+
+5. **CRITICAL SIGNAL EMISSION**: Emits transformChanged signal with pixel values:
+   ```python
+   self.transformChanged.emit(self.center_x, self.center_y, self.half_w, self.half_h, self.rotation)
+   ```
+
+6. Calls self.update() to repaint the widget
+
+
+Step 4: Mouse Release (End of Drag)
+------------------------------------
+METHOD: mouseReleaseEvent(self, event)
+LINE: ~369
+
+WHAT HAPPENS:
+1. Releases edit lock:
+   - self.main_window.release_edit_lock(self)
+
+2. Clears drag state:
+   - self.active_handle = None
+   - self.drag_start_pos = None
+   - self.drag_start_transform = None
+   - self.drag_context = None
+
+3. Emits transformEnded signal (connected to canvas_area._on_transform_ended)
+
+
+================================================================================
+PART 2: HANDLE DRAG CALCULATION (Polymorphic Transform Math)
+================================================================================
+
+FILE: editor/src/components/transform_widgets/handles.py
+
+Example: CenterHandle (Translation)
+------------------------------------
+CLASS: CenterHandle
+METHOD: drag(...)
+LINE: ~382
+
+```python
+def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
+         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+    """Translate the entire transform by mouse delta."""
+    dx = mouse_x - start_mouse_x
+    dy = mouse_y - start_mouse_y
+    return (start_cx + dx, start_cy + dy, start_hw, start_hh, start_rot)
+```
+
+WHAT IT DOES:
+- Calculates mouse movement delta (dx, dy)
+- Returns new transform with updated center position
+- Half-widths and rotation remain unchanged
+
+
+Example: CornerHandle (Scaling)
+--------------------------------
+CLASS: CornerHandle
+METHOD: drag(...)
+
+WHAT IT DOES:
+- Calculates distance from center to mouse (start vs current)
+- Computes scale ratio
+- If Shift held: maintains aspect ratio (uniform scaling)
+- Otherwise: allows non-uniform scaling
+- Returns new transform with updated half_w, half_h
+- Center position can also change if scaling asymmetrically
+
+
+Example: RotationHandle (Rotation)
+-----------------------------------
+CLASS: RotationHandle
+METHOD: drag(...)
+
+WHAT IT DOES:
+- Calculates angle from center to start mouse position
+- Calculates angle from center to current mouse position
+- Computes rotation delta
+- Returns new transform with updated rotation
+- Center and sizes remain unchanged
+
+
+================================================================================
+PART 3: SIGNAL HANDLING (Widget → Canvas Area)
+================================================================================
+
+FILE: editor/src/components/canvas_area.py
+CLASS: CanvasArea
+
+Connection Established:
+-----------------------
+LINE: ~78 in _setup_ui():
+```python
+self.transform_widget.transformChanged.connect(self._on_transform_changed)
+```
+
+
+Step 5: Transform Changed Handler
+----------------------------------
+METHOD: _on_transform_changed(self, center_x, center_y, half_w, half_h, rotation)
+LINE: ~203
+
+WHAT HAPPENS:
+1. Gets selected layer UUIDs from property sidebar
+
+2. Converts widget pixel coordinates to CoA space (0.0-1.0):
+   ```python
+   pos_x, pos_y, scale_x, scale_y = self._convert_widget_to_coa_coords(
+       center_x, center_y, half_w, half_h
+   )
+   ```
+
+3. Routes to appropriate handler based on selection type:
+
+   a. **ROTATION ONLY** (if rotation handle is active):
+      - Calls self._handle_rotation_transform(selected_uuids, rotation)
+   
+   b. **SINGLE LAYER SELECTION**:
+      - Gets instance count for the layer
+      - If instance_count == 1:
+          Calls self._handle_single_instance_transform(uuid, pos_x, pos_y, scale_x, scale_y, rotation)
+      - If instance_count > 1:
+          Calls self._handle_multi_instance_transform(uuid, pos_x, pos_y, scale_x, scale_y, rotation)
+   
+   c. **MULTI-LAYER SELECTION**:
+      - Calls self._handle_multi_selection_transform(pos_x, pos_y, scale_x, scale_y, rotation, selected_uuids)
+
+
+================================================================================
+PART 4: COORDINATE CONVERSION (Widget Pixels → CoA Space)
+================================================================================
+
+FILE: editor/src/components/canvas_area_helpers/canvas_area_transform_mixin.py
+CLASS: CanvasAreaTransformMixin
+
+Step 6: Coordinate Conversion
+------------------------------
+METHOD: _convert_widget_to_coa_coords(self, center_x, center_y, half_w, half_h)
+LINE: ~8
+
+WHAT HAPPENS:
+1. Convert from center-origin to top-left coordinates:
+   ```python
+   center_x_topleft = center_x + self.canvas_widget.width() / 2
+   center_y_topleft = center_y + self.canvas_widget.height() / 2
+   ```
+
+2. Convert canvas pixels to CoA space (0.0-1.0):
+   ```python
+   pos_x, pos_y = self.canvas_widget.canvas_to_coa(center_x_topleft, center_y_topleft)
+   scale_x, scale_y = self.canvas_widget.pixels_to_coa_scale(half_w, half_h)
+   ```
+
+3. Returns (pos_x, pos_y, scale_x, scale_y) in CoA space (0.0-1.0 range)
+
+
+================================================================================
+PART 5: TRANSFORM APPLICATION (Canvas Area → CoA Model)
+================================================================================
+
+FILE: editor/src/components/canvas_area_helpers/canvas_area_transform_mixin.py
+
+Step 7a: Single Instance Transform
+-----------------------------------
+METHOD: _handle_single_instance_transform(self, uuid, pos_x, pos_y, scale_x, scale_y, rotation)
+LINE: ~49
+
+WHAT HAPPENS:
+1. Directly sets layer properties in CoA model:
+   ```python
+   self.main_window.coa.set_layer_position(uuid, pos_x, pos_y)
+   self.main_window.coa.set_layer_scale(uuid, scale_x, scale_y)
+   self.main_window.coa.set_layer_rotation(uuid, rotation)
+   ```
+
+2. Updates canvas widget for live preview:
+   ```python
+   self.canvas_widget.update()
+   ```
+
+
+Step 7b: Multi-Instance Transform (AABB-based)
+-----------------------------------------------
+METHOD: _handle_multi_instance_transform(self, uuid, pos_x, pos_y, scale_x, scale_y, rotation)
+LINE: ~62
+
+WHAT HAPPENS:
+1. On first call, caches initial AABB state:
+   ```python
+   self.main_window.coa.begin_instance_group_transform(uuid)
+   bounds = self.main_window.coa.get_layer_bounds(uuid)
+   self._single_layer_aabb = {
+       'center_x': bounds['center_x'],
+       'center_y': bounds['center_y'],
+       'width': bounds['width'],
+       'height': bounds['height']
+   }
+   ```
+
+2. Calculates transform relative to CACHED original AABB:
+   - scale_factor_x = new_width / original_width
+   - scale_factor_y = new_height / original_height
+   - rotation_delta = current_rotation - initial_rotation (0 for AABB)
+
+3. Applies group transform to all instances:
+   ```python
+   self.main_window.coa.transform_instances_as_group(
+       uuid, pos_x, pos_y, scale_factor_x, scale_factor_y, rotation_delta
+   )
+   ```
+
+
+Step 7c: Multi-Selection Transform
+-----------------------------------
+METHOD: _handle_multi_selection_transform(self, pos_x, pos_y, scale_x, scale_y, rotation, selected_uuids)
+LINE: ~267
+
+WHAT HAPPENS:
+1. On first call, initializes multi-selection cache:
+   ```python
+   self._init_multi_selection_cache(list(selected_uuids))
+   ```
+   - Calls self.main_window.coa.begin_transform_group(selected_uuids)
+   - Caches original positions/scales for each layer
+   - Calculates group AABB
+
+2. Applies transform to each layer in the group:
+   ```python
+   self._apply_multi_selection_transform(pos_x, pos_y, scale_x, scale_y, rotation)
+   ```
+   - Calculates scale factors relative to original group AABB
+   - For each layer:
+     * Calculates offset from group center
+     * Applies scale to offset (ferris wheel effect)
+     * Applies position delta
+     * Applies scale to layer size
+     * Sets new position/scale using CoA methods
+
+
+Step 7d: Rotation Transform
+----------------------------
+METHOD: _handle_rotation_transform(self, selected_uuids, rotation)
+LINE: ~30
+
+WHAT HAPPENS:
+1. On first call, caches rotation state:
+   ```python
+   rotation_mode = self.get_rotation_mode()  # 'both_deep', 'position_only', etc.
+   self.main_window.coa.begin_rotation_transform(list(selected_uuids), rotation_mode)
+   self._rotation_start = rotation
+   ```
+
+2. Calculates TOTAL rotation delta from start:
+   ```python
+   total_delta = rotation - self._rotation_start
+   ```
+
+3. Applies rotation transform:
+   ```python
+   self.main_window.coa.apply_rotation_transform(list(selected_uuids), total_delta)
+   ```
+
+
+================================================================================
+PART 6: CoA MODEL UPDATES (Final Data Changes)
+================================================================================
+
+FILE: editor/src/models/coa.py
+CLASS: CoA
+
+Step 8a: Set Layer Position
+----------------------------
+METHOD: set_layer_position(self, uuid: str, x: float, y: float)
+LINE: ~1441
+
+WHAT HAPPENS:
+1. Gets layer by UUID
+2. Gets layer's instances list
+3. Routes based on instance count:
+
+   If 1 instance:
+   - Sets instance position directly:
+     ```python
+     instances[0].pos_x = x
+     instances[0].pos_y = y
+     ```
+
+   If multiple instances:
+   - Calculates current AABB center
+   - Calculates offset from AABB center to new position
+   - Applies offset to ALL instances (maintaining relative positions):
+     ```python
+     for inst in instances:
+         inst.pos_x = inst.pos_x + dx
+         inst.pos_y = inst.pos_y + dy
+     ```
+
+
+Step 8b: Set Layer Scale
+-------------------------
+METHOD: set_layer_scale(self, uuid: str, scale_x: float, scale_y: float)
+LINE: ~1569
+
+WHAT HAPPENS:
+1. Gets layer by UUID
+2. Gets layer's instances list
+3. Routes based on instance count:
+
+   If 1 instance:
+   - Sets both layer and instance scale directly:
+     ```python
+     layer.scale_x = scale_x
+     layer.scale_y = scale_y
+     instances[0].scale_x = scale_x
+     instances[0].scale_y = scale_y
+     ```
+
+   If multiple instances:
+   - Calculates scale factor change
+   - Updates layer scale
+   - Applies scale factor to ALL instances:
+     ```python
+     factor_x = scale_x / old_scale_x
+     factor_y = scale_y / old_scale_y
+     for inst in instances:
+         inst.scale_x = inst.scale_x * factor_x
+         inst.scale_y = inst.scale_y * factor_y
+     ```
+
+
+Step 8c: Set Layer Rotation
+----------------------------
+METHOD: set_layer_rotation(self, uuid: str, degrees: float)
+LINE: ~1641
+
+WHAT HAPPENS:
+1. Gets layer by UUID
+2. Calculates rotation delta:
+   ```python
+   delta_rotation = degrees - layer.rotation
+   ```
+
+3. Sets layer rotation:
+   ```python
+   layer.rotation = degrees
+   ```
+
+4. Rotates all instance POSITIONS around layer center (ferris wheel):
+   ```python
+   rad = math.radians(delta_rotation)
+   cos_r = math.cos(rad)
+   sin_r = math.sin(rad)
+   
+   for inst in instances:
+       dx = inst.pos_x - center_x
+       dy = inst.pos_y - center_y
+       new_dx = dx * cos_r - dy * sin_r
+       new_dy = dx * sin_r + dy * cos_r
+       inst.pos_x = center_x + new_dx
+       inst.pos_y = center_y + new_dy
+   ```
+
+
+Step 8d: Transform Instances as Group
+--------------------------------------
+METHOD: transform_instances_as_group(self, uuid, new_center_x, new_center_y, scale_factor_x, scale_factor_y, rotation_delta)
+LINE: ~1845
+
+WHAT HAPPENS:
+1. Validates that begin_instance_group_transform() was called first
+2. Gets CACHED original center and instance transforms
+3. Calculates position delta:
+   ```python
+   position_delta_x = new_center_x - original_center_x
+   position_delta_y = new_center_y - original_center_y
+   ```
+
+4. For each instance:
+   a. Gets CACHED original position/scale
+   b. Calculates offset from original group center
+   c. Applies rotation to offset (if rotation_delta != 0):
+      ```python
+      rotation_rad = math.radians(rotation_delta)
+      cos_r = math.cos(rotation_rad)
+      sin_r = math.sin(rotation_rad)
+      new_offset_x = offset_x * cos_r - offset_y * sin_r
+      new_offset_y = offset_x * sin_r + offset_y * cos_r
+      ```
+   d. Applies scale to offset:
+      ```python
+      new_offset_x *= scale_factor_x
+      new_offset_y *= scale_factor_y
+      ```
+   e. Calculates new position:
+      ```python
+      new_pos_x = original_center_x + new_offset_x + position_delta_x
+      new_pos_y = original_center_y + new_offset_y + position_delta_y
+      ```
+   f. Applies scale to ORIGINAL instance scale:
+      ```python
+      new_scale_x = scale_x_orig * scale_factor_x
+      new_scale_y = scale_y_orig * scale_factor_y
+      ```
+   g. Sets instance position and scale:
+      ```python
+      inst.pos_x = new_pos_x
+      inst.pos_y = new_pos_y
+      inst.scale_x = max(0.01, min(1.0, new_scale_x))
+      inst.scale_y = max(0.01, min(1.0, new_scale_y))
+      ```
+
+CRITICAL NOTE: All transforms are calculated from CACHED original state,
+preventing cumulative drift during drag operations.
+
+
+================================================================================
+PART 7: CLEANUP (Transform Ended)
+================================================================================
+
+FILE: editor/src/components/canvas_area.py
+
+Step 9: Transform End Handler
+------------------------------
+METHOD: _on_transform_ended(self)
+LINE: ~241
+
+WHAT HAPPENS:
+1. Clears rotation cache:
+   ```python
+   if hasattr(self, '_rotation_start') and self._rotation_start is not None:
+       self.main_window.coa.end_rotation_transform()
+   ```
+
+2. Clears CoA transform caches:
+   ```python
+   self.main_window.coa.end_transform_group()
+   self.main_window.coa.end_instance_group_transform()
+   ```
+
+3. Clears local state caches:
+   - self._instance_transforms
+   - self._single_layer_initial_state
+   - self._single_layer_aabb
+   - self._rotation_start
+   - self._drag_start_layers
+   - self._drag_start_aabb
+
+4. Reloads property sidebar to update UI with final values:
+   ```python
+   self.property_sidebar._load_layer_properties()
+   ```
+
+5. Updates transform widget (resets rotation to 0 for multi-selection):
+   ```python
+   self.update_transform_widget_for_layer()
+   ```
+
+6. Saves undo/redo state:
+   ```python
+   self.main_window._save_state("Transform layer")
+   ```
+
+
+================================================================================
+SUMMARY: COMPLETE CALL CHAIN
+================================================================================
+
+User Mouse Drag Event
+  ↓
+TransformWidget.mousePressEvent()
+  - Identifies handle (CenterHandle, CornerHandle, etc.)
+  - Acquires edit lock
+  - Stores drag state
+  ↓
+TransformWidget.mouseMoveEvent() (repeated during drag)
+  ↓
+TransformWidget._handle_drag()
+  ↓
+Handle.drag() [POLYMORPHIC - different math per handle type]
+  - CenterHandle: translation math
+  - CornerHandle: scaling math
+  - RotationHandle: rotation math
+  - EdgeHandle: edge scaling math
+  - Returns new (center_x, center_y, half_w, half_h, rotation)
+  ↓
+TransformWidget.transformChanged signal emitted
+  ↓
+CanvasArea._on_transform_changed()
+  ↓
+CanvasAreaTransformMixin._convert_widget_to_coa_coords()
+  - Converts pixel coordinates to CoA space (0.0-1.0)
+  ↓
+[Route based on selection type]
+  ↓
+┌─────────────────────────────────────────────────────────┐
+│ Single Instance:                                        │
+│   CanvasAreaTransformMixin._handle_single_instance_     │
+│   transform()                                           │
+│     ↓                                                   │
+│   CoA.set_layer_position()                             │
+│   CoA.set_layer_scale()                                │
+│   CoA.set_layer_rotation()                             │
+│     ↓                                                   │
+│   Updates layer.pos_x, layer.pos_y                     │
+│   Updates layer.scale_x, layer.scale_y                 │
+│   Updates layer.rotation                               │
+│   Updates instances[0] directly                        │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ Multi-Instance:                                         │
+│   CanvasAreaTransformMixin._handle_multi_instance_      │
+│   transform()                                           │
+│     ↓                                                   │
+│   CoA.begin_instance_group_transform() [first call]    │
+│     - Caches original instance states                  │
+│     ↓                                                   │
+│   CoA.transform_instances_as_group()                   │
+│     - Calculates scale factors from cached AABB        │
+│     - For each instance:                               │
+│       * Calculates offset from cached center           │
+│       * Applies rotation (ferris wheel)                │
+│       * Applies scale to offset                        │
+│       * Applies translation                            │
+│       * Updates inst.pos_x, inst.pos_y                 │
+│       * Scales inst.scale_x, inst.scale_y              │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ Multi-Selection:                                        │
+│   CanvasAreaTransformMixin._handle_multi_selection_     │
+│   transform()                                           │
+│     ↓                                                   │
+│   CanvasAreaTransformMixin._init_multi_selection_cache()│
+│   [first call]                                          │
+│     ↓                                                   │
+│   CoA.begin_transform_group()                          │
+│     - Caches each layer's original transform           │
+│     ↓                                                   │
+│   CanvasAreaTransformMixin._apply_multi_selection_      │
+│   transform()                                           │
+│     - Calculates group AABB scale factors              │
+│     - For each layer:                                  │
+│       * Calculates offset from group center            │
+│       * Applies scale to offset (ferris wheel)         │
+│       * Applies translation                            │
+│       * Calls CoA.apply_transform_group() or           │
+│         CoA.transform_instances_as_group()             │
+│       * Updates layer positions and scales             │
+└─────────────────────────────────────────────────────────┘
+  ↓
+CanvasWidget.update() [triggers OpenGL repaint]
+  ↓
+User sees updated CoA on screen
+
+[On mouse release]
+  ↓
+TransformWidget.mouseReleaseEvent()
+  - Releases edit lock
+  - Clears drag state
+  ↓
+TransformWidget.transformEnded signal emitted
+  ↓
+CanvasArea._on_transform_ended()
+  - Clears all transform caches in CoA
+  - Reloads property sidebar
+  - Saves undo/redo state
+
+
+================================================================================
+KEY DESIGN PATTERNS
+================================================================================
+
+1. **Polymorphism**: Different handle types (CenterHandle, CornerHandle, etc.)
+   implement their own drag() methods with specific transform math.
+
+2. **Coordinate Space Layering**:
+   - Widget space: Pixel coordinates, center-origin
+   - Canvas space: Pixel coordinates, top-left origin
+   - CoA space: Normalized 0.0-1.0 coordinates
+
+3. **State Caching**: Original transform states are cached at drag start to
+   prevent cumulative drift:
+   - drag_start_transform in TransformWidget
+   - _drag_start_layers in CanvasArea
+   - _cached_instance_transforms in CoA
+   - _rotation_cache in CoA
+
+4. **Edit Lock**: Prevents circular updates between UI components during
+   transform operations.
+
+5. **Signal-Slot Architecture**: Qt signals decouple widget from canvas area:
+   - transformChanged: Live updates during drag
+   - transformEnded: Cleanup and save state
+   - nonUniformScaleUsed: Disable unified scale checkbox
+   - layerDuplicated: Ctrl+drag duplication
+
+6. **Delegation Pattern**: Canvas area delegates coordinate conversion and
+   transform application to specialized helpers (CanvasAreaTransformMixin).
+
+7. **Ferris Wheel Math**: Group transforms maintain relative positions by:
+   - Calculating each element's offset from group center
+   - Scaling the offset
+   - Rotating the offset (if applicable)
+   - Translating to new center position
+
+8. **No Rogue Mathematics**: All geometric calculations are in the CoA model,
+   not in UI components. UI only does coordinate space conversions.
+
+
+================================================================================
+DATA FLOW SUMMARY
+================================================================================
+
+Mouse Delta (pixels)
+  ↓ [Handle.drag()]
+Widget Transform (center_x, center_y, half_w, half_h, rotation) [pixels]
+  ↓ [transformChanged signal]
+Canvas Area (_on_transform_changed)
+  ↓ [_convert_widget_to_coa_coords()]
+CoA Coordinates (pos_x, pos_y, scale_x, scale_y) [0.0-1.0]
+  ↓ [CoA.set_layer_position/scale/rotation()]
+Layer/Instance Properties (pos_x, pos_y, scale_x, scale_y, rotation)
+  ↓ [Canvas renders]
+Visual Update on Screen
+
+
+================================================================================
+END OF DOCUMENT
+================================================================================

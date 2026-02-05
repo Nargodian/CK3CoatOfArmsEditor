@@ -1,30 +1,31 @@
 """Transform handling mixin for CanvasArea - thin coordinator that delegates to CoA model"""
+from models.transform import Transform
 
 
 class CanvasAreaTransformMixin:
 	"""Handles transform widget interactions and coordinate conversions"""
 	
-	def _convert_widget_to_coa_coords(self, center_x, center_y, half_w, half_h):
+	def _convert_widget_to_coa_coords(self, widget_transform):
 		"""Convert transform widget coordinates to CoA space.
 		
 		Args:
-			center_x: X in widget center-origin space
-			center_y: Y in widget center-origin space
-			half_w: Half-width in pixels
-			half_h: Half-height in pixels
+			widget_transform: Transform in widget pixel space (center-origin)
 			
 		Returns:
-			(pos_x, pos_y, scale_x, scale_y) in CoA space
+			Transform in CoA space (0-1 normalized)
 		"""
-		# Convert from center-origin to top-left coordinates
-		center_x_topleft = center_x + self.canvas_widget.width() / 2
-		center_y_topleft = center_y + self.canvas_widget.height() / 2
+		# Convert origin (transform widget uses center, canvas_to_coa expects top-left)
+		topleft_x, topleft_y = self.canvas_widget.center_origin_to_topleft(
+			widget_transform.pos_x, widget_transform.pos_y
+		)
 		
-		# Convert canvas pixels to CoA space
-		pos_x, pos_y = self.canvas_widget.canvas_to_coa(center_x_topleft, center_y_topleft)
-		scale_x, scale_y = self.canvas_widget.pixels_to_coa_scale(half_w, half_h)
+		# Convert pixels to CoA space
+		pos_x, pos_y = self.canvas_widget.canvas_to_coa(topleft_x, topleft_y)
+		scale_x, scale_y = self.canvas_widget.pixels_to_coa_scale(
+			widget_transform.scale_x, widget_transform.scale_y
+		)
 		
-		return pos_x, pos_y, scale_x, scale_y
+		return Transform(pos_x, pos_y, scale_x, scale_y, widget_transform.rotation)
 	
 	def _handle_rotation_transform(self, selected_uuids, rotation):
 		"""Handle rotation-only transforms (rotation handle dragged).
@@ -48,28 +49,24 @@ class CanvasAreaTransformMixin:
 		# Update canvas for live preview
 		self.canvas_widget.update()
 	
-	def _handle_single_instance_transform(self, uuid, pos_x, pos_y, scale_x, scale_y, rotation):
+	def _handle_single_instance_transform(self, uuid, coa_transform):
 		"""Handle direct transform for single-instance layer.
 		
 		Args:
 			uuid: Layer UUID
-			pos_x, pos_y: Position in CoA space
-			scale_x, scale_y: Scale in CoA space
-			rotation: Rotation angle in degrees
+			coa_transform: Transform in CoA space (0-1 normalized)
 		"""
-		self.main_window.coa.set_layer_position(uuid, pos_x, pos_y)
-		self.main_window.coa.set_layer_scale(uuid, scale_x, scale_y)
-		self.main_window.coa.set_layer_rotation(uuid, rotation)
+		self.main_window.coa.set_layer_position(uuid, coa_transform.pos_x, coa_transform.pos_y)
+		self.main_window.coa.set_layer_scale(uuid, coa_transform.scale_x, coa_transform.scale_y)
+		self.main_window.coa.set_layer_rotation(uuid, coa_transform.rotation)
 		self.canvas_widget.update()
 	
-	def _handle_multi_instance_transform(self, uuid, pos_x, pos_y, scale_x, scale_y, rotation):
+	def _handle_multi_instance_transform(self, uuid, coa_transform):
 		"""Handle group transform for multi-instance layer (AABB-based).
 		
 		Args:
 			uuid: Layer UUID
-			pos_x, pos_y: New AABB center in CoA space
-			scale_x, scale_y: New AABB size in CoA space
-			rotation: Rotation delta in degrees
+			coa_transform: Transform in CoA space (pos/scale are AABB center/size)
 		"""
 		# Cache initial AABB at drag start
 		if not hasattr(self, '_single_layer_aabb') or self._single_layer_aabb is None:
@@ -92,15 +89,15 @@ class CanvasAreaTransformMixin:
 		original_height = self._single_layer_aabb['height']
 		
 		# Calculate scale factors
-		scale_factor_x = scale_x / original_width if original_width > 0.001 else 1.0
-		scale_factor_y = scale_y / original_height if original_height > 0.001 else 1.0
+		scale_factor_x = coa_transform.scale_x / original_width if original_width > 0.001 else 1.0
+		scale_factor_y = coa_transform.scale_y / original_height if original_height > 0.001 else 1.0
 		
 		# Calculate rotation delta
-		rotation_delta = rotation - self._initial_instance_rotation
+		rotation_delta = coa_transform.rotation - self._initial_instance_rotation
 		
 		# Apply group transform using CoA method (uses cached original positions)
 		self.main_window.coa.transform_instances_as_group(
-			uuid, pos_x, pos_y, scale_factor_x, scale_factor_y, rotation_delta
+			uuid, coa_transform.pos_x, coa_transform.pos_y, scale_factor_x, scale_factor_y, rotation_delta
 		)
 		self.canvas_widget.update()
 	
@@ -184,16 +181,13 @@ class CanvasAreaTransformMixin:
 			'scale_y': max_y - min_y
 		}
 	
-	def _apply_multi_selection_transform(self, pos_x, pos_y, scale_x, scale_y, rotation):
+	def _apply_multi_selection_transform(self, coa_transform):
 		"""Apply group transform to all selected layers.
-		by delegating to CoA model methods.
 		
 		Delegates all geometric math to CoA - mixin only does coordinate conversion.
 		
 		Args:
-			pos_x, pos_y: New group center in CoA space
-			scale_x, scale_y: New group size in CoA space
-			rotation: Rotation angle in degrees
+			coa_transform: Transform in CoA space (group AABB)
 		"""
 		selected_uuids = list(self._drag_start_aabb.keys()) if hasattr(self, '_drag_start_aabb') and isinstance(self._drag_start_aabb, dict) else [layer['uuid'] for layer in self._drag_start_layers]
 		
@@ -204,12 +198,12 @@ class CanvasAreaTransformMixin:
 		original_scale_y = self._drag_start_aabb['scale_y']
 		
 		# Calculate scale factors
-		scale_factor_x = scale_x / original_scale_x if original_scale_x > 0.001 else 1.0
-		scale_factor_y = scale_y / original_scale_y if original_scale_y > 0.001 else 1.0
+		scale_factor_x = coa_transform.scale_x / original_scale_x if original_scale_x > 0.001 else 1.0
+		scale_factor_y = coa_transform.scale_y / original_scale_y if original_scale_y > 0.001 else 1.0
 		
 		# Calculate position delta
-		position_delta_x = pos_x - original_center_x
-		position_delta_y = pos_y - original_center_y
+		position_delta_x = coa_transform.pos_x - original_center_x
+		position_delta_y = coa_transform.pos_y - original_center_y
 		
 		# Apply transforms per layer using CoA methods with cached state
 		for layer_state in self._drag_start_layers:
@@ -259,13 +253,11 @@ class CanvasAreaTransformMixin:
 		# Update canvas
 		self.canvas_widget.update()
 	
-	def _handle_multi_selection_transform(self, pos_x, pos_y, scale_x, scale_y, rotation, selected_uuids):
+	def _handle_multi_selection_transform(self, coa_transform, selected_uuids):
 		"""Handle group transform for multiple selected layers.
 		
 		Args:
-			pos_x, pos_y: New group center in CoA space
-			scale_x, scale_y: New group size in CoA space
-			rotation: Rotation angle in degrees
+			coa_transform: Transform in CoA space (group AABB)
 			selected_uuids: List of selected layer UUIDs
 		"""
 		# Initialize cache on first call
@@ -273,4 +265,4 @@ class CanvasAreaTransformMixin:
 			self._init_multi_selection_cache(list(selected_uuids))
 		
 		# Apply transform to all layers
-		self._apply_multi_selection_transform(pos_x, pos_y, scale_x, scale_y, rotation)
+		self._apply_multi_selection_transform(coa_transform)

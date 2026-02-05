@@ -323,20 +323,14 @@ class ClipboardActions:
 			if not temp_coa or temp_coa.get_layer_count() == 0:
 				return
 			
-			# Get mouse position relative to canvas widget
+			# Get mouse position and convert to canvas widget coordinates
 			mouse_pos = QCursor.pos()
-			canvas_geometry = self.main_window.canvas_area.canvas_widget.geometry()
+			canvas_widget_pos = self.main_window.canvas_area.canvas_widget.mapFromGlobal(mouse_pos)
 			
-			# Convert global mouse position to CanvasArea coords
-			canvas_area_pos = self.main_window.canvas_area.mapFromGlobal(mouse_pos)
-			
-			# Convert CanvasArea coords to Canvas widget coords
-			canvas_x, canvas_y = self.main_window.canvas_area.canvas_area_to_canvas(
-				canvas_area_pos.x(), canvas_area_pos.y()
+			# Convert canvas pixels to CoA space
+			norm_x, norm_y = self.main_window.canvas_area.canvas_widget.canvas_to_coa(
+				canvas_widget_pos.x(), canvas_widget_pos.y()
 			)
-			
-			# Convert canvas pixels to CoA space using instance method
-			norm_x, norm_y = self.main_window.canvas_area.canvas_widget.canvas_to_coa(canvas_x, canvas_y)
 			
 			# Get all UUIDs from temp CoA
 			temp_uuids = [temp_coa.get_layer_uuid_by_index(i) for i in range(temp_coa.get_layer_count())]

@@ -29,7 +29,7 @@ class GovernmentDiscovery:
 				governments.append(display_name)
 				government_file_map[display_name] = gov_key
 			
-			return governments if governments else _get_default_governments()
+			return (governments, government_file_map) if governments else _get_default_governments()
 		
 		except Exception as e:
 			print(f"Error discovering governments: {e}")

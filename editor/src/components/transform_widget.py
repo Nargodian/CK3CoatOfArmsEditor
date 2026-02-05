@@ -14,12 +14,14 @@ from PyQt5.QtCore import Qt, QPointF, QRectF, pyqtSignal, QEvent
 from PyQt5.QtGui import QPainter, QPen, QBrush, QColor, QTransform, QMouseEvent
 import math
 
+from models.transform import Transform
+
 
 class TransformWidget(QWidget):
 	"""Interactive transform widget for manipulating layer transforms"""
 	
 	# Signals
-	transformChanged = pyqtSignal(float, float, float, float, float)  # center_x, center_y, half_w, half_h, rotation (pixels)
+	transformChanged = pyqtSignal(object)  # Transform object (widget pixel space)
 	nonUniformScaleUsed = pyqtSignal()  # Emitted when side handles are used for non-uniform scaling
 	transformEnded = pyqtSignal()  # Emitted when drag ends (for history saving)
 	layerDuplicated = pyqtSignal()  # Emitted when Ctrl+drag duplicates layer
@@ -468,7 +470,9 @@ class TransformWidget(QWidget):
 				self.drag_start_pos = event.pos()
 			
 			# Emit signal and update
-			self.transformChanged.emit(self.center_x, self.center_y, self.half_w, self.half_h, self.rotation)
+			self.transformChanged.emit(WidgetTransform(
+				self.center_x, self.center_y, self.half_w, self.half_h, self.rotation
+			))
 			self.update()
 			event.accept()
 		except Exception as e:
@@ -502,5 +506,7 @@ class TransformWidget(QWidget):
 			self.nonUniformScaleUsed.emit()
 		
 		# Emit transform change signal with current pixel values
-		self.transformChanged.emit(self.center_x, self.center_y, self.half_w, self.half_h, self.rotation)
+		self.transformChanged.emit(Transform(
+			self.center_x, self.center_y, self.half_w, self.half_h, self.rotation
+		))
 		self.update()

@@ -9,6 +9,7 @@ Coordinate spaces:
 - Frame: CoA space with frame scale/offset applied
 - Canvas: Qt pixel coordinates with zoom/pan applied
 """
+from models.transform import Transform
 
 
 class CanvasCoordinateMixin:
@@ -20,6 +21,42 @@ class CanvasCoordinateMixin:
 	- self.pan_x, self.pan_y (float)
 	- self.width(), self.height() (methods returning int)
 	"""
+	
+	# ========================================
+	# Origin conversions (geometric helpers)
+	# ========================================
+	
+	def center_origin_to_topleft(self, center_x, center_y):
+		"""Convert center-origin coordinates to top-left origin.
+		
+		Args:
+			center_x: X in center-origin space (0 at center)
+			center_y: Y in center-origin space (0 at center)
+			
+		Returns:
+			(topleft_x, topleft_y): Top-left pixel coordinates
+		"""
+		half_width = self.width() / 2
+		half_height = self.height() / 2
+		topleft_x = center_x + half_width
+		topleft_y = center_y + half_height
+		return topleft_x, topleft_y
+	
+	def topleft_to_center_origin(self, topleft_x, topleft_y):
+		"""Convert top-left origin to center-origin coordinates.
+		
+		Args:
+			topleft_x: X in top-left origin space
+			topleft_y: Y in top-left origin space
+			
+		Returns:
+			(center_x, center_y): Center-origin coordinates (0 at center)
+		"""
+		half_width = self.width() / 2
+		half_height = self.height() / 2
+		center_x = topleft_x - half_width
+		center_y = topleft_y - half_height
+		return center_x, center_y
 	
 	# ========================================
 	# Atomic transformations (single-step conversions)
@@ -247,28 +284,27 @@ class CanvasCoordinateMixin:
 		frame_scale_x, frame_scale_y = self.coa_scale_to_frame_scale(scale_x, scale_y)
 		return self.frame_scale_to_pixels(frame_scale_x, frame_scale_y)
 	
-	def coa_to_transform_widget_coords(self, pos_x, pos_y, scale_x, scale_y):
+	def coa_to_transform_widget(self, coa_transform):
 		"""Convert CoA space to transform widget center-origin coordinates.
 		
 		Combines position + scale conversion and applies center-origin shift
 		for transform widget (which uses center=0,0 coordinate system).
 		
 		Args:
-			pos_x, pos_y: CoA position (0-1)
-			scale_x, scale_y: CoA scale multiplier
+			coa_transform: Transform in CoA space (0-1 normalized)
 			
 		Returns:
-			(center_x, center_y, half_w, half_h): Transform widget coordinates
+			Transform in widget pixel space (center-origin)
 		"""
 		# Convert to canvas top-left pixels
-		canvas_x, canvas_y = self.coa_to_canvas(pos_x, pos_y)
-		half_w, half_h = self.coa_scale_to_pixels(scale_x, scale_y)
+		canvas_x, canvas_y = self.coa_to_canvas(coa_transform.pos_x, coa_transform.pos_y)
+		half_w, half_h = self.coa_scale_to_pixels(coa_transform.scale_x, coa_transform.scale_y)
 		
 		# Shift to center-origin (transform widget coordinate system)
 		center_x = canvas_x - self.width() / 2
 		center_y = canvas_y - self.height() / 2
 		
-		return center_x, center_y, half_w, half_h
+		return Transform(center_x, center_y, half_w, half_h, coa_transform.rotation)
 	
 	def pixels_to_frame_scale(self, half_w, half_h):
 		"""Convert pixel AABB half-dimensions to frame-adjusted scale.
