@@ -672,6 +672,17 @@ class PropertySidebar(QFrame):
 			else:
 				btn.hide()
 	
+	def set_base_color_count(self, count):
+		"""Show/hide base color swatches based on pattern color count (1, 2, or 3)"""
+		if not hasattr(self, 'color_buttons'):
+			return
+		
+		for i, btn in enumerate(self.color_buttons):
+			if i < count:
+				btn.show()
+			else:
+				btn.hide()
+	
 	# ========================================
 	# Layer Operations (Add, Delete, Move, Duplicate)
 	# ========================================
