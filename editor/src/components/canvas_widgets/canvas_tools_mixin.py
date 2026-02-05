@@ -266,10 +266,10 @@ class CanvasToolsMixin:
 			instance_count = layer.instance_count
 			for instance_idx in range(instance_count):
 				instance = layer.get_instance(instance_idx)
-				pos_x = instance.pos_x
-				pos_y = instance.pos_y
-				scale_x = instance.scale_x
-				scale_y = instance.scale_y
+				pos_x = instance.pos.x
+				pos_y = instance.pos.y
+				scale_x = instance.scale.x
+				scale_y = instance.scale.y
 				rotation = instance.rotation
 				
 				# Convert layer position (0-1 range) to OpenGL normalized coordinates

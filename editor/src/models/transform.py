@@ -3,15 +3,30 @@ from dataclasses import dataclass
 
 
 @dataclass
+class Vec2:
+	"""2D vector for coordinate pairs.
+	
+	Used for any x/y coordinate pair across different spaces:
+	- Canvas pixels (top-left or center-origin)
+	- Normalized coordinates (0-1 or ±1)
+	- CoA space positions
+	"""
+	x: float
+	y: float
+	
+	def __iter__(self):
+		"""Allow tuple unpacking: x, y = vec2"""
+		return iter((self.x, self.y))
+
+
+@dataclass
 class Transform:
 	"""Transform state: position, scale, and rotation.
 	
 	Used across coordinate spaces:
-	- Widget space: center_x/y in pixels (center-origin), half_w/h in pixels
-	- CoA space: pos_x/y in 0-1 normalized, scale_x/y in 0-1 normalized
+	- Widget space: pos in pixels (center-origin), scale in pixels (half-dimensions)
+	- CoA space: pos in 0-1 normalized, scale in 0-1 normalized
 	"""
-	pos_x: float
-	pos_y: float
-	scale_x: float
-	scale_y: float
+	pos: Vec2
+	scale: Vec2
 	rotation: float = 0.0

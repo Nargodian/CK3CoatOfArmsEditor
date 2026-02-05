@@ -11,6 +11,7 @@ from .property_sidebar_widgets import (
     LayerListWidget, ColorPickerDialog, create_color_button, 
     PropertySlider, ScaleEditor
 )
+from models.transform import Vec2
 from constants import (
     DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
     DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
@@ -1063,19 +1064,21 @@ class PropertySidebar(QFrame):
 		for uuid in selected_uuids:
 			# Route to appropriate CoA setter based on property name
 			if prop_name in ('pos_x', 'pos_y'):
-				current_x = self.main_window.coa.get_layer_pos_x(uuid) or 0.0
-				current_y = self.main_window.coa.get_layer_pos_y(uuid) or 0.0
+				current_pos = self.main_window.coa.get_layer_pos(uuid)
+				if current_pos is None:
+					current_pos = Vec2(0.0, 0.0)
 				if prop_name == 'pos_x':
-					self.main_window.coa.set_layer_position(uuid, value, current_y)
+					self.main_window.coa.set_layer_position(uuid, value, current_pos.y)
 				else:
-					self.main_window.coa.set_layer_position(uuid, current_x, value)
+					self.main_window.coa.set_layer_position(uuid, current_pos.x, value)
 			elif prop_name in ('scale_x', 'scale_y'):
-				current_sx = self.main_window.coa.get_layer_scale_x(uuid) or 1.0
-				current_sy = self.main_window.coa.get_layer_scale_y(uuid) or 1.0
+				current_scale = self.main_window.coa.get_layer_scale(uuid)
+				if current_scale is None:
+					current_scale = Vec2(1.0, 1.0)
 				if prop_name == 'scale_x':
-					self.main_window.coa.set_layer_scale(uuid, value, current_sy)
+					self.main_window.coa.set_layer_scale(uuid, value, current_scale.y)
 				else:
-					self.main_window.coa.set_layer_scale(uuid, current_sx, value)
+					self.main_window.coa.set_layer_scale(uuid, current_scale.x, value)
 			elif prop_name == 'rotation':
 				self.main_window.coa.set_layer_rotation(uuid, value)
 			else:

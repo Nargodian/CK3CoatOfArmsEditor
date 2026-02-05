@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
 from PyQt5.QtCore import Qt
 
 # Local component imports
-from models.transform import Transform
+from models.transform import Transform, Vec2
 from .canvas_widget_NEW import CoatOfArmsCanvas
 from .transform_widget import TransformWidget
 from .canvas_area_helpers.canvas_area_transform_mixin import CanvasAreaTransformMixin
@@ -142,21 +142,19 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
 	
 	def _update_single_instance_selection(self, uuid):
 		"""Update transform widget for single-instance layer"""
-		pos_x = self.main_window.coa.get_layer_pos_x(uuid)
-		pos_y = self.main_window.coa.get_layer_pos_y(uuid)
-		scale_x = self.main_window.coa.get_layer_scale_x(uuid)
-		scale_y = self.main_window.coa.get_layer_scale_y(uuid)
+		pos = self.main_window.coa.get_layer_pos(uuid)
+		scale = self.main_window.coa.get_layer_scale(uuid)
 		rotation = self.main_window.coa.get_layer_rotation(uuid)
 		
-		if pos_x is None or pos_y is None:
+		if pos is None:
 			self.transform_widget.set_visible(False)
 			return
 		
-		coa_transform = Transform(pos_x, pos_y, scale_x, scale_y, rotation)
+		coa_transform = Transform(pos, scale, rotation)
 		widget_transform = self.canvas_widget.coa_to_transform_widget(coa_transform)
 		self.transform_widget.set_transform(
-			widget_transform.pos_x, widget_transform.pos_y, 
-			widget_transform.scale_x, widget_transform.scale_y, 
+			widget_transform.pos.x, widget_transform.pos.y, 
+			widget_transform.scale.x, widget_transform.scale.y, 
 			widget_transform.rotation, is_multi_selection=False
 		)
 		self.transform_widget.set_visible(True)
@@ -166,13 +164,13 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
 		try:
 			bounds = self.main_window.coa.get_layer_bounds(uuid)
 			coa_transform = Transform(
-				bounds['center_x'], bounds['center_y'], 
-				bounds['width'], bounds['height'], 0
+				Vec2(bounds['center_x'], bounds['center_y']), 
+				Vec2(bounds['width'], bounds['height']), 0
 			)
 			widget_transform = self.canvas_widget.coa_to_transform_widget(coa_transform)
 			self.transform_widget.set_transform(
-				widget_transform.pos_x, widget_transform.pos_y, 
-				widget_transform.scale_x, widget_transform.scale_y, 
+				widget_transform.pos.x, widget_transform.pos.y, 
+				widget_transform.scale.x, widget_transform.scale.y, 
 				widget_transform.rotation, is_multi_selection=True
 			)
 			self.transform_widget.set_visible(True)
@@ -203,11 +201,11 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
 			self._initial_group_center = (group_pos_x, group_pos_y)
 			self._initial_group_rotation = 0
 		
-		coa_transform = Transform(group_pos_x, group_pos_y, group_scale_x, group_scale_y, 0)
+		coa_transform = Transform(Vec2(group_pos_x, group_pos_y), Vec2(group_scale_x, group_scale_y), 0)
 		widget_transform = self.canvas_widget.coa_to_transform_widget(coa_transform)
 		self.transform_widget.set_transform(
-			widget_transform.pos_x, widget_transform.pos_y, 
-			widget_transform.scale_x, widget_transform.scale_y, 
+			widget_transform.pos.x, widget_transform.pos.y, 
+			widget_transform.scale.x, widget_transform.scale.y, 
 			widget_transform.rotation, is_multi_selection=True
 		)
 		self.transform_widget.set_visible(True)

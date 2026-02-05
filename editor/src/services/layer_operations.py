@@ -129,8 +129,8 @@ def serialize_layer_to_text(layer):
     for i in range(layer.instance_count):
         inst = layer.get_instance(i, caller='serialize_layer_to_text')
         instance_data = {
-            "position": [inst.pos_x, inst.pos_y],
-            "scale": [inst.scale_x, inst.scale_y],
+            "position": [inst.pos.x, inst.pos.y],
+            "scale": [inst.scale.x, inst.scale.y],
             "rotation": int(inst.rotation)
         }
         # Add depth if not default

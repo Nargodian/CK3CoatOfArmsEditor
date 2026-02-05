@@ -2,6 +2,7 @@
 
 from typing import Dict, Any
 from constants import DEFAULT_POSITION_X, DEFAULT_POSITION_Y, DEFAULT_SCALE_X, DEFAULT_SCALE_Y, DEFAULT_ROTATION
+from models.transform import Vec2
 
 
 class Instance:
@@ -11,10 +12,8 @@ class Instance:
     each with its own transform (position, scale, rotation).
     
     Properties:
-        pos_x: X position (0.0-1.0)
-        pos_y: Y position (0.0-1.0)
-        scale_x: X scale factor
-        scale_y: Y scale factor
+        pos: Position as Vec2 (0.0-1.0)
+        scale: Scale as Vec2
         rotation: Rotation angle in degrees
         depth: Z-depth for rendering order
     """
@@ -28,51 +27,82 @@ class Instance:
         if data is None:
             data = {}
         
-        self._pos_x = data.get('pos_x', DEFAULT_POSITION_X)
-        self._pos_y = data.get('pos_y', DEFAULT_POSITION_Y)
-        self._scale_x = data.get('scale_x', DEFAULT_SCALE_X)
-        self._scale_y = data.get('scale_y', DEFAULT_SCALE_Y)
-        self._rotation = data.get('rotation', DEFAULT_ROTATION)
-        self._depth = data.get('depth', 0.0)
+        self._pos = Vec2(
+            data.get('pos_x', DEFAULT_POSITION_X),
+            data.get('pos_y', DEFAULT_POSITION_Y)
+        )
+        self._scale = Vec2(
+            data.get('scale_x', DEFAULT_SCALE_X),
+            data.get('scale_y', DEFAULT_SCALE_Y)
+        imary Properties (Vec2)
+    # ========================================
+    
+    @property
+    def pos(self) -> Vec2:
+        """Position as Vec2 (0.0-1.0)"""
+        return self._pos
+    
+    @pos.setter
+    def pos(self, value: Vec2):
+        """Set position with clamping"""
+        self._pos = Vec2(
+            max(0.0, min(1.0, float(value.x))),
+            max(0.0, min(1.0, float(value.y)))
+        )
+    
+    @property
+    def scale(self) -> Vec2:
+        """Scale as Vec2"""
+        return self._scale
+    
+    @scale.setter
+    def scale(self, value: Vec2):
+        """Set scale"""
+        self._scale = Vec2(float(value.x), float(value.y))
     
     # ========================================
-    # Properties
+    # Legacy Properties (backward compatibility)
     # ========================================
     
     @property
     def pos_x(self) -> float:
-        """X position (0.0-1.0)"""
-        return self._pos_x
+        """X position (0.0-1.0) - legacy access"""
+        return self._pos.x
     
     @pos_x.setter
     def pos_x(self, value: float):
-        """Set X position with clamping"""
-        self._pos_x = max(0.0, min(1.0, float(value)))
+        """Set X position with clamping - legacy access"""
+        self._pos = Vec2(max(0.0, min(1.0, float(value))), self._pos.y)
     
     @property
     def pos_y(self) -> float:
-        """Y position (0.0-1.0)"""
-        return self._pos_y
+        """Y position (0.0-1.0) - legacy access"""
+        return self._pos.y
     
     @pos_y.setter
     def pos_y(self, value: float):
-        """Set Y position with clamping"""
-        self._pos_y = max(0.0, min(1.0, float(value)))
+        """Set Y position with clamping - legacy access"""
+        self._pos = Vec2(self._pos.x, max(0.0, min(1.0, float(value))))
     
     @property
     def scale_x(self) -> float:
-        """X scale factor"""
-        return self._scale_x
+        """X scale factor - legacy access"""
+        return self._scale.x
     
     @scale_x.setter
     def scale_x(self, value: float):
-        """Set X scale factor"""
-        self._scale_x = float(value)
+        """Set X scale factor - legacy access"""
+        self._scale = Vec2(float(value), self._scale.y)
     
     @property
     def scale_y(self) -> float:
-        """Y scale factor"""
-        return self._scale_y
+        """Y scale factor - legacy access"""
+        return self._scale.y
+    
+    @scale_y.setter
+    def scale_y(self, value: float):
+        """Set Y scale factor - legacy access"""
+        self._scale = Vec2(self._scale.x, float(value)
     
     @scale_y.setter
     def scale_y(self, value: float):
@@ -114,12 +144,12 @@ class Instance:
             Clausewitz-formatted instance block
         """
         # Apply flip to scale (negative scale in CK3 format = flip)
-        scale_x = -self._scale_x if flip_x else self._scale_x
-        scale_y = -self._scale_y if flip_y else self._scale_y
+        scale_x = -self._scale.x if flip_x else self._scale.x
+        scale_y = -self._scale.y if flip_y else self._scale.y
         
         lines = []
         lines.append('\t\t\tinstance = {')
-        lines.append(f'\t\t\t\tposition = {{ {self._pos_x} {self._pos_y} }}')
+        lines.append(f'\t\t\t\tposition = {{ {self._pos.x} {self._pos.y} }}')
         lines.append(f'\t\t\t\tscale = {{ {scale_x} {scale_y} }}')
         
         if self._rotation != 0:
@@ -167,10 +197,10 @@ class Instance:
             Dictionary with instance data
         """
         return {
-            'pos_x': self._pos_x,
-            'pos_y': self._pos_y,
-            'scale_x': self._scale_x,
-            'scale_y': self._scale_y,
+            'pos_x': self._pos.x,
+            'pos_y': self._pos.y,
+            'scale_x': self._scale.x,
+            'scale_y': self._scale.y,
             'rotation': self._rotation,
             'depth': self._depth
         }

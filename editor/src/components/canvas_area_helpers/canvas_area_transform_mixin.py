@@ -1,5 +1,5 @@
 """Transform handling mixin for CanvasArea - thin coordinator that delegates to CoA model"""
-from models.transform import Transform
+from models.transform import Transform, Vec2
 
 
 class CanvasAreaTransformMixin:
@@ -16,16 +16,16 @@ class CanvasAreaTransformMixin:
 		"""
 		# Convert origin (transform widget uses center, canvas_to_coa expects top-left)
 		topleft_x, topleft_y = self.canvas_widget.center_origin_to_topleft(
-			widget_transform.pos_x, widget_transform.pos_y
+			widget_transform.pos.x, widget_transform.pos.y
 		)
 		
 		# Convert pixels to CoA space
 		pos_x, pos_y = self.canvas_widget.canvas_to_coa(topleft_x, topleft_y)
 		scale_x, scale_y = self.canvas_widget.pixels_to_coa_scale(
-			widget_transform.scale_x, widget_transform.scale_y
+			widget_transform.scale.x, widget_transform.scale.y
 		)
 		
-		return Transform(pos_x, pos_y, scale_x, scale_y, widget_transform.rotation)
+		return Transform(Vec2(pos_x, pos_y), Vec2(scale_x, scale_y), widget_transform.rotation)
 	
 	def _handle_rotation_transform(self, selected_uuids, rotation):
 		"""Handle rotation-only transforms (rotation handle dragged).
@@ -56,8 +56,8 @@ class CanvasAreaTransformMixin:
 			uuid: Layer UUID
 			coa_transform: Transform in CoA space (0-1 normalized)
 		"""
-		self.main_window.coa.set_layer_position(uuid, coa_transform.pos_x, coa_transform.pos_y)
-		self.main_window.coa.set_layer_scale(uuid, coa_transform.scale_x, coa_transform.scale_y)
+		self.main_window.coa.set_layer_position(uuid, coa_transform.pos.x, coa_transform.pos.y)
+		self.main_window.coa.set_layer_scale(uuid, coa_transform.scale.x, coa_transform.scale.y)
 		self.main_window.coa.set_layer_rotation(uuid, coa_transform.rotation)
 		self.canvas_widget.update()
 	
@@ -89,15 +89,15 @@ class CanvasAreaTransformMixin:
 		original_height = self._single_layer_aabb['height']
 		
 		# Calculate scale factors
-		scale_factor_x = coa_transform.scale_x / original_width if original_width > 0.001 else 1.0
-		scale_factor_y = coa_transform.scale_y / original_height if original_height > 0.001 else 1.0
+		scale_factor_x = coa_transform.scale.x / original_width if original_width > 0.001 else 1.0
+		scale_factor_y = coa_transform.scale.y / original_height if original_height > 0.001 else 1.0
 		
 		# Calculate rotation delta
 		rotation_delta = coa_transform.rotation - self._initial_instance_rotation
 		
 		# Apply group transform using CoA method (uses cached original positions)
 		self.main_window.coa.transform_instances_as_group(
-			uuid, coa_transform.pos_x, coa_transform.pos_y, scale_factor_x, scale_factor_y, rotation_delta
+			uuid, coa_transform.pos.x, coa_transform.pos.y, scale_factor_x, scale_factor_y, rotation_delta
 		)
 		self.canvas_widget.update()
 	
@@ -198,12 +198,12 @@ class CanvasAreaTransformMixin:
 		original_scale_y = self._drag_start_aabb['scale_y']
 		
 		# Calculate scale factors
-		scale_factor_x = coa_transform.scale_x / original_scale_x if original_scale_x > 0.001 else 1.0
-		scale_factor_y = coa_transform.scale_y / original_scale_y if original_scale_y > 0.001 else 1.0
+		scale_factor_x = coa_transform.scale.x / original_scale_x if original_scale_x > 0.001 else 1.0
+		scale_factor_y = coa_transform.scale.y / original_scale_y if original_scale_y > 0.001 else 1.0
 		
 		# Calculate position delta
-		position_delta_x = coa_transform.pos_x - original_center_x
-		position_delta_y = coa_transform.pos_y - original_center_y
+		position_delta_x = coa_transform.pos.x - original_center_x
+		position_delta_y = coa_transform.pos.y - original_center_y
 		
 		# Apply transforms per layer using CoA methods with cached state
 		for layer_state in self._drag_start_layers:

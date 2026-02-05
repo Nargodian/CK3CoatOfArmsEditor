@@ -18,11 +18,8 @@ Usage:
     layer = Layer(data, caller='canvas_area')
     
     # Access properties (automatically uses selected instance)
-    x = layer.pos_x
-    layer.pos_x = 0.6
-    
-    # UUID for stable identification
-    uuid = layer.uuid
+	x = layer.pos.x
+	layer.pos = Vec2(0.6, layer.pos.y)
     
     # Export back to dict
     data = layer.to_dict()
@@ -46,6 +43,7 @@ from constants import (
 )
 
 from .instance import Instance
+from models.transform import Vec2
 
 
 class LayerTracker:
@@ -147,13 +145,13 @@ class Layer:
     - UUID-based identification (stable across reordering)
     
     Instance Properties (per-instance):
-        pos_x, pos_y, scale_x, scale_y, rotation, depth
+        pos, scale (Vec2), rotation, depth
     
     Layer Properties (shared):
         filename, path, colors, color1, color2, color3,
         color1_name, color2_name, color3_name,
         flip_x, flip_y, mask, uuid
-    """
+    """""
     
     # Auto-incrementing ID for tracking (internal only, not persisted)
     _next_id = 0
@@ -213,44 +211,24 @@ class Layer:
     # ========================================
     
     @property
-    def pos_x(self) -> float:
-        """Get X position of selected instance (0.0 to 1.0)"""
-        return self._get_instance_property('pos_x', DEFAULT_POSITION_X)
+    def pos(self) -> Vec2:
+        """Get position of selected instance as Vec2 (0.0 to 1.0)"""
+        return self._get_instance_property('pos', Vec2(DEFAULT_POSITION_X, DEFAULT_POSITION_Y))
     
-    @pos_x.setter
-    def pos_x(self, value: float):
-        """Set X position of selected instance"""
-        self._set_instance_property('pos_x', value)
-    
-    @property
-    def pos_y(self) -> float:
-        """Get Y position of selected instance (0.0 to 1.0)"""
-        return self._get_instance_property('pos_y', DEFAULT_POSITION_Y)
-    
-    @pos_y.setter
-    def pos_y(self, value: float):
-        """Set Y position of selected instance"""
-        self._set_instance_property('pos_y', value)
+    @pos.setter
+    def pos(self, value: Vec2):
+        """Set position of selected instance"""
+        self._set_instance_property('pos', value)
     
     @property
-    def scale_x(self) -> float:
-        """Get X scale of selected instance"""
-        return self._get_instance_property('scale_x', DEFAULT_SCALE_X)
+    def scale(self) -> Vec2:
+        """Get scale of selected instance as Vec2"""
+        return self._get_instance_property('scale', Vec2(DEFAULT_SCALE_X, DEFAULT_SCALE_Y))
     
-    @scale_x.setter
-    def scale_x(self, value: float):
-        """Set X scale of selected instance"""
-        self._set_instance_property('scale_x', value)
-    
-    @property
-    def scale_y(self) -> float:
-        """Get Y scale of selected instance"""
-        return self._get_instance_property('scale_y', DEFAULT_SCALE_Y)
-    
-    @scale_y.setter
-    def scale_y(self, value: float):
-        """Set Y scale of selected instance"""
-        self._set_instance_property('scale_y', value)
+    @scale.setter
+    def scale(self, value: Vec2):
+        """Set scale of selected instance"""
+        self._set_instance_property('scale', value)
     
     @property
     def rotation(self) -> float:
@@ -507,11 +485,9 @@ class Layer:
         
         # Get defaults from current instance
         if pos_x is None:
-            pos_x = self.pos_x
-        if pos_y is None:
-            pos_y = self.pos_y
-        
-        new_instance = Instance({
+			pos_x = self.pos.x
+		if pos_y is None:
+			pos_y = self.pos.y
             'pos_x': pos_x,
             'pos_y': pos_y,
             'scale_x': DEFAULT_SCALE_X,
@@ -829,13 +805,7 @@ class Layer:
             for inst in duplicated['instances']:
                 # Instances in duplicated dict are still Instance objects after deepcopy
                 if isinstance(inst, Instance):
-                    inst.pos_x = inst.pos_x + offset_x  # setter handles clamping
-                    inst.pos_y = inst.pos_y + offset_y  # setter handles clamping
-        
-        return Layer(duplicated, caller=caller)
-    
-    def __repr__(self) -> str:
-        """String representation for debugging"""
+					inst.pos = Vec2(inst.pos.x + offset_x, inst.pos.y + offset_y)  # setter handles clamping
         return f"Layer(uuid='{self.uuid}', filename='{self.filename}', instances={self.instance_count})"
 
 

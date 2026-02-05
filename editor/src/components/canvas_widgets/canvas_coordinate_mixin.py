@@ -1,15 +1,15 @@
 """Coordinate transformation mixin for canvas widget.
 
 Provides atomic and composite coordinate transformation methods:
-- Atomic: Single-step conversions between coordinate spaces
-- Composite: Chained conversions for convenience
+- Atomic: Single-step conversions (Vec2 in, Vec2 out)
+- Helpers: Chain only atomics (never call other helpers)
 
 Coordinate spaces:
 - CoA: 0-1 normalized space (0.5 is center)
 - Frame: CoA space with frame scale/offset applied
 - Canvas: Qt pixel coordinates with zoom/pan applied
 """
-from models.transform import Transform
+from models.transform import Transform, Vec2
 
 
 class CanvasCoordinateMixin:
@@ -23,217 +23,275 @@ class CanvasCoordinateMixin:
 	"""
 	
 	# ========================================
-	# Origin conversions (geometric helpers)
+	# ATOMICS: Origin conversions
 	# ========================================
 	
-	def center_origin_to_topleft(self, center_x, center_y):
-		"""Convert center-origin coordinates to top-left origin.
+	def center_origin_to_topleft(self, center_pos):
+		"""Convert center-origin coordinates to top-left origin (ATOMIC).
 		
 		Args:
-			center_x: X in center-origin space (0 at center)
-			center_y: Y in center-origin space (0 at center)
+			center_pos: Vec2 in center-origin space (0,0 at center)
 			
 		Returns:
-			(topleft_x, topleft_y): Top-left pixel coordinates
+			Vec2 in top-left origin space
 		"""
 		half_width = self.width() / 2
 		half_height = self.height() / 2
-		topleft_x = center_x + half_width
-		topleft_y = center_y + half_height
-		return topleft_x, topleft_y
+		return Vec2(center_pos.x + half_width, center_pos.y + half_height)
 	
-	def topleft_to_center_origin(self, topleft_x, topleft_y):
-		"""Convert top-left origin to center-origin coordinates.
+	def topleft_to_center_origin(self, topleft_pos):
+		"""Convert top-left origin to center-origin coordinates (ATOMIC).
 		
 		Args:
-			topleft_x: X in top-left origin space
-			topleft_y: Y in top-left origin space
+			topleft_pos: Vec2 in top-left origin space
 			
 		Returns:
-			(center_x, center_y): Center-origin coordinates (0 at center)
+			Vec2 in center-origin space (0,0 at center)
 		"""
 		half_width = self.width() / 2
 		half_height = self.height() / 2
-		center_x = topleft_x - half_width
-		center_y = topleft_y - half_height
-		return center_x, center_y
+		return Vec2(topleft_pos.x - half_width, topleft_pos.y - half_height)
 	
 	# ========================================
-	# Atomic transformations (single-step conversions)
+	# ATOMICS: Pan/zoom/normalize
 	# ========================================
 	
-	def coa_to_frame(self, pos_x, pos_y):
-		"""Convert CoA space to frame-adjusted space.
-		
-		Applies frame scale and offset only.
+	def remove_pan(self, canvas_pos):
+		"""Remove pan offset from canvas coordinates (ATOMIC).
 		
 		Args:
-			pos_x: CoA X position (0-1)
-			pos_y: CoA Y position (0-1)
+			canvas_pos: Vec2 in canvas pixels
 			
 		Returns:
-			(frame_x, frame_y): Frame-adjusted position
+			Vec2 in canvas pixels (without pan)
 		"""
-		frame_scale, frame_offset = self.get_frame_transform()
-		
-		# Center position (move to origin)
-		centered_x = pos_x - 0.5
-		centered_y = pos_y - 0.5
-		
-		# Apply frame scale
-		scaled_x = centered_x * frame_scale[0]
-		scaled_y = centered_y * frame_scale[1]
-		
-		# Move back from origin
-		uncentered_x = scaled_x + 0.5
-		uncentered_y = scaled_y + 0.5
-		
-		# Apply frame offset
-		frame_x = uncentered_x - frame_offset[0] * frame_scale[0]
-		frame_y = uncentered_y - frame_offset[1] * frame_scale[1]
-		
-		return frame_x, frame_y
+		return Vec2(canvas_pos.x - self.pan_x, canvas_pos.y - self.pan_y)
 	
-	def frame_to_coa(self, frame_x, frame_y):
-		"""Convert frame-adjusted space to CoA space.
-		
-		Removes frame scale and offset.
+	def apply_pan(self, canvas_pos):
+		"""Apply pan offset to canvas coordinates (ATOMIC).
 		
 		Args:
-			frame_x: Frame-adjusted X position
-			frame_y: Frame-adjusted Y position
+			canvas_pos: Vec2 in canvas pixels (without pan)
 			
 		Returns:
-			(pos_x, pos_y): CoA position (0-1)
+			Vec2 in canvas pixels (with pan applied)
 		"""
-		frame_scale, frame_offset = self.get_frame_transform()
-		
-		# Remove frame offset
-		no_offset_x = frame_x + frame_offset[0] * frame_scale[0]
-		no_offset_y = frame_y + frame_offset[1] * frame_scale[1]
-		
-		# Center position (move to origin)
-		centered_x = no_offset_x - 0.5
-		centered_y = no_offset_y - 0.5
-		
-		# Remove frame scale
-		unscaled_x = centered_x / frame_scale[0]
-		unscaled_y = centered_y / frame_scale[1]
-		
-		# Move back from origin
-		pos_x = unscaled_x + 0.5
-		pos_y = unscaled_y + 0.5
-		
-		return pos_x, pos_y
+		return Vec2(canvas_pos.x + self.pan_x, canvas_pos.y + self.pan_y)
 	
-	def frame_to_canvas(self, frame_x, frame_y, clamp=False):
-		"""Convert frame space to canvas pixel coordinates.
+	def normalize_by_viewport(self, viewport_pos):
+		"""Normalize center-origin pixels by viewport size to ±1 range (ATOMIC).
 		
-		Applies zoom, pan, and viewport scaling.
+		Does NOT undo zoom - just normalizes by physical size.
 		
 		Args:
-			frame_x: Frame-adjusted X position
-			frame_y: Frame-adjusted Y position
+			viewport_pos: Vec2 pixels from center
+			
+		Returns:
+			Vec2 normalized by viewport size (still zoomed)
+		"""
+		canvas_size = min(self.width(), self.height())
+		return Vec2(
+			viewport_pos.x / (canvas_size / 2),
+			-viewport_pos.y / (canvas_size / 2)  # Flip Y (Qt Y-down)
+		)
+	
+	def denormalize_by_viewport(self, normalized_pos):
+		"""Convert ±1 range to center-origin pixels by viewport size (ATOMIC).
+		
+		Does NOT apply zoom - just denormalizes by physical size.
+		
+		Args:
+			normalized_pos: Vec2 in ±1 range (still zoomed)
+			
+		Returns:
+			Vec2 pixels from center
+		"""
+		canvas_size = min(self.width(), self.height())
+		return Vec2(
+			normalized_pos.x * (canvas_size / 2),
+			-normalized_pos.y * (canvas_size / 2)  # Flip Y
+		)
+	
+	def undo_zoom(self, normalized_pos):
+		"""Divide out zoom magnification (ATOMIC).
+		
+		Args:
+			normalized_pos: Vec2 normalized (zoomed)
+			
+		Returns:
+			Vec2 normalized at zoom=1.0
+		"""
+		return Vec2(normalized_pos.x / self.zoom_level, normalized_pos.y / self.zoom_level)
+	
+	def apply_zoom(self, normalized_pos):
+		"""Multiply by zoom magnification (ATOMIC).
+		
+		Args:
+			normalized_pos: Vec2 normalized at zoom=1.0
+			
+		Returns:
+			Vec2 normalized with zoom applied
+		"""
+		return Vec2(normalized_pos.x * self.zoom_level, normalized_pos.y * self.zoom_level)
+	
+	# ========================================
+	# HELPERS: Frame ↔ Canvas (use atomics only)
+	# ========================================
+	
+	def frame_to_canvas(self, frame_pos, clamp=False):
+		"""Convert frame space to canvas pixel coordinates (HELPER - uses atomics only).
+		
+		Args:
+			frame_pos: Vec2 in frame space (0-1)
 			clamp: If True, clamp result to canvas bounds
 			
 		Returns:
-			(x, y): Canvas pixel coordinates
+			Vec2 in canvas pixel coordinates
 		"""
-		# Convert to OpenGL coords
-		gl_x = frame_x * 2.0 - 1.0
-		gl_y = -(frame_y * 2.0 - 1.0)  # Invert Y
+		# Frame 0-1 → ±1 normalized
+		normalized_pos = Vec2(frame_pos.x * 2.0 - 1.0, -(frame_pos.y * 2.0 - 1.0))
 		
-		# Get current canvas size
-		width, height = self.width(), self.height()
-		canvas_size = min(width, height)
+		# Apply zoom
+		normalized_pos = self.apply_zoom(normalized_pos)
 		
-		# Convert to canvas pixels with zoom (pure pixel-based)
-		pixel_x = gl_x * (canvas_size / 2) * self.zoom_level
-		pixel_y = gl_y * (canvas_size / 2) * self.zoom_level
+		# Denormalize by viewport
+		viewport_pos = self.denormalize_by_viewport(normalized_pos)
 		
-		# Canvas center + pan
-		x = width / 2 + pixel_x + self.pan_x
-		y = height / 2 - pixel_y + self.pan_y  # Qt Y-down
+		# Center-origin → top-left
+		canvas_pos = self.center_origin_to_topleft(viewport_pos)
+		
+		# Apply pan
+		canvas_pos = self.apply_pan(canvas_pos)
 		
 		if clamp:
-			x = max(0, min(width, x))
-			y = max(0, min(height, y))
+			width, height = self.width(), self.height()
+			canvas_pos = Vec2(
+				max(0, min(width, canvas_pos.x)),
+				max(0, min(height, canvas_pos.y))
+			)
 		
-		return x, y
+		return canvas_pos
 	
-	def canvas_to_frame(self, x, y):
-		"""Convert canvas pixel coordinates to frame space.
-		
-		Removes zoom, pan, and viewport scaling.
+	def canvas_to_frame(self, canvas_pos):
+		"""Convert canvas pixel coordinates to frame space (HELPER - uses atomics only).
 		
 		Args:
-			x: Canvas pixel X coordinate
-			y: Canvas pixel Y coordinate
+			canvas_pos: Vec2 in canvas pixels
 			
 		Returns:
-			(frame_x, frame_y): Frame-adjusted position
+			Vec2 in frame space (0-1)
 		"""
-		# Get current canvas size
-		width, height = self.width(), self.height()
-		canvas_size = min(width, height)
+		# Remove pan
+		canvas_pos = self.remove_pan(canvas_pos)
 		
-		# Remove pan and center offset
-		pixel_x = x - width / 2 - self.pan_x
-		pixel_y = y - height / 2 - self.pan_y
+		# Top-left → center-origin
+		viewport_pos = self.topleft_to_center_origin(canvas_pos)
 		
-		# Convert to OpenGL normalized space (pure pixel-based)
-		gl_x = pixel_x / (canvas_size / 2) / self.zoom_level
-		gl_y = -pixel_y / (canvas_size / 2) / self.zoom_level
+		# Normalize by viewport
+		normalized_pos = self.normalize_by_viewport(viewport_pos)
 		
-		# Convert to frame space
-		frame_x = (gl_x + 1.0) / 2.0
-		frame_y = (-gl_y + 1.0) / 2.0
+		# Undo zoom
+		normalized_pos = self.undo_zoom(normalized_pos)
 		
-		return frame_x, frame_y
+		# ±1 normalized → frame 0-1
+		frame_pos = Vec2(
+			(normalized_pos.x + 1.0) / 2.0,
+			(-normalized_pos.y + 1.0) / 2.0  # Flip Y back
+		)
+		
+		return frame_pos
 	
 	# ========================================
-	# Composite transformations (chained conversions)
+	# HELPERS: CoA ↔ Frame (use atomics only)
 	# ========================================
 	
-	def coa_to_canvas(self, pos_x, pos_y, clamp=False):
-		"""Convert CoA space (0-1) to canvas pixel coordinates.
-		
-		Applies frame transforms, zoom, pan, and viewport scaling.
-		Fetches all state (zoom, pan, size, frame) from self.
+	def coa_to_frame(self, coa_pos):
+		"""Convert CoA space to frame-adjusted space (HELPER - uses atomics only).
 		
 		Args:
-			pos_x: CoA X position (0-1, where 0.5 is center)
-			pos_y: CoA Y position (0-1, where 0.5 is center)
+			coa_pos: Vec2 in CoA space (0-1)
+			
+		Returns:
+			Vec2 in frame space (0-1)
+		"""
+		frame_scales, frame_offsets = self.get_frame_transform()
+		
+		# Move to origin
+		frame_pos = Vec2(coa_pos.x - 0.5, coa_pos.y - 0.5)
+		
+		# Apply frame scale
+		frame_pos = Vec2(frame_pos.x * frame_scales[0], frame_pos.y * frame_scales[1])
+		
+		# Apply frame offset
+		frame_pos = Vec2(frame_pos.x + frame_offsets[0], frame_pos.y + frame_offsets[1])
+		
+		# Move back from origin
+		frame_pos = Vec2(frame_pos.x + 0.5, frame_pos.y + 0.5)
+		
+		return frame_pos
+	
+	def frame_to_coa(self, frame_pos):
+		"""Convert frame-adjusted space back to CoA space (HELPER - uses atomics only).
+		
+		Args:
+			frame_pos: Vec2 in frame space (0-1)
+			
+		Returns:
+			Vec2 in CoA space (0-1)
+		"""
+		frame_scales, frame_offsets = self.get_frame_transform()
+		
+		# Move to origin
+		coa_pos = Vec2(frame_pos.x - 0.5, frame_pos.y - 0.5)
+		
+		# Remove frame offset
+		coa_pos = Vec2(coa_pos.x - frame_offsets[0], coa_pos.y - frame_offsets[1])
+		
+		# Remove frame scale
+		coa_pos = Vec2(coa_pos.x / frame_scales[0], coa_pos.y / frame_scales[1])
+		
+		# Move back from origin
+		coa_pos = Vec2(coa_pos.x + 0.5, coa_pos.y + 0.5)
+		
+		return coa_pos
+	
+	# ========================================
+	# HELPERS: CoA ↔ Canvas (composite chains)
+	# ========================================
+	
+	def coa_to_canvas(self, coa_pos, clamp=False):
+		"""Convert CoA space (0-1) to canvas pixel coordinates (HELPER).
+		
+		Args:
+			coa_pos: Vec2 in CoA space (0-1, where 0.5 is center)
 			clamp: If True, clamp result to canvas bounds
 			
 		Returns:
-			(x, y): Canvas pixel coordinates
+			Vec2 in canvas pixel coordinates
 		"""
-		frame_x, frame_y = self.coa_to_frame(pos_x, pos_y)
-		return self.frame_to_canvas(frame_x, frame_y, clamp)
+		frame_pos = self.coa_to_frame(coa_pos)
+		return self.frame_to_canvas(frame_pos, clamp)
 	
-	def canvas_to_coa(self, x, y, clamp=False):
-		"""Convert canvas pixel coordinates to CoA space (0-1).
-		
-		Reverses zoom, pan, viewport scaling, and frame transforms.
-		Fetches all state from self.
+	def canvas_to_coa(self, canvas_pos, clamp=False):
+		"""Convert canvas pixel coordinates to CoA space (0-1) (HELPER).
 		
 		Args:
-			x: Canvas pixel X coordinate
-			y: Canvas pixel Y coordinate
+			canvas_pos: Vec2 in canvas pixels
 			clamp: If True, clamp result to 0-1 range
 			
 		Returns:
-			(pos_x, pos_y): CoA position (0-1 range)
+			Vec2 in CoA space (0-1 range)
 		"""
-		frame_x, frame_y = self.canvas_to_frame(x, y)
-		pos_x, pos_y = self.frame_to_coa(frame_x, frame_y)
+		frame_pos = self.canvas_to_frame(canvas_pos)
+		coa_pos = self.frame_to_coa(frame_pos)
 		
 		if clamp:
-			pos_x = max(0.0, min(1.0, pos_x))
-			pos_y = max(0.0, min(1.0, pos_y))
+			coa_pos = Vec2(
+				max(0.0, min(1.0, coa_pos.x)),
+				max(0.0, min(1.0, coa_pos.y))
+			)
 		
-		return pos_x, pos_y
+		return coa_pos
 	
 	# ========================================
 	# Scale transformations (atomic + composite)
@@ -285,10 +343,7 @@ class CanvasCoordinateMixin:
 		return self.frame_scale_to_pixels(frame_scale_x, frame_scale_y)
 	
 	def coa_to_transform_widget(self, coa_transform):
-		"""Convert CoA space to transform widget center-origin coordinates.
-		
-		Combines position + scale conversion and applies center-origin shift
-		for transform widget (which uses center=0,0 coordinate system).
+		"""Convert CoA space to transform widget center-origin coordinates (HELPER).
 		
 		Args:
 			coa_transform: Transform in CoA space (0-1 normalized)
@@ -296,15 +351,17 @@ class CanvasCoordinateMixin:
 		Returns:
 			Transform in widget pixel space (center-origin)
 		"""
-		# Convert to canvas top-left pixels
-		canvas_x, canvas_y = self.coa_to_canvas(coa_transform.pos_x, coa_transform.pos_y)
-		half_w, half_h = self.coa_scale_to_pixels(coa_transform.scale_x, coa_transform.scale_y)
+		# Convert position to canvas top-left pixels
+		canvas_pos = self.coa_to_canvas(coa_transform.pos)
+		
+		# Convert scale to pixels
+		half_w, half_h = self.coa_scale_to_pixels(coa_transform.scale.x, coa_transform.scale.y)
 		
 		# Shift to center-origin (transform widget coordinate system)
-		center_x = canvas_x - self.width() / 2
-		center_y = canvas_y - self.height() / 2
+		widget_pos = Vec2(canvas_pos.x - self.width() / 2, canvas_pos.y - self.height() / 2)
+		widget_scale = Vec2(half_w, half_h)
 		
-		return Transform(center_x, center_y, half_w, half_h, coa_transform.rotation)
+		return Transform(widget_pos, widget_scale, coa_transform.rotation)
 	
 	def pixels_to_frame_scale(self, half_w, half_h):
 		"""Convert pixel AABB half-dimensions to frame-adjusted scale.
