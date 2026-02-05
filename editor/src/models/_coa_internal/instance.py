@@ -62,8 +62,11 @@ class Instance:
     
     @scale.setter
     def scale(self, value: Vec2):
-        """Set scale"""
-        self._scale = Vec2(float(value.x), float(value.y))
+        """Set scale with clamping to [0.01, 1.0]"""
+        self._scale = Vec2(
+            max(0.01, min(1.0, float(value.x))),
+            max(0.01, min(1.0, float(value.y)))
+        )
     
     # ========================================
     # Legacy Properties (backward compatibility)

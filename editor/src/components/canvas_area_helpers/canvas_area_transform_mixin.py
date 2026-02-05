@@ -222,11 +222,13 @@ class CanvasAreaTransformMixin:
 			new_scale_x = cached['scale_x'] * scale_factor_x
 			new_scale_y = cached['scale_y'] * scale_factor_y
 			
-			# Clamp
-			new_pos_x = max(0.0, min(1.0, new_pos_x))
-			new_pos_y = max(0.0, min(1.0, new_pos_y))
-			new_scale_x = max(0.01, min(1.0, new_scale_x))
-			new_scale_y = max(0.01, min(1.0, new_scale_y))
+			# Conditional widget-level clamping: only for single layer + single instance
+			# (Model always enforces clamping, this is UI convenience)
+			if len(self._drag_start_layers) == 1 and not layer_state.get('is_multi_instance', False):
+				new_pos_x = max(0.0, min(1.0, new_pos_x))
+				new_pos_y = max(0.0, min(1.0, new_pos_y))
+				new_scale_x = max(0.01, min(1.0, new_scale_x))
+				new_scale_y = max(0.01, min(1.0, new_scale_y))
 			
 			# Apply using CoA method
 			if layer_state.get('is_multi_instance', False):
