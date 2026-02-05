@@ -660,6 +660,10 @@ class PropertySidebar(QFrame):
 		
 		# Update mask channel color indicators
 		self.update_mask_colors_from_base()
+		
+		# Update asset sidebar pattern previews with new background colors
+		if self.main_window and hasattr(self.main_window, 'left_sidebar'):
+			self.main_window.left_sidebar.update_asset_colors()
 	
 	def set_emblem_color_count(self, count):
 		"""Show/hide emblem color swatches based on asset color count (1, 2, or 3)"""
