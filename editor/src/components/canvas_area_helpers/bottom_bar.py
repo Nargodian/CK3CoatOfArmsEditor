@@ -88,9 +88,9 @@ class BottomBar(QFrame):
 		
 		# Transform mode dropdown
 		self.transform_mode_combo = QComboBox()
-		self.transform_mode_combo.addItems(["Normal", "Minimal", "Gimble"])
-		self.transform_mode_combo.setCurrentIndex(0)  # Default to Normal
-		self.transform_mode_combo.setToolTip("Transform Widget Mode (M)\nNormal: Scale + rotation handles\nMinimal: Corners only\nGimble: Position arrows + rotation ring")
+		self.transform_mode_combo.addItems(["BBox", "Minimal", "Gimble"])
+		self.transform_mode_combo.setCurrentIndex(0)  # Default to BBox
+		self.transform_mode_combo.setToolTip("Transform Widget Mode (M)\nBBox: Scale + rotation handles\nMinimal: Corners only\nGimble: Position arrows + rotation ring")
 		self.transform_mode_combo.setFixedHeight(20)
 		self.transform_mode_combo.setStyleSheet("""
 			QComboBox {
@@ -211,5 +211,5 @@ class BottomBar(QFrame):
 	
 	def _on_transform_mode_changed(self, index):
 		"""Handle transform mode dropdown change"""
-		mode = ["normal", "minimal", "gimble"][index]
+		mode = ["bbox", "minimal", "gimble"][index]
 		self.canvas_area.transform_widget.set_transform_mode(mode)

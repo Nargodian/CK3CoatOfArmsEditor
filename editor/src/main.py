@@ -2227,6 +2227,7 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()
+			self.canvas_area.canvas_widget.on_coa_structure_changed()  # Invalidate picker RTT
 			self.canvas_area.canvas_widget.update()
 			
 			# Select the newly created layer
@@ -2307,6 +2308,7 @@ class CoatOfArmsEditor(QMainWindow):
 			
 			# Update UI
 			self.right_sidebar._rebuild_layer_list()
+			self.canvas_area.canvas_widget.on_coa_structure_changed()  # Invalidate picker RTT
 			self.canvas_area.canvas_widget.update()
 			
 			# Select the newly created container and collapse it

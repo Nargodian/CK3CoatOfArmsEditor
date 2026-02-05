@@ -267,6 +267,9 @@ class CoatOfArmsCanvas(CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 		# Create RTT framebuffer
 		self.framebuffer_rtt = FramebufferRTT()
 		
+		# Create separate picker framebuffer (to avoid overwriting CoA RTT)
+		self.picker_framebuffer = FramebufferRTT()
+		
 		self.base_shader.bind()
 		
 		# Create quad vertices (position + UV)
@@ -1932,6 +1935,14 @@ class CoatOfArmsCanvas(CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 		"""Set the base layer colors [color1, color2, color3] as RGB float arrays"""
 		self.base_colors = colors
 		self.update()
+	
+	def on_coa_structure_changed(self):
+		"""Called when CoA structure changes (layers added/removed/reordered)
+		
+		Invalidates picker RTT cache to ensure picker tool works with updated layers.
+		"""
+		if hasattr(self, 'invalidate_picker_rtt'):
+			self.invalidate_picker_rtt()
 	
 	def set_layers(self, layers):
 		"""Update the emblem layers to render (DEPRECATED - kept for compatibility)"""

@@ -346,11 +346,12 @@ class CanvasCoordinateMixin:
 		frame_scale_x, frame_scale_y = self.coa_scale_to_frame_scale(scale_x, scale_y)
 		return self.frame_scale_to_pixels(frame_scale_x, frame_scale_y)
 	
-	def coa_to_transform_widget(self, coa_transform):
+	def coa_to_transform_widget(self, coa_transform, is_aabb_dimension=False):
 		"""Convert CoA space to transform widget center-origin coordinates (HELPER).
 		
 		Args:
 			coa_transform: Transform in CoA space (0-1 normalized)
+			is_aabb_dimension: If True, scale is an AABB dimension (not a multiplier)
 			
 		Returns:
 			Transform in widget pixel space (center-origin)
@@ -359,7 +360,15 @@ class CanvasCoordinateMixin:
 		canvas_pos = self.coa_to_canvas(coa_transform.pos)
 		
 		# Convert scale to pixels
-		half_w, half_h = self.coa_scale_to_pixels(coa_transform.scale.x, coa_transform.scale.y)
+		if is_aabb_dimension:
+			# For AABB dimensions, treat as raw CoA space spans (no frame compensation)
+			# Convert dimension to pixels: dimension * viewport_size
+			from components.canvas_widget_NEW import COA_BASE_SIZE_PX
+			half_w = coa_transform.scale.x * COA_BASE_SIZE_PX * self.zoom_level / 2.0
+			half_h = coa_transform.scale.y * COA_BASE_SIZE_PX * self.zoom_level / 2.0
+		else:
+			# For instance scales, apply frame compensation
+			half_w, half_h = self.coa_scale_to_pixels(coa_transform.scale.x, coa_transform.scale.y)
 		
 		# Shift to center-origin (transform widget coordinate system)
 		widget_pos = Vec2(canvas_pos.x - self.width() / 2, canvas_pos.y - self.height() / 2)

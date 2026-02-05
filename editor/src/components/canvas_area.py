@@ -167,7 +167,7 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
 				Vec2(bounds['center_x'], bounds['center_y']), 
 				Vec2(bounds['width'], bounds['height']), 0
 			)
-			widget_transform = self.canvas_widget.coa_to_transform_widget(coa_transform)
+			widget_transform = self.canvas_widget.coa_to_transform_widget(coa_transform, is_aabb_dimension=True)
 			self.transform_widget.set_transform(
 				widget_transform.pos.x, widget_transform.pos.y, 
 				widget_transform.scale.x, widget_transform.scale.y, 
@@ -202,7 +202,7 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
 			self._initial_group_rotation = 0
 		
 		coa_transform = Transform(Vec2(group_pos_x, group_pos_y), Vec2(group_scale_x, group_scale_y), 0)
-		widget_transform = self.canvas_widget.coa_to_transform_widget(coa_transform)
+		widget_transform = self.canvas_widget.coa_to_transform_widget(coa_transform, is_aabb_dimension=True)
 		self.transform_widget.set_transform(
 			widget_transform.pos.x, widget_transform.pos.y, 
 			widget_transform.scale.x, widget_transform.scale.y, 

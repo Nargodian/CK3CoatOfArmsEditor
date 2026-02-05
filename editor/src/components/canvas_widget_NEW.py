@@ -36,6 +36,7 @@ from utils.path_resolver import (
 
 # Import existing components
 from components.canvas_widgets.shader_manager import ShaderManager
+from components.canvas_widgets.canvas_rendering_mixin import CanvasRenderingMixin
 from components.canvas_widgets.canvas_tools_mixin import CanvasToolsMixin
 from components.canvas_widgets.canvas_preview_mixin import CanvasPreviewMixin
 from components.canvas_widgets.canvas_texture_loader_mixin import CanvasTextureLoaderMixin
@@ -55,7 +56,7 @@ COA_BASE_SIZE_PX = 256.0  # Base CoA size in pixels
 FRAME_SIZE_PX = COA_BASE_SIZE_PX * FRAME_COA_RATIO * FRAME_FUDGE_SCALE  # Frame is 130% of CoA, slightly shrunk
 
 
-class CoatOfArmsCanvas(CanvasCoordinateMixin, CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
+class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPanMixin, CanvasTextureLoaderMixin, CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 	"""OpenGL canvas for rendering coat of arms with shaders."""
 	
 	def __init__(self, parent=None):
@@ -179,6 +180,9 @@ class CoatOfArmsCanvas(CanvasCoordinateMixin, CanvasZoomPanMixin, CanvasTextureL
 		# Create RTT framebuffer
 		self.framebuffer_rtt = FramebufferRTT()
 		
+		# Create separate picker framebuffer (to avoid overwriting CoA RTT)
+		self.picker_framebuffer = FramebufferRTT()
+		
 		# Create quad geometry (static unit quad for GPU transforms)
 		self.vao, self.vbo, self.ebo = QuadRenderer.create_unit_quad()
 		
@@ -241,128 +245,14 @@ class CoatOfArmsCanvas(CanvasCoordinateMixin, CanvasZoomPanMixin, CanvasTextureL
 		gl.glEnable(gl.GL_BLEND)
 		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 		
-		# Render base pattern
-		# Render base pattern
+		# Render base pattern and emblem layers (from CanvasRenderingMixin)
 		self._render_base_pattern()
-		
-		# Render emblem layers
 		self._render_emblem_layers()
 		
 		gl.glFlush()
 		self.framebuffer_rtt.unbind(self.defaultFramebufferObject())
 	
-	def _render_base_pattern(self):
-		"""Render the base pattern layer."""
-		if not self.base_shader or not self.default_mask_texture:
-			print(f"Base pattern early return: shader={self.base_shader}, mask={self.default_mask_texture}")
-			return
-		
-		# Get pattern texture
-		u0, v0, u1, v1 = 0.0, 0.0, 1.0, 1.0
-		pattern_texture_id = self.default_mask_texture
-		if self.base_texture and self.base_texture in self.texture_uv_map:
-			atlas_index, u0, v0, u1, v1 = self.texture_uv_map[self.base_texture]
-			if 0 <= atlas_index < len(self.texture_atlases):
-				pattern_texture_id = self.texture_atlases[atlas_index]
-		
-		# Base pattern rendering
-		
-		# Render using static quad + shader transforms
-		self.vao.bind()
-		self.base_shader.bind()
-		
-		gl.glActiveTexture(gl.GL_TEXTURE0)
-		gl.glBindTexture(gl.GL_TEXTURE_2D, pattern_texture_id)
-		self.base_shader.setUniformValue("patternMaskSampler", 0)
-		self.base_shader.setUniformValue("color1", QVector3D(*self.base_colors[0]))
-		self.base_shader.setUniformValue("color2", QVector3D(*self.base_colors[1]))
-		self.base_shader.setUniformValue("color3", QVector3D(*self.base_colors[2]))
-		
-		# Set transform uniforms (fill entire 512×512 framebuffer)
-		self.base_shader.setUniformValue("screenRes", QVector2D(512.0, 512.0))
-		self.base_shader.setUniformValue("position", QVector2D(0.0, 0.0))
-		self.base_shader.setUniformValue("scale", QVector2D(512.0, 512.0))
-		self.base_shader.setUniformValue("rotation", 0.0)
-		self.base_shader.setUniformValue("uvOffset", QVector2D(u0, v0))
-		self.base_shader.setUniformValue("uvScale", QVector2D(u1 - u0, v1 - v0))
-		self.base_shader.setUniformValue("flipU", False)
-		self.base_shader.setUniformValue("flipV", False)
-		
-		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-		
-		self.base_shader.release()
-		self.vao.release()
-	
-	def _render_emblem_layers(self):
-		"""Render all emblem layers from CoA model."""
-		coa = CoA.get_active() if CoA.has_active() else None
-		if not coa or not self.design_shader or coa.get_layer_count() == 0:
-			return
-		
-		self.vao.bind()
-		self.design_shader.bind()
-		
-		# Bind pattern texture once for mask channels
-		self._bind_pattern_for_masks()
-		
-		# Iterate through layers
-		for layer_uuid in coa.get_all_layer_uuids():
-			if not coa.get_layer_visible(layer_uuid):
-				continue
-			
-			filename = coa.get_layer_filename(layer_uuid)
-			if not filename or filename not in self.texture_uv_map:
-				continue
-			
-			atlas_idx, u0, v0, u1, v1 = self.texture_uv_map[filename]
-			if atlas_idx >= len(self.texture_atlases):
-				continue
-			
-			# Bind emblem texture
-			gl.glActiveTexture(gl.GL_TEXTURE0)
-			gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[atlas_idx])
-			self.design_shader.setUniformValue("emblemMaskSampler", 0)
-			
-			# Set layer properties
-			self._set_layer_uniforms(coa, layer_uuid)
-			
-			# Render all instances
-			self._render_layer_instances(coa, layer_uuid, (u0, v0, u1, v1))
-		
-		self.design_shader.release()
-		self.vao.release()
-	
-	def _bind_pattern_for_masks(self):
-		"""Bind pattern texture for emblem mask channels."""
-		if self.base_texture and self.base_texture in self.texture_uv_map:
-			pattern_atlas_idx, p_u0, p_v0, p_u1, p_v1 = self.texture_uv_map[self.base_texture]
-			if pattern_atlas_idx < len(self.texture_atlases):
-				gl.glActiveTexture(gl.GL_TEXTURE2)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_atlases[pattern_atlas_idx])
-				if self.design_shader.uniformLocation("patternMaskSampler") != -1:
-					self.design_shader.setUniformValue("patternMaskSampler", 2)
-				if self.design_shader.uniformLocation("patternUV") != -1:
-					self.design_shader.setUniformValue("patternUV", QVector4D(p_u0, p_v0, p_u1, p_v1))
-	
-	def _set_layer_uniforms(self, coa, layer_uuid):
-		"""Set shader uniforms for a layer."""
-		# Colors
-		color1 = coa.get_layer_color(layer_uuid, 1)
-		color2 = coa.get_layer_color(layer_uuid, 2)
-		color3 = coa.get_layer_color(layer_uuid, 3)
-		self.design_shader.setUniformValue("primaryColor", color1[0], color1[1], color1[2])
-		self.design_shader.setUniformValue("secondaryColor", color2[0], color2[1], color2[2])
-		self.design_shader.setUniformValue("tertiaryColor", color3[0], color3[1], color3[2])
-		
-		# Selection tint
-		show_tint = self._should_show_selection_tint()
-		is_selected = self._is_layer_selected(layer_uuid)
-		self.design_shader.setUniformValue("selectionTint", 1.0 if (show_tint and is_selected) else 0.0)
-		
-		# Pattern mask
-		mask = coa.get_layer_mask(layer_uuid)
-		pattern_flag = self._calculate_pattern_flag(mask)
-		self.design_shader.setUniformValue("patternFlag", pattern_flag)
+	# Core CoA rendering methods now in CanvasRenderingMixin
 	
 	def _should_show_selection_tint(self):
 		"""Check if selection tint should be shown."""
@@ -395,48 +285,7 @@ class CoatOfArmsCanvas(CanvasCoordinateMixin, CanvasZoomPanMixin, CanvasTextureL
 			pattern_flag |= 2
 		if len(mask) > 2 and mask[2] != 0:
 			pattern_flag |= 4
-		return pattern_flag
-	
-	def _render_layer_instances(self, coa, layer_uuid, uv_coords):
-		"""Render all instances of a layer."""
-		import math
-		
-		flip_x = coa.get_layer_flip_x(layer_uuid)
-		flip_y = coa.get_layer_flip_y(layer_uuid)
-		instance_count = coa.get_layer_instance_count(layer_uuid)
-		u0, v0, u1, v1 = uv_coords
-		
-		for instance_idx in range(instance_count):
-			instance = coa.get_layer_instance(layer_uuid, instance_idx)
-			
-			# quad.vert expects pixel-based coordinates in 512×512 framebuffer
-			# Convert CoA space (0-1) to pixel position (0-512)
-			center_x_coa = instance.pos.x - 0.5  # Center around 0
-			center_y_coa = instance.pos.y - 0.5  # Center around 0
-			
-			# Convert to pixels (CoA center is at 256, 256)
-			center_x_px = center_x_coa * 512.0  # Offset from center in pixels
-			center_y_px = -center_y_coa * 512.0  # Invert Y, offset from center in pixels
-			
-			# Scale is in CoA coordinates (0-1 range = full width/height)
-			# Convert to pixels: scale * 512
-			scale_x_px = instance.scale.x * 512.0
-			scale_y_px = instance.scale.y * 512.0
-			
-			# Negate rotation: CK3 uses Y-down (clockwise positive), OpenGL uses Y-up (counterclockwise positive)
-			rotation_rad = math.radians(-instance.rotation)
-			
-			# Set transform uniforms for quad.vert (pixel-based)
-			self.design_shader.setUniformValue("screenRes", QVector2D(512.0, 512.0))
-			self.design_shader.setUniformValue("position", QVector2D(center_x_px, center_y_px))
-			self.design_shader.setUniformValue("scale", QVector2D(scale_x_px, scale_y_px))
-			self.design_shader.setUniformValue("rotation", rotation_rad)
-			self.design_shader.setUniformValue("uvOffset", QVector2D(u0, v0))
-			self.design_shader.setUniformValue("uvScale", QVector2D(u1 - u0, v1 - v0))
-			self.design_shader.setUniformValue("flipU", flip_x)
-			self.design_shader.setUniformValue("flipV", flip_y)
-			
-			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+		retuglDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 	
 	def _composite_to_viewport(self):
 		"""Composite RTT texture to viewport with zoom and frame."""
@@ -538,20 +387,7 @@ class CoatOfArmsCanvas(CanvasCoordinateMixin, CanvasZoomPanMixin, CanvasTextureL
 		size_x_px = frame_size
 		size_y_px = frame_size
 		
-		# Position in pixels
-		position_x_px = self.pan_x
-		position_y_px = -self.pan_y
-		
-		# Render quad with tilesheet shader (6x1 grid for prestige levels)
-		self.vao.bind()
-		self.tilesheet_shader.bind()
-		
-		gl.glActiveTexture(gl.GL_TEXTURE0)
-		gl.glBindTexture(gl.GL_TEXTURE_2D, self.frameTextures[self.current_frame_name])
-		self.tilesheet_shader.setUniformValue("textureSampler", 0)
-		
-		# Set tilesheet uniforms
-		self.tilesheet_shader.setUniformValue("tileCols", 6)
+		# Postilesheet_shader.setUniformValue("tileCols", 6)
 		self.tilesheet_shader.setUniformValue("tileRows", 1)
 		self.tilesheet_shader.setUniformValue("tileIndex", max(0, min(5, self.prestige_level)))
 		
@@ -718,6 +554,19 @@ class CoatOfArmsCanvas(CanvasCoordinateMixin, CanvasZoomPanMixin, CanvasTextureL
 			return
 		# Fall back to default
 		super().mouseReleaseEvent(event)
+	
+	def _invalidate_picker_if_needed(self):
+		"""Invalidate picker RTT when CoA structure changes"""
+		if hasattr(self, 'invalidate_picker_rtt'):
+			self.invalidate_picker_rtt()
+		# Force regeneration on next picker activation
+		self.update()  # Repaint if picker is active
+	
+	def cleanup(self):
+		"""Clean up OpenGL resources (call before widget destruction)"""
+		# Clean up picker resources
+		if hasattr(self, '_cleanup_picker_resources'):
+			self._cleanup_picker_resources()
 	
 	# Note: Export methods, composite helpers, and preview rendering methods
 	# from the original file would continue here. This demonstrates the refactored

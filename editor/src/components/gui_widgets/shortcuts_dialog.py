@@ -64,7 +64,7 @@ class ShortcutsDialog(QDialog):
         
         <h3>Transform Widget</h3>
         <table width="100%">
-        <tr><td width="30%"><b>M</b></td><td>Cycle transform modes (Normal/Minimal/Gimble)</td></tr>
+        <tr><td width="30%"><b>M</b></td><td>Cycle transform modes (BBox/Minimal/Gimble)</td></tr>
         <tr><td><b>Shift</b></td><td>(while rotating) Snap rotation to 45° increments</td></tr>
         <tr><td><b>Ctrl+Drag</b></td><td>(on transform handles) Duplicate layer while moving</td></tr>
         <tr><td><b>Mouse Wheel</b></td><td>(while dragging) Adjust scale uniformly</td></tr>

@@ -110,6 +110,9 @@ class CanvasToolsMixin:
 		if hasattr(self, 'canvas_area') and self.canvas_area:
 			if hasattr(self.canvas_area, 'transform_widget'):
 				self.canvas_area.transform_widget.set_visible(False)
+		
+		# Trigger repaint to ensure clean OpenGL state
+		self.update()
 	
 	def _deactivate_layer_picker(self):
 		"""Deactivate layer picker tool"""
@@ -158,34 +161,59 @@ class CanvasToolsMixin:
 				self.picker_uuid_map[(r_int, g_int, b_int)] = layer.uuid
 		
 		# Now actually render the picker RTT using OpenGL
-		self._render_picker_to_framebuffer()
+		success = self._render_picker_to_framebuffer()
+		self.picker_rtt_valid = success
 		
-		self.picker_rtt_valid = True
-		print(f"Generated picker RTT: {len(self.picker_uuid_map)} layers mapped")
+		if success:
+			print(f"Generated picker RTT: {len(self.picker_uuid_map)} layers mapped")
+		else:
+			print("ERROR: Failed to generate picker RTT")
 	
 	def _render_picker_to_framebuffer(self):
-		"""Render picker RTT using OpenGL picker shader"""
+		"""Render picker RTT using OpenGL picker shader
+		
+		Returns:
+			bool: True if rendering succeeded, False otherwise
+		"""
 		import OpenGL.GL as gl
 		import numpy as np
 		from models.coa import CoA
 		import math
 		
+		# Validation checks
 		if not CoA.has_active():
-			return
+			print("WARNING: Cannot generate picker RTT - no active CoA")
+			return False
+		
+		if not hasattr(self, 'picker_framebuffer') or not self.picker_framebuffer:
+			print("ERROR: Cannot generate picker RTT - no picker framebuffer")
+			return False
+		
+		if not hasattr(self, 'picker_shader') or not self.picker_shader:
+			print("ERROR: Cannot generate picker RTT - no picker shader")
+			return False
+		
+		if not hasattr(self, 'vao') or not self.vao:
+			print("ERROR: Cannot generate picker RTT - no VAO")
+			return False
+		
+		if not hasattr(self, 'texture_uv_map') or not self.texture_uv_map:
+			print("WARNING: Cannot generate picker RTT - no texture UV map")
+			return False
 		
 		coa = CoA.get_active()
 		
 		# Make sure OpenGL context is current
 		self.makeCurrent()
 		
-		# Bind framebuffer for picker rendering (uses existing 512x512 RTT framebuffer)
-		if not hasattr(self, 'framebuffer_rtt') or not self.framebuffer_rtt:
+		# Bind picker framebuffer for rendering (separate from CoA RTT)
+		if not hasattr(self, 'picker_framebuffer') or not self.picker_framebuffer:
 			return
 		
-		self.framebuffer_rtt.bind()
+		self.picker_framebuffer.bind()
 		
 		# Set viewport to match framebuffer size
-		gl.glViewport(0, 0, self.framebuffer_rtt.COA_RTT_WIDTH, self.framebuffer_rtt.COA_RTT_HEIGHT)
+		gl.glViewport(0, 0, self.picker_framebuffer.COA_RTT_WIDTH, self.picker_framebuffer.COA_RTT_HEIGHT)
 		
 		# Clear to black (0,0,0 = no layer)
 		gl.glClearColor(0.0, 0.0, 0.0, 1.0)
@@ -195,7 +223,7 @@ class CanvasToolsMixin:
 		gl.glDisable(gl.GL_BLEND)
 		
 		if not self.picker_shader or not self.vao:
-			self.framebuffer_rtt.unbind(self.defaultFramebufferObject())
+			self.picker_framebuffer.unbind(self.defaultFramebufferObject())
 			return
 		
 		self.picker_shader.bind()
@@ -313,9 +341,9 @@ class CanvasToolsMixin:
 		
 		gl.glFlush()
 		
-		# Read pixels from framebuffer
-		width = self.framebuffer_rtt.COA_RTT_WIDTH
-		height = self.framebuffer_rtt.COA_RTT_HEIGHT
+		# Read pixels from picker framebuffer
+		width = self.picker_framebuffer.COA_RTT_WIDTH
+		height = self.picker_framebuffer.COA_RTT_HEIGHT
 		pixels = gl.glReadPixels(0, 0, width, height, gl.GL_RGB, gl.GL_UNSIGNED_BYTE)
 		
 		# Convert to numpy array and save as PNG for debugging
@@ -337,13 +365,15 @@ class CanvasToolsMixin:
 		# Unbind and restore blending
 		self.vao.release()
 		self.picker_shader.release()
-		self.framebuffer_rtt.unbind(self.defaultFramebufferObject())
+		self.picker_framebuffer.unbind(self.defaultFramebufferObject())
 		
 		# Restore viewport to widget size
 		gl.glViewport(0, 0, self.width(), self.height())
 		
 		gl.glEnable(gl.GL_BLEND)
 		gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+		
+		return True  # Success
 	
 	def get_picker_color_for_layer_index(self, layer_index):
 		"""Get normalized RGB color for layer index (for shader uniform)
@@ -416,13 +446,26 @@ class CanvasToolsMixin:
 		# Get last mouse position and convert to UV
 		if hasattr(self, 'last_picker_mouse_pos') and self.last_picker_mouse_pos:
 			# Convert canvas pixels to CoA space using instance method
-			coa_x, coa_y = self.canvas_to_coa(
-				self.last_picker_mouse_pos.x(), 
-				self.last_picker_mouse_pos.y()
-			)
-			return (coa_x, coa_y)
+			from models.transform import Vec2
+			canvas_pos = Vec2(self.last_picker_mouse_pos.x(), self.last_picker_mouse_pos.y())
+			coa_pos = self.canvas_to_coa(canvas_pos)
+			return (coa_pos.x, coa_pos.y)
 		
 		return (-1.0, -1.0)
+	
+	def _cleanup_picker_resources(self):
+		"""Clean up picker RTT OpenGL resources (call before widget destruction)"""
+		if hasattr(self, 'picker_texture_id') and self.picker_texture_id:
+			try:
+				import OpenGL.GL as gl
+				self.makeCurrent()  # Ensure context active
+				gl.glDeleteTextures([self.picker_texture_id])
+				self.picker_texture_id = None
+				self.picker_rtt = None
+				self.picker_rtt_valid = False
+				print("Cleaned up picker RTT resources")
+			except Exception as e:
+				print(f"WARNING: Error cleaning up picker resources: {e}")
 	
 	def invalidate_picker_rtt(self):
 		"""Invalidate picker RTT (call when CoA changes)"""
@@ -454,7 +497,10 @@ class CanvasToolsMixin:
 			return None
 		
 		# Convert canvas pixels to CoA space using instance method
-		coa_x, coa_y = self.canvas_to_coa(mouse_pos.x(), mouse_pos.y())
+		from models.transform import Vec2
+		canvas_pos = Vec2(mouse_pos.x(), mouse_pos.y())
+		coa_pos = self.canvas_to_coa(canvas_pos)
+		coa_x, coa_y = coa_pos.x, coa_pos.y
 		
 		# Convert CoA space to RTT pixel coords
 		# Add 0.5 to round to nearest pixel (OpenGL texture centers are at pixel+0.5)
