@@ -598,14 +598,10 @@ class PropertySidebar(QFrame):
 				if self.main_window and hasattr(self.main_window, 'left_sidebar'):
 					self.main_window.left_sidebar.update_asset_colors()
 				
-				# Save to history
-				if self.main_window and hasattr(self.main_window, '_save_state'):
-					self.main_window._save_state(f"Change emblem color {color_idx+1}")
+			# Update canvas
+			if self.canvas_widget:
+				self.canvas_widget.update()
 			
-			# Rebuild layer list to update thumbnails
-			self._rebuild_layer_list()
-	
-	# ========================================
 	# Color Management (Base & Emblem)
 	# ========================================
 	
