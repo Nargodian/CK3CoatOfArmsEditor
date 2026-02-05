@@ -44,19 +44,17 @@ class Handle(ABC):
 	
 	@abstractmethod
 	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
-	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+	         start_transform, modifiers):
 		"""Handle drag operation for this handle type.
 		
 		Args:
 			mouse_x, mouse_y: Current mouse position in center-origin coordinates
 			start_mouse_x, start_mouse_y: Drag start mouse position in center-origin coordinates
-			start_cx, start_cy: Transform center at drag start (pixels, center-origin)
-			start_hw, start_hh: Half-dimensions at drag start (pixels)
-			start_rot: Rotation at drag start (degrees)
+			start_transform: Transform object with initial state
 			modifiers: Qt keyboard modifiers (for shift/alt behavior)
 			
 		Returns:
-			tuple: (new_center_x, new_center_y, new_half_w, new_half_h, new_rotation)
+			Transform: Updated transform object
 		"""
 		pass
 	
@@ -116,9 +114,10 @@ class CornerHandle(Handle):
 		painter.drawEllipse(QPointF(px, py), float(self.handle_size), float(self.handle_size))
 	
 	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
-	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+	         start_transform, modifiers):
 		"""Uniform diagonal scaling - maintains aspect ratio."""
 		from PyQt5.QtCore import Qt
+		from models.transform import Transform, Vec2
 		
 		alt_pressed = modifiers and (modifiers & Qt.AltModifier)
 		
@@ -126,10 +125,10 @@ class CornerHandle(Handle):
 		if alt_pressed:
 			# Alt: anchor opposite corner
 			anchor_map = {
-				'tl': (start_cx + start_hw, start_cy + start_hh),
-				'tr': (start_cx - start_hw, start_cy + start_hh),
-				'bl': (start_cx + start_hw, start_cy - start_hh),
-				'br': (start_cx - start_hw, start_cy - start_hh)
+				'tl': (start_transform.pos.x + start_transform.scale.x, start_transform.pos.y + start_transform.scale.y),
+				'tr': (start_transform.pos.x - start_transform.scale.x, start_transform.pos.y + start_transform.scale.y),
+				'bl': (start_transform.pos.x + start_transform.scale.x, start_transform.pos.y - start_transform.scale.y),
+				'br': (start_transform.pos.x - start_transform.scale.x, start_transform.pos.y - start_transform.scale.y)
 			}
 			anchor_x, anchor_y = anchor_map[self.corner_type]
 			
@@ -139,25 +138,25 @@ class CornerHandle(Handle):
 			
 			if start_dist > 0:
 				scale_factor = curr_dist / start_dist
-				new_hw = start_hw * scale_factor
-				new_hh = start_hh * scale_factor
+				new_hw = start_transform.scale.x * scale_factor
+				new_hh = start_transform.scale.y * scale_factor
 				# Reposition center to keep anchor fixed
-				new_cx = anchor_x + (start_cx - anchor_x) * scale_factor
-				new_cy = anchor_y + (start_cy - anchor_y) * scale_factor
-				return (new_cx, new_cy, new_hw, new_hh, start_rot)
+				new_cx = anchor_x + (start_transform.pos.x - anchor_x) * scale_factor
+				new_cy = anchor_y + (start_transform.pos.y - anchor_y) * scale_factor
+				return Transform(Vec2(new_cx, new_cy), Vec2(new_hw, new_hh), start_transform.rotation)
 		else:
 			# Normal: scale from center
-			start_dist = math.sqrt((start_mouse_x - start_cx)**2 + (start_mouse_y - start_cy)**2)
-			curr_dist = math.sqrt((mouse_x - start_cx)**2 + (mouse_y - start_cy)**2)
+			start_dist = math.sqrt((start_mouse_x - start_transform.pos.x)**2 + (start_mouse_y - start_transform.pos.y)**2)
+			curr_dist = math.sqrt((mouse_x - start_transform.pos.x)**2 + (mouse_y - start_transform.pos.y)**2)
 			
 			if start_dist > 0:
 				scale_factor = curr_dist / start_dist
-				new_hw = start_hw * scale_factor
-				new_hh = start_hh * scale_factor
-				return (start_cx, start_cy, new_hw, new_hh, start_rot)
+				new_hw = start_transform.scale.x * scale_factor
+				new_hh = start_transform.scale.y * scale_factor
+				return Transform(start_transform.pos, Vec2(new_hw, new_hh), start_transform.rotation)
 		
 		# Fallback: no change
-		return (start_cx, start_cy, start_hw, start_hh, start_rot)
+		return start_transform
 	
 	def get_cursor(self):
 		"""Diagonal resize cursor for corner handles."""
@@ -210,9 +209,17 @@ class EdgeHandle(Handle):
 		                 self.handle_size, self.handle_size)
 	
 	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
-	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
-		"""Single-axis scaling - only changes width OR height."""
+	         start_transform, modifiers):
+		"""Single-axis scaling - only changes width OR height.
+		
+		Args:
+			start_transform: Transform object with initial state
+			
+		Returns:
+			Transform object with updated state
+		"""
 		from PyQt5.QtCore import Qt
+		from models.transform import Transform, Vec2
 		
 		alt_pressed = modifiers and (modifiers & Qt.AltModifier)
 		
@@ -220,34 +227,40 @@ class EdgeHandle(Handle):
 		if self.edge_type in ['l', 'r']:
 			# Left/Right edges scale width
 			if alt_pressed:
-				anchor_x = start_cx + start_hw if self.edge_type == 'l' else start_cx - start_hw
-				new_hw = abs(mouse_x - anchor_x)
-				# Reposition center
-				new_cx = anchor_x + (start_cx - anchor_x) * (new_hw / start_hw) if start_hw > 0 else anchor_x
-				return (new_cx, start_cy, new_hw, start_hh, start_rot)
+				# Alt: Anchor opposite edge (left anchors right, right anchors left)
+				anchor_x = start_transform.pos.x + start_transform.scale.x if self.edge_type == 'l' else start_transform.pos.x - start_transform.scale.x
+				# Center is midpoint between anchor and mouse
+				new_cx = (anchor_x + mouse_x) / 2.0
+				# Half-width is distance from center to mouse
+				new_hw = abs(mouse_x - new_cx)
+				return Transform(Vec2(new_cx, start_transform.pos.y), Vec2(new_hw, start_transform.scale.y), start_transform.rotation)
 			else:
-				start_dist = abs(start_mouse_x - start_cx)
-				curr_dist = abs(mouse_x - start_cx)
+				# Normal: Scale from center symmetrically
+				start_dist = abs(start_mouse_x - start_transform.pos.x)
+				curr_dist = abs(mouse_x - start_transform.pos.x)
 				if start_dist > 0:
-					new_hw = start_hw * (curr_dist / start_dist)
-					return (start_cx, start_cy, new_hw, start_hh, start_rot)
+					new_hw = start_transform.scale.x * (curr_dist / start_dist)
+					return Transform(start_transform.pos, Vec2(new_hw, start_transform.scale.y), start_transform.rotation)
 		else:
 			# Top/Bottom edges scale height
 			if alt_pressed:
-				anchor_y = start_cy + start_hh if self.edge_type == 't' else start_cy - start_hh
-				new_hh = abs(mouse_y - anchor_y)
-				# Reposition center
-				new_cy = anchor_y + (start_cy - anchor_y) * (new_hh / start_hh) if start_hh > 0 else anchor_y
-				return (start_cx, new_cy, start_hw, new_hh, start_rot)
+				# Alt: Anchor opposite edge (top anchors bottom, bottom anchors top)
+				anchor_y = start_transform.pos.y + start_transform.scale.y if self.edge_type == 't' else start_transform.pos.y - start_transform.scale.y
+				# Center is midpoint between anchor and mouse
+				new_cy = (anchor_y + mouse_y) / 2.0
+				# Half-height is distance from center to mouse
+				new_hh = abs(mouse_y - new_cy)
+				return Transform(Vec2(start_transform.pos.x, new_cy), Vec2(start_transform.scale.x, new_hh), start_transform.rotation)
 			else:
-				start_dist = abs(start_mouse_y - start_cy)
-				curr_dist = abs(mouse_y - start_cy)
+				# Normal: Scale from center symmetrically
+				start_dist = abs(start_mouse_y - start_transform.pos.y)
+				curr_dist = abs(mouse_y - start_transform.pos.y)
 				if start_dist > 0:
-					new_hh = start_hh * (curr_dist / start_dist)
-					return (start_cx, start_cy, start_hw, new_hh, start_rot)
+					new_hh = start_transform.scale.y * (curr_dist / start_dist)
+					return Transform(start_transform.pos, Vec2(start_transform.scale.x, new_hh), start_transform.rotation)
 		
 		# Fallback
-		return (start_cx, start_cy, start_hw, start_hh, start_rot)
+		return start_transform
 	
 	def get_cursor(self):
 		"""Horizontal or vertical resize cursor based on edge orientation."""
@@ -295,24 +308,25 @@ class RotationHandle(Handle):
 		painter.drawEllipse(QPointF(px, py), float(self.handle_size), float(self.handle_size))
 	
 	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
-	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+	         start_transform, modifiers):
 		"""Rotate around center by calculating angle delta."""
 		from PyQt5.QtCore import Qt
+		from models.transform import Transform
 		
 		shift_pressed = modifiers and (modifiers & Qt.ShiftModifier)
 		
 		# Calculate angles from center
-		start_angle = math.degrees(math.atan2(start_mouse_y - start_cy, start_mouse_x - start_cx))
-		current_angle = math.degrees(math.atan2(mouse_y - start_cy, mouse_x - start_cx))
+		start_angle = math.degrees(math.atan2(start_mouse_y - start_transform.pos.y, start_mouse_x - start_transform.pos.x))
+		current_angle = math.degrees(math.atan2(mouse_y - start_transform.pos.y, mouse_x - start_transform.pos.x))
 		
 		angle_delta = current_angle - start_angle
-		new_rot = start_rot + angle_delta
+		new_rot = start_transform.rotation + angle_delta
 		
 		# Shift: snap to 45-degree increments
 		if shift_pressed:
 			new_rot = round(new_rot / 45.0) * 45.0
 		
-		return (start_cx, start_cy, start_hw, start_hh, new_rot)
+		return Transform(start_transform.pos, start_transform.scale, new_rot)
 	
 	def get_cursor(self):
 		"""Cross cursor for rotation."""
@@ -355,11 +369,13 @@ class CenterHandle(Handle):
 		                 int(center_x + x_size), int(center_y - x_size))
 	
 	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
-	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+	         start_transform, modifiers):
 		"""Translate the entire transform by mouse delta."""
+		from models.transform import Transform, Vec2
+		
 		dx = mouse_x - start_mouse_x
 		dy = mouse_y - start_mouse_y
-		return (start_cx + dx, start_cy + dy, start_hw, start_hh, start_rot)
+		return Transform(Vec2(start_transform.pos.x + dx, start_transform.pos.y + dy), start_transform.scale, start_transform.rotation)
 	
 	def get_cursor(self):
 		"""Move cursor for center/translation."""
@@ -446,17 +462,19 @@ class ArrowHandle(Handle):
 			painter.drawPolygon(arrow_tip)
 	
 	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
-	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+	         start_transform, modifiers):
 		"""Axis-constrained translation - X arrow locks Y, Y arrow locks X."""
+		from models.transform import Transform, Vec2
+		
 		dx = mouse_x - start_mouse_x
 		dy = mouse_y - start_mouse_y
 		
 		if self.axis == 'x':
 			# X arrow: only move horizontally
-			return (start_cx + dx, start_cy, start_hw, start_hh, start_rot)
+			return Transform(Vec2(start_transform.pos.x + dx, start_transform.pos.y), start_transform.scale, start_transform.rotation)
 		else:
 			# Y arrow: only move vertically
-			return (start_cx, start_cy + dy, start_hw, start_hh, start_rot)
+			return Transform(Vec2(start_transform.pos.x, start_transform.pos.y + dy), start_transform.scale, start_transform.rotation)
 	
 	def get_cursor(self):
 		"""Horizontal or vertical cursor based on arrow axis."""
@@ -494,24 +512,25 @@ class RingHandle(Handle):
 		painter.drawEllipse(QPointF(center_x, center_y), float(self.radius), float(self.radius))
 	
 	def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
-	         start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
+	         start_transform, modifiers):
 		"""Rotate around center - same behavior as RotationHandle."""
 		from PyQt5.QtCore import Qt
+		from models.transform import Transform
 		
 		shift_pressed = modifiers and (modifiers & Qt.ShiftModifier)
 		
 		# Calculate angles from center
-		start_angle = math.degrees(math.atan2(start_mouse_y - start_cy, start_mouse_x - start_cx))
-		current_angle = math.degrees(math.atan2(mouse_y - start_cy, mouse_x - start_cx))
+		start_angle = math.degrees(math.atan2(start_mouse_y - start_transform.pos.y, start_mouse_x - start_transform.pos.x))
+		current_angle = math.degrees(math.atan2(mouse_y - start_transform.pos.y, mouse_x - start_transform.pos.x))
 		
 		angle_delta = current_angle - start_angle
-		new_rot = start_rot + angle_delta
+		new_rot = start_transform.rotation + angle_delta
 		
 		# Shift: snap to 45-degree increments
 		if shift_pressed:
 			new_rot = round(new_rot / 45.0) * 45.0
 		
-		return (start_cx, start_cy, start_hw, start_hh, new_rot)
+		return Transform(start_transform.pos, start_transform.scale, new_rot)
 	
 	def get_cursor(self):
 		"""Cross cursor for rotation ring."""

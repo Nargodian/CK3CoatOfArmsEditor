@@ -504,26 +504,33 @@ class TransformWidget(QWidget):
 		start_mouse_x, start_mouse_y = self._widget_to_center_origin(self.drag_start_pos)
 		curr_mouse_x, curr_mouse_y = self._widget_to_center_origin(current_pos)
 		
+		# Create Transform object from drag start state
+		start_transform = Transform(
+			Vec2(self.drag_start_transform[0], self.drag_start_transform[1]),
+			Vec2(self.drag_start_transform[2], self.drag_start_transform[3]),
+			self.drag_start_transform[4]
+		)
+		
 		# Delegate to handle's drag method (polymorphism!)
 		new_transform = self.active_handle.drag(
 			curr_mouse_x, curr_mouse_y,
 			start_mouse_x, start_mouse_y,
-			*self.drag_start_transform,
+			start_transform,
 			modifiers
 		)
 		
-		# Unpack and update
-		self.center_x, self.center_y, self.half_w, self.half_h, self.rotation = new_transform
+		# Update internal state from returned Transform
+		self.center_x = new_transform.pos.x
+		self.center_y = new_transform.pos.y
+		self.half_w = new_transform.scale.x
+		self.half_h = new_transform.scale.y
+		self.rotation = new_transform.rotation
 		
 		# Emit signal for non-uniform scaling (edge handles)
 		from .transform_widgets.handles import EdgeHandle
 		if isinstance(self.active_handle, EdgeHandle):
 			self.nonUniformScaleUsed.emit()
 		
-		# Emit transform change signal with current pixel values
-		self.transformChanged.emit(Transform(
-			Vec2(self.center_x, self.center_y),
-			Vec2(self.half_w, self.half_h),
-			self.rotation
-		))
+		# Emit transform change signal
+		self.transformChanged.emit(new_transform)
 		self.update()
