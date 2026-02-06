@@ -61,27 +61,27 @@ class BottomBar(QFrame):
         layout.addSpacing(20)
         
         # Rotation mode dropdown
-        rotation_label = QLabel("Rotation:")
+        rotation_label = QLabel("Transform:")
         rotation_label.setStyleSheet("font-size: 11px; border: none;")
         layout.addWidget(rotation_label)
         
         self.rotation_mode_combo = create_styled_combo_box([
-            "Rotate Only",
+            "Pivot Only",
             "Orbit Only",
-            "Normal",
-            "Rotate (Deep)",
+            "Global",
+            "Pivot (Deep)",
             "Orbit (Deep)"
         ])
         self.rotation_mode_combo.setFixedWidth(120)
         self.rotation_mode_combo.setToolTip(
-            "Rotation Mode:\n"
-            "Rotate Only - Spin layers in place\n"
-            "Orbit Only - Orbit layers around center\n"
-            "Normal - Orbit + Rotate layers\n"
-            "Rotate (Deep) - Spin all instances in place\n"
-            "Orbit (Deep) - Orbit all instances around center"
+            "Transform Mode (affects rotation & flip):\n"
+            "Pivot Only - Spin/Flip without moving position\n"
+            "Orbit Only - Move position only, no spin/flip\n"
+            "Global - Orbit + Pivot (both position and spin)\n"
+            "Pivot (Deep) - Spin/Flip all instances without moving\n"
+            "Orbit (Deep) - Move all instances without spin/flip"
         )
-        self.rotation_mode_combo.setCurrentIndex(2)  # Default to Normal
+        self.rotation_mode_combo.setCurrentIndex(2)  # Default to Global
         layout.addWidget(self.rotation_mode_combo)
         
         layout.addSpacing(20)
@@ -157,13 +157,13 @@ class BottomBar(QFrame):
         """Get current rotation mode from dropdown
         
         Returns:
-            String mode name for CoA.rotate_selection()
+            String mode name for CoA.rotate_selection() and flip_selection()
         """
         mode_map = {
-            "Rotate Only": "rotate_only",
+            "Pivot Only": "rotate_only",
             "Orbit Only": "orbit_only",
-            "Normal": "both",
-            "Rotate (Deep)": "rotate_only_deep",
+            "Global": "both",
+            "Pivot (Deep)": "rotate_only_deep",
             "Orbit (Deep)": "orbit_only_deep"
         }
         if not hasattr(self, 'rotation_mode_combo'):

@@ -35,9 +35,9 @@ class FileActions:
         if not self.main_window._prompt_save_if_needed():
             return
         
-        # Reset current file and modified flag
-        self.main_window.current_file = None
-        self.main_window.is_modified = False
+        # Reset current file and saved flag
+        self.main_window.current_file_path = None
+        self.main_window.is_saved = True
         self.main_window._update_window_title()
         
         # Clear existing CoA to defaults
@@ -53,8 +53,8 @@ class FileActions:
         # Create initial history entry
         self.main_window._save_state("New CoA")
         
-        # Reset modified flag (saving state sets it to True)
-        self.main_window.is_modified = False
+        # Reset saved flag (saving state sets it to False)
+        self.main_window.is_saved = True
         
         # Update UI
         self.main_window._update_window_title()
@@ -92,9 +92,9 @@ class FileActions:
             # Save CoA model directly using its to_string serialization
             save_coa_to_file(self.main_window.coa, filename)
             
-            # Update current file and title
-            self.main_window.current_file = filename
-            self.main_window.is_modified = False
+            # Update current file and mark as saved
+            self.main_window.current_file_path = filename
+            self.main_window.is_saved = True
             self.main_window._update_window_title()
             
             # Add to recent files

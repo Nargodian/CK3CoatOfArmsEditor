@@ -52,8 +52,11 @@ class LayerTransformActions:
             if not selected_uuids:
                 return
             
+            # Get rotation mode from UI (affects flip behavior)
+            rotation_mode = self.main_window.canvas_area.get_rotation_mode()
+            
             # Use CoA model method that automatically handles position mirroring for groups/multi-instance
-            self.main_window.coa.flip_selection(selected_uuids, flip_x=True, flip_y=False)
+            self.main_window.coa.flip_selection(selected_uuids, flip_x=True, flip_y=False, mode=rotation_mode)
             
             # Update UI
             self.main_window.right_sidebar._load_layer_properties()
@@ -78,8 +81,11 @@ class LayerTransformActions:
             if not selected_uuids:
                 return
             
+            # Get rotation mode from UI (affects flip behavior)
+            rotation_mode = self.main_window.canvas_area.get_rotation_mode()
+            
             # Use CoA model method that automatically handles position mirroring for groups/multi-instance
-            self.main_window.coa.flip_selection(selected_uuids, flip_x=False, flip_y=True)
+            self.main_window.coa.flip_selection(selected_uuids, flip_x=False, flip_y=True, mode=rotation_mode)
             
             # Update UI
             self.main_window.right_sidebar._load_layer_properties()

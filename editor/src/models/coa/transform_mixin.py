@@ -905,16 +905,21 @@ class CoATransformMixin:
         
         self._logger.debug(f"Flipped layer {uuid}: x={flip_x}, y={flip_y}")
     
-    def flip_selection(self, uuids: List[str], flip_x: bool = False, flip_y: bool = False):
-        """Flip selected layers with automatic position mirroring for groups/multi-instance
+    def flip_selection(self, uuids: List[str], flip_x: bool = False, flip_y: bool = False, mode: str = "both"):
+        """Flip selected layers with mode-based behavior
         
-        Single instance: Flips in place
-        Multiple instances or multiple layers: Flips appearance AND mirrors positions around center
+        Mode behavior (matching rotation modes):
+        - "rotate_only": Only flips appearance + counter-mirrors rotation (no position change)
+        - "orbit_only": Only mirrors positions (no flip appearance or rotation change)
+        - "both": Flips appearance + mirrors positions + counter-mirrors rotation (default)
+        - "rotate_only_deep": Like rotate_only but affects all instances
+        - "orbit_only_deep": Like orbit_only but affects all instances
         
         Args:
             uuids: List of layer UUIDs
             flip_x: If True, toggle horizontal flip
             flip_y: If True, toggle vertical flip
+            mode: Transform mode ("rotate_only", "orbit_only", "both", "rotate_only_deep", "orbit_only_deep")
             
         Raises:
             ValueError: If any UUID not found or empty list
@@ -930,48 +935,93 @@ class CoATransformMixin:
                 raise ValueError(f"Layer with UUID '{uuid}' not found")
             layers.append(layer)
         
-        # Check if we should orbit (mirror positions)
-        # Orbit if: multiple layers OR single layer with multiple instances
-        should_orbit = len(uuids) > 1 or (len(uuids) == 1 and layers[0].instance_count > 1)
+        # Parse mode to determine shallow vs deep
+        is_deep = "deep" in mode.lower()
+        do_flip_appearance = "rotate" in mode or mode == "both"
+        do_orbit_position = "orbit" in mode or mode == "both"
         
-        # Single instance of single layer: flip in place without position change
-        if len(uuids) == 1 and layers[0].instance_count == 1:
+        # Single instance of single layer
+        if len(uuids) == 1 and layers[0].instance_count == 1 and not is_deep:
             layer = layers[0]
             instance = layer.get_instance(0, caller='CoA.flip_selection')
-            if flip_x:
-                instance.flip_x = not instance.flip_x
-            if flip_y:
-                instance.flip_y = not instance.flip_y
+            
+            # Toggle flip appearance
+            if do_flip_appearance:
+                if flip_x:
+                    instance.flip_x = not instance.flip_x
+                if flip_y:
+                    instance.flip_y = not instance.flip_y
+                
+                # Counter-mirror rotation
+                current_rotation = instance.rotation
+                if flip_x and flip_y:
+                    new_rotation = (current_rotation + 180.0) % 360.0
+                elif flip_x:
+                    new_rotation = (360.0 - current_rotation) % 360.0
+                elif flip_y:
+                    new_rotation = (180.0 - current_rotation) % 360.0
+                    if new_rotation < 0:
+                        new_rotation += 360.0
+                else:
+                    new_rotation = current_rotation
+                
+                instance.rotation = new_rotation
         else:
-            # Multiple layers or multi-instance: flip appearance AND mirror positions
-            bounds = self.get_layers_bounds(uuids)
-            center_x = (bounds['min_x'] + bounds['max_x']) / 2.0
-            center_y = (bounds['min_y'] + bounds['max_y']) / 2.0
+            # Multiple layers or multi-instance or deep mode
+            if do_orbit_position:
+                bounds = self.get_layers_bounds(uuids)
+                center_x = (bounds['min_x'] + bounds['max_x']) / 2.0
+                center_y = (bounds['min_y'] + bounds['max_y']) / 2.0
             
             for uuid, layer in zip(uuids, layers):
-                # Toggle flip visual appearance for each instance individually
-                for instance_idx in range(layer.instance_count):
+                # Determine instance range based on mode
+                if is_deep:
+                    # Deep mode: affect all instances
+                    instance_range = range(layer.instance_count)
+                else:
+                    # Shallow mode: only affect selected instance
+                    instance_range = range(layer.instance_count)
+                
+                for instance_idx in instance_range:
                     instance = layer.get_instance(instance_idx, caller='CoA.flip_selection')
                     
-                    # Toggle flip state
-                    if flip_x:
-                        instance.flip_x = not instance.flip_x
-                    if flip_y:
-                        instance.flip_y = not instance.flip_y
+                    # Toggle flip appearance
+                    if do_flip_appearance:
+                        if flip_x:
+                            instance.flip_x = not instance.flip_x
+                        if flip_y:
+                            instance.flip_y = not instance.flip_y
                     
                     # Mirror position around group center
-                    current_x = instance.pos.x
-                    current_y = instance.pos.y
+                    if do_orbit_position:
+                        current_x = instance.pos.x
+                        current_y = instance.pos.y
+                        
+                        if flip_x:
+                            offset_x = current_x - center_x
+                            current_x = center_x - offset_x
+                        
+                        if flip_y:
+                            offset_y = current_y - center_y
+                            current_y = center_y - offset_y
+                        
+                        instance.pos = Vec2(current_x, current_y)
                     
-                    if flip_x:
-                        offset_x = current_x - center_x
-                        current_x = center_x - offset_x
-                    
-                    if flip_y:
-                        offset_y = current_y - center_y
-                        current_y = center_y - offset_y
-                    
-                    instance.pos = Vec2(current_x, current_y)
+                    # Counter-mirror rotation
+                    if do_flip_appearance:
+                        current_rotation = instance.rotation
+                        if flip_x and flip_y:
+                            new_rotation = (current_rotation + 180.0) % 360.0
+                        elif flip_x:
+                            new_rotation = (360.0 - current_rotation) % 360.0
+                        elif flip_y:
+                            new_rotation = (180.0 - current_rotation) % 360.0
+                            if new_rotation < 0:
+                                new_rotation += 360.0
+                        else:
+                            new_rotation = current_rotation
+                        
+                        instance.rotation = new_rotation
     
     # ========================================
     # Alignment/Movement Operations
