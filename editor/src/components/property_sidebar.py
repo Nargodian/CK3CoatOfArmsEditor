@@ -60,9 +60,11 @@ class PropertySidebar(QFrame):
 	def get_selected_uuids(self) -> list:
 		"""Get list of selected layer UUIDs sorted by layer order (bottom to top)"""
 		uuids = list(self.layer_list_widget.selected_layer_uuids)
-		# Sort by layer index to preserve order
+		# Sort by layer index to preserve order, filtering out invalid UUIDs
 		if uuids and self.coa:
-			uuids.sort(key=lambda uuid: self.coa.get_layer_index_by_uuid(uuid) or 0)
+			valid_uuids = [uuid for uuid in uuids if self.coa.get_layer_by_uuid(uuid) is not None]
+			valid_uuids.sort(key=lambda uuid: self.coa.get_layer_index_by_uuid(uuid) or 0)
+			return valid_uuids
 		return uuids
 	
 	def get_selected_indices(self) -> list:
@@ -1047,6 +1049,91 @@ class PropertySidebar(QFrame):
 	# Property Updates and Layer Management
 	# ========================================
 	
+	def _get_first_instance_value(self, prop_name):
+		"""Get the value from the first selected layer/instance for delta-based editing.
+		
+		Returns the value from:
+		- First selected layer if single selection
+		- First layer in selection if multi-selection
+		
+		For multi-instance layers, returns the selected instance value.
+		"""
+		selected_uuids = self.get_selected_uuids()
+		if not selected_uuids:
+			return None
+		
+		first_uuid = selected_uuids[0]
+		
+		# Map property names to CoA getter methods
+		property_getters = {
+			'pos_x': 'get_layer_pos_x',
+			'pos_y': 'get_layer_pos_y',
+			'scale_x': 'get_layer_scale_x',
+			'scale_y': 'get_layer_scale_y',
+			'rotation': 'get_layer_rotation',
+		}
+		
+		getter_method_name = property_getters.get(prop_name)
+		if not getter_method_name:
+			return None
+		
+		getter_method = getattr(self.main_window.coa, getter_method_name)
+		return getter_method(first_uuid)
+	
+	def _apply_delta_to_selected(self, prop_name, delta):
+		"""Apply a delta change to all selected layers/instances.
+		
+		For multi-instance layers, applies to the selected instance in each layer.
+		For multi-selection, applies to all selected layers.
+		"""
+		selected_uuids = self.get_selected_uuids()
+		if not selected_uuids:
+			return
+		
+		for uuid in selected_uuids:
+			# Get current value
+			current_val = None
+			if prop_name in ('pos_x', 'pos_y'):
+				current_pos = self.main_window.coa.get_layer_pos(uuid)
+				if current_pos is None:
+					current_pos = Vec2(0.0, 0.0)
+				current_val = current_pos.x if prop_name == 'pos_x' else current_pos.y
+			elif prop_name in ('scale_x', 'scale_y'):
+				current_scale = self.main_window.coa.get_layer_scale(uuid)
+				if current_scale is None:
+					current_scale = Vec2(1.0, 1.0)
+				current_val = current_scale.x if prop_name == 'scale_x' else current_scale.y
+			elif prop_name == 'rotation':
+				current_val = self.main_window.coa.get_layer_rotation(uuid)
+				if current_val is None:
+					current_val = 0.0
+			
+			if current_val is None:
+				continue
+			
+			# Apply delta
+			new_val = current_val + delta
+			
+			# Route to appropriate CoA setter
+			if prop_name in ('pos_x', 'pos_y'):
+				current_pos = self.main_window.coa.get_layer_pos(uuid)
+				if current_pos is None:
+					current_pos = Vec2(0.0, 0.0)
+				if prop_name == 'pos_x':
+					self.main_window.coa.set_layer_position(uuid, new_val, current_pos.y)
+				else:
+					self.main_window.coa.set_layer_position(uuid, current_pos.x, new_val)
+			elif prop_name in ('scale_x', 'scale_y'):
+				current_scale = self.main_window.coa.get_layer_scale(uuid)
+				if current_scale is None:
+					current_scale = Vec2(1.0, 1.0)
+				if prop_name == 'scale_x':
+					self.main_window.coa.set_layer_scale(uuid, new_val, current_scale.y)
+				else:
+					self.main_window.coa.set_layer_scale(uuid, current_scale.x, new_val)
+			elif prop_name == 'rotation':
+				self.main_window.coa.set_layer_rotation(uuid, new_val)
+	
 	def _rebuild_layer_list(self):
 		"""Rebuild the layer list UI (delegates to LayerListWidget)"""
 		if hasattr(self, 'layer_list_widget'):
@@ -1059,43 +1146,27 @@ class PropertySidebar(QFrame):
 			# Selection state is managed by layer_list_widget itself (UUID-based)
 	
 	def _update_layer_property(self, prop_name, value):
-		"""Update a property of all selected layers
+		"""Update a property of all selected layers using delta-based approach.
 		
-		For instance properties (pos_x, pos_y, scale_x, scale_y, rotation), updates
-		the selected instance within each layer.
+		For multi-selection or multi-instance layers, calculates the delta from the
+		first instance/selection and applies that delta to all selected instances.
+		This allows editing multiple items while preserving their relative differences.
 		"""
 		selected_uuids = self.get_selected_uuids()
 		if not selected_uuids:
 			return
 		
-		# Instance properties are stored within instances list
-		instance_properties = ['pos_x', 'pos_y', 'scale_x', 'scale_y', 'rotation', 'depth']
+		# Get the first instance value to calculate delta
+		first_value = self._get_first_instance_value(prop_name)
+		if first_value is None:
+			# Fallback to direct assignment if we can't get first value
+			first_value = 0.0
 		
-		# Apply to ALL selected layers using CoA API
-		for uuid in selected_uuids:
-			# Route to appropriate CoA setter based on property name
-			if prop_name in ('pos_x', 'pos_y'):
-				current_pos = self.main_window.coa.get_layer_pos(uuid)
-				if current_pos is None:
-					current_pos = Vec2(0.0, 0.0)
-				if prop_name == 'pos_x':
-					self.main_window.coa.set_layer_position(uuid, value, current_pos.y)
-				else:
-					self.main_window.coa.set_layer_position(uuid, current_pos.x, value)
-			elif prop_name in ('scale_x', 'scale_y'):
-				current_scale = self.main_window.coa.get_layer_scale(uuid)
-				if current_scale is None:
-					current_scale = Vec2(1.0, 1.0)
-				if prop_name == 'scale_x':
-					self.main_window.coa.set_layer_scale(uuid, value, current_scale.y)
-				else:
-					self.main_window.coa.set_layer_scale(uuid, current_scale.x, value)
-			elif prop_name == 'rotation':
-				self.main_window.coa.set_layer_rotation(uuid, value)
-			else:
-				# Other properties - log warning
-				import logging
-				logging.warning(f"Unhandled property {prop_name} in _update_layer_property")
+		# Calculate delta
+		delta = value - first_value
+		
+		# Apply delta to all selected layers/instances
+		self._apply_delta_to_selected(prop_name, delta)
 		
 		if self.canvas_widget:
 			self.canvas_widget.update()
@@ -1113,19 +1184,56 @@ class PropertySidebar(QFrame):
 	
 	
 	def _update_layer_scale_and_widget(self):
-		"""Update layer scale with flip multipliers applied to all selected layers"""
+		"""Update layer scale using delta-based approach for multi-selection/multi-instance.
+		
+		Calculates delta from first instance and applies to all selected instances.
+		Flip states are toggled for all instances when changed.
+		"""
 		selected_uuids = self.get_selected_uuids()
 		if not selected_uuids:
 			return
 		
-		# Get scale values and flip states separately
+		# Get scale values and flip states from UI
 		scale_x, scale_y, flip_x, flip_y = self.scale_editor.get_scale_values()
 		
-		# Apply to ALL selected layers using CoA API
-		for uuid in selected_uuids:
-			# Use CoA setters
-			self.main_window.coa.set_layer_scale(uuid, scale_x, scale_y)
-			self.main_window.coa.flip_layer(uuid, flip_x, flip_y)
+		# Get first instance values to calculate delta
+		first_scale_x = self._get_first_instance_value('scale_x')
+		first_scale_y = self._get_first_instance_value('scale_y')
+		
+		if first_scale_x is None:
+			first_scale_x = 1.0
+		if first_scale_y is None:
+			first_scale_y = 1.0
+		
+		# Calculate deltas
+		delta_x = scale_x - first_scale_x
+		delta_y = scale_y - first_scale_y
+		
+		# Apply scale deltas to all selected layers/instances
+		self._apply_delta_to_selected('scale_x', delta_x)
+		self._apply_delta_to_selected('scale_y', delta_y)
+		
+		# Apply flip states: toggle if checkbox changed from original loaded state
+		# This allows clicking the checkbox to toggle ALL instances
+		flip_x_changed = flip_x != getattr(self, '_original_flip_x', False)
+		flip_y_changed = flip_y != getattr(self, '_original_flip_y', False)
+		
+		if flip_x_changed or flip_y_changed:
+			for uuid in selected_uuids:
+				layer = self.main_window.coa.get_layer_by_uuid(uuid)
+				if layer:
+					for instance_idx in range(layer.instance_count):
+						instance = layer.get_instance(instance_idx, caller='PropertySidebar')
+						if flip_x_changed:
+							instance.flip_x = not instance.flip_x
+						if flip_y_changed:
+							instance.flip_y = not instance.flip_y
+			
+			# Update stored original values for next change
+			if flip_x_changed:
+				self._original_flip_x = flip_x
+			if flip_y_changed:
+				self._original_flip_y = flip_y
 		
 		if self.canvas_widget:
 			self.canvas_widget.update()
@@ -1193,6 +1301,10 @@ class PropertySidebar(QFrame):
 		flip_x_raw = self.get_property_value('flip_x')
 		flip_y_raw = self.get_property_value('flip_y')
 		
+		# Store original flip states for toggle detection
+		self._original_flip_x = flip_x_raw if isinstance(flip_x_raw, bool) else False
+		self._original_flip_y = flip_y_raw if isinstance(flip_y_raw, bool) else False
+		
 		if scale_x_raw == 'Mixed' or scale_y_raw == 'Mixed' or flip_x_raw == 'Mixed' or flip_y_raw == 'Mixed':
 			self.scale_editor.scale_x_slider.value_input.setText('—')
 			self.scale_editor.scale_y_slider.value_input.setText('—')
@@ -1224,33 +1336,6 @@ class PropertySidebar(QFrame):
 			if abs(abs(scale_x_raw) - abs(scale_y_raw)) > 0.01:
 				self.scale_editor.unified_check.setChecked(False)
 		self.scale_editor.unified_check.blockSignals(False)
-		
-		# Disable scale and rotation for multi-instance layers or multi-selection
-		has_multi_instance = False
-		is_multi_selection = len(selected_uuids) > 1
-		
-		if not is_multi_selection:
-			# Check if single layer has multiple instances
-			instance_count = self.main_window.coa.get_layer_instance_count(selected_uuids[0])
-			has_multi_instance = instance_count > 1
-		
-		disable_transform = is_multi_selection or has_multi_instance
-		self.scale_editor.setEnabled(not disable_transform)
-		self.rotation_editor.setEnabled(not disable_transform)
-		
-		# Apply visual disabled state using graphical effect
-		if disable_transform:
-			from PyQt5.QtWidgets import QGraphicsOpacityEffect
-			opacity_effect_scale = QGraphicsOpacityEffect()
-			opacity_effect_scale.setOpacity(0.3)
-			self.scale_editor.setGraphicsEffect(opacity_effect_scale)
-			
-			opacity_effect_rotation = QGraphicsOpacityEffect()
-			opacity_effect_rotation.setOpacity(0.3)
-			self.rotation_editor.setGraphicsEffect(opacity_effect_rotation)
-		else:
-			self.scale_editor.setGraphicsEffect(None)
-			self.rotation_editor.setGraphicsEffect(None)
 		
 		# Restore signals
 		self.pos_x_editor.blockSignals(False)

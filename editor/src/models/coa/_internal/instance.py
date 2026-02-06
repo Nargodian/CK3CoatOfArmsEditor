@@ -37,6 +37,8 @@ class Instance:
         )
         self._rotation = float(data.get('rotation', DEFAULT_ROTATION))
         self._depth = float(data.get('depth', 0.0))
+        self._flip_x = bool(data.get('flip_x', False))
+        self._flip_y = bool(data.get('flip_y', False))
     
     # ========================================
     # Primary Properties (Vec2)
@@ -132,23 +134,39 @@ class Instance:
         """Set depth"""
         self._depth = float(value)
     
+    @property
+    def flip_x(self) -> bool:
+        """Horizontal flip state"""
+        return self._flip_x
+    
+    @flip_x.setter
+    def flip_x(self, value: bool):
+        """Set horizontal flip"""
+        self._flip_x = bool(value)
+    
+    @property
+    def flip_y(self) -> bool:
+        """Vertical flip state"""
+        return self._flip_y
+    
+    @flip_y.setter
+    def flip_y(self, value: bool):
+        """Set vertical flip"""
+        self._flip_y = bool(value)
+    
     # ========================================
     # Serialization
     # ========================================
     
-    def serialize(self, flip_x: bool = False, flip_y: bool = False) -> str:
+    def serialize(self) -> str:
         """Serialize instance to Clausewitz format
         
-        Args:
-            flip_x: Apply horizontal flip via negative scale
-            flip_y: Apply vertical flip via negative scale
-            
         Returns:
             Clausewitz-formatted instance block
         """
         # Apply flip to scale (negative scale in CK3 format = flip)
-        scale_x = -self._scale.x if flip_x else self._scale.x
-        scale_y = -self._scale.y if flip_y else self._scale.y
+        scale_x = -self._scale.x if self._flip_x else self._scale.x
+        scale_y = -self._scale.y if self._flip_y else self._scale.y
         
         lines = []
         lines.append('\t\t\tinstance = {')
@@ -184,13 +202,19 @@ class Instance:
         scale_x_raw = scale[0] if isinstance(scale, list) else 1.0
         scale_y_raw = scale[1] if isinstance(scale, list) and len(scale) > 1 else 1.0
         
+        # Extract flip from scale sign
+        flip_x = scale_x_raw < 0
+        flip_y = scale_y_raw < 0
+        
         return Instance({
             'pos_x': pos_x,
             'pos_y': pos_y,
             'scale_x': abs(scale_x_raw),  # Store as positive
-            'scale_y': abs(scale_y_raw),  # flip info comes from Layer
+            'scale_y': abs(scale_y_raw),
             'rotation': data.get('rotation', 0),
-            'depth': data.get('depth', 0.0)
+            'depth': data.get('depth', 0.0),
+            'flip_x': flip_x,
+            'flip_y': flip_y
         })
     
     def to_dict(self) -> Dict[str, Any]:
@@ -205,7 +229,9 @@ class Instance:
             'scale_x': self._scale.x,
             'scale_y': self._scale.y,
             'rotation': self._rotation,
-            'depth': self._depth
+            'depth': self._depth,
+            'flip_x': self._flip_x,
+            'flip_y': self._flip_y
         }
     
     @staticmethod

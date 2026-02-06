@@ -279,6 +279,8 @@ class CoALayerMixin:
                 new_instance = first_layer.get_instance(new_idx, caller='CoA.merge')
                 new_instance.scale = instance.scale
                 new_instance.rotation = instance.rotation
+                new_instance.flip_x = instance.flip_x
+                new_instance.flip_y = instance.flip_y
                 if instance.depth is not None:
                     new_instance.depth = instance.depth
         
@@ -640,6 +642,8 @@ class CoALayerMixin:
                 new_inst = first_layer.get_instance(idx, caller='CoA')
                 new_inst.scale = instance.scale
                 new_inst.rotation = instance.rotation
+                new_inst.flip_x = instance.flip_x
+                new_inst.flip_y = instance.flip_y
                 new_inst.depth = instance.depth
         
         # Remove other layers

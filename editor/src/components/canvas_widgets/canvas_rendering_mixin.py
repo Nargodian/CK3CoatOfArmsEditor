@@ -161,8 +161,6 @@ class CanvasRenderingMixin:
 			uv_coords: Tuple of (u0, v0, u1, v1) texture coordinates
 			shader: Shader program to use for rendering
 		"""
-		flip_x = coa.get_layer_flip_x(layer_uuid)
-		flip_y = coa.get_layer_flip_y(layer_uuid)
 		instance_count = coa.get_layer_instance_count(layer_uuid)
 		u0, v0, u1, v1 = uv_coords
 		
@@ -186,16 +184,16 @@ class CanvasRenderingMixin:
 			# Negate rotation: CK3 uses Y-down (clockwise positive), OpenGL uses Y-up (counterclockwise positive)
 			rotation_rad = math.radians(-instance.rotation)
 			
-			# Apply flip via negative scale (per layer, applies to all instances)
-			if flip_x:
+			# Apply per-instance flip via negative scale
+			if instance.flip_x:
 				scale_x_px = -scale_x_px
-			if flip_y:
+			if instance.flip_y:
 				scale_y_px = -scale_y_px
 			
-# Set transform uniforms for emblem.vert (pixel-based)
-		shader.setUniformValue("screenRes", QVector2D(512.0, 512.0))
-		shader.setUniformValue("position", QVector2D(center_x_px, center_y_px))
-		shader.setUniformValue("scale", QVector2D(scale_x_px, scale_y_px))
-		shader.setUniformValue("rotation", rotation_rad)
-		
-		gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+			# Set transform uniforms for emblem.vert (pixel-based)
+			shader.setUniformValue("screenRes", QVector2D(512.0, 512.0))
+			shader.setUniformValue("position", QVector2D(center_x_px, center_y_px))
+			shader.setUniformValue("scale", QVector2D(scale_x_px, scale_y_px))
+			shader.setUniformValue("rotation", rotation_rad)
+			
+			gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)

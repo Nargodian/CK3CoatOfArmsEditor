@@ -52,14 +52,8 @@ class LayerTransformActions:
 			if not selected_uuids:
 				return
 			
-			# For flips, mirror positions for groups unless explicitly in rotate_only mode
-			if not orbit and len(selected_uuids) > 1 and hasattr(self.main_window, 'canvas_area'):
-				rotation_mode = self.main_window.canvas_area.get_rotation_mode()
-				# Mirror positions unless mode is rotate_only (which means no position changes)
-				orbit = 'rotate_only' not in rotation_mode.lower()
-			
-			# Use CoA model method that handles both single and group flips
-			self.main_window.coa.flip_selection(selected_uuids, flip_x=True, flip_y=False, orbit=orbit)
+			# Use CoA model method that automatically handles position mirroring for groups/multi-instance
+			self.main_window.coa.flip_selection(selected_uuids, flip_x=True, flip_y=False)
 			
 			# Update UI
 			self.main_window.right_sidebar._load_layer_properties()
@@ -84,14 +78,8 @@ class LayerTransformActions:
 			if not selected_uuids:
 				return
 			
-			# For flips, mirror positions for groups unless explicitly in rotate_only mode
-			if not orbit and len(selected_uuids) > 1 and hasattr(self.main_window, 'canvas_area'):
-				rotation_mode = self.main_window.canvas_area.get_rotation_mode()
-				# Mirror positions unless mode is rotate_only (which means no position changes)
-				orbit = 'rotate_only' not in rotation_mode.lower()
-			
-			# Use CoA model method that handles both single and group flips
-			self.main_window.coa.flip_selection(selected_uuids, flip_x=False, flip_y=True, orbit=orbit)
+			# Use CoA model method that automatically handles position mirroring for groups/multi-instance
+			self.main_window.coa.flip_selection(selected_uuids, flip_x=False, flip_y=True)
 			
 			# Update UI
 			self.main_window.right_sidebar._load_layer_properties()

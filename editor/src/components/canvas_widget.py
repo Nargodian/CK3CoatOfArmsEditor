@@ -504,22 +504,22 @@ class CoatOfArmsCanvas(CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 						pattern_flag |= 4
 				self.design_shader.setUniformValue("patternFlag", pattern_flag)
 				
-				# Get shared flip properties (shared by all instances)
-				flip_x = coa.get_layer_flip_x(layer_uuid)
-				flip_y = coa.get_layer_flip_y(layer_uuid)
-				scale_sign_x = -1 if flip_x else 1
-				scale_sign_y = -1 if flip_y else 1
-				
 				# Render all instances of this layer
 				instance_count = coa.get_layer_instance_count(layer_uuid)
 				for instance_idx in range(instance_count):
-					# Get instance-specific transform data
+					# Get instance-specific transform data (including per-instance flip)
 					instance = coa.get_layer_instance(layer_uuid, instance_idx)
 					pos_x = instance.pos.x
 					pos_y = instance.pos.y
 					scale_x = instance.scale.x
 					scale_y = instance.scale.y
 					rotation = instance.rotation
+					
+					# Get per-instance flip state
+					flip_x = instance.flip_x
+					flip_y = instance.flip_y
+					scale_sign_x = -1 if flip_x else 1
+					scale_sign_y = -1 if flip_y else 1
 					
 					# Convert layer position to OpenGL coordinates
 					center_x, center_y = layer_pos_to_opengl_coords(pos_x, pos_y)
@@ -555,8 +555,10 @@ class CoatOfArmsCanvas(CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 						transformed[3][0], transformed[3][1], 0.0,  u0, v0,
 					], dtype=np.float32)
 					
-					# Update VBO (VAO already bound)
+					# Update VBO and draw this instance
+					self.vbo.bind()
 					self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
+					self.vbo.release()
 					
 					gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
 			

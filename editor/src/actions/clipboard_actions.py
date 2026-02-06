@@ -329,9 +329,11 @@ class ClipboardActions:
 			canvas_widget_pos = self.main_window.canvas_area.canvas_widget.mapFromGlobal(mouse_pos)
 			
 			# Convert canvas pixels to CoA space
-			norm_x, norm_y = self.main_window.canvas_area.canvas_widget.canvas_to_coa(
-				canvas_widget_pos.x(), canvas_widget_pos.y()
+			from models.transform import Vec2
+			coa_pos = self.main_window.canvas_area.canvas_widget.canvas_to_coa(
+				Vec2(canvas_widget_pos.x(), canvas_widget_pos.y())
 			)
+			norm_x, norm_y = coa_pos.x, coa_pos.y
 			
 			# Get all UUIDs from temp CoA
 			temp_uuids = [temp_coa.get_layer_uuid_by_index(i) for i in range(temp_coa.get_layer_count())]

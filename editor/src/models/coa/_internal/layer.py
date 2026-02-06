@@ -350,23 +350,35 @@ class Layer:
     
     @property
     def flip_x(self) -> bool:
-        """Get horizontal flip state"""
-        return self._data.get('flip_x', False)
+        """Get horizontal flip state from first instance"""
+        instances = self._data.get('instances', [])
+        if instances and isinstance(instances[0], Instance):
+            return instances[0].flip_x
+        return False
     
     @flip_x.setter
     def flip_x(self, value: bool):
-        """Set horizontal flip state"""
-        self._data['flip_x'] = bool(value)
+        """Set horizontal flip state on all instances"""
+        instances = self._data.get('instances', [])
+        for inst in instances:
+            if isinstance(inst, Instance):
+                inst.flip_x = bool(value)
     
     @property
     def flip_y(self) -> bool:
-        """Get vertical flip state"""
-        return self._data.get('flip_y', False)
+        """Get vertical flip state from first instance"""
+        instances = self._data.get('instances', [])
+        if instances and isinstance(instances[0], Instance):
+            return instances[0].flip_y
+        return False
     
     @flip_y.setter
     def flip_y(self, value: bool):
-        """Set vertical flip state"""
-        self._data['flip_y'] = bool(value)
+        """Set vertical flip state on all instances"""
+        instances = self._data.get('instances', [])
+        for inst in instances:
+            if isinstance(inst, Instance):
+                inst.flip_y = bool(value)
     
     @property
     def mask(self) -> Optional[List[int]]:
@@ -586,8 +598,6 @@ class Layer:
             'colors': 3,
             'instances': [Instance()],  # Create Instance object instead of dict
             'selected_instance': 0,
-            'flip_x': False,
-            'flip_y': False,
             'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'],
             'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'],
             'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
@@ -685,7 +695,7 @@ class Layer:
         instances = self._data.get('instances', [])
         for inst in instances:
             if isinstance(inst, Instance):
-                lines.append(inst.serialize(flip_x=self.flip_x, flip_y=self.flip_y))
+                lines.append(inst.serialize())
         
         lines.append('\t}')
         return '\n'.join(lines)
@@ -721,15 +731,7 @@ class Layer:
             # No instance block means default values
             instances_data = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0}]
         
-        # Parse first instance to detect flip from negative scale
-        first_inst_data = instances_data[0]
-        scale = first_inst_data.get('scale', [1.0, 1.0])
-        scale_x_raw = scale[0] if isinstance(scale, list) else 1.0
-        scale_y_raw = scale[1] if isinstance(scale, list) and len(scale) > 1 else 1.0
-        flip_x = scale_x_raw < 0
-        flip_y = scale_y_raw < 0
-        
-        # Convert all instances
+        # Convert all instances (flip is extracted within Instance.parse)
         instances = [Instance.parse(inst_data) for inst_data in instances_data]
         
         # Parse mask if present
@@ -768,8 +770,6 @@ class Layer:
             'colors': color_count,
             'instances': instances,
             'selected_instance': 0,
-            'flip_x': flip_x,
-            'flip_y': flip_y,
             'color1': color_name_to_rgb(color1_name),
             'color2': color_name_to_rgb(color2_name),
             'color3': color_name_to_rgb(color3_name),

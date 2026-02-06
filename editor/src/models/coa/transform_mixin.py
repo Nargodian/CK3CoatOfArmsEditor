@@ -905,15 +905,16 @@ class CoATransformMixin:
         
         self._logger.debug(f"Flipped layer {uuid}: x={flip_x}, y={flip_y}")
     
-    def flip_selection(self, uuids: List[str], flip_x: bool = False, flip_y: bool = False, 
-                       orbit: bool = False):
-        """Flip selected layers with optional position mirroring
+    def flip_selection(self, uuids: List[str], flip_x: bool = False, flip_y: bool = False):
+        """Flip selected layers with automatic position mirroring for groups/multi-instance
+        
+        Single instance: Flips in place
+        Multiple instances or multiple layers: Flips appearance AND mirrors positions around center
         
         Args:
             uuids: List of layer UUIDs
             flip_x: If True, toggle horizontal flip
             flip_y: If True, toggle vertical flip
-            orbit: If True, also mirror positions around group center
             
         Raises:
             ValueError: If any UUID not found or empty list
@@ -929,41 +930,38 @@ class CoATransformMixin:
                 raise ValueError(f"Layer with UUID '{uuid}' not found")
             layers.append(layer)
         
-        # Single layer: flip in place
-        if len(uuids) == 1:
+        # Check if we should orbit (mirror positions)
+        # Orbit if: multiple layers OR single layer with multiple instances
+        should_orbit = len(uuids) > 1 or (len(uuids) == 1 and layers[0].instance_count > 1)
+        
+        # Single instance of single layer: flip in place without position change
+        if len(uuids) == 1 and layers[0].instance_count == 1:
             layer = layers[0]
+            instance = layer.get_instance(0, caller='CoA.flip_selection')
             if flip_x:
-                # Toggle current flip state
-                self.flip_layer(uuids[0], flip_x=not layer.flip_x, flip_y=None)
+                instance.flip_x = not instance.flip_x
             if flip_y:
-                # Toggle current flip state
-                self.flip_layer(uuids[0], flip_x=None, flip_y=not layer.flip_y)
-            
-            if orbit:
-                current_x = self.get_layer_pos_x(uuids[0])
-                current_y = self.get_layer_pos_y(uuids[0])
-                if flip_x:
-                    current_x = 1.0 - current_x
-                if flip_y:
-                    current_y = 1.0 - current_y
-                self.set_layer_position(uuids[0], current_x, current_y)
+                instance.flip_y = not instance.flip_y
         else:
-            # Multiple layers: flip around group center
+            # Multiple layers or multi-instance: flip appearance AND mirror positions
             bounds = self.get_layers_bounds(uuids)
             center_x = (bounds['min_x'] + bounds['max_x']) / 2.0
             center_y = (bounds['min_y'] + bounds['max_y']) / 2.0
             
             for uuid, layer in zip(uuids, layers):
-                # Toggle flip visual appearance
-                if flip_x:
-                    self.flip_layer(uuid, flip_x=not layer.flip_x, flip_y=None)
-                if flip_y:
-                    self.flip_layer(uuid, flip_x=None, flip_y=not layer.flip_y)
-                
-                if orbit:
-                    # Mirror position across group center
-                    current_x = self.get_layer_pos_x(uuid)
-                    current_y = self.get_layer_pos_y(uuid)
+                # Toggle flip visual appearance for each instance individually
+                for instance_idx in range(layer.instance_count):
+                    instance = layer.get_instance(instance_idx, caller='CoA.flip_selection')
+                    
+                    # Toggle flip state
+                    if flip_x:
+                        instance.flip_x = not instance.flip_x
+                    if flip_y:
+                        instance.flip_y = not instance.flip_y
+                    
+                    # Mirror position around group center
+                    current_x = instance.pos.x
+                    current_y = instance.pos.y
                     
                     if flip_x:
                         offset_x = current_x - center_x
@@ -973,7 +971,7 @@ class CoATransformMixin:
                         offset_y = current_y - center_y
                         current_y = center_y - offset_y
                     
-                    self.set_layer_position(uuid, current_x, current_y)
+                    instance.pos = Vec2(current_x, current_y)
     
     # ========================================
     # Alignment/Movement Operations
