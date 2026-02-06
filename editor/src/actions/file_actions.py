@@ -145,8 +145,14 @@ class FileActions:
                 self.main_window.canvas_area.canvas_widget.base_color2_name = self.main_window.coa.pattern_color2_name
                 self.main_window.canvas_area.canvas_widget.base_color3_name = self.main_window.coa.pattern_color3_name
                 
+                # Convert colors to 0-1 range for property sidebar
+                base_colors_normalized = [
+                    [c / 255.0 for c in self.main_window.coa.pattern_color1],
+                    [c / 255.0 for c in self.main_window.coa.pattern_color2],
+                    [c / 255.0 for c in self.main_window.coa.pattern_color3]
+                ]
                 base_color_names = [self.main_window.coa.pattern_color1_name, self.main_window.coa.pattern_color2_name, self.main_window.coa.pattern_color3_name]
-                self.main_window.right_sidebar.set_base_colors([self.main_window.coa.pattern_color1, self.main_window.coa.pattern_color2, self.main_window.coa.pattern_color3], base_color_names)
+                self.main_window.right_sidebar.set_base_colors(base_colors_normalized, base_color_names)
                 
                 # Update UI - layers are accessed through CoA model now
                 self.main_window.right_sidebar.tab_widget.setCurrentIndex(1)
