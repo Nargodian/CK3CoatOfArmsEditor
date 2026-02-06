@@ -38,7 +38,7 @@ from utils.path_resolver import (
 from components.canvas_widgets.shader_manager import ShaderManager
 from components.canvas_widgets.canvas_rendering_mixin import CanvasRenderingMixin
 from components.canvas_widgets.canvas_tools_mixin import CanvasToolsMixin
-from components.canvas_widgets.canvas_preview_mixin import CanvasPreviewMixin
+from components.canvas_widgets.canvas_preview_mixin_NEW import CanvasPreviewMixin
 from components.canvas_widgets.canvas_texture_loader_mixin import CanvasTextureLoaderMixin
 from components.canvas_widgets.canvas_zoom_pan_mixin import CanvasZoomPanMixin
 from components.canvas_widgets.canvas_coordinate_mixin import CanvasCoordinateMixin
@@ -77,6 +77,7 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 		self.picker_shader = None
 		self.main_composite_shader = None
 		self.tilesheet_shader = None
+		self.preview_composite_shader = None  # Created by mixin
 		
 		# OpenGL objects
 		self.vao = None
@@ -176,6 +177,9 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 		self.picker_shader = shader_manager.create_picker_shader(self)
 		self.main_composite_shader = shader_manager.create_main_composite_shader(self)
 		self.tilesheet_shader = shader_manager.create_tilesheet_shader(self)
+		
+		# Initialize preview shader (from CanvasPreviewMixin)
+		self._init_preview_shader()
 		
 		# Create RTT framebuffer
 		self.framebuffer_rtt = FramebufferRTT()
@@ -609,6 +613,126 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 		if hasattr(self, '_cleanup_picker_resources'):
 			self._cleanup_picker_resources()
 	
-	# Note: Export methods, composite helpers, and preview rendering methods
+	# ========================================
+	# Export Methods
+	# ========================================
+	
+	def export_to_png(self, filename):
+		"""Export the current CoA rendering to PNG with transparency.
+		Also exports government and title previews as separate files if preview_enabled.
+		
+		Args:
+			filename: Path to save main PNG file (e.g., "output.png")
+			
+		Returns:
+			True if successful, False otherwise
+		"""
+		try:
+			from PyQt5.QtGui import QImage, QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat
+			from PyQt5.QtCore import QSize
+			import numpy as np
+			import os
+			
+			# Use 512x512 for main export
+			export_size = 512
+			
+			# Make this widget's context current
+			self.makeCurrent()
+			
+			# Create framebuffer format with alpha channel
+			fbo_format = QOpenGLFramebufferObjectFormat()
+			fbo_format.setAttachment(QOpenGLFramebufferObject.CombinedDepthStencil)
+			fbo_format.setInternalTextureFormat(0x8058)  # GL_RGBA8
+			
+			# Create Qt's OpenGL framebuffer object
+			fbo = QOpenGLFramebufferObject(QSize(export_size, export_size), fbo_format)
+			if not fbo.isValid():
+				raise Exception("Failed to create framebuffer")
+			
+			# Bind the framebuffer
+			fbo.bind()
+			
+			# Set viewport to export size
+			gl.glViewport(0, 0, export_size, export_size)
+			
+			# Enable alpha blending for transparency
+			gl.glEnable(gl.GL_BLEND)
+			gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+			
+			# Clear with transparent background
+			gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+			gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+			
+			# Render the CoA: First to framebuffer RTT, then composite to FBO
+			self._render_coa_to_framebuffer()
+			
+			# Composite to the export framebuffer
+			# Center the 512x512 canvas in export viewport
+			self.vao.bind()
+			self._render_main_composite(export_size, export_size, export_size, export_size, 0, 0)
+			self.vao.release()
+			
+			# Read pixels directly from framebuffer to preserve alpha
+			gl.glReadBuffer(gl.GL_COLOR_ATTACHMENT0)
+			pixels = gl.glReadPixels(0, 0, export_size, export_size, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE)
+			
+			# Release framebuffer before creating image
+			fbo.release()
+			
+			# Convert to numpy array and flip vertically (OpenGL origin is bottom-left)
+			arr = np.frombuffer(pixels, dtype=np.uint8).reshape(export_size, export_size, 4)
+			arr = np.flipud(arr).copy()  # copy() to make contiguous
+			
+			# Create QImage from bytes
+			image = QImage(arr.tobytes(), export_size, export_size, export_size * 4, QImage.Format_RGBA8888)
+			
+			# Make a copy since the buffer will be deallocated
+			image = image.copy()
+			
+			# Save the main image
+			success = image.save(filename, "PNG")
+			
+			# Export government and title previews if preview mode is enabled
+			if self.preview_enabled:
+				base_name = os.path.splitext(filename)[0]
+				
+				# Export government preview (with _government suffix)
+				try:
+					gov_filename = f"{base_name}_government.png"
+					self.export_government_preview(gov_filename, export_size=256)
+				except Exception as e:
+					print(f"Failed to export government preview: {e}")
+				
+				# Export title preview (with _title suffix)
+				try:
+					title_filename = f"{base_name}_title.png"
+					self.export_title_preview(title_filename, export_size=256)
+				except Exception as e:
+					print(f"Failed to export title preview: {e}")
+			
+			# Restore normal viewport and clear color
+			gl.glViewport(0, 0, self.width(), self.height())
+			gl.glClearColor(*self.clear_color)
+			
+			self.doneCurrent()
+			
+			return success
+			
+		except Exception as e:
+			print(f"PNG export error: {e}")
+			import traceback
+			traceback.print_exc()
+			
+			# Try to restore context state
+			try:
+				gl.glViewport(0, 0, self.width(), self.height())
+				gl.glClearColor(*self.clear_color)
+				self.doneCurrent()
+			except:
+				pass
+			
+			return False
+	
+	# Note: Composite helpers and preview rendering methods
 	# from the original file would continue here. This demonstrates the refactored
 	# structure - original functionality preserved but using the new utility tools.

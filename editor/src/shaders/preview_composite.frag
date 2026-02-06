@@ -1,0 +1,25 @@
+#version 330 core
+in vec2 fragUV;
+out vec4 fragColor;
+
+uniform sampler2D coaTextureSampler;   // RTT CoA texture
+uniform sampler2D frameMaskSampler;    // Frame/preview mask
+uniform vec2 coaScale;                 // CoA scale within mask (simple constant, e.g., 0.9)
+uniform vec2 coaOffset;                // CoA offset within mask (simple constant, e.g., 0.0, 0.1)
+
+void main() {
+    // Apply CoA scale and offset to UV coordinates (matching composite.frag logic)
+    // First scale around center, then apply offset
+    vec2 centeredUV = fragUV - 0.5;
+    centeredUV /= coaScale;  // Apply scale
+    vec2 coaUV = centeredUV + 0.5;  // Recenter
+    coaUV -= coaOffset;  // Apply offset (subtractive, matching main composite shader)
+    
+    // Flip Y coordinate for correct orientation
+    coaUV.y = 1.0 - coaUV.y;
+    
+    // Sample CoA
+    vec4 coaColor = texture(coaTextureSampler, coaUV);
+	float maskValue=texture(frameMaskSampler,fragUV).a;
+    fragColor = vec4(coaColor.rgb, maskValue);
+}

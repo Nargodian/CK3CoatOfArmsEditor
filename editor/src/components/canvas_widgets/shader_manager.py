@@ -135,3 +135,17 @@ class ShaderManager:
             QOpenGLShaderProgram for tilesheet rendering
         """
         return self.create_program(parent, 'quad.vert', 'tilesheet.frag', 'Tilesheet')
+    
+    def create_preview_composite_shader(self, parent):
+        """Create preview composite shader program for simplified preview rendering
+        
+        Stripped-down version of main_composite for previews - no picker, no selection,
+        no viewport bounds, just CoA + mask with simple scale/offset.
+        
+        Args:
+            parent: Parent QObject
+            
+        Returns:
+            QOpenGLShaderProgram for preview composite rendering
+        """
+        return self.create_program(parent, 'quad.vert', 'preview_composite.frag', 'PreviewComposite')
