@@ -12,6 +12,8 @@ out vec4 FragColor;
 
 uniform sampler2D coaTextureSampler;   // RTT texture containing rendered CoA
 uniform sampler2D frameMaskSampler;    // Frame mask texture (alpha defines shape)
+uniform sampler2D texturedMaskSampler; // Material/dirt texture (coa_mask_texture.png)
+uniform sampler2D noiseMaskSampler;    // Noise texture (noise.png)
 uniform sampler2D pickerTextureSampler;  // Picker texture for layer highlighting
 uniform vec2 coaTopLeft;      // Top-left corner of CoA render area (viewport pixels)
 uniform vec2 coaBottomRight;  // Bottom-right corner of CoA render area (viewport pixels)
@@ -37,6 +39,18 @@ void main() {
 	
 	// Sample CoA texture (RGB colors)
 	vec4 coaColor = texture(coaTextureSampler, coaUV);
+	
+	// Apply noise and material texture using frame quad UV
+	vec2 screenUV = fragUV;
+	screenUV.y = 1.0 - screenUV.y;  // Flip Y
+	
+	// Apply material mask (dirt/texture) - blue channel
+	vec4 materialSample = texture(texturedMaskSampler, screenUV);
+	coaColor.rgb = mix(coaColor.rgb, coaColor.rgb * materialSample.b, 0.5);
+	
+	// Apply noise grain
+	float noise = texture(noiseMaskSampler, screenUV).r;
+	coaColor.rgb = mix(coaColor.rgb, coaColor.rgb * noise, 0.2);
 	
 	// Calculate frame mask UV from frame quad UV (fragUV from vertex shader)
 	// Scale to sample from center portion of mask texture, then push out with fudge factor

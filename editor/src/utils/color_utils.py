@@ -23,36 +23,36 @@ COLOR_MAP = {name: data['rgb'] for name, data in CK3_NAMED_COLORS.items()}
 
 
 def get_contrasting_background(emblem_color, background_color):
-	"""Get a contrasting background color for emblem preview
-	
-	Calculates color distance between emblem and background colors.
-	If too similar (distance < threshold), returns high contrast fallback:
-	- Dark emblems get white background
-	- Light emblems get black background
-	
-	Args:
-		emblem_color: RGB tuple (r, g, b) in [0-1] range for emblem color1
-		background_color: RGB tuple (r, g, b) in [0-1] range for background color1
-		
-	Returns:
-		RGB tuple (r, g, b) in [0-1] range for background to use
-	"""
-	# Calculate Euclidean distance in RGB space
-	dist = sum((emblem_color[i] - background_color[i]) ** 2 for i in range(3)) ** 0.5
-	
-	# If colors are too similar, use high contrast fallback
-	if dist < MIN_COLOR_DISTANCE:
-		# Calculate brightness of emblem (luminance)
-		brightness = 0.299 * emblem_color[0] + 0.587 * emblem_color[1] + 0.114 * emblem_color[2]
-		
-		# Dark emblem → white background, light emblem → black background
-		if brightness < 0.5:
-			return tuple(HIGH_CONTRAST_LIGHT)
-		else:
-			return tuple(HIGH_CONTRAST_DARK)
-	else:
-		# Colors are different enough, use actual background color
-		return tuple(background_color)
+    """Get a contrasting background color for emblem preview
+    
+    Calculates color distance between emblem and background colors.
+    If too similar (distance < threshold), returns high contrast fallback:
+    - Dark emblems get white background
+    - Light emblems get black background
+    
+    Args:
+        emblem_color: RGB tuple (r, g, b) in [0-1] range for emblem color1
+        background_color: RGB tuple (r, g, b) in [0-1] range for background color1
+        
+    Returns:
+        RGB tuple (r, g, b) in [0-1] range for background to use
+    """
+    # Calculate Euclidean distance in RGB space
+    dist = sum((emblem_color[i] - background_color[i]) ** 2 for i in range(3)) ** 0.5
+    
+    # If colors are too similar, use high contrast fallback
+    if dist < MIN_COLOR_DISTANCE:
+        # Calculate brightness of emblem (luminance)
+        brightness = 0.299 * emblem_color[0] + 0.587 * emblem_color[1] + 0.114 * emblem_color[2]
+        
+        # Dark emblem → white background, light emblem → black background
+        if brightness < 0.5:
+            return tuple(HIGH_CONTRAST_LIGHT)
+        else:
+            return tuple(HIGH_CONTRAST_DARK)
+    else:
+        # Colors are different enough, use actual background color
+        return tuple(background_color)
 
 
 def color_name_to_rgb(color_name):

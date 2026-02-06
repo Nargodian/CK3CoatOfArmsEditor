@@ -156,6 +156,18 @@ class CanvasPreviewMixin:
         gl.glBindTexture(gl.GL_TEXTURE_2D, mask_texture)
         self.preview_composite_shader.setUniformValue("frameMaskSampler", 1)
         
+        # Bind material mask texture
+        if hasattr(self, 'texturedMask') and self.texturedMask:
+            gl.glActiveTexture(gl.GL_TEXTURE2)
+            gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
+            self.preview_composite_shader.setUniformValue("texturedMaskSampler", 2)
+        
+        # Bind noise texture
+        if hasattr(self, 'noiseMask') and self.noiseMask:
+            gl.glActiveTexture(gl.GL_TEXTURE3)
+            gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
+            self.preview_composite_shader.setUniformValue("noiseMaskSampler", 3)
+        
         # Set transform uniforms (pixel-based, center-origin)
         self.preview_composite_shader.setUniformValue("screenRes", QVector2D(self.width(), self.height()))
         self.preview_composite_shader.setUniformValue("position", QVector2D(center_x_px - self.width()/2.0, self.height()/2.0 - center_y_px))

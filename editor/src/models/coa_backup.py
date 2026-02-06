@@ -2885,13 +2885,13 @@ class CoA(CoAQueryMixin):
                     
                     # First apply offset to move with layer center
                     instance.pos = Vec2(instance.pos.x + offset_x, instance.pos.y + offset_y)
-					
-					# Then ferris wheel around new layer center
+                    
+                    # Then ferris wheel around new layer center
                     rotated_x, rotated_y = self._rotate_point_around(
-						instance.pos.x, instance.pos.y,
-						new_layer_center_x, new_layer_center_y,
-						delta_degrees
-					)
+                        instance.pos.x, instance.pos.y,
+                        new_layer_center_x, new_layer_center_y,
+                        delta_degrees
+                    )
                     instance.pos = Vec2(rotated_x, rotated_y)
     
     def rotate_layers_group(self, uuids: List[str], delta_degrees: float):

@@ -8,15 +8,15 @@ This package contains the refactored transform widget architecture:
 """
 
 from .handles import (
-	Handle, CornerHandle, EdgeHandle, RotationHandle,
-	CenterHandle, ArrowHandle, RingHandle, GimbleCenterHandle
+    Handle, CornerHandle, EdgeHandle, RotationHandle,
+    CenterHandle, ArrowHandle, RingHandle, GimbleCenterHandle
 )
 from .modes import TransformMode, BboxMode, MinimalBboxMode, GimbleMode, create_mode
 from .drag_context import DragContext
 
 __all__ = [
-	'Handle', 'CornerHandle', 'EdgeHandle', 'RotationHandle',
-	'CenterHandle', 'ArrowHandle', 'RingHandle', 'GimbleCenterHandle',
-	'TransformMode', 'BboxMode', 'MinimalBboxMode', 'GimbleMode', 'create_mode',
-	'DragContext',
+    'Handle', 'CornerHandle', 'EdgeHandle', 'RotationHandle',
+    'CenterHandle', 'ArrowHandle', 'RingHandle', 'GimbleCenterHandle',
+    'TransformMode', 'BboxMode', 'MinimalBboxMode', 'GimbleMode', 'create_mode',
+    'DragContext',
 ]
