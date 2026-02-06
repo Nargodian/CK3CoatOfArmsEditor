@@ -201,8 +201,9 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 		# Set defaults
 		self.set_frame(DEFAULT_FRAME)
 		self.set_prestige(3)
-		if "pattern__solid_designer.dds" in self.texture_uv_map:
-			self.set_base_texture("pattern__solid_designer.dds")
+		# Use CK3's default pattern (single underscore, not designer variant)
+		if "pattern_solid.dds" in self.texture_uv_map:
+			self.set_base_texture("pattern_solid.dds")
 		
 		# Force initial render
 		from PyQt5.QtCore import QTimer

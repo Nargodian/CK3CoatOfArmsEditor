@@ -47,7 +47,7 @@ def extract_base_layer_data(coa):
     Returns:
         Dict with pattern, color names, and RGB colors
     """
-    pattern = coa.get('pattern', 'pattern__solid.dds')
+    pattern = coa.get('pattern', 'pattern_solid.dds')  # CK3 default
     
     # Apply base colors (CK3 defaults: black, yellow, black)
     color1_name = coa.get('color1', 'black')

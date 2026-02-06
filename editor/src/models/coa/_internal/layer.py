@@ -655,6 +655,14 @@ class Layer:
         LayerTracker.log_call(caller, self._id, 'serialize')
         
         from utils.color_utils import rgb_to_color_name
+        from models.coa import CoA
+        
+        # Check if force RGB mode is enabled
+        force_rgb = False
+        if CoA.has_active():
+            coa = CoA.get_active()
+            if hasattr(coa, '_force_rgb_colors'):
+                force_rgb = coa._force_rgb_colors
         
         # Helper to normalize RGB [0-255] to [0-1] range
         def normalize_rgb(rgb):
@@ -665,7 +673,7 @@ class Layer:
         # Helper to format color
         def format_color(rgb, color_name):
             normalized = normalize_rgb(rgb)
-            color_str = rgb_to_color_name(normalized, color_name)
+            color_str = rgb_to_color_name(normalized, color_name, force_rgb=force_rgb)
             if color_str.startswith('rgb'):
                 return color_str  # Already formatted as "rgb { R G B }"
             else:

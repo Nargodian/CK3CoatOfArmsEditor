@@ -79,15 +79,16 @@ def color_name_to_rgb(color_name):
     return COLOR_MAP.get(color_name, [1.0, 1.0, 1.0])
 
 
-def rgb_to_color_name(rgb, color_name=None):
+def rgb_to_color_name(rgb, color_name=None, force_rgb=False):
     """Convert RGB [0-1] to CK3 color format
     
-    If color_name is provided (from swatch), use the name.
-    Otherwise (from color picker), output rgb { R G B } format.
+    If color_name is provided (from swatch) and force_rgb is False, use the name.
+    Otherwise (from color picker or force_rgb=True), output rgb { R G B } format.
     
     Args:
         rgb: List of RGB values in [0-1] range: [r, g, b]
         color_name: Optional named color string from swatch selection
+        force_rgb: If True, always output RGB format even if color_name is provided
         
     Returns:
         Color name string or "rgb { R G B }" format string
@@ -95,11 +96,11 @@ def rgb_to_color_name(rgb, color_name=None):
     if not rgb:
         return 'white'
     
-    # If we have a named color (from swatch), use it
-    if color_name:
+    # If we have a named color (from swatch) and not forcing RGB, use it
+    if color_name and not force_rgb:
         return color_name
     
-    # Otherwise output custom RGB format (from color picker)
+    # Otherwise output custom RGB format (from color picker or forced)
     r, g, b = rgb[0], rgb[1], rgb[2]
     r_int = int(round(r * 255))
     g_int = int(round(g * 255))

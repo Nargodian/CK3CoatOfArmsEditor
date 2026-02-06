@@ -61,6 +61,14 @@ class MenuMixin:
 		
 		file_menu.addSeparator()
 		
+		# Force RGB colors option
+		self.force_rgb_action = file_menu.addAction("Force RGB Colors")
+		self.force_rgb_action.setCheckable(True)
+		self.force_rgb_action.setChecked(False)
+		self.force_rgb_action.toggled.connect(self._on_force_rgb_toggled)
+		
+		file_menu.addSeparator()
+		
 		exit_action = file_menu.addAction("E&xit")
 		exit_action.setShortcut("Alt+F4")
 		exit_action.triggered.connect(self.close)
@@ -655,3 +663,8 @@ class MenuMixin:
 		except Exception as e:
 			from utils.logger import loggerRaise
 			loggerRaise(e, "Failed to group/ungroup layers")
+	
+	def _on_force_rgb_toggled(self, checked):
+		"""Update CoA model when Force RGB Colors is toggled"""
+		if self.coa:
+			self.coa._force_rgb_colors = checked

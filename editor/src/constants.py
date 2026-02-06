@@ -66,7 +66,7 @@ DEFAULT_EMBLEM_COLOR2 = 'red'
 DEFAULT_EMBLEM_COLOR3 = 'blue'
 
 # Default pattern texture
-DEFAULT_PATTERN_TEXTURE = 'pattern__solid.dds'
+DEFAULT_PATTERN_TEXTURE = 'pattern_solid.dds'  # CK3 default (single underscore)
 DEFAULT_EMBLEM_TEXTURE = 'ce_fleur.dds'
 
 # Default asset categories

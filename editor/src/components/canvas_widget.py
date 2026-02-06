@@ -343,8 +343,8 @@ class CoatOfArmsCanvas(CanvasPreviewMixin, CanvasToolsMixin, QOpenGLWidget):
 		self.set_frame(DEFAULT_FRAME)
 		self.set_prestige(3)
 		# Set default base pattern
-		if "pattern__solid_designer.dds" in self.texture_uv_map:
-			self.set_base_texture("pattern__solid_designer.dds")
+		if "pattern_solid.dds" in self.texture_uv_map:
+			self.set_base_texture("pattern_solid.dds")
 		
 		# Force initial render after event loop starts
 		from PyQt5.QtCore import QTimer
