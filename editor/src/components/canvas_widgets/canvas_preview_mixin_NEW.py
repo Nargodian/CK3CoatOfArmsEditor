@@ -83,6 +83,20 @@ class CanvasPreviewMixin:
     # Helper Methods
     # ========================================
     
+    def _get_texture_size_fallback(self, requested_size):
+        """Get closest available texture size for lookups.
+        
+        For export at 256px, use 115px textures (largest available).
+        """
+        available_sizes = [22, 86, 115]
+        if requested_size in available_sizes:
+            return requested_size
+        # For larger sizes (like 256), use largest available
+        if requested_size > max(available_sizes):
+            return max(available_sizes)
+        # For sizes in between, use closest
+        return min(available_sizes, key=lambda x: abs(x - requested_size))
+    
     def _calculate_preview_dimensions(self, preview_size_px):
         """Calculate preview quad dimensions in pixels.
         
@@ -176,6 +190,19 @@ class CanvasPreviewMixin:
         if not self.tilesheet_shader or not texture:
             return
         
+        # Get screen dimensions (with export override support)
+        if hasattr(self, '_export_viewport_override') and self._export_viewport_override:
+            screen_width, screen_height = self._export_viewport_override
+        else:
+            screen_width = self.width()
+            screen_height = self.height()
+        
+        # Convert from top-left to center-based coordinates (shader expects position from center)
+        # X: left-to-right, so center_x - width/2
+        # Y: OpenGL Y+ is up, screen Y+ is down, so height/2 - center_y
+        pos_from_center_x = center_x_px - screen_width / 2.0
+        pos_from_center_y = screen_height / 2.0 - center_y_px
+        
         self.vao.bind()
         self.tilesheet_shader.bind()
         
@@ -189,8 +216,8 @@ class CanvasPreviewMixin:
         self.tilesheet_shader.setUniformValue("tileIndex", tile_index)
         
         # Transform uniforms
-        self.tilesheet_shader.setUniformValue("screenRes", QVector2D(self.width(), self.height()))
-        self.tilesheet_shader.setUniformValue("position", QVector2D(center_x_px - self.width()/2.0, self.height()/2.0 - center_y_px))
+        self.tilesheet_shader.setUniformValue("screenRes", QVector2D(screen_width, screen_height))
+        self.tilesheet_shader.setUniformValue("position", QVector2D(pos_from_center_x, pos_from_center_y))
         self.tilesheet_shader.setUniformValue("scale", QVector2D(width_px, height_px))
         self.tilesheet_shader.setUniformValue("rotation", 0.0)
         self.tilesheet_shader.setUniformValue("uvOffset", QVector2D(0.0, 0.0))
@@ -222,10 +249,19 @@ class CanvasPreviewMixin:
     # Core Rendering Methods (readable stacks)
     # ========================================
     
-    def _render_government_preview_at_px(self, left_px, top_px):
-        """Render government preview at pixel position (top-left anchor)."""
+    def _render_government_preview_at_px(self, left_px, top_px, render_size=None, texture_size=None):
+        """Render government preview at pixel position (top-left anchor).
+        
+        Args:
+            left_px, top_px: Position to render at
+            render_size: Size for rendering dimensions (uses self.preview_size if None)
+            texture_size: Size for texture lookups (uses render_size if None)
+        """
+        render_size = render_size or self.preview_size
+        texture_size = texture_size or render_size
+        
         # Calculate dimensions
-        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(self.preview_size)
+        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(render_size)
         
         # Calculate center position for quad rendering
         center_x_px = left_px + width_px / 2.0
@@ -240,30 +276,39 @@ class CanvasPreviewMixin:
         )
         
         # Render government frame
-        gov_frame = self.realm_frame_frames.get((self.preview_government, self.preview_size))
+        gov_frame = self.realm_frame_frames.get((self.preview_government, texture_size))
         if gov_frame:
             self._render_preview_frame(center_x_px, center_y_px, width_px, height_px, gov_frame)
         
         # Render crown strip
-        crown_strip = self.crown_strips.get(self.preview_size)
+        crown_strip = self.crown_strips.get(texture_size)
         if crown_strip:
-            crown_offset_px = self._calculate_crown_offset_government(self.preview_size)
+            crown_offset_px = self._calculate_crown_offset_government(render_size)
             crown_center_y_px = top_px + crown_offset_px + crown_height_px / 2.0
             self._render_ranked_element(center_x_px, crown_center_y_px, width_px, crown_height_px, 
                                         crown_strip, self.preview_rank, flip_v=True)
         
         # Render topframe
-        topframe = self.topframes.get(self.preview_size)
+        topframe = self.topframes.get(texture_size)
         if topframe:
-            topframe_offset_px = self._calculate_topframe_offset(self.preview_size)
+            topframe_offset_px = self._calculate_topframe_offset(render_size)
             topframe_center_y_px = center_y_px + topframe_offset_px
             self._render_ranked_element(center_x_px, topframe_center_y_px, width_px, height_px, 
                                         topframe, self.preview_rank, flip_v=True)
     
-    def _render_title_preview_at_px(self, left_px, top_px):
-        """Render title preview at pixel position (top-left anchor)."""
+    def _render_title_preview_at_px(self, left_px, top_px, render_size=None, texture_size=None):
+        """Render title preview at pixel position (top-left anchor).
+        
+        Args:
+            left_px, top_px: Position to render at
+            render_size: Size for rendering dimensions (uses self.preview_size if None)
+            texture_size: Size for texture lookups (uses render_size if None)
+        """
+        render_size = render_size or self.preview_size
+        texture_size = texture_size or render_size
+        
         # Calculate dimensions
-        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(self.preview_size)
+        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(render_size)
         
         # Calculate center position
         center_x_px = left_px + width_px / 2.0
@@ -279,16 +324,16 @@ class CanvasPreviewMixin:
             )
         
         # Render crown strip
-        crown_strip = self.crown_strips.get(self.preview_size)
+        crown_strip = self.crown_strips.get(texture_size)
         if crown_strip:
-            crown_offset_px = self._calculate_crown_offset_title(self.preview_size)
+            crown_offset_px = self._calculate_crown_offset_title(render_size)
             crown_center_y_px = top_px + crown_offset_px + crown_height_px / 2.0
             self._render_ranked_element(center_x_px, crown_center_y_px, width_px, crown_height_px,
                                         crown_strip, self.preview_rank, flip_v=True)
         
         # Render title frame (scaled)
-        title_frame = self.title_frames.get(self.preview_size)
-        if not title_frame and self.preview_size == 115:
+        title_frame = self.title_frames.get(texture_size)
+        if not title_frame and texture_size == 115:
             title_frame = self.title_frames.get(86)
         if title_frame:
             scaled_width = width_px * PREVIEW_TITLE_FRAME_SCALE
@@ -345,102 +390,140 @@ class CanvasPreviewMixin:
         
         Args:
             filepath: Output file path (e.g., "output_government.png")
-            export_size: Optional export size in pixels (uses self.preview_size if None)
+            export_size: Canvas size in pixels (default: self.preview_size)
         """
         if export_size is None:
             export_size = self.preview_size
         
-        # Calculate dimensions
-        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(export_size)
+        # Canvas is square (e.g., 512x512)
+        canvas_size = export_size
         
-        # Store original viewport dimensions
+        # Render at native texture size (115px for largest textures)
+        texture_size = 115  # Native size, no scaling
+        render_size = texture_size
+        
+        # Calculate actual render dimensions at native size
+        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(render_size)
+        
+        # Center position in canvas
+        center_x = canvas_size / 2.0
+        center_y = canvas_size / 2.0
+        
+        # Top-left position (center the total height including crown)
+        left_px = center_x - width_px / 2.0
+        top_px = center_y - total_height_px / 2.0
+        
+        # Store original viewport and FBO
         original_width = self.width()
         original_height = self.height()
+        original_fbo = gl.glGetIntegerv(gl.GL_FRAMEBUFFER_BINDING)
         
-        # Create temporary framebuffer for export
-        from services.framebuffer_rtt import FramebufferRTT
-        export_fbo = FramebufferRTT()
-        export_fbo.initialize(int(width_px), int(total_height_px))
+        # Create square framebuffer for export
+        from PyQt5.QtGui import QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat
+        from PyQt5.QtCore import QSize
+        
+        fbo_format = QOpenGLFramebufferObjectFormat()
+        fbo_format.setAttachment(QOpenGLFramebufferObject.CombinedDepthStencil)
+        fbo_format.setInternalTextureFormat(0x8058)  # GL_RGBA8
+        
+        export_fbo = QOpenGLFramebufferObject(QSize(canvas_size, canvas_size), fbo_format)
+        if not export_fbo.isValid():
+            raise Exception("Failed to create export framebuffer")
         
         # Bind export framebuffer and set viewport
         export_fbo.bind()
-        export_fbo.clear(0.0, 0.0, 0.0, 0.0)
-        gl.glViewport(0, 0, int(width_px), int(total_height_px))
+        gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+        gl.glViewport(0, 0, canvas_size, canvas_size)
         
         # Temporarily override width()/height() for coordinate calculations during export
-        self._export_viewport_override = (int(width_px), int(total_height_px))
+        self._export_viewport_override = (canvas_size, canvas_size)
         
-        # Render government preview at origin (0, 0 top-left)
-        self._render_government_preview_at_px(0, 0)
+        # Render government preview centered at native size
+        self._render_government_preview_at_px(left_px, top_px, render_size=render_size, texture_size=texture_size)
         
         # Clear override
         self._export_viewport_override = None
         
-        # Read pixels and save
-        from PIL import Image
-        pixels = np.frombuffer(gl.glReadPixels(0, 0, int(width_px), int(total_height_px), 
-                                                gl.GL_RGBA, gl.GL_UNSIGNED_BYTE), dtype=np.uint8)
-        pixels = pixels.reshape(int(total_height_px), int(width_px), 4)
-        pixels = np.flipud(pixels)  # Flip Y-axis
-        
-        image = Image.fromarray(pixels, 'RGBA')
-        image.save(filepath)
+        # Read pixels and save (toImage() already returns correct orientation for FBO)
+        from PyQt5.QtGui import QImage
+        image = export_fbo.toImage()
+        image.save(filepath, "PNG")
         
         # Cleanup and restore
-        export_fbo.unbind(self.defaultFramebufferObject())
+        export_fbo.release()
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, original_fbo)
         gl.glViewport(0, 0, original_width, original_height)
-        export_fbo.cleanup()
     
     def export_title_preview(self, filepath, export_size=None):
         """Export title preview to PNG file.
         
         Args:
             filepath: Output file path (e.g., "output_title.png")
-            export_size: Optional export size in pixels (uses self.preview_size if None)
+            export_size: Canvas size in pixels (default: self.preview_size)
         """
         if export_size is None:
             export_size = self.preview_size
         
-        # Calculate dimensions
-        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(export_size)
+        # Canvas is square (e.g., 512x512)
+        canvas_size = export_size
         
-        # Store original viewport dimensions
+        # Render at native texture size (115px for largest textures)
+        texture_size = 115  # Native size, no scaling
+        render_size = texture_size
+        
+        # Calculate actual render dimensions at native size
+        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(render_size)
+        
+        # Center position in canvas
+        center_x = canvas_size / 2.0
+        center_y = canvas_size / 2.0
+        
+        # Top-left position (center the total height including crown)
+        left_px = center_x - width_px / 2.0
+        top_px = center_y - total_height_px / 2.0
+        
+        # Store original viewport and FBO
         original_width = self.width()
         original_height = self.height()
+        original_fbo = gl.glGetIntegerv(gl.GL_FRAMEBUFFER_BINDING)
         
-        # Create temporary framebuffer for export
-        from services.framebuffer_rtt import FramebufferRTT
-        export_fbo = FramebufferRTT()
-        export_fbo.initialize(int(width_px), int(total_height_px))
+        # Create square framebuffer for export
+        from PyQt5.QtGui import QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat
+        from PyQt5.QtCore import QSize
+        
+        fbo_format = QOpenGLFramebufferObjectFormat()
+        fbo_format.setAttachment(QOpenGLFramebufferObject.CombinedDepthStencil)
+        fbo_format.setInternalTextureFormat(0x8058)  # GL_RGBA8
+        
+        export_fbo = QOpenGLFramebufferObject(QSize(canvas_size, canvas_size), fbo_format)
+        if not export_fbo.isValid():
+            raise Exception("Failed to create export framebuffer")
         
         # Bind export framebuffer and set viewport
         export_fbo.bind()
-        export_fbo.clear(0.0, 0.0, 0.0, 0.0)
-        gl.glViewport(0, 0, int(width_px), int(total_height_px))
+        gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+        gl.glViewport(0, 0, canvas_size, canvas_size)
         
         # Temporarily override width()/height() for coordinate calculations during export
-        self._export_viewport_override = (int(width_px), int(total_height_px))
+        self._export_viewport_override = (canvas_size, canvas_size)
         
-        # Render title preview at origin (0, 0 top-left)
-        self._render_title_preview_at_px(0, 0)
+        # Render title preview centered at native size
+        self._render_title_preview_at_px(left_px, top_px, render_size=render_size, texture_size=texture_size)
         
         # Clear override
         self._export_viewport_override = None
         
-        # Read pixels and save
-        from PIL import Image
-        pixels = np.frombuffer(gl.glReadPixels(0, 0, int(width_px), int(total_height_px), 
-                                                gl.GL_RGBA, gl.GL_UNSIGNED_BYTE), dtype=np.uint8)
-        pixels = pixels.reshape(int(total_height_px), int(width_px), 4)
-        pixels = np.flipud(pixels)  # Flip Y-axis
-        
-        image = Image.fromarray(pixels, 'RGBA')
-        image.save(filepath)
+        # Read pixels and save (toImage() already returns correct orientation for FBO)
+        from PyQt5.QtGui import QImage
+        image = export_fbo.toImage()
+        image.save(filepath, "PNG")
         
         # Cleanup and restore
-        export_fbo.unbind(self.defaultFramebufferObject())
+        export_fbo.release()
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, original_fbo)
         gl.glViewport(0, 0, original_width, original_height)
-        export_fbo.cleanup()
     
     def width(self):
         """Override to support export viewport override."""

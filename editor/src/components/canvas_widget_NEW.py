@@ -666,10 +666,33 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 			# Render the CoA: First to framebuffer RTT, then composite to FBO
 			self._render_coa_to_framebuffer()
 			
+			# Re-bind export FBO (render_coa_to_framebuffer unbinds back to screen)
+			fbo.bind()
+			
 			# Composite to the export framebuffer
 			# Center the 512x512 canvas in export viewport
 			self.vao.bind()
 			self._render_main_composite(export_size, export_size, export_size, export_size, 0, 0)
+			
+			# Render frame on top (temporarily reset zoom/pan for export)
+			if self.current_frame_name and self.current_frame_name != "None" and self.current_frame_name in self.frameTextures:
+				# Store current zoom/pan
+				original_zoom = self.zoom_level
+				original_pan_x = self.pan_x
+				original_pan_y = self.pan_y
+				
+				# Temporarily set to identity for export
+				self.zoom_level = 1.0
+				self.pan_x = 0.0
+				self.pan_y = 0.0
+				
+				self._render_frame((export_size, export_size))
+				
+				# Restore zoom/pan
+				self.zoom_level = original_zoom
+				self.pan_x = original_pan_x
+				self.pan_y = original_pan_y
+			
 			self.vao.release()
 			
 			# Read pixels directly from framebuffer to preserve alpha
@@ -696,9 +719,9 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 			if self.preview_enabled:
 				base_name = os.path.splitext(filename)[0]
 				
-				# Export government preview (with _government suffix)
+				# Export government preview (with _gov suffix)
 				try:
-					gov_filename = f"{base_name}_government.png"
+					gov_filename = f"{base_name}_gov.png"
 					self.export_government_preview(gov_filename, export_size=256)
 				except Exception as e:
 					print(f"Failed to export government preview: {e}")
@@ -710,7 +733,7 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 				except Exception as e:
 					print(f"Failed to export title preview: {e}")
 			
-			# Restore normal viewport and clear color
+			# Restore normal viewport and clear color before releasing context
 			gl.glViewport(0, 0, self.width(), self.height())
 			gl.glClearColor(*self.clear_color)
 			
@@ -722,15 +745,6 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 			print(f"PNG export error: {e}")
 			import traceback
 			traceback.print_exc()
-			
-			# Try to restore context state
-			try:
-				gl.glViewport(0, 0, self.width(), self.height())
-				gl.glClearColor(*self.clear_color)
-				self.doneCurrent()
-			except:
-				pass
-			
 			return False
 	
 	# Note: Composite helpers and preview rendering methods
