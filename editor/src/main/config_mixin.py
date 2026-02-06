@@ -177,8 +177,14 @@ class ConfigMixin:
                     self.canvas_area.canvas_widget.base_color2_name = self.coa.pattern_color2_name
                     self.canvas_area.canvas_widget.base_color3_name = self.coa.pattern_color3_name
                     
+                    # Convert colors to 0-1 range for property sidebar
+                    base_colors_normalized = [
+                        [c / 255.0 for c in self.coa.pattern_color1],
+                        [c / 255.0 for c in self.coa.pattern_color2],
+                        [c / 255.0 for c in self.coa.pattern_color3]
+                    ]
                     base_color_names = [self.coa.pattern_color1_name, self.coa.pattern_color2_name, self.coa.pattern_color3_name]
-                    self.right_sidebar.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3], base_color_names)
+                    self.right_sidebar.set_base_colors(base_colors_normalized, base_color_names)
                     
                     # Update UI
                     self.right_sidebar.tab_widget.setCurrentIndex(1)
