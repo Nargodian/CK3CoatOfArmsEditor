@@ -88,11 +88,18 @@ class CoASerializationMixin:
                 
                 if isinstance(color_raw, str):
                     if color_raw.startswith('rgb'):
-                        rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color_raw)
-                        if rgb_match:
-                            rgb = [int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))]
+                        # Try standard parsing first
+                        from utils.color_utils import parse_rgb_string
+                        rgb_normalized = parse_rgb_string(color_raw)
+                        if rgb_normalized:
+                            # parse_rgb_string returns [0-1] range, convert to [0-255]
+                            rgb = [int(rgb_normalized[0] * 255), int(rgb_normalized[1] * 255), int(rgb_normalized[2] * 255)]
                             setattr(self, f'_pattern_color{color_num}', rgb)
                             setattr(self, f'_pattern_color{color_num}_name', None)
+                        else:
+                            self._logger.warning(f"Failed to parse RGB color: {color_raw}, using default")
+                            setattr(self, f'_pattern_color{color_num}', color_name_to_rgb([DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3][color_num - 1]))
+                            setattr(self, f'_pattern_color{color_num}_name', [DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3][color_num - 1])
                     else:
                         setattr(self, f'_pattern_color{color_num}', color_name_to_rgb(color_raw))
                         setattr(self, f'_pattern_color{color_num}_name', color_raw)

@@ -1,0 +1,99 @@
+coa_export = {
+	custom=yes
+	pattern = "pattern_solid.dds"
+	color1=rgb{46 49 77}
+	colored_emblem = {
+		texture = "ce_star_07.dds"
+		color1 = rgb{210 59 66}
+			instance = {
+				position = { 0.5028785261945884 0.48272884283246975 }
+				scale = { 0.7478980945024651 0.7478980945024651 }
+			}
+	}
+	colored_emblem = {
+		texture = "ce_star_07.dds"
+		color1 = rgb{210 59 66}
+			instance = {
+				position = { 0.5028785261945884 0.48272884283246975 }
+				scale = { 0.7478980945024651 0.7478980945024651 }
+			}
+	}
+	colored_emblem = {
+		texture = "ce_mascle.dds"
+		color1 = rgb{255 255 255}
+			instance = {
+				position = { 0.49864910873483187 0.7699966205210533 }
+				scale = { 0.46 0.46 }
+				rotation = 180.28666922594948
+			}
+			instance = {
+				position = { 0.2880658749894145 0.6672839701106997 }
+				scale = { 0.46 0.46 }
+				rotation = 231.71524065452093
+			}
+			instance = {
+				position = { 0.23707336004526003 0.4386030782358716 }
+				scale = { 0.46 0.46 }
+				rotation = 283.14381208309237
+			}
+			instance = {
+				position = { 0.38406996771305874 0.25615532071839514 }
+				scale = { 0.46 0.46 }
+				rotation = 334.57238351166376
+			}
+			instance = {
+				position = { 0.6183642542346168 0.2573275802249399 }
+				scale = { 0.46 0.46 }
+				rotation = 26.000954940235204
+			}
+			instance = {
+				position = { 0.7635278431267374 0.4412371214373416 }
+				scale = { 0.46 0.46 }
+				rotation = 77.42952636880665
+			}
+			instance = {
+				position = { 0.7102495911560809 0.6693963087516988 }
+				scale = { 0.46 0.46 }
+				rotation = 128.85809779737804
+			}
+	}
+	colored_emblem = {
+		texture = "ce_lozenge.dds"
+		color1 = rgb{46 49 77}
+			instance = {
+				position = { 0.49766851116167565 0.8417475483144253 }
+				scale = { 0.42 0.42 }
+				rotation = 180.5369584439759
+			}
+			instance = {
+				position = { 0.23358031498466397 0.7119155857361816 }
+				scale = { 0.42 0.42 }
+				rotation = 231.82267272969017
+			}
+			instance = {
+				position = { 0.16971429507607905 0.42465256102192694 }
+				scale = { 0.42 0.42 }
+				rotation = 283.10838701540445
+			}
+			instance = {
+				position = { 0.35391411888478125 0.19515454626844492 }
+				scale = { 0.42 0.42 }
+				rotation = 334.3941013011188
+			}
+			instance = {
+				position = { 0.648190991632946 0.19534436857151388 }
+				scale = { 0.42 0.42 }
+				rotation = 25.679815586832987
+			}
+			instance = {
+				position = { 0.8320945884403603 0.4250798271934739 }
+				scale = { 0.42 0.42 }
+				rotation = 76.96552987254732
+			}
+			instance = {
+				position = { 0.7678580257451999 0.7122602197693895 }
+				scale = { 0.42 0.42 }
+				rotation = 128.2512441582616
+			}
+	}
+}

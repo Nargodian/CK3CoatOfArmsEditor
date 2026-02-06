@@ -496,8 +496,24 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
 			self.update()
 	
 	def set_base_colors(self, colors):
-		"""Set base layer colors."""
-		self.base_colors = colors
+		"""Set base layer colors.
+		
+		Args:
+			colors: List of 3 RGB color lists. Each color can be:
+				- [0-255] int range (from CoA model): will be normalized to [0-1]
+				- [0-1] float range (from CK3_NAMED_COLORS): used as-is
+		"""
+		# Normalize colors to 0-1 range if they're in 0-255 range
+		normalized_colors = []
+		for color in colors:
+			if isinstance(color[0], int) or (isinstance(color[0], float) and color[0] > 1.0):
+				# Color is in 0-255 range, normalize to 0-1
+				normalized_colors.append([c / 255.0 for c in color])
+			else:
+				# Already in 0-1 range
+				normalized_colors.append(color)
+		
+		self.base_colors = normalized_colors
 		self.update()
 	
 	def set_layers(self, layers):
