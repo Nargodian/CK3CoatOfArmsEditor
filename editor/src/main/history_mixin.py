@@ -46,9 +46,8 @@ class HistoryMixin:
             self.canvas_area.canvas_widget.base_color2_name = self.coa.pattern_color2_name
             self.canvas_area.canvas_widget.base_color3_name = self.coa.pattern_color3_name
             
-            # Update property sidebar base colors
-            base_color_names = [self.coa.pattern_color1_name, self.coa.pattern_color2_name, self.coa.pattern_color3_name]
-            self.right_sidebar.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3], base_color_names)
+            # Update property sidebar from model
+            self.right_sidebar._refresh_base_colors_from_model()
             
             # Restore canvas layers - ALWAYS update, not just when selection exists
             self.canvas_area.canvas_widget.update()

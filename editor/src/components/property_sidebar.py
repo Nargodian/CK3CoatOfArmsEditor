@@ -226,9 +226,15 @@ class PropertySidebar(QFrame):
         
         layout.addWidget(self.tab_widget)
         
-        # Initialize mask colors after UI is built (delayed to ensure everything is ready)
+        # Initialize colors from CoA model after UI is built (delayed to ensure references are set)
         from PyQt5.QtCore import QTimer
-        QTimer.singleShot(100, self.update_mask_colors_from_base)
+        QTimer.singleShot(100, self._initialize_colors_from_model)
+    
+    def _initialize_colors_from_model(self):
+        """Initialize base colors and mask colors from CoA model after references are set"""
+        if self.main_window and self.main_window.coa:
+            self._refresh_base_colors_from_model()
+            self.update_mask_colors_from_base()
     
     def _create_base_tab(self):
         """Create the Base properties tab"""
@@ -560,30 +566,46 @@ class PropertySidebar(QFrame):
         
         # Update canvas with new colors
         if button in self.color_buttons:
-            # Base color changed
+            # Base color changed - update CoA model first
+            button_index = self.color_buttons.index(button)
+            color = QColor(color_hex)
+            color_rgb_int = [color.red(), color.green(), color.blue()]  # 0-255 range for CoA model
+            
+            # Update CoA model (Model is single source of truth)
+            if button_index == 0:
+                self.main_window.coa.pattern_color1 = color_rgb_int
+                self.main_window.coa.pattern_color1_name = color_name
+            elif button_index == 1:
+                self.main_window.coa.pattern_color2 = color_rgb_int
+                self.main_window.coa.pattern_color2_name = color_name
+            elif button_index == 2:
+                self.main_window.coa.pattern_color3 = color_rgb_int
+                self.main_window.coa.pattern_color3_name = color_name
+            
+            # Refresh all Views from Model (proper MVC pattern)
+            self._refresh_base_colors_from_model()
+            
+            # Update canvas with new colors (canvas caches for render performance)
             if self.canvas_widget:
-                colors = self.get_base_colors()
-                self.canvas_widget.set_base_colors(colors)
-                # Store color names on canvas for serialization
-                for i, btn in enumerate(self.color_buttons):
-                    color_name_prop = btn.property("colorName")
-                    setattr(self.canvas_widget, f'base_color{i+1}_name', color_name_prop)
-                
-                # Update mask channel color indicators
-                self.update_mask_colors_from_base()
-                
-                # Clear layer thumbnail cache since background colors changed
-                if hasattr(self, 'layer_list_widget') and self.layer_list_widget:
-                    self.layer_list_widget.clear_thumbnail_cache()
-                    self._rebuild_layer_list()
-                
-                # Update asset sidebar pattern previews with new background colors
-                if self.main_window and hasattr(self.main_window, 'left_sidebar'):
-                    self.main_window.left_sidebar.update_asset_colors()
-                
-                # Save to history
-                if self.main_window and hasattr(self.main_window, '_save_state'):
-                    self.main_window._save_state("Change base color")
+                base_colors = [
+                    [c / 255.0 for c in self.main_window.coa.pattern_color1],
+                    [c / 255.0 for c in self.main_window.coa.pattern_color2],
+                    [c / 255.0 for c in self.main_window.coa.pattern_color3]
+                ]
+                self.canvas_widget.set_base_colors(base_colors)
+                # Store color names for serialization
+                self.canvas_widget.base_color1_name = self.main_window.coa.pattern_color1_name
+                self.canvas_widget.base_color2_name = self.main_window.coa.pattern_color2_name
+                self.canvas_widget.base_color3_name = self.main_window.coa.pattern_color3_name
+            
+            # Clear layer thumbnail cache since background colors changed
+            if hasattr(self, 'layer_list_widget') and self.layer_list_widget:
+                self.layer_list_widget.clear_thumbnail_cache()
+                self._rebuild_layer_list()
+            
+            # Save to history
+            if self.main_window and hasattr(self.main_window, '_save_state'):
+                self.main_window._save_state("Change base color")
         elif button in self.emblem_color_buttons:
             # Emblem color changed - apply to ALL selected layers
             selected_uuids = self.get_selected_uuids()
@@ -615,60 +637,45 @@ class PropertySidebar(QFrame):
     # Color Management (Base & Emblem)
     # ========================================
     
-    def get_base_colors(self):
-        """Get base colors as RGB float arrays [0.0-1.0]"""
-        colors = []
-        for btn in self.color_buttons:
-            color_hex = btn.property("colorValue")
-            color = QColor(color_hex)
-            colors.append([color.redF(), color.greenF(), color.blueF()])
-        return colors
-    
-    def set_base_colors(self, colors, color_names=None):
-        """Set base colors from RGB float arrays [0.0-1.0]
-        Args:
-            colors: List of [r, g, b] values (0.0-1.0)
-            color_names: Optional list of color names ('black', 'yellow', etc.) to store on canvas
-        """
-        for i, color_rgb in enumerate(colors):
+    def _refresh_base_colors_from_model(self):
+        """Refresh base color button display by querying CoA model (MVC pattern - View pulls from Model)"""
+        if not self.main_window or not self.main_window.coa:
+            return
+        
+        coa = self.main_window.coa
+        color_data = [
+            (coa.pattern_color1, coa.pattern_color1_name),
+            (coa.pattern_color2, coa.pattern_color2_name),
+            (coa.pattern_color3, coa.pattern_color3_name)
+        ]
+        
+        for i, (color_rgb_int, color_name) in enumerate(color_data):
             if i < len(self.color_buttons):
-                # Convert RGB float to hex
-                r = int(color_rgb[0] * 255)
-                g = int(color_rgb[1] * 255)
-                b = int(color_rgb[2] * 255)
+                # Convert RGB int (0-255) to hex
+                r, g, b = color_rgb_int
                 color_hex = f"#{r:02x}{g:02x}{b:02x}"
                 
-                # Update button
+                # Update button properties
                 btn = self.color_buttons[i]
                 btn.setProperty("colorValue", color_hex)
+                btn.setProperty("colorName", color_name)
                 
-                # Set color name if provided, otherwise clear it
-                if color_names and i < len(color_names):
-                    btn.setProperty("colorName", color_names[i])
-                    # Also store on canvas for serialization
-                    if self.canvas_widget:
-                        setattr(self.canvas_widget, f'base_color{i+1}_name', color_names[i])
-                else:
-                    btn.setProperty("colorName", None)
-                    if self.canvas_widget:
-                        setattr(self.canvas_widget, f'base_color{i+1}_name', None)
-                
+                # Update button stylesheet
+                btn.setStyleSheet("")
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background-color: {color_hex};
                         border-radius: 4px;
                     }}
                 """)
+                btn.repaint()
         
         # Update mask channel color indicators
         self.update_mask_colors_from_base()
         
-        # Update asset sidebar pattern previews with new background colors
+        # Update asset sidebar pattern previews
         if self.main_window and hasattr(self.main_window, 'left_sidebar'):
-            print(f"DEBUG: Calling update_asset_colors from set_base_colors")
             self.main_window.left_sidebar.update_asset_colors()
-        else:
-            print(f"DEBUG: Cannot update asset colors - main_window={self.main_window}, has_left_sidebar={hasattr(self.main_window, 'left_sidebar') if self.main_window else False}")
     
     def set_emblem_color_count(self, count):
         """Show/hide emblem color swatches based on asset color count (1, 2, or 3)"""
@@ -1552,8 +1559,16 @@ class PropertySidebar(QFrame):
         if not hasattr(self, 'mask_checkboxes'):
             return
         
-        # Get base colors from canvas
-        base_colors = self.get_base_colors()
+        # Guard: skip if main_window/CoA not initialized yet
+        if not hasattr(self, 'main_window') or not self.main_window or not hasattr(self.main_window, 'coa'):
+            return
+        
+        # Get base colors from CoA model (convert 0-255 int to 0-1 float)
+        base_colors = [
+            [c / 255.0 for c in self.main_window.coa.pattern_color1],
+            [c / 255.0 for c in self.main_window.coa.pattern_color2],
+            [c / 255.0 for c in self.main_window.coa.pattern_color3]
+        ]
         
         # Update each mask channel indicator with corresponding base color
         for i, mask_item in enumerate(self.mask_checkboxes):

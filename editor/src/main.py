@@ -207,6 +207,7 @@ class CoatOfArmsEditor(MenuMixin, EventMixin, ConfigMixin, HistoryMixin, AssetMi
         
         # Left sidebar - scrollable assets
         self.left_sidebar = AssetSidebar(self)
+        self.left_sidebar.main_window = self  # Reference for CoA model access
         splitter.addWidget(self.left_sidebar)
         
         # Center canvas area
@@ -238,9 +239,15 @@ class CoatOfArmsEditor(MenuMixin, EventMixin, ConfigMixin, HistoryMixin, AssetMi
         self.canvas_area.set_property_sidebar(self.right_sidebar)
         self.canvas_area.main_window = self
         
-        # Initialize base colors in canvas from property sidebar
-        base_colors = self.right_sidebar.get_base_colors()
+        # Initialize base colors in canvas from CoA model
+        base_colors = [
+            [c / 255.0 for c in self.coa.pattern_color1],
+            [c / 255.0 for c in self.coa.pattern_color2],
+            [c / 255.0 for c in self.coa.pattern_color3]
+        ]
         self.canvas_area.canvas_widget.set_base_colors(base_colors)
+        
+        # Property sidebar will refresh from CoA model after initialization timer
         
         # Connect property tab changes to asset sidebar mode
         self.right_sidebar.tab_widget.currentChanged.connect(self._on_property_tab_changed)
@@ -356,12 +363,20 @@ class CoatOfArmsEditor(MenuMixin, EventMixin, ConfigMixin, HistoryMixin, AssetMi
             self.canvas_area.canvas_widget.set_base_texture(default_pattern)
             self.canvas_area.canvas_widget.set_base_colors(default_colors)
             
-            # Create new empty CoA
-            self.coa = CoA(pattern=default_pattern, pattern_color1=default_color_names[0], pattern_color2=default_color_names[1], pattern_color3=default_color_names[2])
+            # Create new empty CoA and set its pattern/colors
+            self.coa = CoA()
+            self.coa.pattern = default_pattern
+            self.coa.pattern_color1 = [int(c * 255) for c in default_colors[0]]  # Convert 0-1 float to 0-255 int
+            self.coa.pattern_color2 = [int(c * 255) for c in default_colors[1]]
+            self.coa.pattern_color3 = [int(c * 255) for c in default_colors[2]]
+            self.coa.pattern_color1_name = default_color_names[0]
+            self.coa.pattern_color2_name = default_color_names[1]
+            self.coa.pattern_color3_name = default_color_names[2]
+            CoA.set_active(self.coa)  # Update active instance
             self.canvas_area.canvas_widget.update()
             
-            # Reset property sidebar base colors with color names
-            self.right_sidebar.set_base_colors(default_colors, default_color_names)
+            # Property sidebar refreshes from CoA model
+            self.right_sidebar._refresh_base_colors_from_model()
             
             # Reset asset sidebar to patterns mode with default category
             if hasattr(self, 'left_sidebar'):

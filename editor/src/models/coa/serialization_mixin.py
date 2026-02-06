@@ -98,10 +98,17 @@ class CoASerializationMixin:
                             setattr(self, f'_pattern_color{color_num}_name', None)
                         else:
                             self._logger.warning(f"Failed to parse RGB color: {color_raw}, using default")
-                            setattr(self, f'_pattern_color{color_num}', color_name_to_rgb([DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3][color_num - 1]))
-                            setattr(self, f'_pattern_color{color_num}_name', [DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3][color_num - 1])
+                            # color_name_to_rgb returns 0-1 floats, convert to 0-255 ints
+                            default_name = [DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3][color_num - 1]
+                            rgb_float = color_name_to_rgb(default_name)
+                            rgb_int = [int(c * 255) for c in rgb_float]
+                            setattr(self, f'_pattern_color{color_num}', rgb_int)
+                            setattr(self, f'_pattern_color{color_num}_name', default_name)
                     else:
-                        setattr(self, f'_pattern_color{color_num}', color_name_to_rgb(color_raw))
+                        # color_name_to_rgb returns 0-1 floats, convert to 0-255 ints
+                        rgb_float = color_name_to_rgb(color_raw)
+                        rgb_int = [int(c * 255) for c in rgb_float]
+                        setattr(self, f'_pattern_color{color_num}', rgb_int)
                         setattr(self, f'_pattern_color{color_num}_name', color_raw)
             
             # Parse layers

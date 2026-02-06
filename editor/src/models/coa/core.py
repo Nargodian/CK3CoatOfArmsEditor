@@ -135,9 +135,10 @@ class CoA(CoATransformMixin, CoALayerMixin, CoASerializationMixin, CoAContainerM
         
         # Base pattern and colors
         self._pattern = DEFAULT_PATTERN_TEXTURE
-        self._pattern_color1 = CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb'].copy()
-        self._pattern_color2 = CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb'].copy()
-        self._pattern_color3 = CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'].copy()
+        # Convert CK3_NAMED_COLORS from 0-1 float to 0-255 int for storage
+        self._pattern_color1 = [int(c * 255) for c in CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb']]
+        self._pattern_color2 = [int(c * 255) for c in CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb']]
+        self._pattern_color3 = [int(c * 255) for c in CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb']]
         self._pattern_color1_name = DEFAULT_BASE_COLOR1
         self._pattern_color2_name = DEFAULT_BASE_COLOR2
         self._pattern_color3_name = DEFAULT_BASE_COLOR3

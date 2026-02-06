@@ -62,8 +62,12 @@ class UISetupMixin:
         self.canvas_area.set_property_sidebar(self.right_sidebar)
         self.canvas_area.main_window = self
         
-        # Initialize base colors in canvas from property sidebar
-        base_colors = self.right_sidebar.get_base_colors()
+        # Initialize base colors in canvas from CoA model
+        base_colors = [
+            [c / 255.0 for c in self.coa.pattern_color1],
+            [c / 255.0 for c in self.coa.pattern_color2],
+            [c / 255.0 for c in self.coa.pattern_color3]
+        ]
         self.canvas_area.canvas_widget.set_base_colors(base_colors)
         
         # Connect property tab changes to asset sidebar mode

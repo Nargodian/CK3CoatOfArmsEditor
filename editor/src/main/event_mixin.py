@@ -20,7 +20,7 @@ class EventMixin:
         if not hasattr(self, '_initial_state_saved'):
             self._initial_state_saved = True
             # Use a timer to ensure everything is fully initialized
-            QTimer.singleShot(100, lambda: self._save_state("Initial state"))
+            QTimer.singleShot(100, lambda: self._save_state("New CoA"))
     
     def eventFilter(self, obj, event):
         """Filter events to capture arrow keys and context menus before child widgets consume them"""

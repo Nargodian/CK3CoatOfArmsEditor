@@ -2,6 +2,9 @@
 applyTo: '**'
 ---
 
+The agent should never declare that a issue is "Fixed" or "Resolved" without the user's test and confirmation.
+Commiting is only allowed if asked for by the user.
+Push IS NEVER allowed without explicit user instruction, even if the user says "fix it" or "resolve it". The agent must ask for confirmation before pushing.
 # Coding Standards
 
 ## CoA Model Architecture

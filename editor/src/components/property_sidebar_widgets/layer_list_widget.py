@@ -1489,10 +1489,11 @@ class LayerListWidget(QWidget):
         # Get actual layer colors (in 0-1 range) - query from CoA
         emblem_color1 = self.coa.get_layer_color(uuid, 1) or [0.75, 0.525, 0.188]
         
-        # Get base background color from property sidebar (not from layer data)
-        if self.property_sidebar and hasattr(self.property_sidebar, 'get_base_colors'):
-            base_colors = self.property_sidebar.get_base_colors()
-            base_background_color1 = base_colors[0] if len(base_colors) > 0 else [0.45, 0.133, 0.090]
+        # Get base background color from CoA model (View→Model, not View→View)
+        if self.coa and hasattr(self.coa, 'pattern_color1'):
+            # Convert from 0-255 int to 0-1 float
+            base_color_int = self.coa.pattern_color1
+            base_background_color1 = [base_color_int[0] / 255.0, base_color_int[1] / 255.0, base_color_int[2] / 255.0]
         else:
             base_background_color1 = [0.45, 0.133, 0.090]
         
