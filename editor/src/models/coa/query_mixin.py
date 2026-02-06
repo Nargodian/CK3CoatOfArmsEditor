@@ -244,6 +244,17 @@ class CoAQueryMixin:
         layer = self.get_layer_by_index(index)
         return layer.uuid if layer else None
     
+    def get_layer_index_by_uuid(self, uuid: str) -> Optional[int]:
+        """Get layer index by UUID
+        
+        Args:
+            uuid: Layer UUID
+            
+        Returns:
+            Layer index (0 = bottom) or None if UUID not found
+        """
+        return self._layers.get_index_by_uuid(uuid)
+    
     def get_uuid_at_index(self, index: int) -> str:
         """Get UUID of layer at specific index
         
