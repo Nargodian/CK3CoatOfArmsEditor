@@ -123,7 +123,28 @@ class BaseGenerator(ABC):
         """Save current settings to class-level cache for persistence."""
         cache_key = self.__class__.__name__
         BaseGenerator._settings_cache[cache_key] = self.settings.copy()
-        self._update_controls_from_settings()
+    
+    def calculate_distribution_t(self, index: int, count: int, full_span: bool = False) -> float:
+        """Calculate normalized parameter t for distributing items.
+        
+        Args:
+            index: Item index (0 to count-1)
+            count: Total number of items
+            full_span: If True, use edge-to-edge distribution (0 to 1)
+                      If False, use centered distribution with margins
+        
+        Returns:
+            Normalized t value (0 to 1)
+        """
+        if count <= 1:
+            return 0.5
+        
+        if full_span:
+            # Edge-to-edge: distribute evenly from 0 to 1
+            return index / count
+        else:
+            # Centered: distribute from 0 to 1 with margins
+            return index / (count - 1)
     
     def add_label_codes(self, positions: np.ndarray) -> np.ndarray:
         """Add label codes (6th column) to positions array for text mode preview.
@@ -213,17 +234,20 @@ class BaseGenerator(ABC):
     # Helper methods for building common UI controls
     
     def add_count_text_radio(self, layout: QVBoxLayout, default_mode: str = 'count',
-                            default_count: int = 10) -> Dict[str, QWidget]:
+                            default_count: int = 10, enable_full_span: bool = False,
+                            default_full_span: bool = False) -> Dict[str, QWidget]:
         """Add Count/Text mode radio buttons with associated controls.
         
         Args:
             layout: Layout to add controls to
             default_mode: 'count' or 'text'
             default_count: Default count value
+            enable_full_span: If True, show Full Span checkbox
+            default_full_span: Default Full Span state
             
         Returns:
             Dict with keys: 'mode_group', 'count_radio', 'text_radio', 
-                          'count_spin', 'text_input'
+                          'count_spin', 'text_input', 'full_span_check' (if enabled)
         """
         mode_label = QLabel("Mode:")
         layout.addWidget(mode_label)
@@ -248,6 +272,18 @@ class BaseGenerator(ABC):
         count_layout.addWidget(count_label)
         count_layout.addWidget(count_spin)
         layout.addLayout(count_layout)
+        
+        # Full Span checkbox (optional)
+        full_span_check = None
+        if enable_full_span:
+            full_span_check = QCheckBox("Full Span")
+            full_span_check.setChecked(default_full_span)
+            full_span_check.setToolTip(
+                "Full Span: Distribute evenly across entire range (edge to edge)\\n"
+                "Unchecked: Center distribution within bounds (leaves margins)"
+            )
+            layout.addWidget(full_span_check)
+            self._controls['full_span'] = full_span_check
         
         # Text input
         text_label = QLabel("Text (max 100 chars):")
@@ -305,13 +341,17 @@ class BaseGenerator(ABC):
         self._controls['count'] = count_spin
         self._controls['text_input'] = text_input
         
-        return {
+        result = {
             'mode_group': mode_group,
             'count_radio': count_radio,
             'text_radio': text_radio,
             'count_spin': count_spin,
             'text_input': text_input
         }
+        if full_span_check:
+            result['full_span_check'] = full_span_check
+        
+        return result
     
     def add_scale_controls(self, layout: QVBoxLayout, default_scale: float = 1.0,
                           enable_gradient: bool = False) -> Dict[str, QWidget]:
