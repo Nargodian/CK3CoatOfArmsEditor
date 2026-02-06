@@ -304,9 +304,8 @@ class GeneratorPopup(QDialog):
     def _save_current_settings(self):
         """Save current generator settings before switching/closing."""
         if self.current_generator:
-            # Settings are stored in the generator object itself
-            # They persist in memory during the session
-            pass
+            # Save to class-level cache for persistence across instances
+            self.current_generator.save_settings_to_cache()
     
     def _on_generate(self):
         """Handle Generate button click."""

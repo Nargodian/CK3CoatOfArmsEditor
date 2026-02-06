@@ -25,11 +25,19 @@ class BaseGenerator(ABC):
     # Signal emitted when parameters change (for preview updates)
     parameters_changed = pyqtSignal()
     
+    # Class-level settings cache (persists across instances)
+    _settings_cache = {}
+    
     def __init__(self):
         """Initialize generator with default settings."""
         self.settings = {}  # Stores parameter values
         self._controls = {}  # Maps parameter names to widgets
         self._last_generated = None  # Cache last generation result
+        
+        # Restore cached settings for this generator type if available
+        cache_key = self.__class__.__name__
+        if cache_key in BaseGenerator._settings_cache:
+            self.settings.update(BaseGenerator._settings_cache[cache_key])
     
     def is_text_mode(self) -> bool:
         """Check if generator is in text mode.
@@ -110,6 +118,11 @@ class BaseGenerator(ABC):
             settings: Dictionary of parameter name -> value
         """
         self.settings.update(settings)
+    
+    def save_settings_to_cache(self):
+        """Save current settings to class-level cache for persistence."""
+        cache_key = self.__class__.__name__
+        BaseGenerator._settings_cache[cache_key] = self.settings.copy()
         self._update_controls_from_settings()
     
     def add_label_codes(self, positions: np.ndarray) -> np.ndarray:
