@@ -32,8 +32,8 @@ class CanvasZoomPanMixin:
             self.pan_y = 0.0
         self.update()
         self._update_zoom_toolbar()
-        if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
-            self.canvas_area.transform_widget.update()
+        if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
+            self.canvas_area.update_transform_widget_for_layer()
     
     def zoom_out(self, cursor_pos=None):
         """Zoom out by 25%."""
@@ -46,8 +46,8 @@ class CanvasZoomPanMixin:
             self.pan_y = 0.0
         self.update()
         self._update_zoom_toolbar()
-        if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
-            self.canvas_area.transform_widget.update()
+        if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
+            self.canvas_area.update_transform_widget_for_layer()
     
     def zoom_reset(self):
         """Reset zoom to 100%."""
@@ -55,16 +55,16 @@ class CanvasZoomPanMixin:
         self.pan_x = 0.0
         self.pan_y = 0.0
         self.update()
-        if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
-            self.canvas_area.transform_widget.update()
+        if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
+            self.canvas_area.update_transform_widget_for_layer()
     
     def set_zoom_level(self, zoom_percent):
         """Set zoom to specific percentage."""
         self.zoom_level = max(0.25, min(5.0, zoom_percent / 100.0))
         self.update()
         self._update_zoom_toolbar()
-        if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
-            self.canvas_area.transform_widget.update()
+        if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
+            self.canvas_area.update_transform_widget_for_layer()
     
     def get_zoom_percent(self):
         """Get current zoom percentage."""
@@ -93,12 +93,18 @@ class CanvasZoomPanMixin:
         """Toggle grid visibility."""
         self.show_grid = show
         self.update()
+        # Update overlay widget to draw grid
+        if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'overlay_widget'):
+            self.canvas_area.overlay_widget.update()
     
     def set_grid_divisions(self, divisions):
         """Set grid divisions."""
         self.grid_divisions = divisions
         if self.show_grid:
             self.update()
+            # Update overlay widget to redraw grid with new divisions
+            if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'overlay_widget'):
+                self.canvas_area.overlay_widget.update()
     
     # ========================================
     # Mouse Event Handlers
@@ -137,8 +143,9 @@ class CanvasZoomPanMixin:
             self.pan_y = max(-max_pan, min(max_pan, self.pan_y))
             
             self.update()
-            if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'transform_widget'):
-                self.canvas_area.transform_widget.update()
+            # Recalculate transform widget geometry during pan (not just repaint)
+            if hasattr(self, 'canvas_area') and hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
+                self.canvas_area.update_transform_widget_for_layer()
             return True
         else:
             # Update cursor based on zoom level
