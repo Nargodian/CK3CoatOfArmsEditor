@@ -39,6 +39,7 @@ from typing import Dict, List, Optional, Any, Union, Tuple
 from ._internal.layer import Layer
 from ._internal.instance import Instance
 from models.transform import Vec2
+from models.color import Color
 from constants import (
     DEFAULT_POSITION_X, DEFAULT_POSITION_Y,
     DEFAULT_SCALE_X, DEFAULT_SCALE_Y,
@@ -558,39 +559,55 @@ class CoALayerMixin:
                 return result
             layers.append(layer)
         
-        # Check textures
+        # Check textures (warning only - first layer's texture will be used)
         textures = set(layer.filename for layer in layers)
         result['info']['textures'] = list(textures)
         result['info']['total_instances'] = sum(layer.instance_count for layer in layers)
         
         if len(textures) > 1:
-            result['valid'] = False
             result['warnings'].append(
-                f"Cannot merge layers with different textures: {textures}. "
-                "All layers must have the same emblem texture to merge."
+                f"Layers have different textures: {textures}. "
+                "After merge, all instances will use the first layer's texture."
             )
         
-        # Check colors (warning only, not blocking)
-        first_colors = (tuple(layers[0].color1), tuple(layers[0].color2), tuple(layers[0].color3))
-        colors_match = all(
-            (tuple(layer.color1), tuple(layer.color2), tuple(layer.color3)) == first_colors
-            for layer in layers[1:]
-        )
+        # Check colors (warning only, respecting color count)
+        first_layer = layers[0]
+        first_color_count = first_layer.colors
+        colors_match = True
+        
+        for layer in layers[1:]:
+            # Compare only the colors that the first layer actually uses
+            if first_color_count >= 1 and tuple(layer.color1) != tuple(first_layer.color1):
+                colors_match = False
+                break
+            if first_color_count >= 2 and tuple(layer.color2) != tuple(first_layer.color2):
+                colors_match = False
+                break
+            if first_color_count >= 3 and tuple(layer.color3) != tuple(first_layer.color3):
+                colors_match = False
+                break
+        
         result['info']['colors_match'] = colors_match
         
         if not colors_match:
-            # Build detailed message showing which colors differ
+            # Build detailed message showing which colors differ (only active colors)
             color_details = []
             for i, layer in enumerate(layers):
-                c1 = layer.color1.to_rgb255()
-                c2 = layer.color2.to_rgb255()
-                c3 = layer.color3.to_rgb255()
-                color_details.append(
-                    f"Layer {i+1}: c1={layer.color1.name}{c1}, c2={layer.color2.name}{c2}, c3={layer.color3.name}{c3}"
-                )
+                color_count = first_color_count  # Show first layer's color count
+                if color_count >= 1:
+                    c1 = layer.color1.to_rgb255()
+                    details = f"Layer {i+1}: c1={layer.color1.name}{c1}"
+                if color_count >= 2:
+                    c2 = layer.color2.to_rgb255()
+                    details += f", c2={layer.color2.name}{c2}"
+                if color_count >= 3:
+                    c3 = layer.color3.to_rgb255()
+                    details += f", c3={layer.color3.name}{c3}"
+                color_details.append(details)
             
             result['warnings'].append(
-                f"Layers have different colors. After merge, all instances will use the first layer's colors.\n\n" +
+                f"Layers have different colors. After merge, all instances will use the first layer's colors "
+                f"(comparing {first_color_count} color{'s' if first_color_count != 1 else ''}).\n\n" +
                 "\n".join(color_details)
             )
         
@@ -782,25 +799,28 @@ class CoALayerMixin:
         
         # Transform to tuple format
         if not review['valid']:
-            # If not valid due to texture mismatch, mark as texture difference
-            differences = {}
-            if review['info'].get('textures') and len(review['info']['textures']) > 1:
-                # All non-first layers have different textures
-                differences['filename'] = list(range(1, len(uuids)))
-            return False, differences
+            # Invalid merge (e.g., <2 layers, UUID not found)
+            return False, {}
         
-        # Check for color differences (warnings don't block, but we report them)
+        # Check for differences (warnings don't block, but we report them)
         differences = {}
+        
+        # Check texture differences
+        if review['info'].get('textures') and len(review['info']['textures']) > 1:
+            differences['filename'] = list(range(1, len(uuids)))
+        
+        # Check color differences (respecting color count)
         if not review['info'].get('colors_match', True):
-            # Get layers to check which specific colors differ
             layers = [self._layers.get_by_uuid(uuid) for uuid in uuids]
             ref = layers[0]
+            color_count = ref.colors
+            
             for idx, layer in enumerate(layers[1:], start=1):
-                if list(layer.color1) != list(ref.color1):
+                if color_count >= 1 and list(layer.color1) != list(ref.color1):
                     differences.setdefault('color1', []).append(idx)
-                if list(layer.color2) != list(ref.color2):
+                if color_count >= 2 and list(layer.color2) != list(ref.color2):
                     differences.setdefault('color2', []).append(idx)
-                if list(layer.color3) != list(ref.color3):
+                if color_count >= 3 and list(layer.color3) != list(ref.color3):
                     differences.setdefault('color3', []).append(idx)
         
         compatible = len(differences) == 0

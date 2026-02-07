@@ -554,7 +554,7 @@ class AssetSidebar(QFrame):
             uuid = list(selected_uuids)[0]
         
         # Get layer and extract Color objects directly
-        layer = self.right_sidebar.coa.get_layer(uuid)
+        layer = self.right_sidebar.coa.get_layer_by_uuid(uuid)
         return {
             'color1': layer.color1,
             'color2': layer.color2,

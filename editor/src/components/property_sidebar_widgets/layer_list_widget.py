@@ -524,14 +524,14 @@ class LayerListWidget(QWidget):
             color_btn.setToolTip(f"Color {color_idx}")
             
             # Get current color from CoA by UUID
-            color_rgb = self.coa.get_layer_color(uuid, color_idx) or [1.0, 1.0, 1.0]
-            r, g, b = int(color_rgb[0] * 255), int(color_rgb[1] * 255), int(color_rgb[2] * 255)
+            color_obj = self.coa.get_layer_color(uuid, color_idx)
+            rgb = color_obj.to_rgb255() if color_obj else (255, 255, 255)
             
             color_btn.setStyleSheet(f"""
                 QPushButton {{
                     border: 1px solid rgba(255, 255, 255, 80);
                     border-radius: 2px;
-                    background-color: rgb({r}, {g}, {b});
+                    background-color: rgb{rgb};
                     padding: 0px;
                 }}
                 QPushButton:hover {{
@@ -1730,14 +1730,14 @@ class LayerListWidget(QWidget):
                                     color_btn.setToolTip(f"Color {color_idx}")
                                     
                                     # Get current color from CoA by UUID
-                                    color_rgb = self.coa.get_layer_color(uuid, color_idx) or [1.0, 1.0, 1.0]
-                                    r, g, b = int(color_rgb[0] * 255), int(color_rgb[1] * 255), int(color_rgb[2] * 255)
+                                    color_obj = self.coa.get_layer_color(uuid, color_idx)
+                                    rgb = color_obj.to_rgb255() if color_obj else (255, 255, 255)
                                     
                                     color_btn.setStyleSheet(f"""
                                         QPushButton {{
                                             border: 1px solid rgba(255, 255, 255, 80);
                                             border-radius: 2px;
-                                            background-color: rgb({r}, {g}, {b});
+                                            background-color: rgb{rgb};
                                             padding: 0px;
                                         }}
                                         QPushButton:hover {{
