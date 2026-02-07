@@ -439,6 +439,47 @@ class Layer:
         """Set container UUID (editor-only metadata)"""
         self._data['container_uuid'] = value
     
+    @property
+    def symmetry_type(self) -> str:
+        """Get layer symmetry type
+        
+        Returns:
+            Symmetry type: 'none', 'bisector', 'rotational', or 'grid'
+        """
+        return self._data.get('symmetry_type', 'none')
+    
+    @symmetry_type.setter
+    def symmetry_type(self, value: str):
+        """Set layer symmetry type
+        
+        Args:
+            value: Symmetry type ('none', 'bisector', 'rotational', 'grid')
+        """
+        if value not in ('none', 'bisector', 'rotational', 'grid'):
+            raise ValueError(f"Invalid symmetry type: {value}")
+        self._data['symmetry_type'] = value
+    
+    @property
+    def symmetry_properties(self) -> List[float]:
+        """Get layer symmetry properties
+        
+        Returns:
+            List of floats containing type-specific parameters:
+            - bisector: [offset_x, offset_y, rotation_offset, mode]
+            - rotational: [offset_x, offset_y, count, rotation_offset, kaleidoscope]
+            - grid: [offset_x, offset_y, count_x, count_y, fill]
+        """
+        return self._data.get('symmetry_properties', [])
+    
+    @symmetry_properties.setter
+    def symmetry_properties(self, value: List[float]):
+        """Set layer symmetry properties
+        
+        Args:
+            value: List of floats (type-specific parameters)
+        """
+        self._data['symmetry_properties'] = list(value) if value else []
+    
     # ========================================
     # Instance Management
     # ========================================
@@ -604,7 +645,9 @@ class Layer:
             'color1_name': DEFAULT_EMBLEM_COLOR1,
             'color2_name': DEFAULT_EMBLEM_COLOR2,
             'color3_name': DEFAULT_EMBLEM_COLOR3,
-            'mask': None
+            'mask': None,
+            'symmetry_type': 'none',
+            'symmetry_properties': []
         }
     
     def _create_default_instance(self) -> Dict:
@@ -685,6 +728,14 @@ class Layer:
         if self.container_uuid:
             lines.append(f'\t\t##META##container_uuid="{self.container_uuid}"')
         lines.append(f'\t\t##META##name="{self.name}"')
+        
+        # Symmetry metadata
+        if self.symmetry_type != 'none':
+            lines.append(f'\t\t##META##symmetry_type="{self.symmetry_type}"')
+            # Format properties as space-separated list
+            props_str = ' '.join(map(str, self.symmetry_properties))
+            lines.append(f'\t\t##META##symmetry_properties={{{props_str}}}')
+        
         lines.append(f'\t\ttexture = "{self.filename}"')
         
         # Add colors based on color count
@@ -769,6 +820,19 @@ class Layer:
             else:
                 name = 'empty'
         
+        # Parse symmetry metadata
+        symmetry_type = data.get('symmetry_type', 'none')
+        symmetry_properties_raw = data.get('symmetry_properties', [])
+        
+        # Handle both list format and potentially string format from parser
+        if isinstance(symmetry_properties_raw, str):
+            # Parse space-separated string
+            symmetry_properties = [float(x) for x in symmetry_properties_raw.split()]
+        elif isinstance(symmetry_properties_raw, list):
+            symmetry_properties = [float(x) for x in symmetry_properties_raw]
+        else:
+            symmetry_properties = []
+        
         layer_data = {
             'uuid': layer_uuid,
             'container_uuid': container_uuid,
@@ -785,7 +849,9 @@ class Layer:
             'color2_name': color2_name,
             'color3_name': color3_name,
             'mask': mask,
-            'visible': True
+            'visible': True,
+            'symmetry_type': symmetry_type,
+            'symmetry_properties': symmetry_properties
         }
         
         return Layer(layer_data, caller=caller)

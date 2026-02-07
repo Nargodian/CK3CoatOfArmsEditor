@@ -628,6 +628,23 @@ class CoALayerMixin:
         first_layer = layers[0]
         first_uuid = uuids[0]
         
+        # Check if all layers have same symmetry settings
+        has_mixed_symmetry = False
+        first_symmetry_type = first_layer.symmetry_type
+        first_symmetry_props = first_layer.symmetry_properties
+        
+        for layer in layers[1:]:
+            if (layer.symmetry_type != first_symmetry_type or 
+                layer.symmetry_properties != first_symmetry_props):
+                has_mixed_symmetry = True
+                break
+        
+        # Reset symmetry if mixed (warn user)
+        if has_mixed_symmetry:
+            self._logger.warning("Merging layers with different symmetry settings - resetting to none")
+            first_layer.symmetry_type = 'none'
+            first_layer.symmetry_properties = []
+        
         # Add instances from other layers to first layer
         for layer in layers[1:]:
             for i in range(layer.instance_count):
@@ -852,3 +869,112 @@ class CoALayerMixin:
         
         layer.selected_instance = instance_index
         self._logger.debug(f"Selected instance {instance_index} on layer {uuid}")
+    
+    # ========================================
+    # Layer Symmetry Operations
+    # ========================================
+    
+    def get_layer_symmetry_type(self, uuid: str) -> str:
+        """Get layer symmetry type
+        
+        Args:
+            uuid: Layer UUID
+            
+        Returns:
+            Symmetry type: 'none', 'bisector', 'rotational', or 'grid'
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        return layer.symmetry_type if layer else 'none'
+    
+    def set_layer_symmetry_type(self, uuid: str, symmetry_type: str):
+        """Set layer symmetry type
+        
+        Args:
+            uuid: Layer UUID
+            symmetry_type: 'none', 'bisector', 'rotational', or 'grid'
+            
+        Raises:
+            ValueError: If UUID not found or invalid symmetry_type
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        layer.symmetry_type = symmetry_type
+        self._logger.debug(f"Set layer {uuid} symmetry type to '{symmetry_type}'")
+    
+    def get_layer_symmetry_properties(self, uuid: str) -> List[float]:
+        """Get layer symmetry properties
+        
+        Args:
+            uuid: Layer UUID
+            
+        Returns:
+            List of floats (type-specific parameters)
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        return layer.symmetry_properties if layer else []
+    
+    def set_layer_symmetry_properties(self, uuid: str, properties: List[float]):
+        """Set layer symmetry properties
+        
+        Args:
+            uuid: Layer UUID
+            properties: List of floats (type-specific parameters)
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        layer.symmetry_properties = properties
+        self._logger.debug(f"Set layer {uuid} symmetry properties: {properties}")
+    
+    def get_symmetry_transforms(self, uuid: str, instance_idx: int = 0) -> List:
+        """Calculate all transforms (seed + mirrors) for symmetry rendering
+        
+        Args:
+            uuid: Layer UUID
+            instance_idx: Instance index (default 0 for selected instance)
+            
+        Returns:
+            List of Transform objects: mirrors only (seed NOT included)
+        """
+        from services.symmetry_transforms import get_transform
+        from models.transform import Transform
+        
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            return []
+        
+        # Get seed instance
+        try:
+            if instance_idx < 0:
+                # Use selected instance
+                instance = layer.get_instance(layer.selected_instance, caller='CoA')
+            else:
+                instance = layer.get_instance(instance_idx, caller='CoA')
+        except (IndexError, ValueError):
+            return []
+        
+        # Create seed transform
+        seed_transform = Transform(instance.pos, instance.scale, instance.rotation)
+        
+        # Get transform plugin and calculate mirrors
+        symmetry_type = layer.symmetry_type
+        if symmetry_type == 'none':
+            return []
+        
+        transform_plugin = get_transform(symmetry_type)
+        if not transform_plugin:
+            return []
+        
+        # Load properties
+        symmetry_properties = layer.symmetry_properties
+        if symmetry_properties:
+            transform_plugin.set_properties(symmetry_properties)
+        
+        # Calculate and return mirror transforms
+        return transform_plugin.calculate_transforms(seed_transform)

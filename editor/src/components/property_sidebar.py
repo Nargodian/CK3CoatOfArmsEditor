@@ -1,7 +1,7 @@
 # PyQt5 imports
 from PyQt5.QtWidgets import (
     QFrame, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QWidget, 
-    QTabWidget, QPushButton, QLineEdit, QSlider, QCheckBox
+    QTabWidget, QPushButton, QLineEdit, QSlider, QCheckBox, QComboBox
 )
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QColor, QPixmap, QIcon
@@ -508,6 +508,41 @@ class PropertySidebar(QFrame):
         
         mask_layout.addStretch()
         content_layout.addLayout(mask_layout)
+        
+        # Symmetry Section
+        self._add_property_section(content_layout, "Symmetry")
+        
+        # Symmetry type dropdown
+        symmetry_layout = QHBoxLayout()
+        symmetry_layout.setSpacing(8)
+        symmetry_layout.setContentsMargins(10, 5, 10, 5)
+        
+        symmetry_label = QLabel("Type:")
+        symmetry_label.setStyleSheet("padding: 2px 5px; font-size: 11px;")
+        symmetry_layout.addWidget(symmetry_label)
+        
+        # Discover available transform plugins
+        from services.symmetry_transforms import get_available_transforms
+        self.available_transforms = get_available_transforms()
+        
+        self.symmetry_dropdown = QComboBox()
+        self.symmetry_dropdown.addItem("None")
+        for name, display_name in self.available_transforms:
+            self.symmetry_dropdown.addItem(display_name)
+        self.symmetry_dropdown.currentTextChanged.connect(self._on_symmetry_type_changed)
+        symmetry_layout.addWidget(self.symmetry_dropdown, 1)
+        
+        content_layout.addLayout(symmetry_layout)
+        
+        # Dynamic symmetry widget container
+        self.symmetry_widget_container = QWidget()
+        self.symmetry_widget_layout = QVBoxLayout(self.symmetry_widget_container)
+        self.symmetry_widget_layout.setContentsMargins(0, 0, 0, 0)
+        self.symmetry_widget_layout.setSpacing(0)
+        content_layout.addWidget(self.symmetry_widget_container)
+        
+        # Current active symmetry transform plugin
+        self.active_symmetry_transform = None
         
         scroll.setWidget(content)
         return scroll
@@ -1353,6 +1388,9 @@ class PropertySidebar(QFrame):
         # Update mask UI
         self._update_mask_ui()
         
+        # Update symmetry UI
+        self._update_symmetry_ui()
+        
         # DON'T update transform widget here - it uses abs() which destroys flip state
         # Transform widget is updated when layer selection changes, not when UI loads
         
@@ -1586,3 +1624,136 @@ class PropertySidebar(QFrame):
                         border-radius: 4px;
                     }}
                 """)
+    
+    # ========================================
+    # Symmetry Widget Management
+    # ========================================
+    
+    def _clear_symmetry_widgets(self):
+        """Recursively clear all widgets and layouts from symmetry container"""
+        def clear_layout(layout):
+            if layout is None:
+                return
+            while layout.count():
+                item = layout.takeAt(0)
+                widget = item.widget()
+                if widget:
+                    widget.deleteLater()
+                else:
+                    # It's a nested layout
+                    clear_layout(item.layout())
+        
+        clear_layout(self.symmetry_widget_layout)
+    
+    def _on_symmetry_type_changed(self, display_name: str):
+        """Handle symmetry type dropdown selection"""
+        # Clear ALL existing widgets/layouts in symmetry container
+        self._clear_symmetry_widgets()
+        self.active_symmetry_transform = None
+        
+        # Map display name to internal name
+        transform_name = "none"
+        if display_name.lower() != "none":
+            for name, disp_name in self.available_transforms:
+                if disp_name == display_name:
+                    transform_name = name
+                    break
+        
+        # Load transform plugin and build UI
+        if transform_name != "none":
+            from services.symmetry_transforms import get_transform
+            self.active_symmetry_transform = get_transform(transform_name)
+            
+            if self.active_symmetry_transform:
+                # Set up callback to update CoA when params change
+                def on_transform_params_changed():
+                    selected_uuids = self.get_selected_uuids()
+                    if selected_uuids and self.main_window and self.main_window.coa:
+                        properties = self.active_symmetry_transform.get_properties()
+                        for uuid in selected_uuids:
+                            self.main_window.coa.set_layer_symmetry_properties(uuid, properties)
+                        if self.canvas_widget:
+                            self.canvas_widget.update()
+                
+                self.active_symmetry_transform.set_change_callback(on_transform_params_changed)
+                
+                # Build and add UI controls
+                controls_layout = self.active_symmetry_transform.build_controls(self.symmetry_widget_container)
+                self.symmetry_widget_layout.addLayout(controls_layout)
+        
+        # Apply to selected layers
+        selected_uuids = self.get_selected_uuids()
+        if selected_uuids and self.main_window and self.main_window.coa:
+            # Save state before change
+            if hasattr(self.main_window, '_save_state'):
+                self.main_window._save_state(f"Change symmetry: {display_name}")
+            
+            # Set symmetry type and properties
+            for uuid in selected_uuids:
+                self.main_window.coa.set_layer_symmetry_type(uuid, transform_name)
+                if self.active_symmetry_transform:
+                    properties = self.active_symmetry_transform.get_properties()
+                    self.main_window.coa.set_layer_symmetry_properties(uuid, properties)
+            
+            # Update canvas
+            if self.canvas_widget:
+                self.canvas_widget.update()
+    
+    def _update_symmetry_ui(self):
+        """Update symmetry UI based on selected layer's symmetry settings"""
+        selected_uuids = self.get_selected_uuids()
+        
+        # Always clear all widgets first, regardless of what we're loading
+        self._clear_symmetry_widgets()
+        self.active_symmetry_transform = None
+        
+        if not selected_uuids or not self.main_window or not self.main_window.coa:
+            self.symmetry_dropdown.blockSignals(True)
+            self.symmetry_dropdown.setCurrentText("None")
+            self.symmetry_dropdown.blockSignals(False)
+            return
+        
+        # Get symmetry type from first selected layer
+        transform_name = self.main_window.coa.get_layer_symmetry_type(selected_uuids[0])
+        
+        # Find display name for dropdown
+        display_name = "None"
+        if transform_name != "none":
+            for name, disp_name in self.available_transforms:
+                if name == transform_name:
+                    display_name = disp_name
+                    break
+        
+        # Update dropdown
+        self.symmetry_dropdown.blockSignals(True)
+        self.symmetry_dropdown.setCurrentText(display_name)
+        self.symmetry_dropdown.blockSignals(False)
+        
+        # Load transform plugin and restore properties
+        if transform_name != "none":
+            from services.symmetry_transforms import get_transform
+            
+            # Create new transform instance
+            self.active_symmetry_transform = get_transform(transform_name)
+            
+            if self.active_symmetry_transform:
+                # Set up callback to update CoA when params change
+                def on_transform_params_changed():
+                    selected_uuids = self.get_selected_uuids()
+                    if selected_uuids and self.main_window and self.main_window.coa:
+                        properties = self.active_symmetry_transform.get_properties()
+                        for uuid in selected_uuids:
+                            self.main_window.coa.set_layer_symmetry_properties(uuid, properties)
+                        if self.canvas_widget:
+                            self.canvas_widget.update()
+                
+                self.active_symmetry_transform.set_change_callback(on_transform_params_changed)
+                
+                # Load properties from CoA
+                properties = self.main_window.coa.get_layer_symmetry_properties(selected_uuids[0])
+                if properties:
+                    self.active_symmetry_transform.set_properties(properties)
+                
+                # Build UI
+                controls_layout = self.active_symmetry_transform.build_controls(self.symmetry_widget_container)
+                self.symmetry_widget_layout.addLayout(controls_layout)

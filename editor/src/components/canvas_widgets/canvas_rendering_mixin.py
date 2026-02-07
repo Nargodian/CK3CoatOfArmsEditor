@@ -164,36 +164,106 @@ class CanvasRenderingMixin:
         instance_count = coa.get_layer_instance_count(layer_uuid)
         u0, v0, u1, v1 = uv_coords
         
+        # Check if layer has symmetry
+        symmetry_type = coa.get_layer_symmetry_type(layer_uuid)
+        
         for instance_idx in range(instance_count):
             instance = coa.get_layer_instance(layer_uuid, instance_idx)
             
-            # quad.vert expects pixel-based coordinates in 512×512 framebuffer
-            # Convert CoA space (0-1) to pixel position (0-512)
-            center_x_coa = instance.pos.x - 0.5  # Center around 0
-            center_y_coa = instance.pos.y - 0.5  # Center around 0
-            
-            # Convert to pixels (CoA center is at 256, 256)
-            center_x_px = center_x_coa * 512.0  # Offset from center in pixels
-            center_y_px = -center_y_coa * 512.0  # Invert Y, offset from center in pixels
-            
-            # Scale is in CoA coordinates (0-1 range = full width/height)
-            # Convert to pixels: scale * 512
-            scale_x_px = instance.scale.x * 512.0
-            scale_y_px = instance.scale.y * 512.0
-            
-            # Negate rotation: CK3 uses Y-down (clockwise positive), OpenGL uses Y-up (counterclockwise positive)
-            rotation_rad = math.radians(-instance.rotation)
-            
-            # Apply per-instance flip via negative scale
-            if instance.flip_x:
-                scale_x_px = -scale_x_px
-            if instance.flip_y:
-                scale_y_px = -scale_y_px
-            
-            # Set transform uniforms for emblem.vert (pixel-based)
-            shader.setUniformValue("screenRes", QVector2D(512.0, 512.0))
-            shader.setUniformValue("position", QVector2D(center_x_px, center_y_px))
-            shader.setUniformValue("scale", QVector2D(scale_x_px, scale_y_px))
-            shader.setUniformValue("rotation", rotation_rad)
-            
-            gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+            if symmetry_type != 'none':
+                # Get transform plugin and calculate mirrors
+                from services.symmetry_transforms import get_transform
+                from models.transform import Transform, Vec2
+                
+                transform_plugin = get_transform(symmetry_type)
+                if transform_plugin:
+                    # Load properties from layer
+                    properties = coa.get_layer_symmetry_properties(layer_uuid)
+                    if properties:
+                        transform_plugin.set_properties(properties)
+                    
+                    # Create seed transform from instance
+                    seed_transform = Transform(
+                        Vec2(instance.pos.x, instance.pos.y),
+                        Vec2(instance.scale.x, instance.scale.y),
+                        instance.rotation
+                    )
+                    
+                    # Render seed
+                    self._render_single_instance(instance, shader)
+                    
+                    # Calculate and render mirrors
+                    mirror_transforms = transform_plugin.calculate_transforms(seed_transform)
+                    for mirror_transform in mirror_transforms:
+                        self._render_single_transform(mirror_transform, instance, shader)
+                else:
+                    # Fallback if plugin not found
+                    self._render_single_instance(instance, shader)
+            else:
+                # Normal rendering - just the instance
+                self._render_single_instance(instance, shader)
+    
+    def _render_single_instance(self, instance, shader):
+        """Render a single instance (extracted for reuse)
+        
+        Args:
+            instance: Instance object with pos, scale, rotation, flip_x, flip_y
+            shader: Shader program to use
+        """
+        # quad.vert expects pixel-based coordinates in 512×512 framebuffer
+        # Convert CoA space (0-1) to pixel position (0-512)
+        center_x_coa = instance.pos.x - 0.5  # Center around 0
+        center_y_coa = instance.pos.y - 0.5  # Center around 0
+        
+        # Convert to pixels (CoA center is at 256, 256)
+        center_x_px = center_x_coa * 512.0  # Offset from center in pixels
+        center_y_px = -center_y_coa * 512.0  # Invert Y, offset from center in pixels
+        
+        # Scale is in CoA coordinates (0-1 range = full width/height)
+        # Convert to pixels: scale * 512
+        scale_x_px = instance.scale.x * 512.0
+        scale_y_px = instance.scale.y * 512.0
+        
+        # Negate rotation: CK3 uses Y-down (clockwise positive), OpenGL uses Y-up (counterclockwise positive)
+        rotation_rad = math.radians(-instance.rotation)
+        
+        # Apply per-instance flip via negative scale
+        if instance.flip_x:
+            scale_x_px = -scale_x_px
+        if instance.flip_y:
+            scale_y_px = -scale_y_px
+        
+        # Set transform uniforms for emblem.vert (pixel-based)
+        shader.setUniformValue("screenRes", QVector2D(512.0, 512.0))
+        shader.setUniformValue("position", QVector2D(center_x_px, center_y_px))
+        shader.setUniformValue("scale", QVector2D(scale_x_px, scale_y_px))
+        shader.setUniformValue("rotation", rotation_rad)
+        
+        gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+    
+    def _render_single_transform(self, transform, seed_instance, shader):
+        """Render a transform (used for symmetry mirrors)
+        
+        Args:
+            transform: Transform object with pos, scale, rotation
+            seed_instance: Original instance (for flip_x, flip_y)
+            shader: Shader program to use
+        """
+        from models.coa._internal.instance import Instance
+        
+        # Create temporary instance-like object for rendering
+        # Use transform's pos/scale/rotation, seed's flip_x/flip_y
+        temp_data = {
+            'pos_x': transform.pos.x,
+            'pos_y': transform.pos.y,
+            'scale_x': transform.scale.x,
+            'scale_y': transform.scale.y,
+            'rotation': transform.rotation,
+            'flip_x': seed_instance.flip_x,
+            'flip_y': seed_instance.flip_y,
+            'depth': 0.0
+        }
+        temp_instance = Instance(temp_data)
+        
+        # Render using standard method
+        self._render_single_instance(temp_instance, shader)
