@@ -460,7 +460,7 @@ class PropertySidebar(QFrame):
         
         # Rotation slider
         self.rotation_editor = PropertySlider("Rotation", 0, 0, 360, is_int=True)
-        self.rotation_editor.valueChanged.connect(lambda v: self._update_layer_property_and_widget('rotation', v))
+        self.rotation_editor.valueChanged.connect(lambda v: self._set_layer_property_absolute('rotation', v))
         content_layout.addWidget(self.rotation_editor)
         
         # Pattern Mask
@@ -1174,7 +1174,11 @@ class PropertySidebar(QFrame):
                 else:
                     self.main_window.coa.set_layer_scale(uuid, current_scale.x, new_val)
             elif prop_name == 'rotation':
+                print(f"DEBUG: Setting rotation for {uuid} to {new_val}")
                 self.main_window.coa.set_layer_rotation(uuid, new_val)
+                # Verify it was set
+                verify = self.main_window.coa.get_layer_rotation(uuid)
+                print(f"DEBUG: Verified rotation is now {verify}")
     
     def _rebuild_layer_list(self):
         """Rebuild the layer list UI (delegates to LayerListWidget)"""
@@ -1194,6 +1198,11 @@ class PropertySidebar(QFrame):
         first instance/selection and applies that delta to all selected instances.
         This allows editing multiple items while preserving their relative differences.
         """
+        # Don't update if transform widget has edit lock
+        if self.main_window and self.main_window.is_edit_locked():
+            print(f"DEBUG: Edit lock held, skipping property update for {prop_name}")
+            return
+        
         selected_uuids = self.get_selected_uuids()
         if not selected_uuids:
             return
@@ -1219,10 +1228,37 @@ class PropertySidebar(QFrame):
     
     def _update_layer_property_and_widget(self, prop_name, value):
         """Update a property and sync transform widget"""
+        print(f"DEBUG: _update_layer_property_and_widget called: {prop_name}={value}")
         self._update_layer_property(prop_name, value)
         if self.canvas_area:
             # Use update_transform_widget_for_layer to properly handle multi-selection
             self.canvas_area.update_transform_widget_for_layer()
+    
+    def _set_layer_property_absolute(self, prop_name, value):
+        """Set property to absolute value (not delta-based) for direct UI input like sliders"""
+        # Don't update if transform widget has edit lock
+        if self.main_window and self.main_window.is_edit_locked():
+            return
+        
+        selected_uuids = self.get_selected_uuids()
+        if not selected_uuids:
+            return
+        
+        # Set absolute value for all selected layers
+        if prop_name == 'rotation':
+            # Use new absolute rotation method that preserves relative offsets
+            self.main_window.coa.set_layers_rotation_absolute(selected_uuids, value)
+        
+        if self.canvas_widget:
+            self.canvas_widget.update()
+        
+        # Update transform widget
+        if self.canvas_area:
+            self.canvas_area.update_transform_widget_for_layer()
+        
+        # Save to history with debouncing
+        if self.main_window and hasattr(self.main_window, 'save_property_change_debounced'):
+            self.main_window.save_property_change_debounced(f"Change {prop_name}")
     
     
     def _update_layer_scale_and_widget(self):

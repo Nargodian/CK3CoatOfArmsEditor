@@ -308,6 +308,77 @@ class CoATransformMixin:
         
         self._logger.debug(f"Set rotation for layer {uuid} (shallow): {degrees:.2f}°")
     
+    def set_layer_rotation_instances_diff(self, uuid: str, diff: float):
+        """Apply rotation diff to all instances preserving relative offsets (for slider input).
+        
+        Gets first instance rotation as local baseline, calculates offsets for all instances,
+        then applies: instance.rotation = local_baseline + diff + offset.
+        Does NOT change instance positions (no ferris wheel math).
+        
+        Args:
+            uuid: Layer UUID
+            diff: Rotation difference to apply in degrees
+            
+        Raises:
+            ValueError: If UUID not found
+        """
+        layer = self._layers.get_by_uuid(uuid)
+        if not layer:
+            raise ValueError(f"Layer with UUID '{uuid}' not found")
+        
+        instances = layer._data.get('instances', [])
+        if not instances:
+            return
+        
+        # Get local baseline (first instance rotation)
+        local_baseline = instances[0].rotation
+        
+        # Calculate offsets and apply diff
+        for inst in instances:
+            offset = inst.rotation - local_baseline
+            inst.rotation = local_baseline + diff + offset
+        
+        # Update layer rotation to match first instance
+        layer.rotation = instances[0].rotation
+        
+        self._logger.debug(f"Applied rotation diff {diff:.2f}° to layer {uuid} (preserving offsets)")
+    
+    def set_layers_rotation_absolute(self, uuids: list, rotation: float):
+        """Set absolute rotation for multiple layers preserving relative offsets (for slider input).
+        
+        Uses first instance of first UUID as global baseline, calculates diff,
+        then applies that diff to all layers using set_layer_rotation_instances_diff.
+        
+        Args:
+            uuids: List of layer UUIDs
+            rotation: Target rotation in degrees for first instance of first layer
+            
+        Raises:
+            ValueError: If any UUID not found
+        """
+        if not uuids:
+            return
+        
+        # Get global baseline from first UUID's first instance
+        first_layer = self._layers.get_by_uuid(uuids[0])
+        if not first_layer:
+            raise ValueError(f"Layer with UUID '{uuids[0]}' not found")
+        
+        instances = first_layer._data.get('instances', [])
+        if not instances:
+            return
+        
+        baseline = instances[0].rotation
+        
+        # Calculate diff to apply to all layers
+        diff = rotation - baseline
+        
+        # Apply diff to all layers (including first)
+        for uuid in uuids:
+            self.set_layer_rotation_instances_diff(uuid, diff)
+        
+        self._logger.debug(f"Set absolute rotation {rotation:.2f}° for {len(uuids)} layer(s) (baseline was {baseline:.2f}°, diff={diff:.2f}°)")
+    
     def translate_all_instances(self, uuid: str, dx: float, dy: float):
         """Translate ALL instances of a layer by offset
         

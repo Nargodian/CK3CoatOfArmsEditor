@@ -94,7 +94,9 @@ class PropertySlider(QWidget):
     
     def _on_slider_changed(self, value):
         """Handle slider change (int mode)"""
+        print(f"DEBUG PropertySlider: _on_slider_changed({value})")
         self.value_input.setText(str(value))
+        print(f"DEBUG PropertySlider: emitting valueChanged signal with {float(value)}")
         self.valueChanged.emit(float(value))
     
     def _on_slider_changed_float(self, value):

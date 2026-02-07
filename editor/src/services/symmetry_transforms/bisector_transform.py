@@ -16,7 +16,7 @@ class BisectorTransform(BaseSymmetryTransform):
     # Default parameter values
     DEFAULT_OFFSET_X = 0.5
     DEFAULT_OFFSET_Y = 0.5
-    DEFAULT_ROTATION_OFFSET = 0.0
+    DEFAULT_ROTATION_OFFSET = -90.0
     DEFAULT_MODE = 0  # 0=single, 1=double cross
     
     def __init__(self):
@@ -157,13 +157,20 @@ class BisectorTransform(BaseSymmetryTransform):
         mirrored_y = mirrored_rel_y + offset_y
         
         # Mirror rotation: new_rotation = 2 * line_angle - old_rotation
-        mirrored_rotation = 2 * line_angle - transform.rotation
+        # Since we're also applying flip_x which visually adds 180 degrees,
+        # we need to compensate by subtracting 180
+        mirrored_rotation = 2 * line_angle - transform.rotation - 180
         
-        return Transform(
+        # Create mirrored transform with flipped X axis
+        mirrored_transform = Transform(
             Vec2(mirrored_x, mirrored_y),
             Vec2(transform.scale.x, transform.scale.y),
             mirrored_rotation
         )
+        # Mark as flipped for rendering
+        mirrored_transform.flip_x = not getattr(transform, 'flip_x', False)
+        
+        return mirrored_transform
     
     def draw_overlay(self, painter: QPainter, layer_uuid: str, coa):
         """Draw dashed mirror line(s) on canvas."""

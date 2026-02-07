@@ -245,22 +245,23 @@ class CanvasRenderingMixin:
         """Render a transform (used for symmetry mirrors)
         
         Args:
-            transform: Transform object with pos, scale, rotation
-            seed_instance: Original instance (for flip_x, flip_y)
+            transform: Transform object with pos, scale, rotation (may have flip_x/flip_y attributes)
+            seed_instance: Original instance (for flip_x, flip_y if not on transform)
             shader: Shader program to use
         """
         from models.coa._internal.instance import Instance
         
         # Create temporary instance-like object for rendering
-        # Use transform's pos/scale/rotation, seed's flip_x/flip_y
+        # Use transform's pos/scale/rotation
+        # Check if transform has flip overrides, otherwise use seed's flip
         temp_data = {
             'pos_x': transform.pos.x,
             'pos_y': transform.pos.y,
             'scale_x': transform.scale.x,
             'scale_y': transform.scale.y,
             'rotation': transform.rotation,
-            'flip_x': seed_instance.flip_x,
-            'flip_y': seed_instance.flip_y,
+            'flip_x': getattr(transform, 'flip_x', seed_instance.flip_x),
+            'flip_y': getattr(transform, 'flip_y', seed_instance.flip_y),
             'depth': 0.0
         }
         temp_instance = Instance(temp_data)

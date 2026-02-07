@@ -17,7 +17,6 @@ class RotationalTransform(BaseSymmetryTransform):
     DEFAULT_OFFSET_X = 0.5
     DEFAULT_OFFSET_Y = 0.5
     DEFAULT_COUNT = 4
-    DEFAULT_ROTATION_OFFSET = 0.0
     DEFAULT_KALEIDOSCOPE = False
     
     def __init__(self):
@@ -28,7 +27,6 @@ class RotationalTransform(BaseSymmetryTransform):
             'offset_x': self.DEFAULT_OFFSET_X,
             'offset_y': self.DEFAULT_OFFSET_Y,
             'count': self.DEFAULT_COUNT,
-            'rotation_offset': self.DEFAULT_ROTATION_OFFSET,
             'kaleidoscope': self.DEFAULT_KALEIDOSCOPE,
         }
     
@@ -81,19 +79,6 @@ class RotationalTransform(BaseSymmetryTransform):
         layout.addLayout(count_layout)
         self._controls['count'] = count_spinner
         
-        # Rotation offset slider
-        rotation_layout = QHBoxLayout()
-        rotation_label = QLabel("Rotation:")
-        rotation_slider = QSlider(Qt.Horizontal)
-        rotation_slider.setRange(-180, 180)
-        rotation_slider.setValue(int(self.settings['rotation_offset']))
-        rotation_slider.valueChanged.connect(
-            lambda v: self._on_param_changed('rotation_offset', float(v)))
-        rotation_layout.addWidget(rotation_label)
-        rotation_layout.addWidget(rotation_slider)
-        layout.addLayout(rotation_layout)
-        self._controls['rotation'] = rotation_slider
-        
         # Kaleidoscope checkbox
         kaleidoscope_check = QCheckBox("Kaleidoscope (mirror + rotate)")
         kaleidoscope_check.setChecked(self.settings['kaleidoscope'])
@@ -111,14 +96,13 @@ class RotationalTransform(BaseSymmetryTransform):
         offset_x = self.settings['offset_x']
         offset_y = self.settings['offset_y']
         count = self.settings['count']
-        rotation_offset = self.settings['rotation_offset']
         kaleidoscope = self.settings['kaleidoscope']
         
         mirrors = []
         angle_step = 360.0 / count
         
         for i in range(1, count):  # Skip first (i=0) since that's the seed
-            angle = rotation_offset + (i * angle_step)
+            angle = i * angle_step
             
             # Rotate around offset point
             rotated = self._rotate_around_point(
@@ -231,16 +215,14 @@ class RotationalTransform(BaseSymmetryTransform):
             self.settings['offset_x'],
             self.settings['offset_y'],
             float(self.settings['count']),
-            self.settings['rotation_offset'],
             float(self.settings['kaleidoscope']),
         ]
     
     def set_properties(self, properties: List[float]):
         """Deserialize from property list."""
-        if len(properties) >= 5:
+        if len(properties) >= 4:
             self.settings['offset_x'] = properties[0]
             self.settings['offset_y'] = properties[1]
             self.settings['count'] = int(properties[2])
-            self.settings['rotation_offset'] = properties[3]
-            self.settings['kaleidoscope'] = bool(int(properties[4]))
+            self.settings['kaleidoscope'] = bool(int(properties[3]))
             self._save_to_cache()
