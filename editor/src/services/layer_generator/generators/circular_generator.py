@@ -26,6 +26,7 @@ class CircularGenerator(BaseGenerator):
             'mode': self.DEFAULT_MODE,
             'count': self.DEFAULT_COUNT,
             'text': '',
+            'full_span': False,
             'radius': self.DEFAULT_RADIUS,
             'start_angle': self.DEFAULT_START_ANGLE,
             'end_angle': self.DEFAULT_END_ANGLE,
@@ -45,11 +46,13 @@ class CircularGenerator(BaseGenerator):
         """Build parameter controls."""
         layout = QVBoxLayout()
         
-        # Count/Text mode radio buttons
+        # Count/Text mode radio buttons with full_span toggle
         mode_controls = self.add_count_text_radio(
             layout,
             default_mode=self.settings['mode'],
-            default_count=self.settings['count']
+            default_count=self.settings['count'],
+            enable_full_span=True,
+            default_full_span=self.settings.get('full_span', False)
         )
         
         # Connect mode switching
@@ -62,6 +65,11 @@ class CircularGenerator(BaseGenerator):
             lambda v: self._on_param_changed('count', int(v)))
         mode_controls['text_input'].textChanged.connect(
             lambda: self._on_param_changed('text', mode_controls['text_input'].toPlainText()))
+        
+        # Connect full_span checkbox if present
+        if 'full_span_check' in mode_controls:
+            mode_controls['full_span_check'].toggled.connect(
+                lambda v: self._on_param_changed('full_span', v))
         
         self._controls['mode_controls'] = mode_controls
         
@@ -157,11 +165,14 @@ class CircularGenerator(BaseGenerator):
         if angle_range < 0:
             angle_range += 2 * np.pi
         
-        # Generate angles
-        if count == 1:
-            angles = np.array([start_rad + angle_range / 2])
-        else:
-            angles = np.linspace(start_rad, start_rad + angle_range, count)
+        # Get full_span setting
+        full_span = kwargs.get('full_span', self.settings.get('full_span', False))
+        
+        # Generate angles using distribution calculation
+        angles = np.zeros(count)
+        for i in range(count):
+            t = self.calculate_distribution_t(i, count, full_span)
+            angles[i] = start_rad + angle_range * t
         
         # Calculate positions (center at 0.5, 0.5)
         center_x, center_y = 0.5, 0.5

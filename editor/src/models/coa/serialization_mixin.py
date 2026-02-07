@@ -55,6 +55,14 @@ class CoASerializationMixin:
         from ._internal.coa_parser import CoAParser
         from models.color import Color
         
+        # Remove ##META## prefix to expose hidden metadata
+        if ck3_text:
+            ck3_text = ck3_text.replace('##META##', '')
+        
+        # If ck3_text is just a list of colored_emblem blocks, wrap it
+        if not ck3_text.strip().startswith(('coat_of_arms', 'coa_export', 'layers_export')):
+             ck3_text = f"wrapper = {{ {ck3_text} }}"
+        
         parser = CoAParser()
         try:
             parsed = parser.parse_string(ck3_text)
@@ -128,6 +136,66 @@ class CoASerializationMixin:
         
         return new_uuids
     
+    def parse_layers_string(self, ck3_text: str) -> list:
+        """Parse raw colored_emblem blocks into this CoA without creating a new instance.
+        
+        Designed for clipboard operations: properly parses ##META## container tags
+        which might be lost during standard wrapping/parsing.
+        
+        Args:
+            ck3_text: CK3 text containing colored_emblem blocks
+            
+        Returns:
+            List of generated layer UUIDs
+        """
+        from ._internal.coa_parser import CoAParser
+        from models.color import Color
+        from models.coa import Layer
+        
+        if not ck3_text or 'colored_emblem' not in ck3_text:
+            return []
+            
+        # Remove ##META## prefix from clipboard content to expose hidden metadata as valid CK3 attributes
+        # This allows standard parser to read container_uuid, name, etc. as keys in the emblem dict
+        ck3_text = ck3_text.replace('##META##', '')
+            
+        # Use a generic wrapper that doesn't imply CoA structure
+        wrapped_text = f"clipboard_wrapper = {{ {ck3_text} }}"
+        
+        parser = CoAParser()
+        try:
+            parsed = parser.parse_string(wrapped_text)
+        except Exception as e:
+            self._logger.error(f"Failed to parse clipboard layers: {e}")
+            return []
+            
+        if not parsed:
+            return []
+            
+        # Get the wrapper dict
+        wrapper_key = list(parsed.keys())[0]
+        wrapper_obj = parsed[wrapper_key]
+        
+        # Get emblems list
+        emblems = wrapper_obj.get('colored_emblem', [])
+        if isinstance(emblems, dict):
+            emblems = [emblems]
+            
+        new_uuids = []
+        for emblem in emblems:
+            try:
+                # Parse layer (it will pick up container_uuid from emblem dict if parser extracted it)
+                layer = Layer.parse(emblem, caller='CoA', regenerate_uuid=True)
+                
+                # Add to this CoA
+                self.add_layer_object(layer, at_front=False)
+                new_uuids.append(layer.uuid)
+            except Exception as e:
+                self._logger.error(f"Failed to parse clipboard layer: {e}")
+                continue
+                
+        return new_uuids
+
     @classmethod
     def from_string(cls, ck3_text: str) -> 'CoA':
         """Convenience factory: create CoA and parse from CK3 format string
@@ -331,10 +399,9 @@ class CoASerializationMixin:
                                   If False, preserve container_uuid (for whole container copy).
             
         Returns:
-            CK3 format string containing only the specified layers
+            CK3 format string containing only the specified layers (colored_emblem blocks)
         """
         lines = []
-        lines.append("layers_export = {")
         
         # Filter and serialize only specified layers using Layer.serialize()
         for layer_uuid in uuids:
@@ -345,13 +412,13 @@ class CoASerializationMixin:
             # Serialize the layer
             layer_string = layer.serialize(caller='CoA')
             
-            # Strip container_uuid if requested
+            # Strip container_uuid META comments if requested
             if strip_container_uuid:
-                # Remove the container_uuid line from serialization
+                # Remove the ##META##container_uuid line from serialization
                 import re
-                layer_string = re.sub(r'\s*container_uuid\s*=\s*"[^"]*"\s*\n', '', layer_string)
+                layer_string = re.sub(r'\s*##META##container_uuid\s*=\s*"[^"]*"\s*\n', '', layer_string)
+                layer_string = re.sub(r'\s*##META##container_symmetry\s*=\s*"[^"]*"\s*\n', '', layer_string)
             
             lines.append(layer_string)
         
-        lines.append("}")
         return '\n'.join(lines)

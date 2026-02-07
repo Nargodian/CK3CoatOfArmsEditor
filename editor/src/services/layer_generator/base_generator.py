@@ -140,11 +140,11 @@ class BaseGenerator(ABC):
             return 0.5
         
         if full_span:
-            # Edge-to-edge: distribute evenly from 0 to 1
-            return index / count
-        else:
-            # Centered: distribute from 0 to 1 with margins
+            # Full span: includes both endpoints (0 and 1)
             return index / (count - 1)
+        else:
+            # Staggered: excludes endpoint at 1
+            return index / count
     
     def add_label_codes(self, positions: np.ndarray) -> np.ndarray:
         """Add label codes (6th column) to positions array for text mode preview.

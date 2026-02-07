@@ -356,6 +356,9 @@ class GeneratorPopup(QDialog):
             return
         
         try:
+            # Save settings before generating
+            self._save_current_settings()
+            
             # Collect parameters
             params = self._collect_parameters()
             

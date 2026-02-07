@@ -8,6 +8,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter, QPen, QColor
 from models.transform import Vec2, Transform
 from .base_transform import BaseSymmetryTransform
+from utils.ui_utils import NumberSliderWidget
 
 
 class RotationalTransform(BaseSymmetryTransform):
@@ -43,43 +44,28 @@ class RotationalTransform(BaseSymmetryTransform):
         layout = QVBoxLayout()
         
         # Offset X slider
-        offset_x_layout = QHBoxLayout()
-        offset_x_label = QLabel("Offset X:")
-        offset_x_slider = QSlider(Qt.Horizontal)
-        offset_x_slider.setRange(0, 100)
-        offset_x_slider.setValue(int(self.settings['offset_x'] * 100))
-        offset_x_slider.valueChanged.connect(
-            lambda v: self._on_param_changed('offset_x', v / 100.0))
-        offset_x_layout.addWidget(offset_x_label)
-        offset_x_layout.addWidget(offset_x_slider)
-        layout.addLayout(offset_x_layout)
-        self._controls['offset_x'] = offset_x_slider
+        offset_x_widget = NumberSliderWidget("Offset X", self.settings['offset_x'], 
+                                            min_val=0.0, max_val=1.0, step=0.01)
+        offset_x_widget.valueChanged.connect(
+            lambda v: self._on_param_changed('offset_x', v))
+        layout.addWidget(offset_x_widget)
+        self._controls['offset_x'] = offset_x_widget
         
         # Offset Y slider
-        offset_y_layout = QHBoxLayout()
-        offset_y_label = QLabel("Offset Y:")
-        offset_y_slider = QSlider(Qt.Horizontal)
-        offset_y_slider.setRange(0, 100)
-        offset_y_slider.setValue(int(self.settings['offset_y'] * 100))
-        offset_y_slider.valueChanged.connect(
-            lambda v: self._on_param_changed('offset_y', v / 100.0))
-        offset_y_layout.addWidget(offset_y_label)
-        offset_y_layout.addWidget(offset_y_slider)
-        layout.addLayout(offset_y_layout)
-        self._controls['offset_y'] = offset_y_slider
+        offset_y_widget = NumberSliderWidget("Offset Y", self.settings['offset_y'],
+                                            min_val=0.0, max_val=1.0, step=0.01)
+        offset_y_widget.valueChanged.connect(
+            lambda v: self._on_param_changed('offset_y', v))
+        layout.addWidget(offset_y_widget)
+        self._controls['offset_y'] = offset_y_widget
         
-        # Count spinner
-        count_layout = QHBoxLayout()
-        count_label = QLabel("Count:")
-        count_spinner = QSpinBox()
-        count_spinner.setRange(2, 12)
-        count_spinner.setValue(self.settings['count'])
-        count_spinner.valueChanged.connect(
+        # Count slider
+        count_widget = NumberSliderWidget("Count", self.settings['count'],
+                                         min_val=2, max_val=12, is_int=True)
+        count_widget.valueChanged.connect(
             lambda v: self._on_param_changed('count', int(v)))
-        count_layout.addWidget(count_label)
-        count_layout.addWidget(count_spinner)
-        layout.addLayout(count_layout)
-        self._controls['count'] = count_spinner
+        layout.addWidget(count_widget)
+        self._controls['count'] = count_widget
         
         # Kaleidoscope checkbox
         kaleidoscope_check = QCheckBox("Kaleidoscope (mirror + rotate)")
@@ -90,17 +76,13 @@ class RotationalTransform(BaseSymmetryTransform):
         self._controls['kaleidoscope'] = kaleidoscope_check
         
         # Rotation offset slider
-        rotation_offset_layout = QHBoxLayout()
-        rotation_offset_label = QLabel("Rotation Offset:")
-        rotation_offset_slider = QSlider(Qt.Horizontal)
-        rotation_offset_slider.setRange(0, 359)
-        rotation_offset_slider.setValue(int(self.settings['rotation_offset']))
-        rotation_offset_slider.valueChanged.connect(
+        rotation_offset_widget = NumberSliderWidget("Rotation Offset", 
+                                                   self.settings['rotation_offset'],
+                                                   min_val=0, max_val=359, is_int=True)
+        rotation_offset_widget.valueChanged.connect(
             lambda v: self._on_param_changed('rotation_offset', float(v)))
-        rotation_offset_layout.addWidget(rotation_offset_label)
-        rotation_offset_layout.addWidget(rotation_offset_slider)
-        layout.addLayout(rotation_offset_layout)
-        self._controls['rotation_offset'] = rotation_offset_slider
+        layout.addWidget(rotation_offset_widget)
+        self._controls['rotation_offset'] = rotation_offset_widget
         
         return layout
     
@@ -213,22 +195,32 @@ class RotationalTransform(BaseSymmetryTransform):
             mirrored_rotation
         )
     
-    def draw_overlay(self, painter: QPainter, layer_uuid: str, coa):
-        """Draw radial dashed lines on canvas."""
+    def draw_overlay(self, painter: QPainter, layer_uuid: str, coa, coa_to_canvas):
+        """Draw radial dashed lines on canvas.
+        
+        Args:
+            painter: QPainter for drawing
+            layer_uuid: UUID of layer to visualize
+            coa: CoA model instance
+            coa_to_canvas: Function to convert CoA space (0-1) to canvas pixels
+        """
         offset_x = self.settings['offset_x']
         offset_y = self.settings['offset_y']
         count = self.settings['count']
         rotation_offset = self.settings['rotation_offset']
         
         # Set up pen for dashed lines
-        pen = QPen(QColor(255, 255, 0, 180))  # Yellow, semi-transparent
+        pen = QPen(QColor(255, 255, 150, 100))  # Pastel yellow, more transparent
         pen.setWidth(2)
         pen.setStyle(Qt.DashLine)
         painter.setPen(pen)
         
-        # Convert offset to pixel coordinates
-        center_x = offset_x * 512
-        center_y = offset_y * 512
+        # Convert center position from CoA space to canvas pixels
+        from models.transform import Vec2
+        center_coa = Vec2(offset_x, offset_y)
+        center_canvas = coa_to_canvas(center_coa)
+        center_x = center_canvas.x
+        center_y = center_canvas.y
         
         # Draw radial lines
         angle_step = 360.0 / count
@@ -237,7 +229,7 @@ class RotationalTransform(BaseSymmetryTransform):
             rad = math.radians(angle)
             
             # Draw line from center outward
-            dx = math.cos(rad) * 300  # Extended length
+            dx = math.cos(rad) * 300  # Extended length in pixels
             dy = math.sin(rad) * 300
             
             painter.drawLine(

@@ -8,6 +8,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter, QPen, QColor
 from models.transform import Vec2, Transform
 from .base_transform import BaseSymmetryTransform
+from utils.ui_utils import NumberSliderWidget
 
 
 class BisectorTransform(BaseSymmetryTransform):
@@ -41,43 +42,28 @@ class BisectorTransform(BaseSymmetryTransform):
         layout = QVBoxLayout()
         
         # Offset X slider
-        offset_x_layout = QHBoxLayout()
-        offset_x_label = QLabel("Offset X:")
-        offset_x_slider = QSlider(Qt.Horizontal)
-        offset_x_slider.setRange(0, 100)
-        offset_x_slider.setValue(int(self.settings['offset_x'] * 100))
-        offset_x_slider.valueChanged.connect(
-            lambda v: self._on_param_changed('offset_x', v / 100.0))
-        offset_x_layout.addWidget(offset_x_label)
-        offset_x_layout.addWidget(offset_x_slider)
-        layout.addLayout(offset_x_layout)
-        self._controls['offset_x'] = offset_x_slider
+        offset_x_widget = NumberSliderWidget("Offset X", self.settings['offset_x'],
+                                            min_val=0.0, max_val=1.0, step=0.01)
+        offset_x_widget.valueChanged.connect(
+            lambda v: self._on_param_changed('offset_x', v))
+        layout.addWidget(offset_x_widget)
+        self._controls['offset_x'] = offset_x_widget
         
         # Offset Y slider
-        offset_y_layout = QHBoxLayout()
-        offset_y_label = QLabel("Offset Y:")
-        offset_y_slider = QSlider(Qt.Horizontal)
-        offset_y_slider.setRange(0, 100)
-        offset_y_slider.setValue(int(self.settings['offset_y'] * 100))
-        offset_y_slider.valueChanged.connect(
-            lambda v: self._on_param_changed('offset_y', v / 100.0))
-        offset_y_layout.addWidget(offset_y_label)
-        offset_y_layout.addWidget(offset_y_slider)
-        layout.addLayout(offset_y_layout)
-        self._controls['offset_y'] = offset_y_slider
+        offset_y_widget = NumberSliderWidget("Offset Y", self.settings['offset_y'],
+                                            min_val=0.0, max_val=1.0, step=0.01)
+        offset_y_widget.valueChanged.connect(
+            lambda v: self._on_param_changed('offset_y', v))
+        layout.addWidget(offset_y_widget)
+        self._controls['offset_y'] = offset_y_widget
         
         # Rotation offset slider
-        rotation_layout = QHBoxLayout()
-        rotation_label = QLabel("Rotation:")
-        rotation_slider = QSlider(Qt.Horizontal)
-        rotation_slider.setRange(-180, 180)
-        rotation_slider.setValue(int(self.settings['rotation_offset']))
-        rotation_slider.valueChanged.connect(
+        rotation_widget = NumberSliderWidget("Rotation", self.settings['rotation_offset'],
+                                            min_val=-180, max_val=180, is_int=True)
+        rotation_widget.valueChanged.connect(
             lambda v: self._on_param_changed('rotation_offset', float(v)))
-        rotation_layout.addWidget(rotation_label)
-        rotation_layout.addWidget(rotation_slider)
-        layout.addLayout(rotation_layout)
-        self._controls['rotation'] = rotation_slider
+        layout.addWidget(rotation_widget)
+        self._controls['rotation'] = rotation_widget
         
         # Mode radio buttons
         mode_layout = QHBoxLayout()
@@ -172,29 +158,39 @@ class BisectorTransform(BaseSymmetryTransform):
         
         return mirrored_transform
     
-    def draw_overlay(self, painter: QPainter, layer_uuid: str, coa):
-        """Draw dashed mirror line(s) on canvas."""
+    def draw_overlay(self, painter: QPainter, layer_uuid: str, coa, coa_to_canvas):
+        """Draw dashed mirror line(s) on canvas.
+        
+        Args:
+            painter: QPainter for drawing
+            layer_uuid: UUID of layer to visualize
+            coa: CoA model instance
+            coa_to_canvas: Function to convert CoA space (0-1) to canvas pixels
+        """
         offset_x = self.settings['offset_x']
         offset_y = self.settings['offset_y']
         rotation_offset = self.settings['rotation_offset']
         mode = self.settings['mode']
         
         # Set up pen for dashed line
-        pen = QPen(QColor(255, 255, 0, 180))  # Yellow, semi-transparent
+        pen = QPen(QColor(255, 255, 150, 100))  # Pastel yellow, more transparent
         pen.setWidth(2)
         pen.setStyle(Qt.DashLine)
         painter.setPen(pen)
         
-        # Convert offset to pixel coordinates (assuming 512x512 canvas)
-        center_x = offset_x * 512
-        center_y = offset_y * 512
+        # Convert center from CoA space to canvas pixels
+        from models.transform import Vec2
+        center_coa = Vec2(offset_x, offset_y)
+        center_canvas = coa_to_canvas(center_coa)
+        center_x = center_canvas.x
+        center_y = center_canvas.y
         
         # Draw first mirror line
-        self._draw_line_at_angle(painter, center_x, center_y, rotation_offset, 512)
+        self._draw_line_at_angle(painter, center_x, center_y, rotation_offset, 600)
         
         # If double cross, draw perpendicular line
         if mode == 1:
-            self._draw_line_at_angle(painter, center_x, center_y, rotation_offset + 90, 512)
+            self._draw_line_at_angle(painter, center_x, center_y, rotation_offset + 90, 600)
     
     def _draw_line_at_angle(self, painter, cx, cy, angle, length):
         """Draw line through (cx, cy) at given angle."""

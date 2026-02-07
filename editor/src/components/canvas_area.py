@@ -6,6 +6,7 @@ from PyQt5.QtCore import Qt
 from models.transform import Transform, Vec2
 from .canvas_widget import CoatOfArmsCanvas
 from .transform_widget import TransformWidget
+from .symmetry_overlay_widget import SymmetryOverlayWidget
 from .canvas_area_helpers.canvas_area_transform_mixin import CanvasAreaTransformMixin
 from .canvas_area_helpers.preview_bar import PreviewBar
 from .canvas_area_helpers.bottom_bar import BottomBar
@@ -45,6 +46,15 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
                 self.property_sidebar._deselect_layer()
         super().mousePressEvent(event)
     
+    def resizeEvent(self, event):
+        """Handle resize to keep overlay widget geometry synchronized"""
+        super().resizeEvent(event)
+        # Update overlay geometry to match canvas container
+        if hasattr(self, 'overlay_widget') and hasattr(self, 'canvas_widget'):
+            container = self.canvas_widget.parent()
+            if container:
+                self.overlay_widget.setGeometry(0, 0, container.width(), container.height())
+    
     def _setup_ui(self):
         """Setup the canvas area UI"""
         layout = QVBoxLayout(self)
@@ -70,6 +80,16 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
         # Widget fills container - zoom handled by scaling rendering, not widget size
         canvas_container_layout.addWidget(self.canvas_widget, stretch=1)
         
+        # Symmetry overlay widget (parented to canvas_container, absolute positioned overlay)
+        # Sits between canvas and transform widget, draws symmetry visualizations
+        # Transparent to mouse events - doesn't block interaction
+        self.overlay_widget = SymmetryOverlayWidget(canvas_container)
+        self.overlay_widget.canvas_widget = self.canvas_widget
+        self.overlay_widget.property_sidebar = None  # Set later via set_property_sidebar
+        # Position to cover entire container (same as transform widget)
+        self.overlay_widget.setGeometry(0, 0, canvas_container.width(), canvas_container.height())
+        self.overlay_widget.raise_()  # On top of canvas
+        
         # Transform widget (parented to canvas_container, absolute positioned overlay)
         # NOT added to layout - manually positioned/sized to overlay container's area
         # Parent to canvas_container (not canvas_widget) to avoid edge clipping
@@ -80,6 +100,7 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
         self.transform_widget.transformEnded.connect(self._on_transform_ended)
         self.transform_widget.nonUniformScaleUsed.connect(self._on_non_uniform_scale_used)
         self.transform_widget.layerDuplicated.connect(self._on_layer_duplicated)
+        self.transform_widget.raise_()  # On top of overlay
         
         layout.addWidget(canvas_container, stretch=1)
         
@@ -94,6 +115,9 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
     def set_property_sidebar(self, sidebar):
         """Set reference to property sidebar for layer selection"""
         self.property_sidebar = sidebar
+        # Also connect to overlay widget for symmetry visualization
+        if hasattr(self, 'overlay_widget'):
+            self.overlay_widget.property_sidebar = sidebar
     
     def update_transform_widget_for_layer(self, layer_index=None):
         """Update transform widget to match selected layer(s)"""
@@ -101,6 +125,9 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
         
         if not self._should_show_transform_widget():
             self.transform_widget.set_visible(False)
+            # Still refresh overlay for symmetry visualization
+            if hasattr(self, 'overlay_widget'):
+                self.overlay_widget.refresh()
             return
         
         selected_uuids = self.property_sidebar.get_selected_uuids()
@@ -109,6 +136,10 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
             self._update_single_selection(list(selected_uuids)[0])
         else:
             self._update_multi_selection(selected_uuids)
+        
+        # Refresh overlay after selection change
+        if hasattr(self, 'overlay_widget'):
+            self.overlay_widget.refresh()
     
     def _reset_transform_state(self):
         """Reset all transform-related state when selection changes"""

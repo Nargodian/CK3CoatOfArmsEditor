@@ -368,6 +368,9 @@ class TransformWidget(QWidget):
             event.accept()
             return
         
+        # Not dragging - forward to canvas for panning
+        self._forward_event_to_canvas(event)
+        
         # Update cursor based on handle under mouse
         handle = self._get_handle_at_pos(event.pos())
         if handle:

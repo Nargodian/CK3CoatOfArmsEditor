@@ -83,13 +83,14 @@ class BaseSymmetryTransform(ABC):
         pass
     
     @abstractmethod
-    def draw_overlay(self, painter: QPainter, layer_uuid: str, coa):
+    def draw_overlay(self, painter: QPainter, layer_uuid: str, coa, coa_to_canvas):
         """Draw visual indicators on canvas.
         
         Args:
             painter: QPainter for drawing
             layer_uuid: UUID of layer to visualize
             coa: CoA model instance
+            coa_to_canvas: Function to convert CoA space (0-1) to canvas pixels
         """
         pass
     

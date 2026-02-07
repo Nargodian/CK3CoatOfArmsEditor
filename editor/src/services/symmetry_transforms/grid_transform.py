@@ -8,6 +8,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter, QPen, QBrush, QColor
 from models.transform import Vec2, Transform
 from .base_transform import BaseSymmetryTransform
+from utils.ui_utils import NumberSliderWidget
 
 
 class GridTransform(BaseSymmetryTransform):
@@ -43,56 +44,36 @@ class GridTransform(BaseSymmetryTransform):
         layout = QVBoxLayout()
         
         # Offset X slider
-        offset_x_layout = QHBoxLayout()
-        offset_x_label = QLabel("Offset X:")
-        offset_x_slider = QSlider(Qt.Horizontal)
-        offset_x_slider.setRange(0, 100)
-        offset_x_slider.setValue(int(self.settings['offset_x'] * 100))
-        offset_x_slider.valueChanged.connect(
-            lambda v: self._on_param_changed('offset_x', v / 100.0))
-        offset_x_layout.addWidget(offset_x_label)
-        offset_x_layout.addWidget(offset_x_slider)
-        layout.addLayout(offset_x_layout)
-        self._controls['offset_x'] = offset_x_slider
+        offset_x_widget = NumberSliderWidget("Offset X", self.settings['offset_x'],
+                                            min_val=0.0, max_val=1.0, step=0.01)
+        offset_x_widget.valueChanged.connect(
+            lambda v: self._on_param_changed('offset_x', v))
+        layout.addWidget(offset_x_widget)
+        self._controls['offset_x'] = offset_x_widget
         
         # Offset Y slider
-        offset_y_layout = QHBoxLayout()
-        offset_y_label = QLabel("Offset Y:")
-        offset_y_slider = QSlider(Qt.Horizontal)
-        offset_y_slider.setRange(0, 100)
-        offset_y_slider.setValue(int(self.settings['offset_y'] * 100))
-        offset_y_slider.valueChanged.connect(
-            lambda v: self._on_param_changed('offset_y', v / 100.0))
-        offset_y_layout.addWidget(offset_y_label)
-        offset_y_layout.addWidget(offset_y_slider)
-        layout.addLayout(offset_y_layout)
-        self._controls['offset_y'] = offset_y_slider
+        offset_y_widget = NumberSliderWidget("Offset Y", self.settings['offset_y'],
+                                            min_val=0.0, max_val=1.0, step=0.01)
+        offset_y_widget.valueChanged.connect(
+            lambda v: self._on_param_changed('offset_y', v))
+        layout.addWidget(offset_y_widget)
+        self._controls['offset_y'] = offset_y_widget
         
-        # Count X spinner
-        count_x_layout = QHBoxLayout()
-        count_x_label = QLabel("Columns:")
-        count_x_spinner = QSpinBox()
-        count_x_spinner.setRange(1, 8)
-        count_x_spinner.setValue(self.settings['count_x'])
-        count_x_spinner.valueChanged.connect(
+        # Count X slider
+        count_x_widget = NumberSliderWidget("Columns", self.settings['count_x'],
+                                           min_val=1, max_val=8, is_int=True)
+        count_x_widget.valueChanged.connect(
             lambda v: self._on_param_changed('count_x', int(v)))
-        count_x_layout.addWidget(count_x_label)
-        count_x_layout.addWidget(count_x_spinner)
-        layout.addLayout(count_x_layout)
-        self._controls['count_x'] = count_x_spinner
+        layout.addWidget(count_x_widget)
+        self._controls['count_x'] = count_x_widget
         
-        # Count Y spinner
-        count_y_layout = QHBoxLayout()
-        count_y_label = QLabel("Rows:")
-        count_y_spinner = QSpinBox()
-        count_y_spinner.setRange(1, 8)
-        count_y_spinner.setValue(self.settings['count_y'])
-        count_y_spinner.valueChanged.connect(
+        # Count Y slider
+        count_y_widget = NumberSliderWidget("Rows", self.settings['count_y'],
+                                           min_val=1, max_val=8, is_int=True)
+        count_y_widget.valueChanged.connect(
             lambda v: self._on_param_changed('count_y', int(v)))
-        count_y_layout.addWidget(count_y_label)
-        count_y_layout.addWidget(count_y_spinner)
-        layout.addLayout(count_y_layout)
-        self._controls['count_y'] = count_y_spinner
+        layout.addWidget(count_y_widget)
+        self._controls['count_y'] = count_y_widget
         
         # Fill mode dropdown
         fill_layout = QHBoxLayout()
@@ -258,8 +239,15 @@ class GridTransform(BaseSymmetryTransform):
             return (row + col) % 2 == seed_parity
         return False
     
-    def draw_overlay(self, painter: QPainter, layer_uuid: str, coa):
-        """Draw grid lines and shaded cells on canvas."""
+    def draw_overlay(self, painter: QPainter, layer_uuid: str, coa, coa_to_canvas):
+        """Draw grid lines and shaded cells on canvas.
+        
+        Args:
+            painter: QPainter for drawing
+            layer_uuid: UUID of layer to visualize
+            coa: CoA model instance
+            coa_to_canvas: Function to convert CoA space (0-1) to canvas pixels
+        """
         offset_x = self.settings['offset_x']
         offset_y = self.settings['offset_y']
         count_x = self.settings['count_x']
@@ -281,36 +269,29 @@ class GridTransform(BaseSymmetryTransform):
         seed_parity = (identity_row + identity_col) % 2
         
         # Set up pen for grid lines
-        pen = QPen(QColor(255, 255, 0, 180))  # Yellow, semi-transparent
+        pen = QPen(QColor(255, 255, 150, 100))  # Pastel yellow, more transparent
         pen.setWidth(1)
         pen.setStyle(Qt.DashLine)
         painter.setPen(pen)
         
-        # Calculate cell size in pixels (grid spans full canvas 0-512)
-        cell_width_px = 512.0 / count_x
-        cell_height_px = 512.0 / count_y
+        # Draw grid lines using CoA space coordinates
+        from models.transform import Vec2
         
-        # Draw grid lines
+        # Draw horizontal lines
         for row in range(count_y + 1):
-            y = row * cell_height_px
-            painter.drawLine(0, int(y), 512, int(y))
+            y_coa = row * cell_height
+            start_canvas = coa_to_canvas(Vec2(0.0, y_coa))
+            end_canvas = coa_to_canvas(Vec2(1.0, y_coa))
+            painter.drawLine(int(start_canvas.x), int(start_canvas.y),
+                           int(end_canvas.x), int(end_canvas.y))
         
+        # Draw vertical lines
         for col in range(count_x + 1):
-            x = col * cell_width_px
-            painter.drawLine(int(x), 0, int(x), 512)
-        
-        # Shade cells based on fill pattern
-        brush = QBrush(QColor(255, 255, 0, 40))  # Very transparent yellow
-        painter.setBrush(brush)
-        painter.setPen(Qt.NoPen)
-        
-        for row in range(count_y):
-            for col in range(count_x):
-                if self._should_fill_cell(row, col, seed_parity, fill):
-                    x = col * cell_width_px
-                    y = row * cell_height_px
-                    painter.drawRect(int(x), int(y), 
-                                   int(cell_width_px), int(cell_height_px))
+            x_coa = col * cell_width
+            start_canvas = coa_to_canvas(Vec2(x_coa, 0.0))
+            end_canvas = coa_to_canvas(Vec2(x_coa, 1.0))
+            painter.drawLine(int(start_canvas.x), int(start_canvas.y),
+                           int(end_canvas.x), int(end_canvas.y))
     
     def get_properties(self) -> List[float]:
         """Serialize to property list."""
