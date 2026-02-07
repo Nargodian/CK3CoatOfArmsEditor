@@ -14,7 +14,7 @@ class LineGenerator(BaseGenerator):
     DEFAULT_SCALE = 0.1
     DEFAULT_START_PERCENT = 0.0
     DEFAULT_END_PERCENT = 100.0
-    DEFAULT_ROTATION_MODE = 'global'
+    DEFAULT_ROTATION_MODE = 'aligned'
     DEFAULT_BASE_ROTATION = 0.0
     DEFAULT_ARC_BEND = 0.0
     DEFAULT_MODE = 'count'
@@ -38,6 +38,8 @@ class LineGenerator(BaseGenerator):
             'use_v_shape': self.DEFAULT_USE_V_SHAPE,
             'arc_bend': self.DEFAULT_ARC_BEND,
         }
+        
+        super().__init__()
     
     def get_title(self) -> str:
         """Return display title."""

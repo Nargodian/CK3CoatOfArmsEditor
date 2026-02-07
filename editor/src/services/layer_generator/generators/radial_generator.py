@@ -27,7 +27,7 @@ class RadialGenerator(BaseGenerator):
             'uniform_scale': self.DEFAULT_SCALE,
             'start_scale': self.DEFAULT_SCALE,
             'end_scale': self.DEFAULT_SCALE,
-            'rotation_mode': 'global',
+            'rotation_mode': 'aligned',
             'base_rotation': 0.0,
         }
         

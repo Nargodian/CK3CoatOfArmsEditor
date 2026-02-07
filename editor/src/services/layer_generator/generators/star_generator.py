@@ -23,8 +23,11 @@ class StarGenerator(BaseGenerator):
             'radius': self.DEFAULT_RADIUS,
             'inner_ratio': self.DEFAULT_INNER_RADIUS_RATIO,
             'instances_per_edge': self.DEFAULT_INSTANCES_PER_EDGE,
+            'gradient_enabled': False,
             'uniform_scale': self.DEFAULT_SCALE,
-            'rotation_mode': 'global',
+            'start_scale': self.DEFAULT_SCALE,
+            'end_scale': self.DEFAULT_SCALE,
+            'rotation_mode': 'aligned',
             'base_rotation': 0.0,
         }
         
@@ -98,10 +101,16 @@ class StarGenerator(BaseGenerator):
         scale_controls = self.add_scale_controls(
             layout,
             default_scale=self.settings['uniform_scale'],
-            enable_gradient=False
+            enable_gradient=self.settings['gradient_enabled']
         )
+        scale_controls['gradient_check'].toggled.connect(
+            lambda v: self._on_param_changed('gradient_enabled', v))
         scale_controls['uniform_scale'].valueChanged.connect(
             lambda v: self._on_param_changed('uniform_scale', v / 100.0))
+        scale_controls['start_scale'].valueChanged.connect(
+            lambda v: self._on_param_changed('start_scale', v / 100.0))
+        scale_controls['end_scale'].valueChanged.connect(
+            lambda v: self._on_param_changed('end_scale', v / 100.0))
         
         self._controls['uniform_scale'] = scale_controls['uniform_scale']
         
@@ -138,7 +147,10 @@ class StarGenerator(BaseGenerator):
         radius = kwargs.get('radius', self.settings['radius'])
         inner_ratio = kwargs.get('inner_ratio', self.settings['inner_ratio'])
         instances_per_edge = kwargs.get('instances_per_edge', self.settings['instances_per_edge'])
-        scale = kwargs.get('uniform_scale', self.settings['uniform_scale'])
+        gradient_enabled = kwargs.get('gradient_enabled', self.settings['gradient_enabled'])
+        uniform_scale = kwargs.get('uniform_scale', self.settings['uniform_scale'])
+        start_scale = kwargs.get('start_scale', self.settings['start_scale'])
+        end_scale = kwargs.get('end_scale', self.settings['end_scale'])
         rotation_mode = kwargs.get('rotation_mode', self.settings['rotation_mode'])
         base_rotation = kwargs.get('base_rotation', self.settings['base_rotation'])
         
@@ -162,6 +174,10 @@ class StarGenerator(BaseGenerator):
         # Generate instances along edges
         positions = []
         
+        # Calculate total instances for gradient interpolation
+        total_instances = points * 2 * instances_per_edge - (points * 2 - 1)  # Approx
+        instance_idx = 0
+        
         for i in range(len(vertices)):
             start_x, start_y = vertices[i]
             end_x, end_y = vertices[(i + 1) % len(vertices)]  # Wrap around to close star
@@ -176,6 +192,14 @@ class StarGenerator(BaseGenerator):
                 
                 x = start_x + t * (end_x - start_x)
                 y = start_y + t * (end_y - start_y)
+                
+                # Scale (gradient or uniform)
+                if gradient_enabled:
+                    grad_t = instance_idx / max(total_instances - 1, 1)
+                    scale = start_scale + grad_t * (end_scale - start_scale)
+                else:
+                    scale = uniform_scale
+                instance_idx += 1
                 
                 # Calculate rotation
                 if rotation_mode == 'aligned':

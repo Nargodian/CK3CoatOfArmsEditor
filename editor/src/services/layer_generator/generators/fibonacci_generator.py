@@ -23,8 +23,11 @@ class FibonacciGenerator(BaseGenerator):
         # so cache restoration can update these defaults
         self.settings = {
             'count': self.DEFAULT_COUNT,
+            'gradient_enabled': False,
             'uniform_scale': self.DEFAULT_SCALE,
-            'rotation_mode': 'global',
+            'start_scale': self.DEFAULT_SCALE,
+            'end_scale': self.DEFAULT_SCALE,
+            'rotation_mode': 'aligned',
             'base_rotation': 0.0,
         }
         
@@ -56,10 +59,16 @@ class FibonacciGenerator(BaseGenerator):
         scale_controls = self.add_scale_controls(
             layout,
             default_scale=self.settings['uniform_scale'],
-            enable_gradient=False
+            enable_gradient=self.settings['gradient_enabled']
         )
+        scale_controls['gradient_check'].toggled.connect(
+            lambda v: self._on_param_changed('gradient_enabled', v))
         scale_controls['uniform_scale'].valueChanged.connect(
             lambda v: self._on_param_changed('uniform_scale', v / 100.0))
+        scale_controls['start_scale'].valueChanged.connect(
+            lambda v: self._on_param_changed('start_scale', v / 100.0))
+        scale_controls['end_scale'].valueChanged.connect(
+            lambda v: self._on_param_changed('end_scale', v / 100.0))
         
         self._controls['uniform_scale'] = scale_controls['uniform_scale']
         
@@ -93,7 +102,10 @@ class FibonacciGenerator(BaseGenerator):
         """
         # Use settings as defaults, override with kwargs
         count = kwargs.get('count', self.settings['count'])
-        scale = kwargs.get('uniform_scale', self.settings['uniform_scale'])
+        gradient_enabled = kwargs.get('gradient_enabled', self.settings['gradient_enabled'])
+        uniform_scale = kwargs.get('uniform_scale', self.settings['uniform_scale'])
+        start_scale = kwargs.get('start_scale', self.settings['start_scale'])
+        end_scale = kwargs.get('end_scale', self.settings['end_scale'])
         rotation_mode = kwargs.get('rotation_mode', self.settings['rotation_mode'])
         base_rotation = kwargs.get('base_rotation', self.settings['base_rotation'])
         
@@ -116,12 +128,19 @@ class FibonacciGenerator(BaseGenerator):
             angle = i * golden_angle_rad
             
             # Calculate radius - grows with square root for even density
-            # Normalized to fit within max_radius
-            radius = max_radius * np.sqrt(i / max(count - 1, 1))
+            # Using i+0.5 avoids degenerate center point and evens inner spacing
+            radius = max_radius * np.sqrt((i + 0.5) / count)
             
             # Calculate position
             x = center_x + radius * np.cos(angle)
             y = center_y + radius * np.sin(angle)
+            
+            # Scale (uniform or gradient from center to edge)
+            if gradient_enabled:
+                t = i / (count - 1) if count > 1 else 0.5
+                scale = start_scale + t * (end_scale - start_scale)
+            else:
+                scale = uniform_scale
             
             # Rotation (aligned with spiral or global)
             if rotation_mode == 'aligned':

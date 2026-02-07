@@ -15,9 +15,8 @@ class GridGenerator(BaseGenerator):
     DEFAULT_INSET = 0.02  # Fixed constant - padding from edges
     
     def __init__(self):
-        super().__init__()
-        
-        # Initialize default settings
+        # Initialize default settings BEFORE calling super()
+        # so cache restoration can update these defaults
         self.settings = {
             'rows': self.DEFAULT_ROWS,
             'columns': self.DEFAULT_COLUMNS,

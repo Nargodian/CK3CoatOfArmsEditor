@@ -16,9 +16,8 @@ class DiamondGenerator(BaseGenerator):
     STAGGER_OFFSET = 0.5  # Fixed constant - alternating rows offset by half column spacing
     
     def __init__(self):
-        super().__init__()
-        
-        # Initialize default settings
+        # Initialize default settings BEFORE calling super()
+        # so cache restoration can update these defaults
         self.settings = {
             'rows': self.DEFAULT_ROWS,
             'columns': self.DEFAULT_COLUMNS,
