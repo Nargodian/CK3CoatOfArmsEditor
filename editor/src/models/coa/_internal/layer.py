@@ -813,10 +813,10 @@ class Layer:
         color2_str = data.get('color2', 'red')
         color3_str = data.get('color3', 'red')
         
-        # Convert to Color objects
-        color1 = Color.from_ck3_string(color1_str)
-        color2 = Color.from_ck3_string(color2_str)
-        color3 = Color.from_ck3_string(color3_str)
+        # Convert to Color objects using from_name() which handles both formats and never returns None
+        color1 = Color.from_name(color1_str)
+        color2 = Color.from_name(color2_str)
+        color3 = Color.from_name(color3_str)
         
         # Look up actual color count from texture metadata
         color_count = get_texture_color_count(filename)

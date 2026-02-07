@@ -46,11 +46,11 @@ void main() {
 	
 	// Apply material mask (dirt/texture) - blue channel
 	vec4 materialSample = texture(texturedMaskSampler, screenUV);
-	coaColor.rgb = mix(coaColor.rgb, coaColor.rgb * materialSample.b, 0.5);
+	coaColor.rgb = mix(coaColor.rgb, coaColor.rgb * materialSample.b, 0.3);
 	
 	// Apply noise grain
 	float noise = texture(noiseMaskSampler, screenUV).r;
-	coaColor.rgb = mix(coaColor.rgb, coaColor.rgb * noise, 0.2);
+	coaColor.rgb = mix(coaColor.rgb, coaColor.rgb * noise, 0.1);
 	
 	// Calculate frame mask UV from frame quad UV (fragUV from vertex shader)
 	// Scale to sample from center portion of mask texture, then push out with fudge factor
