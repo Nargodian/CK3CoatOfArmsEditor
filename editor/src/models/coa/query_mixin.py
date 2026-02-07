@@ -573,29 +573,3 @@ class CoAQueryMixin:
             return layer.color3
         else:
             raise ValueError(f"color_index must be 1, 2, or 3, got {color_index}")
-    
-    def get_layer_color_name(self, uuid: str, color_index: int) -> str:
-        """Get color name for a layer
-        
-        Args:
-            uuid: Layer UUID
-            color_index: Color index (1, 2, or 3)
-            
-        Returns:
-            Color name (empty string for custom RGB colors)
-            
-        Raises:
-            ValueError: If UUID not found or color_index invalid
-        """
-        layer = self._layers.get_by_uuid(uuid)
-        if not layer:
-            raise ValueError(f"Layer with UUID '{uuid}' not found")
-        
-        if color_index == 1:
-            return layer.color1.name
-        elif color_index == 2:
-            return layer.color2.name
-        elif color_index == 3:
-            return layer.color3.name
-        else:
-            raise ValueError(f"color_index must be 1, 2, or 3, got {color_index}")

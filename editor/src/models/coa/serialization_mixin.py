@@ -190,12 +190,11 @@ class CoASerializationMixin:
         for emblem in emblems:
             filename = emblem.get('texture', '')
             
-            # Parse colors
+            # Parse colors from CK3 format (handles both named colors and rgb blocks)
             color1_raw = emblem.get('color1', DEFAULT_EMBLEM_COLOR1)
             color2_raw = emblem.get('color2', DEFAULT_EMBLEM_COLOR2)
             color3_raw = emblem.get('color3', DEFAULT_EMBLEM_COLOR3)
             
-            # Parse colors from CK3 format (handles both named colors and rgb blocks)
             color1 = Color.from_ck3_string(color1_raw) if color1_raw else Color.from_name(DEFAULT_EMBLEM_COLOR1)
             color2 = Color.from_ck3_string(color2_raw) if color2_raw else Color.from_name(DEFAULT_EMBLEM_COLOR2)
             color3 = Color.from_ck3_string(color3_raw) if color3_raw else Color.from_name(DEFAULT_EMBLEM_COLOR3)
@@ -231,9 +230,6 @@ class CoASerializationMixin:
                 'color1': color1,
                 'color2': color2,
                 'color3': color3,
-                'color1_name': color1_name,
-                'color2_name': color2_name,
-                'color3_name': color3_name,
                 'mask': mask,
                 'instances': [],
                 'selected_instance': 0,

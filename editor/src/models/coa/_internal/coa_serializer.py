@@ -34,25 +34,25 @@ def extract_coa_structure(coa_data):
     """
     # Get the CoA object (first key)
     coa_id = list(coa_data.keys())[0]
-    coa = coa_data[coa_id]
-    return coa, coa_id
+    coa_data_dict = coa_data[coa_id]
+    return coa_data_dict, coa_id
 
 
-def extract_base_layer_data(coa):
+def extract_base_layer_data(coa_data_dict):
     """Extract base layer pattern and colors from CoA
     
     Args:
-        coa: CoA dictionary
+        coa_data_dict: CoA dictionary
         
     Returns:
         Dict with pattern, color names, and RGB colors
     """
-    pattern = coa.get('pattern', 'pattern_solid.dds')  # CK3 default
+    pattern = coa_data_dict.get('pattern', 'pattern_solid.dds')  # CK3 default
     
     # Apply base colors (CK3 defaults: black, yellow, black) as Color objects
-    color1_name = coa.get('color1', 'black')
-    color2_name = coa.get('color2', 'yellow')
-    color3_name = coa.get('color3', 'black')
+    color1_name = coa_data_dict.get('color1', 'black')
+    color2_name = coa_data_dict.get('color2', 'yellow')
+    color3_name = coa_data_dict.get('color3', 'black')
     
     base_colors = [
         Color.from_name(color1_name),
@@ -66,34 +66,34 @@ def extract_base_layer_data(coa):
     }
 
 
-def extract_emblem_layers(coa):
+def extract_emblem_layers(coa_data_dict):
     """Extract and parse emblem layers from CoA with depth sorting
     
     Args:
-        coa: CoA dictionary
+        coa_data_dict: CoA dictionary
         
     Returns:
         List of layer data dictionaries sorted by depth (back to front)
     """
     emblem_instances = []
     
-    for emblem in coa.get('colored_emblem', []):
-        filename = emblem.get('texture', '')
+    for emblem_data_dict in coa_data_dict.get('colored_emblem', []):
+        filename = emblem_data_dict.get('texture', '')
         
         # Get instances, or create default if none exist
-        instances = emblem.get('instance', [])
+        instances = emblem_data_dict.get('instance', [])
         if not instances:
             # No instance block means default values
             instances = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0}]
         
-        for instance in instances:
+        for instance_data_dict in instances:
             # Get depth value (default to 0 if not specified)
-            depth = instance.get('depth', 0)
+            depth = instance_data_dict.get('depth', 0)
             
             # Parse colors from CK3 format (handles both named colors and rgb blocks)
-            color1_str = emblem.get('color1', 'yellow')
-            color2_str = emblem.get('color2', 'red')
-            color3_str = emblem.get('color3', 'red')
+            color1_str = emblem_data_dict.get('color1', 'yellow')
+            color2_str = emblem_data_dict.get('color2', 'red')
+            color3_str = emblem_data_dict.get('color3', 'red')
             
             # Convert to Color objects
             color1 = Color.from_ck3_string(color1_str)
@@ -104,20 +104,20 @@ def extract_emblem_layers(coa):
             color_count = get_texture_color_count(filename)
             
             # Split scale into magnitude and flip state
-            scale_x_raw = instance.get('scale', [1.0, 1.0])[0]
-            scale_y_raw = instance.get('scale', [1.0, 1.0])[1]
+            scale_x_raw = instance_data_dict.get('scale', [1.0, 1.0])[0]
+            scale_y_raw = instance_data_dict.get('scale', [1.0, 1.0])[1]
             
             layer_data = {
                 'filename': filename,
                 'path': filename,  # Use filename as path - texture system and preview lookup both use this
                 'colors': color_count,  # Look up actual color count from metadata
-                'pos_x': instance.get('position', [0.5, 0.5])[0],
-                'pos_y': instance.get('position', [0.5, 0.5])[1],
+                'pos_x': instance_data_dict.get('position', [0.5, 0.5])[0],
+                'pos_y': instance_data_dict.get('position', [0.5, 0.5])[1],
                 'scale_x': abs(scale_x_raw),  # Always store as positive
                 'scale_y': abs(scale_y_raw),  # Always store as positive
                 'flip_x': scale_x_raw < 0,    # Track flip separately
                 'flip_y': scale_y_raw < 0,    # Track flip separately
-                'rotation': instance.get('rotation', 0),
+                'rotation': instance_data_dict.get('rotation', 0),
                 'color1': color1,
                 'color2': color2,
                 'color3': color3,
@@ -146,9 +146,9 @@ def parse_coa_for_editor(coa_data):
     Returns:
         Dict with 'base' and 'layers' keys containing extracted data
     """
-    coa, coa_id = extract_coa_structure(coa_data)
-    base_data = extract_base_layer_data(coa)
-    layers = extract_emblem_layers(coa)
+    coa_data_dict, coa_id = extract_coa_structure(coa_data)
+    base_data = extract_base_layer_data(coa_data_dict)
+    layers = extract_emblem_layers(coa_data_dict)
     
     return {
         'base': base_data,

@@ -93,9 +93,6 @@ class CoALayerMixin:
             'color1': Color.from_name(DEFAULT_EMBLEM_COLOR1),
             'color2': Color.from_name(DEFAULT_EMBLEM_COLOR2),
             'color3': Color.from_name(DEFAULT_EMBLEM_COLOR3),
-            'color1_name': DEFAULT_EMBLEM_COLOR1,
-            'color2_name': DEFAULT_EMBLEM_COLOR2,
-            'color3_name': DEFAULT_EMBLEM_COLOR3,
             'mask': None
         }
         

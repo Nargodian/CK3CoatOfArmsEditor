@@ -713,10 +713,10 @@ class PropertySidebar(QFrame):
             DEFAULT_FLIP_X, DEFAULT_FLIP_Y,
             DEFAULT_ROTATION,
             DEFAULT_EMBLEM_TEXTURE,
-            DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
-            CK3_NAMED_COLORS
+            DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3
         )
         from models.coa import Layer
+        from models.color import Color
         
         # Create layer data dict
         layer_data = {
@@ -734,12 +734,9 @@ class PropertySidebar(QFrame):
             'selected_instance': 0,
             'flip_x': DEFAULT_FLIP_X,
             'flip_y': DEFAULT_FLIP_Y,
-            'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'],
-            'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'],
-            'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
-            'color1_name': DEFAULT_EMBLEM_COLOR1,
-            'color2_name': DEFAULT_EMBLEM_COLOR2,
-            'color3_name': DEFAULT_EMBLEM_COLOR3
+            'color1': Color.from_name(DEFAULT_EMBLEM_COLOR1),
+            'color2': Color.from_name(DEFAULT_EMBLEM_COLOR2),
+            'color3': Color.from_name(DEFAULT_EMBLEM_COLOR3)
         }
         
         # Create Layer object from data
