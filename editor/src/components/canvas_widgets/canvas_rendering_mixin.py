@@ -117,13 +117,13 @@ class CanvasRenderingMixin:
     
     def _set_layer_uniforms(self, coa, layer_uuid):
         """Set shader uniforms for a layer."""
-        # Colors - get Color objects and convert to floats
+        # Colors - get Color objects and convert to 0-1 float range for OpenGL
         color1 = coa.get_layer_color(layer_uuid, 1)
         color2 = coa.get_layer_color(layer_uuid, 2)
         color3 = coa.get_layer_color(layer_uuid, 3)
-        self.design_shader.setUniformValue("primaryColor", color1.r, color1.g, color1.b)
-        self.design_shader.setUniformValue("secondaryColor", color2.r, color2.g, color2.b)
-        self.design_shader.setUniformValue("tertiaryColor", color3.r, color3.g, color3.b)
+        self.design_shader.setUniformValue("primaryColor", color1.r / 255.0, color1.g / 255.0, color1.b / 255.0)
+        self.design_shader.setUniformValue("secondaryColor", color2.r / 255.0, color2.g / 255.0, color2.b / 255.0)
+        self.design_shader.setUniformValue("tertiaryColor", color3.r / 255.0, color3.g / 255.0, color3.b / 255.0)
         
         # Selection tint
         show_tint = self._should_show_selection_tint()

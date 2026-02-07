@@ -629,15 +629,14 @@ class PropertySidebar(QFrame):
                     self.main_window.coa.set_layer_color(uuid, color_idx+1, color)
                     # Invalidate thumbnail cache for this layer
                     self.layer_list_widget.invalidate_thumbnail(uuid)
+                    # Update layer button (not full rebuild - preserves selection)
+                    self.layer_list_widget.update_layer_button(uuid)
                 if self.main_window and hasattr(self.main_window, 'left_sidebar'):
                     self.main_window.left_sidebar.update_asset_colors()
                 
             # Update canvas
             if self.canvas_widget:
                 self.canvas_widget.update()
-            
-            # Rebuild layer list to update thumbnails
-            self._rebuild_layer_list()
             
             # Save to history
             if self.main_window and hasattr(self.main_window, '_save_state'):

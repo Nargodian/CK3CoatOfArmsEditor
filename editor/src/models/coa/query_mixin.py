@@ -548,15 +548,15 @@ class CoAQueryMixin:
     # Layer Color Queries
     # ========================================
     
-    def get_layer_color(self, uuid: str, color_index: int) -> List[float]:
-        """Get color RGB values for a layer
+    def get_layer_color(self, uuid: str, color_index: int):
+        """Get color for a layer as Color object
         
         Args:
             uuid: Layer UUID
             color_index: Color index (1, 2, or 3)
             
         Returns:
-            RGB values as list of floats [0-1 range] for rendering
+            Color object
             
         Raises:
             ValueError: If UUID not found or color_index invalid
