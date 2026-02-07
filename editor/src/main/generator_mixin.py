@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QMessageBox
 from services.layer_generator.generators import ShapeGenerator
 from services.layer_generator import GeneratorPopup
 from utils.logger import loggerRaise
+from constants import DEFAULT_EMBLEM_TEXTURE
 
 
 class GeneratorMixin:
@@ -83,6 +84,16 @@ class GeneratorMixin:
         # Load generator into popup
         self.generator_popup.load_generator(generator)
         
+        # Get selected asset or use default fleur-de-lis
+        asset_texture = None
+        if hasattr(self, 'left_sidebar') and hasattr(self.left_sidebar, 'selected_asset'):
+            asset_texture = self.left_sidebar.selected_asset
+        if not asset_texture:
+            asset_texture = DEFAULT_EMBLEM_TEXTURE
+        
+        # Set emblem texture for preview
+        self.generator_popup.set_emblem_texture(asset_texture)
+        
         # Show popup
         result = self.generator_popup.exec_()
         
@@ -155,7 +166,9 @@ class GeneratorMixin:
         # Load generator into popup
         self.generator_popup.load_generator(generator)
         
-        # Show popup
+        # Set emblem texture for preview (use the passed-in asset_texture parameter)
+        self.generator_popup.set_emblem_texture(asset_texture)
+                # Show popup
         result = self.generator_popup.exec_()
         
         # If user clicked Generate, create the layer with selected asset

@@ -20,6 +20,7 @@ class PreviewWidget(QWidget):
         super().__init__(parent)
         self.setFixedSize(self.PREVIEW_SIZE, self.PREVIEW_SIZE)
         self.instances = []  # List of (x, y, scale_x, scale_y, rotation) tuples
+        self.emblem_pixmap = None  # QPixmap for emblem texture rendering
         
         # Style
         self.setStyleSheet("background-color: #000000; border: 3px solid #ffffff;")
@@ -32,6 +33,36 @@ class PreviewWidget(QWidget):
                       where x, y are in 0-1 CoA coordinate space
         """
         self.instances = instances if len(instances) > 0 else []
+        self.update()
+    
+    def set_emblem_texture(self, texture_filename: str):
+        """Load emblem texture for preview rendering.
+        
+        Args:
+            texture_filename: .dds filename (e.g., 'ce_fleur.dds')
+        """
+        from pathlib import Path
+        from utils.path_resolver import get_resource_path
+        
+        if not texture_filename:
+            self.emblem_pixmap = None
+            self.update()
+            return
+        
+        # Convert .dds to .png atlas filename
+        png_filename = Path(texture_filename).stem + '_atlas.png'
+        texture_path = get_resource_path('..', 'ck3_assets', 'coa_emblems', 'atlases', png_filename)
+        
+        # Load pixmap
+        from PyQt5.QtGui import QPixmap
+        pixmap = QPixmap(str(texture_path))
+        
+        if pixmap.isNull():
+            print(f"Warning: Failed to load emblem texture: {texture_path}")
+            self.emblem_pixmap = None
+        else:
+            self.emblem_pixmap = pixmap
+        
         self.update()
     
     def paintEvent(self, event):
@@ -58,10 +89,6 @@ class PreviewWidget(QWidget):
             # Calculate instance size with scale (scale is percentage of preview area)
             width_full = scale_x * self.PREVIEW_SIZE
             height_full = scale_y * self.PREVIEW_SIZE
-            
-            # Emblem drawn at 50% scale
-            width_emblem = width_full * 0.5
-            height_emblem = height_full * 0.5
             
             # Save painter state
             painter.save()
@@ -97,8 +124,24 @@ class PreviewWidget(QWidget):
                     painter.drawText(int(-width_full/2), int(-height_full/2), 
                                     int(width_full), int(height_full),
                                     Qt.AlignCenter, label_char)
+            elif self.emblem_pixmap and not self.emblem_pixmap.isNull():
+                # Draw actual emblem texture (bottom-left quadrant only)
+                from PyQt5.QtCore import QRectF
+                
+                # Source rect: bottom-left quadrant of the loaded texture
+                pw = self.emblem_pixmap.width()
+                ph = self.emblem_pixmap.height()
+                source_rect = QRectF(0, ph/2, pw/2, ph/2)
+                
+                # Target rect: centered at origin, full scale
+                target_rect = QRectF(-width_full/2, -height_full/2, width_full, height_full)
+                
+                # Draw the bottom-left quadrant
+                painter.drawPixmap(target_rect, self.emblem_pixmap, source_rect)
             else:
-                # No label: draw white square at 50% scale centered at origin
+                # No label, no texture: draw white square at 50% scale centered at origin
+                width_emblem = width_full * 0.5
+                height_emblem = height_full * 0.5
                 painter.setBrush(QBrush(QColor(255, 255, 255)))
                 painter.setPen(QPen(QColor(255, 255, 255), 1))
                 painter.drawRect(int(-width_emblem/2), int(-height_emblem/2), int(width_emblem), int(height_emblem))
@@ -382,3 +425,11 @@ class GeneratorPopup(QDialog):
             return None
         
         return (text, positions)
+    
+    def set_emblem_texture(self, texture_filename: str):
+        """Set emblem texture for preview rendering.
+        
+        Args:
+            texture_filename: .dds filename (e.g., 'ce_fleur.dds')
+        """
+        self.preview_widget.set_emblem_texture(texture_filename)
