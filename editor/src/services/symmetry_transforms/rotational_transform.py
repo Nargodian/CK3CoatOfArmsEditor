@@ -18,6 +18,7 @@ class RotationalTransform(BaseSymmetryTransform):
     DEFAULT_OFFSET_Y = 0.5
     DEFAULT_COUNT = 4
     DEFAULT_KALEIDOSCOPE = False
+    DEFAULT_ROTATION_OFFSET = 0.0
     
     def __init__(self):
         super().__init__()
@@ -28,6 +29,7 @@ class RotationalTransform(BaseSymmetryTransform):
             'offset_y': self.DEFAULT_OFFSET_Y,
             'count': self.DEFAULT_COUNT,
             'kaleidoscope': self.DEFAULT_KALEIDOSCOPE,
+            'rotation_offset': self.DEFAULT_ROTATION_OFFSET,
         }
     
     def get_name(self) -> str:
@@ -87,6 +89,19 @@ class RotationalTransform(BaseSymmetryTransform):
         layout.addWidget(kaleidoscope_check)
         self._controls['kaleidoscope'] = kaleidoscope_check
         
+        # Rotation offset slider
+        rotation_offset_layout = QHBoxLayout()
+        rotation_offset_label = QLabel("Rotation Offset:")
+        rotation_offset_slider = QSlider(Qt.Horizontal)
+        rotation_offset_slider.setRange(0, 359)
+        rotation_offset_slider.setValue(int(self.settings['rotation_offset']))
+        rotation_offset_slider.valueChanged.connect(
+            lambda v: self._on_param_changed('rotation_offset', float(v)))
+        rotation_offset_layout.addWidget(rotation_offset_label)
+        rotation_offset_layout.addWidget(rotation_offset_slider)
+        layout.addLayout(rotation_offset_layout)
+        self._controls['rotation_offset'] = rotation_offset_slider
+        
         return layout
     
     def calculate_transforms(self, seed_transform) -> List:
@@ -97,24 +112,43 @@ class RotationalTransform(BaseSymmetryTransform):
         offset_y = self.settings['offset_y']
         count = self.settings['count']
         kaleidoscope = self.settings['kaleidoscope']
+        rotation_offset = self.settings['rotation_offset']
         
         mirrors = []
         angle_step = 360.0 / count
         
-        for i in range(1, count):  # Skip first (i=0) since that's the seed
-            angle = i * angle_step
+        if kaleidoscope:
+            # Kaleidoscope mode: create mirror seed, then rotate both versions
+            # Create mirror seed by reflecting across bisector
+            bisector_angle = angle_step/2 + rotation_offset
+            mirrored = self._mirror_across_radial(
+                seed_transform, offset_x, offset_y, bisector_angle)
+            mirror_seed = Transform(
+                Vec2(mirrored.pos.x, mirrored.pos.y),
+                Vec2(seed_transform.scale.x, seed_transform.scale.y),
+                2*bisector_angle - seed_transform.rotation - 180,
+                flip_x=not getattr(seed_transform, 'flip_x', False),
+                flip_y=getattr(seed_transform, 'flip_y', False)
+            )
             
-            # Rotate around offset point
-            rotated = self._rotate_around_point(
-                seed_transform, offset_x, offset_y, angle)
-            mirrors.append(rotated)
-            
-            # If kaleidoscope, also add mirrored version
-            if kaleidoscope:
-                # Mirror across radial line
-                mirrored = self._mirror_across_radial(
+            # Pattern both seed and mirror_seed with rotations
+            base_versions = [seed_transform, mirror_seed]
+            for base_transform in base_versions:
+                for i in range(count):
+                    angle = i * angle_step
+                    # Skip i=0 for seed_transform since that's the original
+                    if base_transform is seed_transform and i == 0:
+                        continue
+                    rotated = self._rotate_around_point(
+                        base_transform, offset_x, offset_y, angle)
+                    mirrors.append(rotated)
+        else:
+            # Regular mode: just rotations
+            for i in range(1, count):
+                angle = i * angle_step
+                rotated = self._rotate_around_point(
                     seed_transform, offset_x, offset_y, angle)
-                mirrors.append(mirrored)
+                mirrors.append(rotated)
         
         return mirrors
     
@@ -134,9 +168,9 @@ class RotationalTransform(BaseSymmetryTransform):
         rotated_rel_x = rel_x * cos_a - rel_y * sin_a
         rotated_rel_y = rel_x * sin_a + rel_y * cos_a
         
-        # Convert back to absolute position
-        rotated_x = rotated_rel_x + pivot_x
-        rotated_y = rotated_rel_y + pivot_y
+        # Convert back to absolute position and clamp to [0, 1]
+        rotated_x = max(0.0, min(1.0, rotated_rel_x + pivot_x))
+        rotated_y = max(0.0, min(1.0, rotated_rel_y + pivot_y))
         
         # Rotate the instance's own rotation
         rotated_rotation = transform.rotation + angle
@@ -144,7 +178,9 @@ class RotationalTransform(BaseSymmetryTransform):
         return Transform(
             Vec2(rotated_x, rotated_y),
             Vec2(transform.scale.x, transform.scale.y),
-            rotated_rotation
+            rotated_rotation,
+            flip_x=getattr(transform, 'flip_x', False),
+            flip_y=getattr(transform, 'flip_y', False)
         )
     
     def _mirror_across_radial(self, transform, pivot_x, pivot_y, angle):
@@ -164,9 +200,9 @@ class RotationalTransform(BaseSymmetryTransform):
         mirrored_rel_x = rel_x * cos_2theta + rel_y * sin_2theta
         mirrored_rel_y = rel_x * sin_2theta - rel_y * cos_2theta
         
-        # Convert back to absolute position
-        mirrored_x = mirrored_rel_x + pivot_x
-        mirrored_y = mirrored_rel_y + pivot_y
+        # Convert back to absolute position and clamp to [0, 1]
+        mirrored_x = max(0.0, min(1.0, mirrored_rel_x + pivot_x))
+        mirrored_y = max(0.0, min(1.0, mirrored_rel_y + pivot_y))
         
         # Mirror rotation
         mirrored_rotation = 2 * angle - transform.rotation
@@ -216,6 +252,7 @@ class RotationalTransform(BaseSymmetryTransform):
             self.settings['offset_y'],
             float(self.settings['count']),
             float(self.settings['kaleidoscope']),
+            self.settings['rotation_offset'],
         ]
     
     def set_properties(self, properties: List[float]):
@@ -225,4 +262,8 @@ class RotationalTransform(BaseSymmetryTransform):
             self.settings['offset_y'] = properties[1]
             self.settings['count'] = int(properties[2])
             self.settings['kaleidoscope'] = bool(int(properties[3]))
+            if len(properties) >= 5:
+                self.settings['rotation_offset'] = properties[4]
+            else:
+                self.settings['rotation_offset'] = self.DEFAULT_ROTATION_OFFSET
             self._save_to_cache()
