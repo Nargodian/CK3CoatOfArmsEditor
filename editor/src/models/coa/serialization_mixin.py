@@ -81,14 +81,14 @@ class CoASerializationMixin:
             # Set base pattern and colors
             self._pattern = coa_obj.get('pattern', DEFAULT_PATTERN_TEXTURE)
             
-            # Parse colors using Color.from_ck3_string()
+            # Parse colors using Color.from_name() which handles both named colors and rgb format
             color1_str = coa_obj.get('color1', DEFAULT_BASE_COLOR1)
             color2_str = coa_obj.get('color2', DEFAULT_BASE_COLOR2)
             color3_str = coa_obj.get('color3', DEFAULT_BASE_COLOR3)
             
-            self._pattern_color1 = Color.from_ck3_string(color1_str)
-            self._pattern_color2 = Color.from_ck3_string(color2_str)
-            self._pattern_color3 = Color.from_ck3_string(color3_str)
+            self._pattern_color1 = Color.from_name(color1_str)
+            self._pattern_color2 = Color.from_name(color2_str)
+            self._pattern_color3 = Color.from_name(color3_str)
             
             # Parse layers
             emblems = coa_obj.get('colored_emblem', [])
