@@ -31,6 +31,7 @@ class UISetupMixin:
         
         # Left sidebar - scrollable assets
         self.left_sidebar = AssetSidebar(self)
+        self.left_sidebar.main_window = self  # Reference for CoA model access
         splitter.addWidget(self.left_sidebar)
         
         # Center canvas area
