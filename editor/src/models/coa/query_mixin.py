@@ -556,7 +556,7 @@ class CoAQueryMixin:
             color_index: Color index (1, 2, or 3)
             
         Returns:
-            RGB values as list of floats
+            RGB values as list of floats [0-1 range] for rendering
             
         Raises:
             ValueError: If UUID not found or color_index invalid
@@ -582,7 +582,7 @@ class CoAQueryMixin:
             color_index: Color index (1, 2, or 3)
             
         Returns:
-            Color name
+            Color name (empty string for custom RGB colors)
             
         Raises:
             ValueError: If UUID not found or color_index invalid
@@ -592,10 +592,10 @@ class CoAQueryMixin:
             raise ValueError(f"Layer with UUID '{uuid}' not found")
         
         if color_index == 1:
-            return layer.color1_name
+            return layer.color1.name
         elif color_index == 2:
-            return layer.color2_name
+            return layer.color2.name
         elif color_index == 3:
-            return layer.color3_name
+            return layer.color3.name
         else:
             raise ValueError(f"color_index must be 1, 2, or 3, got {color_index}")

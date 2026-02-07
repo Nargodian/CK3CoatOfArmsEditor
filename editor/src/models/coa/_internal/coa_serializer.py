@@ -18,7 +18,7 @@ Direct access to this module is FORBIDDEN by the refactoring rules.
 """
 
 import json
-from utils.color_utils import color_name_to_rgb
+from models.color import Color
 from utils.path_resolver import get_emblem_metadata_path
 from utils.metadata_cache import get_texture_color_count
 
@@ -49,21 +49,19 @@ def extract_base_layer_data(coa):
     """
     pattern = coa.get('pattern', 'pattern_solid.dds')  # CK3 default
     
-    # Apply base colors (CK3 defaults: black, yellow, black)
+    # Apply base colors (CK3 defaults: black, yellow, black) as Color objects
     color1_name = coa.get('color1', 'black')
     color2_name = coa.get('color2', 'yellow')
     color3_name = coa.get('color3', 'black')
     
     base_colors = [
-        color_name_to_rgb(color1_name),
-        color_name_to_rgb(color2_name),
-        color_name_to_rgb(color3_name)
+        Color.from_name(color1_name),
+        Color.from_name(color2_name),
+        Color.from_name(color3_name)
     ]
-    base_color_names = [color1_name, color2_name, color3_name]
     
     return {
         'pattern': pattern,
-        'color_names': base_color_names,
         'colors': base_colors
     }
 
@@ -92,10 +90,15 @@ def extract_emblem_layers(coa):
             # Get depth value (default to 0 if not specified)
             depth = instance.get('depth', 0)
             
-            # Get color names and RGB values
-            color1_name = emblem.get('color1', 'yellow')
-            color2_name = emblem.get('color2', 'red')
-            color3_name = emblem.get('color3', 'red')
+            # Parse colors from CK3 format (handles both named colors and rgb blocks)
+            color1_str = emblem.get('color1', 'yellow')
+            color2_str = emblem.get('color2', 'red')
+            color3_str = emblem.get('color3', 'red')
+            
+            # Convert to Color objects
+            color1 = Color.from_ck3_string(color1_str)
+            color2 = Color.from_ck3_string(color2_str)
+            color3 = Color.from_ck3_string(color3_str)
             
             # Look up actual color count from texture metadata
             color_count = get_texture_color_count(filename)
@@ -115,12 +118,9 @@ def extract_emblem_layers(coa):
                 'flip_x': scale_x_raw < 0,    # Track flip separately
                 'flip_y': scale_y_raw < 0,    # Track flip separately
                 'rotation': instance.get('rotation', 0),
-                'color1': color_name_to_rgb(color1_name),
-                'color2': color_name_to_rgb(color2_name),
-                'color3': color_name_to_rgb(color3_name),
-                'color1_name': color1_name,
-                'color2_name': color2_name,
-                'color3_name': color3_name,
+                'color1': color1,
+                'color2': color2,
+                'color3': color3,
                 'depth': depth
             }
             emblem_instances.append(layer_data)

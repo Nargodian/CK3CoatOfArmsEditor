@@ -89,7 +89,7 @@ class CanvasCoordinateMixin:
         Returns:
             Vec2 normalized by viewport size (still zoomed)
         """
-        from components.canvas_widget_NEW import COA_BASE_SIZE_PX
+        from components.canvas_widget import COA_BASE_SIZE_PX
         # Use COA_BASE_SIZE_PX as reference, not viewport size, to match compositing shader
         return Vec2(
             viewport_pos.x / (COA_BASE_SIZE_PX / 2),
@@ -107,7 +107,7 @@ class CanvasCoordinateMixin:
         Returns:
             Vec2 pixels from center
         """
-        from components.canvas_widget_NEW import COA_BASE_SIZE_PX
+        from components.canvas_widget import COA_BASE_SIZE_PX
         # Use COA_BASE_SIZE_PX as reference, not viewport size, to match compositing shader
         return Vec2(
             normalized_pos.x * (COA_BASE_SIZE_PX / 2),
@@ -355,7 +355,7 @@ class CanvasCoordinateMixin:
         Returns:
             (half_w, half_h): Pixel radius of AABB (half width, half height)
         """
-        from components.canvas_widget_NEW import COA_BASE_SIZE_PX
+        from components.canvas_widget import COA_BASE_SIZE_PX
         
         half_w = abs(frame_scale_x) * COA_BASE_SIZE_PX * self.zoom_level / 2.0
         half_h = abs(frame_scale_y) * COA_BASE_SIZE_PX * self.zoom_level / 2.0
@@ -394,7 +394,7 @@ class CanvasCoordinateMixin:
         if is_aabb_dimension:
             # For AABB dimensions, treat as raw CoA space spans (no frame compensation)
             # Convert dimension to pixels: dimension * viewport_size
-            from components.canvas_widget_NEW import COA_BASE_SIZE_PX
+            from components.canvas_widget import COA_BASE_SIZE_PX
             half_w = coa_transform.scale.x * COA_BASE_SIZE_PX * self.zoom_level / 2.0
             half_h = coa_transform.scale.y * COA_BASE_SIZE_PX * self.zoom_level / 2.0
         else:
@@ -417,7 +417,7 @@ class CanvasCoordinateMixin:
         Returns:
             (frame_scale_x, frame_scale_y): Frame-adjusted scale multipliers
         """
-        from components.canvas_widget_NEW import COA_BASE_SIZE_PX
+        from components.canvas_widget import COA_BASE_SIZE_PX
         
         frame_scale_x = (half_w * 2.0) / (COA_BASE_SIZE_PX * self.zoom_level)
         frame_scale_y = (half_h * 2.0) / (COA_BASE_SIZE_PX * self.zoom_level)

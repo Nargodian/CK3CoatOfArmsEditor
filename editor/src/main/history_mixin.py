@@ -41,11 +41,6 @@ class HistoryMixin:
             saved_container_selection = set(state.get('selected_container_uuids', set()))
             self.right_sidebar.layer_list_widget.selected_container_uuids = saved_container_selection
             
-            # Always update canvas and base colors (regardless of selection)
-            self.canvas_area.canvas_widget.base_color1_name = self.coa.pattern_color1_name
-            self.canvas_area.canvas_widget.base_color2_name = self.coa.pattern_color2_name
-            self.canvas_area.canvas_widget.base_color3_name = self.coa.pattern_color3_name
-            
             # Update property sidebar from model
             self.right_sidebar._refresh_base_colors_from_model()
             

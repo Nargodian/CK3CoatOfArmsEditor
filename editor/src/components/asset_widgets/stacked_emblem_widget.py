@@ -82,14 +82,14 @@ class StackedEmblemWidget(QWidget):
         
         painter.end()
     
-    def set_background_color(self, color: tuple):
-        """Set the background color (0-1 range RGB)"""
-        self._bg_color = QColor(int(color[0] * 255), int(color[1] * 255), int(color[2] * 255))
+    def set_background_color(self, color):
+        """Set the background color (Color object)"""
+        self._bg_color = color.to_qcolor()
         self.update()
     
-    def set_colors(self, color1: tuple, color2: tuple, color3: tuple):
-        """Set all three layer colors at once (0-1 range RGB)"""
-        self._color1 = QColor(int(color1[0] * 255), int(color1[1] * 255), int(color1[2] * 255))
-        self._color2 = QColor(int(color2[0] * 255), int(color2[1] * 255), int(color2[2] * 255))
-        self._color3 = QColor(int(color3[0] * 255), int(color3[1] * 255), int(color3[2] * 255))
+    def set_colors(self, color1, color2, color3):
+        """Set all three layer colors at once (Color objects)"""
+        self._color1 = color1.to_qcolor()
+        self._color2 = color2.to_qcolor()
+        self._color3 = color3.to_qcolor()
         self.update()

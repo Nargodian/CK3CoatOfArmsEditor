@@ -53,7 +53,7 @@ class CoASerializationMixin:
             colored_emblem = { texture = "emblem_star.dds" ... }
         """
         from ._internal.coa_parser import CoAParser
-        from utils.color_utils import color_name_to_rgb
+        from models.color import Color
         
         parser = CoAParser()
         try:
@@ -81,35 +81,14 @@ class CoASerializationMixin:
             # Set base pattern and colors
             self._pattern = coa_obj.get('pattern', DEFAULT_PATTERN_TEXTURE)
             
-            # Parse colors
-            for color_num in [1, 2, 3]:
-                color_key = f'color{color_num}'
-                color_raw = coa_obj.get(color_key, [DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3][color_num - 1])
-                
-                if isinstance(color_raw, str):
-                    if color_raw.startswith('rgb'):
-                        # Try standard parsing first
-                        from utils.color_utils import parse_rgb_string
-                        rgb_normalized = parse_rgb_string(color_raw)
-                        if rgb_normalized:
-                            # parse_rgb_string returns [0-1] range, convert to [0-255]
-                            rgb = [int(rgb_normalized[0] * 255), int(rgb_normalized[1] * 255), int(rgb_normalized[2] * 255)]
-                            setattr(self, f'_pattern_color{color_num}', rgb)
-                            setattr(self, f'_pattern_color{color_num}_name', None)
-                        else:
-                            self._logger.warning(f"Failed to parse RGB color: {color_raw}, using default")
-                            # color_name_to_rgb returns 0-1 floats, convert to 0-255 ints
-                            default_name = [DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3][color_num - 1]
-                            rgb_float = color_name_to_rgb(default_name)
-                            rgb_int = [int(c * 255) for c in rgb_float]
-                            setattr(self, f'_pattern_color{color_num}', rgb_int)
-                            setattr(self, f'_pattern_color{color_num}_name', default_name)
-                    else:
-                        # color_name_to_rgb returns 0-1 floats, convert to 0-255 ints
-                        rgb_float = color_name_to_rgb(color_raw)
-                        rgb_int = [int(c * 255) for c in rgb_float]
-                        setattr(self, f'_pattern_color{color_num}', rgb_int)
-                        setattr(self, f'_pattern_color{color_num}_name', color_raw)
+            # Parse colors using Color.from_ck3_string()
+            color1_str = coa_obj.get('color1', DEFAULT_BASE_COLOR1)
+            color2_str = coa_obj.get('color2', DEFAULT_BASE_COLOR2)
+            color3_str = coa_obj.get('color3', DEFAULT_BASE_COLOR3)
+            
+            self._pattern_color1 = Color.from_ck3_string(color1_str)
+            self._pattern_color2 = Color.from_ck3_string(color2_str)
+            self._pattern_color3 = Color.from_ck3_string(color3_str)
             
             # Parse layers
             emblems = coa_obj.get('colored_emblem', [])
@@ -177,7 +156,6 @@ class CoASerializationMixin:
             New CoA instance with default pattern and parsed layers
         """
         from ._internal.coa_parser import CoAParser
-        from utils.color_utils import color_name_to_rgb
         import uuid as uuid_module
         
         coa = cls()
@@ -217,19 +195,10 @@ class CoASerializationMixin:
             color2_raw = emblem.get('color2', DEFAULT_EMBLEM_COLOR2)
             color3_raw = emblem.get('color3', DEFAULT_EMBLEM_COLOR3)
             
-            # Helper to parse color
-            def parse_color(color_raw, default_name):
-                if isinstance(color_raw, str):
-                    if color_raw.startswith('rgb'):
-                        rgb_match = re.search(r'(\d+)\s+(\d+)\s+(\d+)', color_raw)
-                        if rgb_match:
-                            return ([int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))], None)
-                    return (color_name_to_rgb(color_raw), color_raw)
-                return (color_name_to_rgb(default_name), default_name)
-            
-            color1, color1_name = parse_color(color1_raw, DEFAULT_EMBLEM_COLOR1)
-            color2, color2_name = parse_color(color2_raw, DEFAULT_EMBLEM_COLOR2)
-            color3, color3_name = parse_color(color3_raw, DEFAULT_EMBLEM_COLOR3)
+            # Parse colors from CK3 format (handles both named colors and rgb blocks)
+            color1 = Color.from_ck3_string(color1_raw) if color1_raw else Color.from_name(DEFAULT_EMBLEM_COLOR1)
+            color2 = Color.from_ck3_string(color2_raw) if color2_raw else Color.from_name(DEFAULT_EMBLEM_COLOR2)
+            color3 = Color.from_ck3_string(color3_raw) if color3_raw else Color.from_name(DEFAULT_EMBLEM_COLOR3)
             
             # Parse mask
             mask_raw = emblem.get('mask')
@@ -320,26 +289,14 @@ class CoASerializationMixin:
         Uses mature serialization matching the running application's format.
         Includes mask field support and proper depth ordering.
         
+        Note: Symmetry transforms are expanded to instances during serialization
+        without mutating the model (transient generation).
+        
         Returns:
             CK3 coat of arms definition
         """
-        from utils.color_utils import rgb_to_color_name
-        
-        # Helper to normalize RGB [0-255] to [0-1] range expected by rgb_to_color_name
-        def normalize_rgb(rgb):
-            """Convert [0-255] range to [0-1] range"""
-            if not rgb:
-                return [1.0, 1.0, 1.0]
-            return [rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0]
-        
-        # Helper to format color (add quotes if it's a named color)
-        def format_color(rgb, color_name):
-            normalized = normalize_rgb(rgb)
-            color_str = rgb_to_color_name(normalized, color_name)
-            if color_str.startswith('rgb'):
-                return color_str  # Already formatted as "rgb { R G B }"
-            else:
-                return f'"{color_str}"'  # Named color, add quotes
+        # Check if force RGB mode is enabled
+        force_rgb = getattr(self, '_force_rgb_colors', False)
         
         lines = []
         lines.append("coa_export = {")
@@ -347,14 +304,10 @@ class CoASerializationMixin:
         # Pattern and colors
         lines.append(f'\tpattern = "{self._pattern}"')
         
-        # Pattern color 1
-        lines.append(f'\tcolor1 = {format_color(self._pattern_color1, self._pattern_color1_name)}')
-        
-        # Pattern color 2
-        lines.append(f'\tcolor2 = {format_color(self._pattern_color2, self._pattern_color2_name)}')
-        
-        # Pattern color 3
-        lines.append(f'\tcolor3 = {format_color(self._pattern_color3, self._pattern_color3_name)}')
+        # Pattern colors (use Color.to_ck3_string())
+        lines.append(f'\tcolor1 = {self._pattern_color1.to_ck3_string(force_rgb=force_rgb)}')
+        lines.append(f'\tcolor2 = {self._pattern_color2.to_ck3_string(force_rgb=force_rgb)}')
+        lines.append(f'\tcolor3 = {self._pattern_color3.to_ck3_string(force_rgb=force_rgb)}')
         
         # Colored emblems (layers) - use Layer.serialize()
         for layer in self._layers:

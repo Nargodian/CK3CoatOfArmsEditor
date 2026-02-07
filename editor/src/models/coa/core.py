@@ -48,6 +48,8 @@ import re
 import logging
 from typing import Dict, List, Optional, Tuple, Any, Union
 import uuid as uuid_module
+
+from models.color import Color
 from copy import deepcopy
 import math
 import inspect
@@ -135,13 +137,10 @@ class CoA(CoATransformMixin, CoALayerMixin, CoASerializationMixin, CoAContainerM
         
         # Base pattern and colors
         self._pattern = DEFAULT_PATTERN_TEXTURE
-        # Convert CK3_NAMED_COLORS from 0-1 float to 0-255 int for storage
-        self._pattern_color1 = [int(c * 255) for c in CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb']]
-        self._pattern_color2 = [int(c * 255) for c in CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb']]
-        self._pattern_color3 = [int(c * 255) for c in CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb']]
-        self._pattern_color1_name = DEFAULT_BASE_COLOR1
-        self._pattern_color2_name = DEFAULT_BASE_COLOR2
-        self._pattern_color3_name = DEFAULT_BASE_COLOR3
+        # Store pattern colors as Color objects
+        self._pattern_color1 = Color.from_name(DEFAULT_BASE_COLOR1)
+        self._pattern_color2 = Color.from_name(DEFAULT_BASE_COLOR2)
+        self._pattern_color3 = Color.from_name(DEFAULT_BASE_COLOR3)
         
         # Layers collection - stored with name mangling to prevent external access
         # Access ONLY through the _layers property which validates the caller
@@ -160,12 +159,10 @@ class CoA(CoATransformMixin, CoALayerMixin, CoASerializationMixin, CoAContainerM
         """Reset CoA to defaults (empty layers, default pattern/colors)"""
         # Reset pattern and colors
         self._pattern = DEFAULT_PATTERN_TEXTURE
-        self._pattern_color1 = CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb'].copy()
-        self._pattern_color2 = CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb'].copy()
-        self._pattern_color3 = CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'].copy()
-        self._pattern_color1_name = DEFAULT_BASE_COLOR1
-        self._pattern_color2_name = DEFAULT_BASE_COLOR2
-        self._pattern_color3_name = DEFAULT_BASE_COLOR3
+        # Reset pattern colors to defaults (Color objects)
+        self._pattern_color1 = Color.from_name(DEFAULT_BASE_COLOR1)
+        self._pattern_color2 = Color.from_name(DEFAULT_BASE_COLOR2)
+        self._pattern_color3 = Color.from_name(DEFAULT_BASE_COLOR3)
         
         # Clear layers
         self._layers.clear()
@@ -253,76 +250,43 @@ class CoA(CoATransformMixin, CoALayerMixin, CoASerializationMixin, CoAContainerM
         self._logger.debug(f"Set pattern: {value}")
     
     @property
-    def pattern_color1(self) -> List[int]:
-        """Get pattern color 1 RGB"""
-        return self._pattern_color1.copy()
+    def pattern_color1(self) -> Color:
+        """Get pattern color 1 as Color object"""
+        return self._pattern_color1
     
     @pattern_color1.setter
-    def pattern_color1(self, value: List[int]):
-        """Set pattern color 1 RGB"""
-        if not isinstance(value, list) or len(value) != 3:
-            raise ValueError(f"Color must be [R, G, B] list, got {value}")
-        self._pattern_color1 = value.copy()
+    def pattern_color1(self, value: Color):
+        """Set pattern color 1 from Color object"""
+        if not isinstance(value, Color):
+            raise TypeError("pattern_color1 must be a Color object")
+        self._pattern_color1 = value
         self._logger.debug(f"Set pattern_color1: {value}")
     
     @property
-    def pattern_color2(self) -> List[int]:
-        """Get pattern color 2 RGB"""
-        return self._pattern_color2.copy()
+    def pattern_color2(self) -> Color:
+        """Get pattern color 2 as Color object"""
+        return self._pattern_color2
     
     @pattern_color2.setter
-    def pattern_color2(self, value: List[int]):
-        """Set pattern color 2 RGB"""
-        if not isinstance(value, list) or len(value) != 3:
-            raise ValueError(f"Color must be [R, G, B] list, got {value}")
-        self._pattern_color2 = value.copy()
+    def pattern_color2(self, value: Color):
+        """Set pattern color 2 from Color object"""
+        if not isinstance(value, Color):
+            raise TypeError("pattern_color2 must be a Color object")
+        self._pattern_color2 = value
         self._logger.debug(f"Set pattern_color2: {value}")
     
     @property
-    def pattern_color1_name(self) -> str:
-        """Get pattern color 1 name"""
-        return self._pattern_color1_name
-    
-    @pattern_color1_name.setter
-    def pattern_color1_name(self, value: str):
-        """Set pattern color 1 name"""
-        self._pattern_color1_name = value
-        self._logger.debug(f"Set pattern_color1_name: {value}")
-    
-    @property
-    def pattern_color2_name(self) -> str:
-        """Get pattern color 2 name"""
-        return self._pattern_color2_name
-    
-    @pattern_color2_name.setter
-    def pattern_color2_name(self, value: str):
-        """Set pattern color 2 name"""
-        self._pattern_color2_name = value
-        self._logger.debug(f"Set pattern_color2_name: {value}")
-    
-    @property
-    def pattern_color3(self) -> List[int]:
-        """Get pattern color 3 RGB"""
-        return self._pattern_color3.copy()
+    def pattern_color3(self) -> Color:
+        """Get pattern color 3 as Color object"""
+        return self._pattern_color3
     
     @pattern_color3.setter
-    def pattern_color3(self, value: List[int]):
-        """Set pattern color 3 RGB"""
-        if not isinstance(value, list) or len(value) != 3:
-            raise ValueError(f"Color must be [R, G, B] list, got {value}")
-        self._pattern_color3 = value.copy()
+    def pattern_color3(self, value: Color):
+        """Set pattern color 3 from Color object"""
+        if not isinstance(value, Color):
+            raise TypeError("pattern_color3 must be a Color object")
+        self._pattern_color3 = value
         self._logger.debug(f"Set pattern_color3: {value}")
-    
-    @property
-    def pattern_color3_name(self) -> str:
-        """Get pattern color 3 name"""
-        return self._pattern_color3_name
-    
-    @pattern_color3_name.setter
-    def pattern_color3_name(self, value: str):
-        """Set pattern color 3 name"""
-        self._pattern_color3_name = value
-        self._logger.debug(f"Set pattern_color3_name: {value}")
     
     @property
     def layers(self) -> Layers:
@@ -333,17 +297,17 @@ class CoA(CoATransformMixin, CoALayerMixin, CoASerializationMixin, CoAContainerM
     # Color Operations
     # ========================================
     
-    def set_layer_color(self, uuid: str, color_index: int, rgb: List[int], name: str = None):
+    def set_layer_color(self, uuid: str, color_index: int, color: Color):
         """Set layer color
         
         Args:
             uuid: Layer UUID
             color_index: Color index (1, 2, or 3)
-            rgb: RGB values [R, G, B]
-            name: Optional color name
+            color: Color object to set
             
         Raises:
             ValueError: If UUID not found or color_index invalid
+            TypeError: If color is not a Color object
         """
         layer = self._layers.get_by_uuid(uuid)
         if not layer:
@@ -352,45 +316,43 @@ class CoA(CoATransformMixin, CoALayerMixin, CoASerializationMixin, CoAContainerM
         if color_index not in (1, 2, 3):
             raise ValueError(f"color_index must be 1, 2, or 3, got {color_index}")
         
-        if color_index == 1:
-            layer.color1 = rgb
-            if name:
-                layer.color1_name = name
-        elif color_index == 2:
-            layer.color2 = rgb
-            if name:
-                layer.color2_name = name
-        elif color_index == 3:
-            layer.color3 = rgb
-            if name:
-                layer.color3_name = name
+        if not isinstance(color, Color):
+            raise TypeError("color must be a Color object")
         
-        self._logger.debug(f"Set color{color_index} for layer {uuid}: {rgb}")
+        if color_index == 1:
+            layer.color1 = color
+        elif color_index == 2:
+            layer.color2 = color
+        elif color_index == 3:
+            layer.color3 = color
+        
+        self._logger.debug(f"Set color{color_index} for layer {uuid}: {color}")
     
-    def set_base_color(self, color_index: int, rgb: List[int], name: str = None):
+    def set_base_color(self, color_index: int, color: Color):
         """Set base pattern color
         
         Args:
-            color_index: Color index (1 or 2)
-            rgb: RGB values [R, G, B]
-            name: Optional color name
+            color_index: Color index (1, 2, or 3)
+            color: Color object to set
             
         Raises:
             ValueError: If color_index invalid
+            TypeError: If color is not a Color object
         """
-        if color_index not in (1, 2):
-            raise ValueError(f"color_index must be 1 or 2 for base, got {color_index}")
+        if color_index not in (1, 2, 3):
+            raise ValueError(f"color_index must be 1, 2, or 3 for base, got {color_index}")
+        
+        if not isinstance(color, Color):
+            raise TypeError("color must be a Color object")
         
         if color_index == 1:
-            self.pattern_color1 = rgb
-            if name:
-                self.pattern_color1_name = name
+            self.pattern_color1 = color
         elif color_index == 2:
-            self.pattern_color2 = rgb
-            if name:
-                self.pattern_color2_name = name
+            self.pattern_color2 = color
+        elif color_index == 3:
+            self.pattern_color3 = color
         
-        self._logger.debug(f"Set base color{color_index}: {rgb}")
+        self._logger.debug(f"Set base color{color_index}: {color}")
     
     # ========================================
     # Query/Getter Methods
@@ -521,12 +483,9 @@ class CoA(CoATransformMixin, CoALayerMixin, CoASerializationMixin, CoAContainerM
         """
         return {
             'pattern': self._pattern,
-            'pattern_color1': self._pattern_color1.copy(),
-            'pattern_color2': self._pattern_color2.copy(),
-            'pattern_color3': self._pattern_color3.copy(),
-            'pattern_color1_name': self._pattern_color1_name,
-            'pattern_color2_name': self._pattern_color2_name,
-            'pattern_color3_name': self._pattern_color3_name,
+            'pattern_color1': self._pattern_color1,
+            'pattern_color2': self._pattern_color2,
+            'pattern_color3': self._pattern_color3,
             'layers': self._layers.to_dict_list(caller='CoA')
         }
     
@@ -537,12 +496,9 @@ class CoA(CoATransformMixin, CoALayerMixin, CoASerializationMixin, CoAContainerM
             snapshot: Dictionary from get_snapshot()
         """
         self._pattern = snapshot['pattern']
-        self._pattern_color1 = snapshot['pattern_color1'].copy()
-        self._pattern_color2 = snapshot['pattern_color2'].copy()
-        self._pattern_color3 = snapshot.get('pattern_color3', CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'].copy()).copy()
-        self._pattern_color1_name = snapshot['pattern_color1_name']
-        self._pattern_color2_name = snapshot['pattern_color2_name']
-        self._pattern_color3_name = snapshot.get('pattern_color3_name', DEFAULT_BASE_COLOR3)
+        self._pattern_color1 = snapshot['pattern_color1']
+        self._pattern_color2 = snapshot['pattern_color2']
+        self._pattern_color3 = snapshot.get('pattern_color3', Color.from_name(DEFAULT_BASE_COLOR3))
         # Property setter validates caller is from within CoA
         self._layers = Layers.from_dict_list(snapshot['layers'], caller='CoA')
         

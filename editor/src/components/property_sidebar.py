@@ -12,6 +12,7 @@ from .property_sidebar_widgets import (
     PropertySlider, ScaleEditor
 )
 from models.transform import Vec2
+from models.color import Color
 from constants import (
     DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3,
     DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3,
@@ -128,20 +129,11 @@ class PropertySidebar(QFrame):
         # Handle color properties with index parameter
         if property_name.startswith('color') and property_name[5:6].isdigit():
             color_index = int(property_name[5])
-            if property_name.endswith('_name'):
-                # color1_name, color2_name, color3_name
-                values = []
-                for uuid in selected_uuids:
-                    val = self.main_window.coa.get_layer_color_name(uuid, color_index)
-                    if val is not None:
-                        values.append(val)
-            else:
-                # color1, color2, color3
-                values = []
-                for uuid in selected_uuids:
-                    val = self.main_window.coa.get_layer_color(uuid, color_index)
-                    if val is not None:
-                        values.append(val)
+            values = []
+            for uuid in selected_uuids:
+                val = self.main_window.coa.get_layer_color(uuid, color_index)
+                if val is not None:
+                    values.append(val)
         else:
             # Standard properties
             getter_method_name = property_getters.get(property_name)
@@ -256,22 +248,10 @@ class PropertySidebar(QFrame):
         self.base_color_layout.setContentsMargins(5, 5, 5, 5)
         
         self.color_buttons = []
-        # Default base colors: red, yellow, black
-        default_base_colors = [
-            CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['hex'],
-            CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['hex'],
-            CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['hex']
-        ]
-        for i, color in enumerate(default_base_colors, 1):
+        # Create 3 color buttons (populated from CoA model after init)
+        for i in range(3):
             color_btn = QPushButton()
             color_btn.setFixedSize(60, 60)
-            color_btn.setProperty("colorValue", color)
-            color_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {color};
-                    border-radius: 4px;
-                }}
-            """)
             color_btn.clicked.connect(lambda checked, btn=color_btn: self._show_color_picker(btn))
             self.color_buttons.append(color_btn)
             self.base_color_layout.addWidget(color_btn)
@@ -419,22 +399,10 @@ class PropertySidebar(QFrame):
         self.emblem_color_layout.setContentsMargins(5, 5, 5, 5)
         
         self.emblem_color_buttons = []
-        # Default emblem colors: yellow, red, red
-        default_emblem_colors = [
-            CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['hex'],
-            CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['hex'],
-            CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['hex']
-        ]
-        for i, color in enumerate(default_emblem_colors, 1):
+        # Create 3 emblem color buttons (populated from selected layer via _load_layer_properties)
+        for i in range(3):
             color_btn = QPushButton()
             color_btn.setFixedSize(60, 60)
-            color_btn.setProperty("colorValue", color)
-            color_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {color};
-                    border-radius: 4px;
-                }}
-            """)
             color_btn.clicked.connect(lambda checked, btn=color_btn: self._show_color_picker(btn))
             self.emblem_color_buttons.append(color_btn)
             self.emblem_color_layout.addWidget(color_btn)
@@ -576,25 +544,43 @@ class PropertySidebar(QFrame):
     
     def _show_color_picker(self, button):
         """Show custom color picker dialog with presets"""
-        current_color = button.property("colorValue")
-        color_hex, color_name = ColorPickerDialog.get_color(self, current_color)
+        # Determine which button was clicked and get color from CoA model (source of truth)
+        if button in self.color_buttons:
+            # Base color button
+            button_index = self.color_buttons.index(button)
+            if button_index == 0:
+                current_color = self.main_window.coa.pattern_color1
+            elif button_index == 1:
+                current_color = self.main_window.coa.pattern_color2
+            else:
+                current_color = self.main_window.coa.pattern_color3
+        elif button in self.emblem_color_buttons:
+            # Emblem color button - get from selected layer
+            selected_uuids = self.get_selected_uuids()
+            if not selected_uuids:
+                return
+            color_idx = self.emblem_color_buttons.index(button)
+            current_color = self.main_window.coa.get_layer_color(selected_uuids[0], color_idx + 1)
+        else:
+            return
         
-        if color_hex:
-            self._apply_color(button, color_hex, color_name)
+        # ColorPickerDialog now returns Color object directly
+        color = ColorPickerDialog.get_color(self, current_color)
+        
+        if color:
+            self._apply_color(button, color)
     
-    def _apply_color(self, button, color_hex, color_name=None):
+    def _apply_color(self, button, color):
         """Apply selected color to button
         
         Args:
             button: The color button being updated
-            color_hex: Hex color value
-            color_name: CK3 color name if from swatch, None if custom
+            color: Color object
         """
-        button.setProperty("colorValue", color_hex)
-        button.setProperty("colorName", color_name)  # Track if from swatch
+        # Qt boundary: convert Color to hex for stylesheet
         button.setStyleSheet(f"""
             QPushButton {{
-                background-color: {color_hex};
+                background-color: {color.to_hex()};
                 border-radius: 4px;
             }}
         """)
@@ -603,19 +589,14 @@ class PropertySidebar(QFrame):
         if button in self.color_buttons:
             # Base color changed - update CoA model first
             button_index = self.color_buttons.index(button)
-            color = QColor(color_hex)
-            color_rgb_int = [color.red(), color.green(), color.blue()]  # 0-255 range for CoA model
             
             # Update CoA model (Model is single source of truth)
             if button_index == 0:
-                self.main_window.coa.pattern_color1 = color_rgb_int
-                self.main_window.coa.pattern_color1_name = color_name
+                self.main_window.coa.pattern_color1 = color
             elif button_index == 1:
-                self.main_window.coa.pattern_color2 = color_rgb_int
-                self.main_window.coa.pattern_color2_name = color_name
+                self.main_window.coa.pattern_color2 = color
             elif button_index == 2:
-                self.main_window.coa.pattern_color3 = color_rgb_int
-                self.main_window.coa.pattern_color3_name = color_name
+                self.main_window.coa.pattern_color3 = color
             
             # Refresh all Views from Model (proper MVC pattern)
             self._refresh_base_colors_from_model()
@@ -623,15 +604,11 @@ class PropertySidebar(QFrame):
             # Update canvas with new colors (canvas caches for render performance)
             if self.canvas_widget:
                 base_colors = [
-                    [c / 255.0 for c in self.main_window.coa.pattern_color1],
-                    [c / 255.0 for c in self.main_window.coa.pattern_color2],
-                    [c / 255.0 for c in self.main_window.coa.pattern_color3]
+                    self.main_window.coa.pattern_color1,  # Color objects
+                    self.main_window.coa.pattern_color2,
+                    self.main_window.coa.pattern_color3
                 ]
                 self.canvas_widget.set_base_colors(base_colors)
-                # Store color names for serialization
-                self.canvas_widget.base_color1_name = self.main_window.coa.pattern_color1_name
-                self.canvas_widget.base_color2_name = self.main_window.coa.pattern_color2_name
-                self.canvas_widget.base_color3_name = self.main_window.coa.pattern_color3_name
             
             # Clear layer thumbnail cache since background colors changed
             if hasattr(self, 'layer_list_widget') and self.layer_list_widget:
@@ -646,12 +623,10 @@ class PropertySidebar(QFrame):
             selected_uuids = self.get_selected_uuids()
             if selected_uuids and self.canvas_widget:
                 color_idx = self.emblem_color_buttons.index(button)
-                color = QColor(color_hex)
-                color_rgb = [color.redF(), color.greenF(), color.blueF()]
                 
                 # Apply to all selected layers
                 for uuid in selected_uuids:
-                    self.main_window.coa.set_layer_color(uuid, color_idx+1, color_rgb, color_name)
+                    self.main_window.coa.set_layer_color(uuid, color_idx+1, color)
                     # Invalidate thumbnail cache for this layer
                     self.layer_list_widget.invalidate_thumbnail(uuid)
                 if self.main_window and hasattr(self.main_window, 'left_sidebar'):
@@ -678,28 +653,20 @@ class PropertySidebar(QFrame):
             return
         
         coa = self.main_window.coa
-        color_data = [
-            (coa.pattern_color1, coa.pattern_color1_name),
-            (coa.pattern_color2, coa.pattern_color2_name),
-            (coa.pattern_color3, coa.pattern_color3_name)
+        colors = [
+            coa.pattern_color1,  # Color objects
+            coa.pattern_color2,
+            coa.pattern_color3
         ]
         
-        for i, (color_rgb_int, color_name) in enumerate(color_data):
+        for i, color in enumerate(colors):
             if i < len(self.color_buttons):
-                # Convert RGB int (0-255) to hex
-                r, g, b = color_rgb_int
-                color_hex = f"#{r:02x}{g:02x}{b:02x}"
-                
-                # Update button properties
+                # Qt boundary: convert Color to hex for stylesheet
                 btn = self.color_buttons[i]
-                btn.setProperty("colorValue", color_hex)
-                btn.setProperty("colorName", color_name)
-                
-                # Update button stylesheet
                 btn.setStyleSheet("")
                 btn.setStyleSheet(f"""
                     QPushButton {{
-                        background-color: {color_hex};
+                        background-color: {color.to_hex()};
                         border-radius: 4px;
                     }}
                 """)
@@ -955,27 +922,17 @@ class PropertySidebar(QFrame):
     
     def _on_layer_color_changed(self, uuid, color_index):
         """Handle color button click from layer list - open color picker for that layer's color"""
-        color_key = f'color{color_index}'
-        color_name_key = f'color{color_index}_name'
+        # Get current color as Color object from CoA API
+        current_color = self.coa.get_layer_color(uuid, color_index)
+        if not current_color:
+            current_color = Color.from_rgb255(255, 255, 255)
         
-        # Get current color using CoA API with parameterized method
-        current_color_rgb = self.coa.get_layer_color(uuid, color_index)
-        if not current_color_rgb:
-            current_color_rgb = [1.0, 1.0, 1.0]
-        r, g, b = int(current_color_rgb[0] * 255), int(current_color_rgb[1] * 255), int(current_color_rgb[2] * 255)
-        current_color_hex = f'#{r:02x}{g:02x}{b:02x}'
+        # Show color picker - returns Color object
+        color = ColorPickerDialog.get_color(self, current_color)
         
-        # Show color picker
-        color_hex, color_name = ColorPickerDialog.get_color(self, current_color_hex)
-        
-        if color_hex:
-            # Convert hex to RGB float
-            from PyQt5.QtGui import QColor
-            color = QColor(color_hex)
-            color_rgb = [color.redF(), color.greenF(), color.blueF()]
-            
+        if color:
             # Update layer using CoA API
-            self.coa.set_layer_color(uuid, color_index, color_rgb, color_name)
+            self.coa.set_layer_color(uuid, color_index, color)
             
             # Invalidate thumbnail cache for this layer (by UUID)
             self.layer_list_widget.invalidate_thumbnail(uuid)
@@ -1060,6 +1017,9 @@ class PropertySidebar(QFrame):
         
         # Update canvas to reflect selection change
         if self.canvas_widget:
+            # Update selected layer UUID for overlay rendering
+            selected_uuids = self.get_selected_uuids()
+            self.canvas_widget.selected_layer_uuid = selected_uuids[0] if selected_uuids else None
             self.canvas_widget.update()
     
     def _on_layer_reorder(self, count):
@@ -1228,7 +1188,6 @@ class PropertySidebar(QFrame):
     
     def _update_layer_property_and_widget(self, prop_name, value):
         """Update a property and sync transform widget"""
-        print(f"DEBUG: _update_layer_property_and_widget called: {prop_name}={value}")
         self._update_layer_property(prop_name, value)
         if self.canvas_area:
             # Use update_transform_widget_for_layer to properly handle multi-selection
@@ -1445,23 +1404,11 @@ class PropertySidebar(QFrame):
                         border-radius: 4px;
                     }}
                 """)
-                btn.setProperty("colorValue", None)
-                btn.setProperty("colorName", None)
             elif color_value is not None:
-                # Single value - show color
-                color_rgb = color_value
-                color_hex = '#{:02x}{:02x}{:02x}'.format(
-                    int(color_rgb[0] * 255),
-                    int(color_rgb[1] * 255),
-                    int(color_rgb[2] * 255)
-                )
-                btn.setProperty("colorValue", color_hex)
-                # Get color name if available
-                color_name = self.get_property_value(f'color{i+1}_name')
-                btn.setProperty("colorName", color_name if color_name != 'Mixed' else None)
+                # Qt boundary: convert Color to hex for stylesheet
                 btn.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {color_hex};
+                    background-color: {color_value.to_hex()};
                     border-radius: 4px;
                 }}
             """)
@@ -1637,22 +1584,17 @@ class PropertySidebar(QFrame):
         if not hasattr(self, 'main_window') or not self.main_window or not hasattr(self.main_window, 'coa'):
             return
         
-        # Get base colors from CoA model (convert 0-255 int to 0-1 float)
+        # Get base colors from CoA model
         base_colors = [
-            [c / 255.0 for c in self.main_window.coa.pattern_color1],
-            [c / 255.0 for c in self.main_window.coa.pattern_color2],
-            [c / 255.0 for c in self.main_window.coa.pattern_color3]
+            self.main_window.coa.pattern_color1,
+            self.main_window.coa.pattern_color2,
+            self.main_window.coa.pattern_color3
         ]
         
         # Update each mask channel indicator with corresponding base color
         for i, mask_item in enumerate(self.mask_checkboxes):
             if i < len(base_colors):
-                color_rgb = base_colors[i]
-                color_hex = '#{:02x}{:02x}{:02x}'.format(
-                    int(color_rgb[0] * 255),
-                    int(color_rgb[1] * 255),
-                    int(color_rgb[2] * 255)
-                )
+                color_hex = base_colors[i].to_hex()  # Color object has to_hex() method
                 mask_item['color_indicator'].setStyleSheet(f"""
                     QLabel {{
                         background-color: {color_hex};

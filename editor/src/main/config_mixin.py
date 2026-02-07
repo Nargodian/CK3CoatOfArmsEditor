@@ -174,9 +174,6 @@ class ConfigMixin:
                     # Apply to UI - update from model
                     self.canvas_area.canvas_widget.set_base_texture(self.coa.pattern)
                     self.canvas_area.canvas_widget.set_base_colors([self.coa.pattern_color1, self.coa.pattern_color2, self.coa.pattern_color3])
-                    self.canvas_area.canvas_widget.base_color1_name = self.coa.pattern_color1_name
-                    self.canvas_area.canvas_widget.base_color2_name = self.coa.pattern_color2_name
-                    self.canvas_area.canvas_widget.base_color3_name = self.coa.pattern_color3_name
                     
                     # Property sidebar refreshes from CoA model
                     self.right_sidebar._refresh_base_colors_from_model()

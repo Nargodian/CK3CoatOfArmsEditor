@@ -36,10 +36,10 @@ from components.property_sidebar import PropertySidebar
 
 #COA INTEGRATION ACTION: Import CoA model for integration Step 1
 from models.coa import CoA, Layer
+from models.color import Color
 
 # Utility imports
 from utils.history_manager import HistoryManager
-from utils.color_utils import color_name_to_rgb, rgb_to_color_name
 from utils.logger import loggerRaise, set_main_window
 
 # Service imports
@@ -241,9 +241,9 @@ class CoatOfArmsEditor(MenuMixin, EventMixin, ConfigMixin, HistoryMixin, AssetMi
         
         # Initialize base colors in canvas from CoA model
         base_colors = [
-            [c / 255.0 for c in self.coa.pattern_color1],
-            [c / 255.0 for c in self.coa.pattern_color2],
-            [c / 255.0 for c in self.coa.pattern_color3]
+            self.coa.pattern_color1,
+            self.coa.pattern_color2,
+            self.coa.pattern_color3
         ]
         self.canvas_area.canvas_widget.set_base_colors(base_colors)
         
@@ -353,11 +353,13 @@ class CoatOfArmsEditor(MenuMixin, EventMixin, ConfigMixin, HistoryMixin, AssetMi
             
             # Reset base to default pattern and colors
             default_pattern = DEFAULT_PATTERN_TEXTURE
-            default_color_names = [DEFAULT_BASE_COLOR1, DEFAULT_BASE_COLOR2, DEFAULT_BASE_COLOR3]
+            default_color1 = Color.from_name(DEFAULT_BASE_COLOR1)
+            default_color2 = Color.from_name(DEFAULT_BASE_COLOR2)
+            default_color3 = Color.from_name(DEFAULT_BASE_COLOR3)
             default_colors = [
-                color_name_to_rgb(DEFAULT_BASE_COLOR1),
-                color_name_to_rgb(DEFAULT_BASE_COLOR2),
-                color_name_to_rgb(DEFAULT_BASE_COLOR3)
+                default_color1,
+                default_color2,
+                default_color3
             ]
             
             self.canvas_area.canvas_widget.set_base_texture(default_pattern)
@@ -366,12 +368,9 @@ class CoatOfArmsEditor(MenuMixin, EventMixin, ConfigMixin, HistoryMixin, AssetMi
             # Create new empty CoA and set its pattern/colors
             self.coa = CoA()
             self.coa.pattern = default_pattern
-            self.coa.pattern_color1 = [int(c * 255) for c in default_colors[0]]  # Convert 0-1 float to 0-255 int
-            self.coa.pattern_color2 = [int(c * 255) for c in default_colors[1]]
-            self.coa.pattern_color3 = [int(c * 255) for c in default_colors[2]]
-            self.coa.pattern_color1_name = default_color_names[0]
-            self.coa.pattern_color2_name = default_color_names[1]
-            self.coa.pattern_color3_name = default_color_names[2]
+            self.coa.pattern_color1 = default_color1
+            self.coa.pattern_color2 = default_color2
+            self.coa.pattern_color3 = default_color3
             CoA.set_active(self.coa)  # Update active instance
             self.canvas_area.canvas_widget.update()
             

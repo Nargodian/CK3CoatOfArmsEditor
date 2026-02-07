@@ -49,13 +49,13 @@ def composite_emblem_atlas(atlas_path: str, colors: dict, background_color: tupl
     
     # Layer 1: Solid background
     bg_color = background_color or colors.get('background1', (0.75, 0.75, 0.75))
-    bg_qcolor = QColor(int(bg_color[0] * 255), int(bg_color[1] * 255), int(bg_color[2] * 255))
+    bg_qcolor = bg_color.to_qcolor()
     painter.fillRect(0, 0, size, size, bg_qcolor)
     
     # Layer 2: Bottom-left quad with color1
     if 'color1' in colors:
         color1 = colors['color1']
-        c1_qcolor = QColor(int(color1[0] * 255), int(color1[1] * 255), int(color1[2] * 255))
+        c1_qcolor = color1.to_qcolor()
         # Create colored layer with bottom-left alpha mask
         colored_layer = QImage(256, 256, QImage.Format_ARGB32)
         colored_layer.fill(c1_qcolor)
@@ -70,7 +70,7 @@ def composite_emblem_atlas(atlas_path: str, colors: dict, background_color: tupl
     # Layer 3: Top-right quad with color2
     if 'color2' in colors:
         color2 = colors['color2']
-        c2_qcolor = QColor(int(color2[0] * 255), int(color2[1] * 255), int(color2[2] * 255))
+        c2_qcolor = color2.to_qcolor()
         colored_layer = QImage(256, 256, QImage.Format_ARGB32)
         colored_layer.fill(c2_qcolor)
         layer_painter = QPainter(colored_layer)
@@ -82,7 +82,7 @@ def composite_emblem_atlas(atlas_path: str, colors: dict, background_color: tupl
     # Layer 4: Top-left quad with color3
     if 'color3' in colors:
         color3 = colors['color3']
-        c3_qcolor = QColor(int(color3[0] * 255), int(color3[1] * 255), int(color3[2] * 255))
+        c3_qcolor = color3.to_qcolor()
         colored_layer = QImage(256, 256, QImage.Format_ARGB32)
         colored_layer.fill(c3_qcolor)
         layer_painter = QPainter(colored_layer)
@@ -130,13 +130,13 @@ def composite_pattern_atlas(atlas_path: str, background_colors: dict, size: tupl
     
     # Layer 1: Solid background with backgroundColor1
     bg1 = background_colors.get('background1', (0.75, 0.75, 0.75))
-    bg1_qcolor = QColor(int(bg1[0] * 255), int(bg1[1] * 255), int(bg1[2] * 255))
+    bg1_qcolor = bg1.to_qcolor()
     painter.fillRect(0, 0, size[0], size[1], bg1_qcolor)
     
     # Layer 2: Left tile with backgroundColor2
     if 'background2' in background_colors:
         bg2 = background_colors['background2']
-        bg2_qcolor = QColor(int(bg2[0] * 255), int(bg2[1] * 255), int(bg2[2] * 255))
+        bg2_qcolor = bg2.to_qcolor()
         colored_layer = QImage(256, 256, QImage.Format_ARGB32)
         colored_layer.fill(bg2_qcolor)
         layer_painter = QPainter(colored_layer)
@@ -148,7 +148,7 @@ def composite_pattern_atlas(atlas_path: str, background_colors: dict, size: tupl
     # Layer 3: Right tile with backgroundColor3
     if 'background3' in background_colors:
         bg3 = background_colors['background3']
-        bg3_qcolor = QColor(int(bg3[0] * 255), int(bg3[1] * 255), int(bg3[2] * 255))
+        bg3_qcolor = bg3.to_qcolor()
         colored_layer = QImage(256, 256, QImage.Format_ARGB32)
         colored_layer.fill(bg3_qcolor)
         layer_painter = QPainter(colored_layer)

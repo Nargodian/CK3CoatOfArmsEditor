@@ -152,9 +152,9 @@ class BisectorTransform(BaseSymmetryTransform):
         mirrored_rel_x = rel_x * cos_2theta + rel_y * sin_2theta
         mirrored_rel_y = rel_x * sin_2theta - rel_y * cos_2theta
         
-        # Convert back to absolute position
-        mirrored_x = mirrored_rel_x + offset_x
-        mirrored_y = mirrored_rel_y + offset_y
+        # Convert back to absolute position and clamp to [0, 1]
+        mirrored_x = max(0.0, min(1.0, mirrored_rel_x + offset_x))
+        mirrored_y = max(0.0, min(1.0, mirrored_rel_y + offset_y))
         
         # Mirror rotation: new_rotation = 2 * line_angle - old_rotation
         # Since we're also applying flip_x which visually adds 180 degrees,

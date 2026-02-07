@@ -6,6 +6,19 @@ The CK3 Coat of Arms Editor is a distributable Windows application for creating 
 
 ## Key Design Decisions
 
+### Color Architecture - Strict Encapsulation Rules
+
+**Module**: `editor/src/models/color.py`
+
+The Color class is the **ONLY** authority on all color behavior in the application. This strict encapsulation prevents the chaos of color logic scattered across the codebase.
+
+**Sacrosanct Rules:**
+1. **All color operations happen INSIDE Color class methods** - No exceptions
+2. **Outside code only**: Creates Color objects, calls Color methods, passes Color objects around
+3. **Forbidden everywhere else**: RGB tuple/list manipulation, color conversions, color math, hex parsing, float↔int conversions
+
+This architectural principle is enforced system-wide to maintain a single source of truth for color representation and operations.
+
 ### Two-Executable Architecture
 - **CoatOfArmsEditor.exe** - Main GUI application for creating/editing coat of arms
 - **AssetConverter.exe** - Tool to extract and convert CK3 game assets (respects copyright - users must own game)

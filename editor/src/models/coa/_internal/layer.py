@@ -44,6 +44,7 @@ from constants import (
 
 from .instance import Instance
 from models.transform import Vec2
+from models.color import Color
 
 
 class LayerTracker:
@@ -148,10 +149,9 @@ class Layer:
         pos, scale (Vec2), rotation, depth
     
     Layer Properties (shared):
-        filename, path, colors, color1, color2, color3,
-        color1_name, color2_name, color3_name,
+        filename, path, colors, color1, color2, color3 (Color objects),
         flip_x, flip_y, mask, uuid
-    """""
+    """
     
     # Auto-incrementing ID for tracking (internal only, not persisted)
     _next_id = 0
@@ -289,64 +289,45 @@ class Layer:
         self._data['colors'] = value
     
     @property
-    def color1(self) -> List[int]:
-        """Get color1 RGB values"""
-        return self._data.get('color1', CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'].copy())
+    def color1(self) -> Color:
+        """Get color1 as Color object"""
+        color_obj = self._data.get('color1')
+        if isinstance(color_obj, Color):
+            return color_obj
+        # Default if missing
+        return Color.from_name(DEFAULT_EMBLEM_COLOR1)
     
     @color1.setter
-    def color1(self, value: List[int]):
-        """Set color1 RGB values"""
+    def color1(self, value: Color):
+        """Set color1 from Color object"""
+        if not isinstance(value, Color):
+            raise TypeError("color1 must be a Color object")
         self._data['color1'] = value
     
     @property
-    def color2(self) -> List[int]:
-        """Get color2 RGB values"""
-        return self._data.get('color2', CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'].copy())
+    def color2(self) -> Color:
+        """Get color2 as Color object"""
+        color_obj = self._data.get('color2')
+        if isinstance(color_obj, Color):
+            return color_obj
+        # Default if missing
+        return Color.from_name(DEFAULT_EMBLEM_COLOR2)
     
     @color2.setter
-    def color2(self, value: List[int]):
-        """Set color2 RGB values"""
+    def color2(self, value: Color):
+        """Set color2 from Color object"""
+        if not isinstance(value, Color):
+            raise TypeError("color2 must be a Color object")
         self._data['color2'] = value
     
     @property
-    def color3(self) -> List[int]:
-        """Get color3 RGB values"""
-        return self._data.get('color3', CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'].copy())
-    
-    @color3.setter
-    def color3(self, value: List[int]):
-        """Set color3 RGB values"""
-        self._data['color3'] = value
-    
-    @property
-    def color1_name(self) -> str:
-        """Get color1 name"""
-        return self._data.get('color1_name', DEFAULT_EMBLEM_COLOR1)
-    
-    @color1_name.setter
-    def color1_name(self, value: str):
-        """Set color1 name"""
-        self._data['color1_name'] = value
-    
-    @property
-    def color2_name(self) -> str:
-        """Get color2 name"""
-        return self._data.get('color2_name', DEFAULT_EMBLEM_COLOR2)
-    
-    @color2_name.setter
-    def color2_name(self, value: str):
-        """Set color2 name"""
-        self._data['color2_name'] = value
-    
-    @property
-    def color3_name(self) -> str:
-        """Get color3 name"""
-        return self._data.get('color3_name', DEFAULT_EMBLEM_COLOR3)
-    
-    @color3_name.setter
-    def color3_name(self, value: str):
-        """Set color3 name"""
-        self._data['color3_name'] = value
+    def color3(self) -> Color:
+        """Get color3 as Color object"""
+        color_obj = self._data.get('color3')
+        if isinstance(color_obj, Color):
+            return color_obj
+        # Default if missing
+        return Color.from_name(DEFAULT_EMBLEM_COLOR3)
     
     @property
     def flip_x(self) -> bool:
@@ -438,6 +419,29 @@ class Layer:
     def container_uuid(self, value: Optional[str]):
         """Set container UUID (editor-only metadata)"""
         self._data['container_uuid'] = value
+    
+    @property
+    def container_symmetry(self) -> Optional[str]:
+        """Get container symmetry type (editor-only metadata)
+        
+        This marks one layer in a container to indicate the whole container
+        has symmetry applied. Only one layer in a container should have this set.
+        
+        Returns:
+            Symmetry type ('bisector', 'rotational', 'grid') or None
+        """
+        return self._data.get('container_symmetry')
+    
+    @container_symmetry.setter
+    def container_symmetry(self, value: Optional[str]):
+        """Set container symmetry type (editor-only metadata)
+        
+        Args:
+            value: Symmetry type or None to clear
+        """
+        if value and value not in ('bisector', 'rotational', 'grid'):
+            raise ValueError(f"Invalid container symmetry type: {value}")
+        self._data['container_symmetry'] = value
     
     @property
     def symmetry_type(self) -> str:
@@ -639,12 +643,9 @@ class Layer:
             'colors': 3,
             'instances': [Instance()],  # Create Instance object instead of dict
             'selected_instance': 0,
-            'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'],
-            'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'],
-            'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
-            'color1_name': DEFAULT_EMBLEM_COLOR1,
-            'color2_name': DEFAULT_EMBLEM_COLOR2,
-            'color3_name': DEFAULT_EMBLEM_COLOR3,
+            'color1': Color.from_name(DEFAULT_EMBLEM_COLOR1),
+            'color2': Color.from_name(DEFAULT_EMBLEM_COLOR2),
+            'color3': Color.from_name(DEFAULT_EMBLEM_COLOR3),
             'mask': None,
             'symmetry_type': 'none',
             'symmetry_properties': []
@@ -697,7 +698,6 @@ class Layer:
         """
         LayerTracker.log_call(caller, self._id, 'serialize')
         
-        from utils.color_utils import rgb_to_color_name
         from models.coa import CoA
         
         # Check if force RGB mode is enabled
@@ -707,26 +707,13 @@ class Layer:
             if hasattr(coa, '_force_rgb_colors'):
                 force_rgb = coa._force_rgb_colors
         
-        # Helper to normalize RGB [0-255] to [0-1] range
-        def normalize_rgb(rgb):
-            if not rgb:
-                return [1.0, 1.0, 1.0]
-            return [rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0]
-        
-        # Helper to format color
-        def format_color(rgb, color_name):
-            normalized = normalize_rgb(rgb)
-            color_str = rgb_to_color_name(normalized, color_name, force_rgb=force_rgb)
-            if color_str.startswith('rgb'):
-                return color_str  # Already formatted as "rgb { R G B }"
-            else:
-                return f'"{color_str}"'  # Named color, add quotes
-        
         lines = []
         lines.append('\tcolored_emblem = {')
         # Write metadata as special comments (game ignores, editor parses)
         if self.container_uuid:
             lines.append(f'\t\t##META##container_uuid="{self.container_uuid}"')
+        if self.container_symmetry:
+            lines.append(f'\t\t##META##container_symmetry="{self.container_symmetry}"')
         lines.append(f'\t\t##META##name="{self.name}"')
         
         # Symmetry metadata
@@ -739,22 +726,68 @@ class Layer:
         lines.append(f'\t\ttexture = "{self.filename}"')
         
         # Add colors based on color count
-        lines.append(f'\t\tcolor1 = {format_color(self.color1, self.color1_name)}')
+        lines.append(f'\t\tcolor1 = {self.color1.to_ck3_string(force_rgb=force_rgb)}')
         if self.colors >= 2:
-            lines.append(f'\t\tcolor2 = {format_color(self.color2, self.color2_name)}')
+            lines.append(f'\t\tcolor2 = {self.color2.to_ck3_string(force_rgb=force_rgb)}')
         if self.colors >= 3:
-            lines.append(f'\t\tcolor3 = {format_color(self.color3, self.color3_name)}')
+            lines.append(f'\t\tcolor3 = {self.color3.to_ck3_string(force_rgb=force_rgb)}')
         
         # Serialize mask if present
         if self.mask is not None:
             mask_str = ' '.join(map(str, self.mask))
             lines.append(f'\t\tmask = {{ {mask_str} }}')
         
-        # Serialize all instances
+        # Serialize instances with symmetry expansion (transient generation)
         instances = self._data.get('instances', [])
-        for inst in instances:
-            if isinstance(inst, Instance):
-                lines.append(inst.serialize())
+        
+        # If layer has symmetry, generate mirror instances on-the-fly
+        if self.symmetry_type != 'none':
+            from services.symmetry_transforms import get_transform
+            from models.transform import Transform
+            
+            transform_plugin = get_transform(self.symmetry_type)
+            if transform_plugin:
+                transform_plugin.set_properties(self.symmetry_properties)
+                
+                # Write seed instances and their mirrors
+                for inst in instances:
+                    if isinstance(inst, Instance):
+                        # Write seed instance
+                        lines.append(inst.serialize())
+                        
+                        # Calculate and write mirrors for this seed
+                        seed_transform = Transform(
+                            inst.pos,
+                            inst.scale,
+                            inst.rotation
+                        )
+                        mirror_transforms = transform_plugin.calculate_transforms(seed_transform)
+                        
+                        for mirror_transform in mirror_transforms:
+                            # Create transient mirror instance (not added to model)
+                            # Use flip properties from Transform
+                            mirror_inst = Instance({
+                                'pos_x': mirror_transform.pos.x,
+                                'pos_y': mirror_transform.pos.y,
+                                'scale_x': mirror_transform.scale.x,
+                                'scale_y': mirror_transform.scale.y,
+                                'rotation': mirror_transform.rotation,
+                                'depth': inst.depth,
+                                'flip_x': getattr(mirror_transform, 'flip_x', inst.flip_x),
+                                'flip_y': getattr(mirror_transform, 'flip_y', inst.flip_y),
+                                'is_mirror': True  # Mark as mirror for parse filtering
+                            })
+                            lines.append(mirror_inst.serialize())
+            else:
+                # Fallback: no transform plugin, just write seeds
+                for inst in instances:
+                    if isinstance(inst, Instance):
+                        lines.append(inst.serialize())
+        else:
+            # No symmetry: write instances as-is
+            for inst in instances:
+                if isinstance(inst, Instance):
+                    lines.append(inst.serialize())
         
         lines.append('\t}')
         return '\n'.join(lines)
@@ -771,15 +804,19 @@ class Layer:
         Returns:
             New Layer object
         """
-        from utils.color_utils import color_name_to_rgb
         from utils.metadata_cache import get_texture_color_count
         
         filename = data.get('texture', '')
         
-        # Get color names and RGB values
-        color1_name = data.get('color1', 'yellow')
-        color2_name = data.get('color2', 'red')
-        color3_name = data.get('color3', 'red')
+        # Parse colors from CK3 format (handles both named colors and rgb blocks)
+        color1_str = data.get('color1', 'yellow')
+        color2_str = data.get('color2', 'red')
+        color3_str = data.get('color3', 'red')
+        
+        # Convert to Color objects
+        color1 = Color.from_ck3_string(color1_str)
+        color2 = Color.from_ck3_string(color2_str)
+        color3 = Color.from_ck3_string(color3_str)
         
         # Look up actual color count from texture metadata
         color_count = get_texture_color_count(filename)
@@ -791,7 +828,19 @@ class Layer:
             instances_data = [{'position': [0.5, 0.5], 'scale': [1.0, 1.0], 'rotation': 0}]
         
         # Convert all instances (flip is extracted within Instance.parse)
-        instances = [Instance.parse(inst_data) for inst_data in instances_data]
+        all_instances = [Instance.parse(inst_data) for inst_data in instances_data]
+        
+        # Filter out mirror instances (marked with is_mirror=True) to restore dynamic symmetry
+        # Keep only seed instances - symmetry metadata will recreate mirrors dynamically
+        instances_before_filter = len(all_instances)
+        instances = [inst for inst in all_instances if not inst.is_mirror]
+        instances_after_filter = len(instances)
+        
+        # Debug log if we filtered any mirrors
+        if instances_after_filter < instances_before_filter:
+            import logging
+            logger = logging.getLogger('Layer.parse')
+            logger.debug(f"Filtered {instances_before_filter - instances_after_filter} mirror instances, kept {instances_after_filter} seeds")
         
         # Parse mask if present
         mask = data.get('mask')
@@ -806,6 +855,9 @@ class Layer:
         
         # Parse container_uuid (preserve if present, None if missing)
         container_uuid = data.get('container_uuid')
+        
+        # Parse container_symmetry (preserve if present, None if missing)
+        container_symmetry = data.get('container_symmetry')
         
         # Parse name (preserve if present, default to texture filename)
         name = data.get('name', '')
@@ -836,18 +888,16 @@ class Layer:
         layer_data = {
             'uuid': layer_uuid,
             'container_uuid': container_uuid,
+            'container_symmetry': container_symmetry,
             'name': name,
             'filename': filename,
             'path': filename,
             'colors': color_count,
             'instances': instances,
             'selected_instance': 0,
-            'color1': color_name_to_rgb(color1_name),
-            'color2': color_name_to_rgb(color2_name),
-            'color3': color_name_to_rgb(color3_name),
-            'color1_name': color1_name,
-            'color2_name': color2_name,
-            'color3_name': color3_name,
+            'color1': color1,
+            'color2': color2,
+            'color3': color3,
             'mask': mask,
             'visible': True,
             'symmetry_type': symmetry_type,

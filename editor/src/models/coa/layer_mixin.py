@@ -90,9 +90,9 @@ class CoALayerMixin:
             'selected_instance': 0,
             'flip_x': False,
             'flip_y': False,
-            'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'].copy(),
-            'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'].copy(),
-            'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'].copy(),
+            'color1': Color.from_name(DEFAULT_EMBLEM_COLOR1),
+            'color2': Color.from_name(DEFAULT_EMBLEM_COLOR2),
+            'color3': Color.from_name(DEFAULT_EMBLEM_COLOR3),
             'color1_name': DEFAULT_EMBLEM_COLOR1,
             'color2_name': DEFAULT_EMBLEM_COLOR2,
             'color3_name': DEFAULT_EMBLEM_COLOR3,
@@ -585,11 +585,11 @@ class CoALayerMixin:
             # Build detailed message showing which colors differ
             color_details = []
             for i, layer in enumerate(layers):
-                c1 = tuple(layer.color1)
-                c2 = tuple(layer.color2)
-                c3 = tuple(layer.color3)
+                c1 = layer.color1.to_rgb255()
+                c2 = layer.color2.to_rgb255()
+                c3 = layer.color3.to_rgb255()
                 color_details.append(
-                    f"Layer {i+1}: c1={layer.color1_name}{c1}, c2={layer.color2_name}{c2}, c3={layer.color3_name}{c3}"
+                    f"Layer {i+1}: c1={layer.color1.name}{c1}, c2={layer.color2.name}{c2}, c3={layer.color3.name}{c3}"
                 )
             
             result['warnings'].append(

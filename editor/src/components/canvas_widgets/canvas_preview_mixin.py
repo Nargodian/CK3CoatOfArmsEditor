@@ -1,391 +1,550 @@
-"""Canvas preview rendering system - government and title previews"""
+"""Canvas preview rendering system - government and title previews (NEW)
+
+Rebuilt preview system using simplified shader and pixel-based rendering.
+All positioning uses manageable constants rather than bespoke calculations.
+"""
 import numpy as np
 import OpenGL.GL as gl
 from PyQt5.QtGui import QVector2D
 
 
+# ========================================
+# Constants
+# ========================================
+
+# Preview base dimensions (lerp range)
+PREVIEW_SIZE_MIN = 22.0
+PREVIEW_SIZE_MAX = 115.0
+PREVIEW_DEFAULT_SIZE_PX = 86.0
+PREVIEW_LARGE_SIZE_PX = 115.0
+
+# CoA scaling within preview frames (simplified constants, not frame-derived)
+# Previews use fixed relative positioning rather than complex main canvas bounds
+PREVIEW_COA_SCALE_GOVERNMENT = 0.9  # 90% of mask area
+PREVIEW_COA_SCALE_TITLE = 0.9       # 90% of mask area
+
+# CoA offset within preview frames (Y-axis, normalized, relative to preview)
+PREVIEW_COA_OFFSET_GOVERNMENT_Y = -0.11   # Slight downward shift for government
+PREVIEW_COA_OFFSET_TITLE_Y = -0.04       # Minimal shift for title
+
+# Crown dimensions and positioning
+PREVIEW_CROWN_HEIGHT_RATIO = 0.625  # Crown is 80/128 of preview height
+
+# Government preview crown strip offset (pixels, lerps from min to max size)
+PREVIEW_CROWN_OFFSET_GOVT_MIN = -7  # Offset at size 22px
+PREVIEW_CROWN_OFFSET_GOVT_MAX = -41    # Offset at size 115px
+
+# Title preview crown strip offset (pixels, lerps from min to max size)
+PREVIEW_CROWN_OFFSET_TITLE_MIN = -6  # Offset at size 22px (negative = above preview)
+PREVIEW_CROWN_OFFSET_TITLE_MAX = -36     # Offset at size 115px
+
+# Topframe positioning (pixels, lerps from min to max size)
+PREVIEW_TOPFRAME_OFFSET_MIN = -3  # Offset at size 22px
+PREVIEW_TOPFRAME_OFFSET_MAX = -15  # Offset at size 115px
+
+# Title frame scaling
+PREVIEW_TITLE_FRAME_SCALE = 1.1
+
+# Corner positioning
+PREVIEW_CORNER_PADDING_PX = 20.0
+PREVIEW_VERTICAL_OFFSET_PX = 50.0  # Additional offset to move previews down from top edge
+
+# Rank UV mapping (7x1 atlas)
+PREVIEW_RANK_ATLAS_COLS = 7
+PREVIEW_RANK_MAP = {
+    "Baron": 1,
+    "Count": 2,
+    "Duke": 3,
+    "King": 4,
+    "Emperor": 5,
+    "Hegemon": 6
+}
+PREVIEW_RANK_DEFAULT = 3  # Duke
+
+
 class CanvasPreviewMixin:
-    """Mixin for rendering government and title preview graphics
+    """Mixin for rendering government and title preview graphics.
     
-    Keeps canvas_widget.py from growing too large by separating preview functionality.
+    Uses simplified preview_composite_shader and pixel-based rendering.
+    All previews share the same CoA RTT texture rendered once per frame.
     """
     
-    def get_preview_dimensions(self, preview_size_px=None, viewport_size=None):
-        """Calculate preview dimensions in NDC coordinates
-        
-        Args:
-            preview_size_px: Size in pixels (uses self.preview_size if None)
-            viewport_size: (width, height) tuple (uses widget size if None)
-        
-        Returns:
-            dict with:
-                - size_ndc: (width, height) in NDC coordinates
-                - crown_height_ndc: height of crown in NDC
-                - total_height_ndc: preview + crown height
-        """
-        if preview_size_px is None:
-            preview_size_px = self.preview_size
-        
-        if viewport_size is None:
-            viewport_width = self.width()
-            viewport_height = self.height()
-        else:
-            viewport_width, viewport_height = viewport_size
-        
-        # Convert to NDC (normalized device coordinates: -1 to 1)
-        size_x = preview_size_px / viewport_width
-        size_y = preview_size_px / viewport_height
-        
-        # Crown height is 80/128 of preview height
-        crown_height = size_y * 2.0 * (80.0 / 128.0)
-        
-        # Total height including crown
-        total_height = size_y * 2.0 + crown_height
-        
-        return {
-            'size_ndc': (size_x * 2.0, size_y * 2.0),
-            'crown_height_ndc': crown_height,
-            'total_height_ndc': total_height
-        }
+    # ========================================
+    # Initialization
+    # ========================================
     
-    def _render_government_preview_at(self, ndc_left, ndc_top, viewport_size=None):
-        """Render government preview at specified NDC position
+    def _init_preview_shader(self):
+        """Initialize preview composite shader. Call after OpenGL context is ready."""
+        from components.canvas_widgets.shader_manager import ShaderManager
+        shader_manager = ShaderManager()
+        self.preview_composite_shader = shader_manager.create_preview_composite_shader(self)
+    
+    # ========================================
+    # Helper Methods
+    # ========================================
+    
+    def _get_texture_size_fallback(self, requested_size):
+        """Get closest available texture size for lookups.
         
-        Args:
-            ndc_left: Left edge in NDC coordinates (-1 to 1)
-            ndc_top: Top edge in NDC coordinates (-1 to 1)
-            viewport_size: Optional (width, height) tuple for export rendering
+        For export at 256px, use 115px textures (largest available).
         """
-        if not self.composite_shader or not self.vao:
+        available_sizes = [22, 86, 115]
+        if requested_size in available_sizes:
+            return requested_size
+        # For larger sizes (like 256), use largest available
+        if requested_size > max(available_sizes):
+            return max(available_sizes)
+        # For sizes in between, use closest
+        return min(available_sizes, key=lambda x: abs(x - requested_size))
+    
+    def _calculate_preview_dimensions(self, preview_size_px):
+        """Calculate preview quad dimensions in pixels.
+        
+        Returns: (width_px, height_px, crown_height_px, total_height_px)
+        """
+        width_px = preview_size_px
+        height_px = preview_size_px
+        crown_height_px = height_px * PREVIEW_CROWN_HEIGHT_RATIO
+        total_height_px = height_px + crown_height_px
+        return width_px, height_px, crown_height_px, total_height_px
+    
+    def _calculate_crown_offset_government(self, preview_size_px):
+        """Calculate crown strip offset for government preview using lerp."""
+        t = (preview_size_px - PREVIEW_SIZE_MIN) / (PREVIEW_SIZE_MAX - PREVIEW_SIZE_MIN)
+        return PREVIEW_CROWN_OFFSET_GOVT_MIN + t * (PREVIEW_CROWN_OFFSET_GOVT_MAX - PREVIEW_CROWN_OFFSET_GOVT_MIN)
+    
+    def _calculate_crown_offset_title(self, preview_size_px):
+        """Calculate crown strip offset for title preview using lerp."""
+        t = (preview_size_px - PREVIEW_SIZE_MIN) / (PREVIEW_SIZE_MAX - PREVIEW_SIZE_MIN)
+        return PREVIEW_CROWN_OFFSET_TITLE_MIN + t * (PREVIEW_CROWN_OFFSET_TITLE_MAX - PREVIEW_CROWN_OFFSET_TITLE_MIN)
+    
+    def _calculate_topframe_offset(self, preview_size_px):
+        """Calculate topframe offset for government preview using lerp."""
+        t = (preview_size_px - PREVIEW_SIZE_MIN) / (PREVIEW_SIZE_MAX - PREVIEW_SIZE_MIN)
+        return PREVIEW_TOPFRAME_OFFSET_MIN + t * (PREVIEW_TOPFRAME_OFFSET_MAX - PREVIEW_TOPFRAME_OFFSET_MIN)
+    
+    def _get_rank_uv(self, rank_name):
+        """Get UV coordinates for rank in 7x1 crown atlas."""
+        rank_index = PREVIEW_RANK_MAP.get(rank_name, PREVIEW_RANK_DEFAULT)
+        u0 = rank_index / float(PREVIEW_RANK_ATLAS_COLS)
+        u1 = (rank_index + 1) / float(PREVIEW_RANK_ATLAS_COLS)
+        return u0, u1
+    
+    # ========================================
+    # Rendering Primitives (single-purpose methods)
+    # ========================================
+    
+    def _render_preview_coa(self, center_x_px, center_y_px, width_px, height_px, mask_texture, coa_scale, coa_offset):
+        """Render CoA with mask using preview_composite_shader.
+        
+        Uses the shared CoA RTT texture already rendered by _render_coa_to_framebuffer().
+        This method just composites it with a different mask and positioning.
+        """
+        if not self.preview_composite_shader or not mask_texture:
             return
         
-        # Get government mask
-        gov_mask = self.realm_frame_masks.get(self.preview_government)
-        if not gov_mask:
-            return
-        
-        # Get dimensions
-        if viewport_size is None:
-            viewport_width = self.width()
-            viewport_height = self.height()
-        else:
-            viewport_width, viewport_height = viewport_size
-        
-        dims = self.get_preview_dimensions(viewport_size=viewport_size)
-        size_x, size_y = dims['size_ndc']
-        crown_height = dims['crown_height_ndc']
-        
-        # Calculate bounds from top-left anchor
-        left = ndc_left
-        right = left + size_x
-        top = ndc_top
-        bottom = top - size_y
-        
-        # Shift entire preview down to accommodate crown above
-        top -= crown_height
-        bottom -= crown_height
-        
-        # Render CoA with government mask
         self.vao.bind()
-        self.composite_shader.bind()
+        self.preview_composite_shader.bind()
         
-        # Bind RTT texture (same CoA)
+        # Bind shared CoA RTT texture (same texture used by main canvas)
         gl.glActiveTexture(gl.GL_TEXTURE0)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
-        self.composite_shader.setUniformValue("coaTextureSampler", 0)
+        self.preview_composite_shader.setUniformValue("coaTextureSampler", 0)
         
-        # Bind government mask
+        # Bind mask texture
         gl.glActiveTexture(gl.GL_TEXTURE1)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, gov_mask)
-        self.composite_shader.setUniformValue("frameMaskSampler", 1)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, mask_texture)
+        self.preview_composite_shader.setUniformValue("frameMaskSampler", 1)
         
-        # Bind material and noise textures
-        if self.texturedMask:
+        # Bind material mask texture
+        if hasattr(self, 'texturedMask') and self.texturedMask:
             gl.glActiveTexture(gl.GL_TEXTURE2)
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
-            self.composite_shader.setUniformValue("texturedMaskSampler", 2)
+            self.preview_composite_shader.setUniformValue("texturedMaskSampler", 2)
         
-        if self.noiseMask:
+        # Bind noise texture
+        if hasattr(self, 'noiseMask') and self.noiseMask:
             gl.glActiveTexture(gl.GL_TEXTURE3)
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
-            self.composite_shader.setUniformValue("noiseMaskSampler", 3)
+            self.preview_composite_shader.setUniformValue("noiseMaskSampler", 3)
         
-        # Set CoA scale and offset
-        self.composite_shader.setUniformValue("coaScale", QVector2D(0.9, 0.9))
-        self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.1))
-        self.composite_shader.setUniformValue("bleedMargin", 1.0)
+        # Set transform uniforms (pixel-based, center-origin)
+        self.preview_composite_shader.setUniformValue("screenRes", QVector2D(self.width(), self.height()))
+        self.preview_composite_shader.setUniformValue("position", QVector2D(center_x_px - self.width()/2.0, self.height()/2.0 - center_y_px))
+        self.preview_composite_shader.setUniformValue("scale", QVector2D(width_px, height_px))
+        self.preview_composite_shader.setUniformValue("rotation", 0.0)
+        self.preview_composite_shader.setUniformValue("uvOffset", QVector2D(0.0, 0.0))
+        self.preview_composite_shader.setUniformValue("uvScale", QVector2D(1.0, 1.0))
+        self.preview_composite_shader.setUniformValue("flipU", False)
+        self.preview_composite_shader.setUniformValue("flipV", False)
         
-        # Render quad
-        vertices = np.array([
-            left, bottom, 0.0,  0.0, 0.0,
-            right, bottom, 0.0,  1.0, 0.0,
-            right, top, 0.0,  1.0, 1.0,
-            left, top, 0.0,  0.0, 1.0,
-        ], dtype=np.float32)
+        # Set CoA positioning within mask
+        self.preview_composite_shader.setUniformValue("coaScale", QVector2D(coa_scale[0], coa_scale[1]))
+        self.preview_composite_shader.setUniformValue("coaOffset", QVector2D(coa_offset[0], coa_offset[1]))
         
-        self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
         gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
         
-        self.composite_shader.release()
-        
-        # Render government frame on top (flipped vertically)
-        gov_frame = self.realm_frame_frames.get((self.preview_government, self.preview_size))
-        if gov_frame and self.basic_shader:
-            self.basic_shader.bind()
-            
-            gl.glActiveTexture(gl.GL_TEXTURE0)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, gov_frame)
-            self.basic_shader.setUniformValue("textureSampler", 0)
-            
-            # Flip V coordinates
-            frame_verts = np.array([
-                left, bottom, 0.0,  0.0, 1.0,  # Flipped V
-                right, bottom, 0.0,  1.0, 1.0,
-                right, top, 0.0,  1.0, 0.0,
-                left, top, 0.0,  0.0, 0.0,
-            ], dtype=np.float32)
-            
-            self.vbo.write(0, frame_verts.tobytes(), frame_verts.nbytes)
-            gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-            
-            self.basic_shader.release()
-        
-        # Render crown strip (rank-based UV from 7x1 atlas)
-        crown_strip = self.crown_strips.get(self.preview_size)
-        if crown_strip and self.basic_shader:
-            u0, u1 = self._get_rank_uv(self.preview_rank)
-            self.basic_shader.bind()
-            
-            gl.glActiveTexture(gl.GL_TEXTURE0)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, crown_strip)
-            self.basic_shader.setUniformValue("textureSampler", 0)
-            
-            # Crown offset
-            crown_offset_px = (7.5 / 115.0) * self.preview_size
-            crown_offset = (crown_offset_px / viewport_height) * 2.0
-            crown_bottom = top + crown_offset
-            crown_top = top + crown_height + crown_offset
-            
-            # Use rank-specific UV coordinates, flipped vertically
-            crown_verts = np.array([
-                left, crown_bottom, 0.0,  u0, 1.0,
-                right, crown_bottom, 0.0,  u1, 1.0,
-                right, crown_top, 0.0,  u1, 0.0,
-                left, crown_top, 0.0,  u0, 0.0,
-            ], dtype=np.float32)
-            
-            self.vbo.write(0, crown_verts.tobytes(), crown_verts.nbytes)
-            gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-            
-            self.basic_shader.release()
-        
-        # Render topframe
-        topframe = self.topframes.get(self.preview_size)
-        if topframe and self.basic_shader:
-            u0, u1 = self._get_rank_uv(self.preview_rank)
-            self.basic_shader.bind()
-            
-            gl.glActiveTexture(gl.GL_TEXTURE0)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, topframe)
-            self.basic_shader.setUniformValue("textureSampler", 0)
-            
-            # Topframe offset
-            topframe_offset_px = (10.0 / 115.0) * self.preview_size + (6.0 / 115.0) * self.preview_size
-            topframe_offset = (topframe_offset_px / viewport_height) * 2.0
-            topframe_bottom = bottom + topframe_offset
-            topframe_top = top + topframe_offset
-            
-            # Use rank-specific UV coordinates, flipped vertically
-            topframe_verts = np.array([
-                left, topframe_bottom, 0.0,  u0, 1.0,
-                right, topframe_bottom, 0.0,  u1, 1.0,
-                right, topframe_top, 0.0,  u1, 0.0,
-                left, topframe_top, 0.0,  u0, 0.0,
-            ], dtype=np.float32)
-            
-            self.vbo.write(0, topframe_verts.tobytes(), topframe_verts.nbytes)
-            gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-            
-            self.basic_shader.release()
-        
+        self.preview_composite_shader.release()
         self.vao.release()
     
-    def _render_title_preview_at(self, ndc_left, ndc_top, viewport_size=None):
-        """Render title preview at specified NDC position
+    def _render_tilesheet_quad(self, center_x_px, center_y_px, width_px, height_px, texture, 
+                               tile_cols = 1, tile_rows = 1, tile_index = 0, flip_v = False):
+        """Shared quad rendering for all tilesheet-based elements.
         
         Args:
-            ndc_left: Left edge in NDC coordinates (-1 to 1)
-            ndc_top: Top edge in NDC coordinates (-1 to 1)
-            viewport_size: Optional (width, height) tuple for export rendering
+            center_x_px, center_y_px: Pixel position (center)
+            width_px, height_px: Quad dimensions
+            texture: OpenGL texture ID
+            tile_cols, tile_rows: Tilesheet dimensions
+            tile_index: Which tile to render
+            flip_v: Vertical flip flag
         """
-        if not self.composite_shader or not self.vao:
+        if not self.tilesheet_shader or not texture:
             return
         
-        # Get title mask
-        if not self.title_mask:
-            return
-        
-        # Get dimensions
-        if viewport_size is None:
-            viewport_width = self.width()
-            viewport_height = self.height()
+        # Get screen dimensions (with export override support)
+        if hasattr(self, '_export_viewport_override') and self._export_viewport_override:
+            screen_width, screen_height = self._export_viewport_override
         else:
-            viewport_width, viewport_height = viewport_size
+            screen_width = self.width()
+            screen_height = self.height()
         
-        dims = self.get_preview_dimensions(viewport_size=viewport_size)
-        size_x, size_y = dims['size_ndc']
-        crown_height = dims['crown_height_ndc']
+        # Convert from top-left to center-based coordinates (shader expects position from center)
+        # X: left-to-right, so center_x - width/2
+        # Y: OpenGL Y+ is up, screen Y+ is down, so height/2 - center_y
+        pos_from_center_x = center_x_px - screen_width / 2.0
+        pos_from_center_y = screen_height / 2.0 - center_y_px
         
-        # Calculate bounds from top-left anchor
-        left = ndc_left
-        right = left + size_x
-        top = ndc_top
-        bottom = top - size_y
-        
-        # Shift entire preview down to accommodate crown above
-        top -= crown_height
-        bottom -= crown_height
-        
-        # Render CoA with title mask
         self.vao.bind()
-        self.composite_shader.bind()
+        self.tilesheet_shader.bind()
         
-        # Bind RTT texture (same CoA)
         gl.glActiveTexture(gl.GL_TEXTURE0)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.framebuffer_rtt.get_texture())
-        self.composite_shader.setUniformValue("coaTextureSampler", 0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, texture)
+        self.tilesheet_shader.setUniformValue("tilesheetSampler", 0)
         
-        # Bind title mask
-        gl.glActiveTexture(gl.GL_TEXTURE1)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.title_mask)
-        self.composite_shader.setUniformValue("frameMaskSampler", 1)
+        # Tilesheet properties
+        self.tilesheet_shader.setUniformValue("tileCols", tile_cols)
+        self.tilesheet_shader.setUniformValue("tileRows", tile_rows)
+        self.tilesheet_shader.setUniformValue("tileIndex", tile_index)
         
-        # Bind material and noise textures
-        if self.texturedMask:
-            gl.glActiveTexture(gl.GL_TEXTURE2)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, self.texturedMask)
-            self.composite_shader.setUniformValue("texturedMaskSampler", 2)
+        # Transform uniforms
+        self.tilesheet_shader.setUniformValue("screenRes", QVector2D(screen_width, screen_height))
+        self.tilesheet_shader.setUniformValue("position", QVector2D(pos_from_center_x, pos_from_center_y))
+        self.tilesheet_shader.setUniformValue("scale", QVector2D(width_px, height_px))
+        self.tilesheet_shader.setUniformValue("rotation", 0.0)
+        self.tilesheet_shader.setUniformValue("uvOffset", QVector2D(0.0, 0.0))
+        self.tilesheet_shader.setUniformValue("uvScale", QVector2D(1.0, 1.0))
+        self.tilesheet_shader.setUniformValue("flipU", False)
+        self.tilesheet_shader.setUniformValue("flipV", flip_v)
         
-        if self.noiseMask:
-            gl.glActiveTexture(gl.GL_TEXTURE3)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, self.noiseMask)
-            self.composite_shader.setUniformValue("noiseMaskSampler", 3)
-        
-        # Set CoA scale and offset
-        self.composite_shader.setUniformValue("coaScale", QVector2D(0.9, 0.9))
-        self.composite_shader.setUniformValue("coaOffset", QVector2D(0.0, 0.04))
-        self.composite_shader.setUniformValue("bleedMargin", 1.0)
-        
-        # Render quad
-        vertices = np.array([
-            left, bottom, 0.0,  0.0, 0.0,
-            right, bottom, 0.0,  1.0, 0.0,
-            right, top, 0.0,  1.0, 1.0,
-            left, top, 0.0,  0.0, 1.0,
-        ], dtype=np.float32)
-        
-        self.vbo.write(0, vertices.tobytes(), vertices.nbytes)
         gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
         
-        self.composite_shader.release()
+        self.tilesheet_shader.release()
+        self.vao.release()
+    
+    def _render_preview_frame(self, center_x_px, center_y_px, width_px, height_px, frame_texture):
+        """Render preview frame (single texture, no atlas)."""
+        self._render_tilesheet_quad(center_x_px, center_y_px, width_px, height_px, 
+                                     frame_texture, tile_cols=1, tile_rows=1, tile_index=0, flip_v=True)
+    
+    def _render_ranked_element(self, center_x_px, center_y_px, width_px, height_px, texture, rank_name, flip_v):
+        """Render rank-based element (crown or topframe) from 7x1 atlas."""
+        if not texture:
+            return
+        u0, u1 = self._get_rank_uv(rank_name)
+        rank_index = int(u0 * PREVIEW_RANK_ATLAS_COLS)
+        self._render_tilesheet_quad(center_x_px, center_y_px, width_px, height_px,
+                                     texture, tile_cols=PREVIEW_RANK_ATLAS_COLS, tile_rows=1, 
+                                     tile_index=rank_index, flip_v=flip_v)
+    
+    # ========================================
+    # Core Rendering Methods (readable stacks)
+    # ========================================
+    
+    def _render_government_preview_at_px(self, left_px, top_px, render_size=None, texture_size=None):
+        """Render government preview at pixel position (top-left anchor).
+        
+        Args:
+            left_px, top_px: Position to render at
+            render_size: Size for rendering dimensions (uses self.preview_size if None)
+            texture_size: Size for texture lookups (uses render_size if None)
+        """
+        render_size = render_size or self.preview_size
+        texture_size = texture_size or render_size
+        
+        # Calculate dimensions
+        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(render_size)
+        
+        # Calculate center position for quad rendering
+        center_x_px = left_px + width_px / 2.0
+        center_y_px = top_px + (height_px + crown_height_px) / 2.0
+        
+        # Render CoA with government mask using preview_composite_shader
+        self._render_preview_coa(
+            center_x_px, center_y_px, width_px, height_px,
+            mask_texture=self.realm_frame_masks.get(self.preview_government),
+            coa_scale=(PREVIEW_COA_SCALE_GOVERNMENT, PREVIEW_COA_SCALE_GOVERNMENT),
+            coa_offset=(0.0, PREVIEW_COA_OFFSET_GOVERNMENT_Y)
+        )
+        
+        # Render government frame
+        gov_frame = self.realm_frame_frames.get((self.preview_government, texture_size))
+        if gov_frame:
+            self._render_preview_frame(center_x_px, center_y_px, width_px, height_px, gov_frame)
         
         # Render crown strip
-        crown_strip = self.crown_strips.get(self.preview_size)
-        if crown_strip and self.basic_shader:
-            u0, u1 = self._get_rank_uv(self.preview_rank)
-            self.basic_shader.bind()
-            
-            gl.glActiveTexture(gl.GL_TEXTURE0)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, crown_strip)
-            self.basic_shader.setUniformValue("textureSampler", 0)
-            
-            # Crown offset
-            base_offset_px = (1.5 / 115.0) * self.preview_size
-            size_adjustment = -2.0 * (115.0 - self.preview_size) / 93.0
-            crown_offset_px = base_offset_px + size_adjustment
-            crown_offset = (crown_offset_px / viewport_height) * 2.0
-            crown_bottom = top + crown_offset
-            crown_top = top + crown_height + crown_offset
-            
-            # Use rank-specific UV coordinates, flipped vertically
-            crown_verts = np.array([
-                left, crown_bottom, 0.0,  u0, 1.0,
-                right, crown_bottom, 0.0,  u1, 1.0,
-                right, crown_top, 0.0,  u1, 0.0,
-                left, crown_top, 0.0,  u0, 0.0,
-            ], dtype=np.float32)
-            
-            self.vbo.write(0, crown_verts.tobytes(), crown_verts.nbytes)
-            gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-            
-            self.basic_shader.release()
+        crown_strip = self.crown_strips.get(texture_size)
+        if crown_strip:
+            crown_offset_px = self._calculate_crown_offset_government(render_size)
+            crown_center_y_px = top_px + crown_offset_px + crown_height_px / 2.0
+            self._render_ranked_element(center_x_px, crown_center_y_px, width_px, crown_height_px, 
+                                        crown_strip, self.preview_rank, flip_v=True)
         
-        # Title frame (flipped vertically, scaled 1.1x)
-        title_frame = self.title_frames.get(self.preview_size)
-        # Fallback: if title_115 missing, use title_86 scaled up
-        if not title_frame and self.preview_size == 115:
+        # Render topframe
+        topframe = self.topframes.get(texture_size)
+        if topframe:
+            topframe_offset_px = self._calculate_topframe_offset(render_size)
+            topframe_center_y_px = center_y_px + topframe_offset_px
+            self._render_ranked_element(center_x_px, topframe_center_y_px, width_px, height_px, 
+                                        topframe, self.preview_rank, flip_v=True)
+    
+    def _render_title_preview_at_px(self, left_px, top_px, render_size=None, texture_size=None):
+        """Render title preview at pixel position (top-left anchor).
+        
+        Args:
+            left_px, top_px: Position to render at
+            render_size: Size for rendering dimensions (uses self.preview_size if None)
+            texture_size: Size for texture lookups (uses render_size if None)
+        """
+        render_size = render_size or self.preview_size
+        texture_size = texture_size or render_size
+        
+        # Calculate dimensions
+        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(render_size)
+        
+        # Calculate center position
+        center_x_px = left_px + width_px / 2.0
+        center_y_px = top_px + (height_px + crown_height_px) / 2.0
+        
+        # Render CoA with title mask
+        if self.title_mask:
+            self._render_preview_coa(
+                center_x_px, center_y_px, width_px, height_px,
+                mask_texture=self.title_mask,
+                coa_scale=(PREVIEW_COA_SCALE_TITLE, PREVIEW_COA_SCALE_TITLE),
+                coa_offset=(0.0, PREVIEW_COA_OFFSET_TITLE_Y)
+            )
+        
+        # Render crown strip
+        crown_strip = self.crown_strips.get(texture_size)
+        if crown_strip:
+            crown_offset_px = self._calculate_crown_offset_title(render_size)
+            crown_center_y_px = top_px + crown_offset_px + crown_height_px / 2.0
+            self._render_ranked_element(center_x_px, crown_center_y_px, width_px, crown_height_px,
+                                        crown_strip, self.preview_rank, flip_v=True)
+        
+        # Render title frame (scaled)
+        title_frame = self.title_frames.get(texture_size)
+        if not title_frame and texture_size == 115:
             title_frame = self.title_frames.get(86)
-        
-        if title_frame and self.basic_shader:
-            self.basic_shader.bind()
-            
-            gl.glActiveTexture(gl.GL_TEXTURE0)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, title_frame)
-            self.basic_shader.setUniformValue("textureSampler", 0)
-            
-            # Apply 1.1x scale to title frame
-            scale_factor = 1.1
-            frame_width = (right - left) * scale_factor
-            frame_height = (top - bottom) * scale_factor
-            frame_center_x = (left + right) / 2.0
-            frame_center_y = (top + bottom) / 2.0
-            frame_left = frame_center_x - frame_width / 2.0
-            frame_right = frame_center_x + frame_width / 2.0
-            frame_bottom = frame_center_y - frame_height / 2.0
-            frame_top = frame_center_y + frame_height / 2.0
-            
-            # Flip V coordinates
-            title_frame_verts = np.array([
-                frame_left, frame_bottom, 0.0,  0.0, 1.0,
-                frame_right, frame_bottom, 0.0,  1.0, 1.0,
-                frame_right, frame_top, 0.0,  1.0, 0.0,
-                frame_left, frame_top, 0.0,  0.0, 0.0,
-            ], dtype=np.float32)
-            
-            self.vbo.write(0, title_frame_verts.tobytes(), title_frame_verts.nbytes)
-            gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
-            
-            self.basic_shader.release()
-        
-        self.vao.release()
+        if title_frame:
+            scaled_width = width_px * PREVIEW_TITLE_FRAME_SCALE
+            scaled_height = height_px * PREVIEW_TITLE_FRAME_SCALE
+            self._render_preview_frame(center_x_px, center_y_px, scaled_width, scaled_height, title_frame)
+    
+    # ========================================
+    # Public API Methods
+    # ========================================
     
     def _render_government_preview(self):
-        """Render government preview in top-left corner (wrapper for backward compatibility)"""
-        # Calculate top-left position with 20px padding
-        viewport_width = self.width()
-        viewport_height = self.height()
-        
-        padding_x = 20.0 / viewport_width
-        padding_y = 20.0 / viewport_height
-        
-        ndc_left = -1.0 + padding_x * 2.0
-        ndc_top = 1.0 - padding_y * 2.0
-        
-        self._render_government_preview_at(ndc_left, ndc_top)
+        """Render government preview in top-left corner."""
+        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(self.preview_size)
+        left_px = PREVIEW_CORNER_PADDING_PX
+        top_px = PREVIEW_CORNER_PADDING_PX + PREVIEW_VERTICAL_OFFSET_PX
+        self._render_government_preview_at_px(left_px, top_px)
     
     def _render_title_preview(self):
-        """Render title preview in top-right corner (wrapper for backward compatibility)"""
-        # Calculate top-right position with 20px padding
-        viewport_width = self.width()
-        viewport_height = self.height()
+        """Render title preview in top-right corner."""
+        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(self.preview_size)
+        left_px = self.width() - width_px - PREVIEW_CORNER_PADDING_PX
+        top_px = PREVIEW_CORNER_PADDING_PX + PREVIEW_VERTICAL_OFFSET_PX
+        self._render_title_preview_at_px(left_px, top_px)
+    
+    def set_preview_enabled(self, enabled):
+        """Toggle preview rendering."""
+        self.preview_enabled = enabled
+        self.update()
+    
+    def set_preview_government(self, government):
+        """Set government type for preview."""
+        self.preview_government = government
+        if self.preview_enabled:
+            self.update()
+    
+    def set_preview_rank(self, rank):
+        """Set rank for crown strip."""
+        self.preview_rank = rank
+        if self.preview_enabled:
+            self.update()
+    
+    def set_preview_size(self, size):
+        """Set preview size in pixels."""
+        self.preview_size = size
+        if self.preview_enabled:
+            self.update()
+    
+    # ========================================
+    # Export Methods
+    # ========================================
+    
+    def export_government_preview(self, filepath, export_size=None):
+        """Export government preview to PNG file.
         
-        dims = self.get_preview_dimensions()
-        size_x, _ = dims['size_ndc']
+        Args:
+            filepath: Output file path (e.g., "output_government.png")
+            export_size: Canvas size in pixels (default: self.preview_size)
+        """
+        if export_size is None:
+            export_size = self.preview_size
         
-        padding_x = 20.0 / viewport_width
-        padding_y = 20.0 / viewport_height
+        # Canvas is square (e.g., 512x512)
+        canvas_size = export_size
         
-        ndc_left = 1.0 - padding_x * 2.0 - size_x
-        ndc_top = 1.0 - padding_y * 2.0
+        # Render at native texture size (115px for largest textures)
+        texture_size = 115  # Native size, no scaling
+        render_size = texture_size
         
-        self._render_title_preview_at(ndc_left, ndc_top)
+        # Calculate actual render dimensions at native size
+        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(render_size)
+        
+        # Center position in canvas
+        center_x = canvas_size / 2.0
+        center_y = canvas_size / 2.0
+        
+        # Top-left position (center the total height including crown)
+        left_px = center_x - width_px / 2.0
+        top_px = center_y - total_height_px / 2.0
+        
+        # Store original viewport and FBO
+        original_width = self.width()
+        original_height = self.height()
+        original_fbo = gl.glGetIntegerv(gl.GL_FRAMEBUFFER_BINDING)
+        
+        # Create square framebuffer for export
+        from PyQt5.QtGui import QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat
+        from PyQt5.QtCore import QSize
+        
+        fbo_format = QOpenGLFramebufferObjectFormat()
+        fbo_format.setAttachment(QOpenGLFramebufferObject.CombinedDepthStencil)
+        fbo_format.setInternalTextureFormat(0x8058)  # GL_RGBA8
+        
+        export_fbo = QOpenGLFramebufferObject(QSize(canvas_size, canvas_size), fbo_format)
+        if not export_fbo.isValid():
+            raise Exception("Failed to create export framebuffer")
+        
+        # Bind export framebuffer and set viewport
+        export_fbo.bind()
+        gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+        gl.glViewport(0, 0, canvas_size, canvas_size)
+        
+        # Temporarily override width()/height() for coordinate calculations during export
+        self._export_viewport_override = (canvas_size, canvas_size)
+        
+        # Render government preview centered at native size
+        self._render_government_preview_at_px(left_px, top_px, render_size=render_size, texture_size=texture_size)
+        
+        # Clear override
+        self._export_viewport_override = None
+        
+        # Read pixels and save (toImage() already returns correct orientation for FBO)
+        from PyQt5.QtGui import QImage
+        image = export_fbo.toImage()
+        image.save(filepath, "PNG")
+        
+        # Cleanup and restore
+        export_fbo.release()
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, original_fbo)
+        gl.glViewport(0, 0, original_width, original_height)
+    
+    def export_title_preview(self, filepath, export_size=None):
+        """Export title preview to PNG file.
+        
+        Args:
+            filepath: Output file path (e.g., "output_title.png")
+            export_size: Canvas size in pixels (default: self.preview_size)
+        """
+        if export_size is None:
+            export_size = self.preview_size
+        
+        # Canvas is square (e.g., 512x512)
+        canvas_size = export_size
+        
+        # Render at native texture size (115px for largest textures)
+        texture_size = 115  # Native size, no scaling
+        render_size = texture_size
+        
+        # Calculate actual render dimensions at native size
+        width_px, height_px, crown_height_px, total_height_px = self._calculate_preview_dimensions(render_size)
+        
+        # Center position in canvas
+        center_x = canvas_size / 2.0
+        center_y = canvas_size / 2.0
+        
+        # Top-left position (center the total height including crown)
+        left_px = center_x - width_px / 2.0
+        top_px = center_y - total_height_px / 2.0
+        
+        # Store original viewport and FBO
+        original_width = self.width()
+        original_height = self.height()
+        original_fbo = gl.glGetIntegerv(gl.GL_FRAMEBUFFER_BINDING)
+        
+        # Create square framebuffer for export
+        from PyQt5.QtGui import QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat
+        from PyQt5.QtCore import QSize
+        
+        fbo_format = QOpenGLFramebufferObjectFormat()
+        fbo_format.setAttachment(QOpenGLFramebufferObject.CombinedDepthStencil)
+        fbo_format.setInternalTextureFormat(0x8058)  # GL_RGBA8
+        
+        export_fbo = QOpenGLFramebufferObject(QSize(canvas_size, canvas_size), fbo_format)
+        if not export_fbo.isValid():
+            raise Exception("Failed to create export framebuffer")
+        
+        # Bind export framebuffer and set viewport
+        export_fbo.bind()
+        gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+        gl.glViewport(0, 0, canvas_size, canvas_size)
+        
+        # Temporarily override width()/height() for coordinate calculations during export
+        self._export_viewport_override = (canvas_size, canvas_size)
+        
+        # Render title preview centered at native size
+        self._render_title_preview_at_px(left_px, top_px, render_size=render_size, texture_size=texture_size)
+        
+        # Clear override
+        self._export_viewport_override = None
+        
+        # Read pixels and save (toImage() already returns correct orientation for FBO)
+        from PyQt5.QtGui import QImage
+        image = export_fbo.toImage()
+        image.save(filepath, "PNG")
+        
+        # Cleanup and restore
+        export_fbo.release()
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, original_fbo)
+        gl.glViewport(0, 0, original_width, original_height)
+    
+    def width(self):
+        """Override to support export viewport override."""
+        if hasattr(self, '_export_viewport_override') and self._export_viewport_override:
+            return self._export_viewport_override[0]
+        return super().width()
+    
+    def height(self):
+        """Override to support export viewport override."""
+        if hasattr(self, '_export_viewport_override') and self._export_viewport_override:
+            return self._export_viewport_override[1]
+        return super().height()

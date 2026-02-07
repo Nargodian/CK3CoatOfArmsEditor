@@ -64,9 +64,9 @@ class UISetupMixin:
         
         # Initialize base colors in canvas from CoA model
         base_colors = [
-            [c / 255.0 for c in self.coa.pattern_color1],
-            [c / 255.0 for c in self.coa.pattern_color2],
-            [c / 255.0 for c in self.coa.pattern_color3]
+            self.coa.pattern_color1,
+            self.coa.pattern_color2,
+            self.coa.pattern_color3
         ]
         self.canvas_area.canvas_widget.set_base_colors(base_colors)
         

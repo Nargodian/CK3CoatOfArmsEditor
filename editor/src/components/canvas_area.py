@@ -4,7 +4,7 @@ from PyQt5.QtCore import Qt
 
 # Local component imports
 from models.transform import Transform, Vec2
-from .canvas_widget_NEW import CoatOfArmsCanvas
+from .canvas_widget import CoatOfArmsCanvas
 from .transform_widget import TransformWidget
 from .canvas_area_helpers.canvas_area_transform_mixin import CanvasAreaTransformMixin
 from .canvas_area_helpers.preview_bar import PreviewBar

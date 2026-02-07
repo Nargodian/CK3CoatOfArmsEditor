@@ -21,7 +21,7 @@ class Vec2:
 
 @dataclass
 class Transform:
-    """Transform state: position, scale, and rotation.
+    """Transform state: position, scale, rotation, and flip.
     
     Used across coordinate spaces:
     - Widget space: pos in pixels (center-origin), scale in pixels (half-dimensions)
@@ -30,3 +30,5 @@ class Transform:
     pos: Vec2
     scale: Vec2
     rotation: float = 0.0
+    flip_x: bool = False
+    flip_y: bool = False

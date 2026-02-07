@@ -37,9 +37,9 @@ class CanvasRenderingMixin:
         gl.glActiveTexture(gl.GL_TEXTURE0)
         gl.glBindTexture(gl.GL_TEXTURE_2D, pattern_texture_id)
         self.base_shader.setUniformValue("patternMaskSampler", 0)
-        self.base_shader.setUniformValue("color1", QVector3D(*self.base_colors[0]))
-        self.base_shader.setUniformValue("color2", QVector3D(*self.base_colors[1]))
-        self.base_shader.setUniformValue("color3", QVector3D(*self.base_colors[2]))
+        self.base_shader.setUniformValue("color1", QVector3D(*self.base_colors[0].to_float3()))
+        self.base_shader.setUniformValue("color2", QVector3D(*self.base_colors[1].to_float3()))
+        self.base_shader.setUniformValue("color3", QVector3D(*self.base_colors[2].to_float3()))
         
         # Calculate tile index from UV offset (32x32 grid)
         tile_x = int(u0 * 32.0)

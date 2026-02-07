@@ -59,11 +59,21 @@ class CoAParser:
                     while self.pos < len(self.text) and self.text[self.pos] != '\n':
                         self.pos += 1
                     meta_line = self.text[start:self.pos].strip()
-                    # Parse key="value" and store in pending metadata
+                    # Parse key="value" or key={array} and store in pending metadata
                     if '=' in meta_line:
                         key, value = meta_line.split('=', 1)
                         key = key.strip()
-                        value = value.strip().strip('"')  # Remove quotes
+                        value = value.strip()
+                        
+                        # Handle array format: key={val1 val2 val3}
+                        if value.startswith('{') and value.endswith('}'):
+                            # Parse as space-separated array
+                            array_content = value[1:-1].strip()
+                            value = [float(x) for x in array_content.split()] if array_content else []
+                        else:
+                            # Strip quotes from string values
+                            value = value.strip('"')
+                        
                         # Store for next block to pick up
                         if not hasattr(self, '_pending_metadata'):
                             self._pending_metadata = {}

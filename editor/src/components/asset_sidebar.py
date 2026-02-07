@@ -279,7 +279,7 @@ class AssetSidebar(QFrame):
                 # Use stacked widget approach for instant color updates
                 from components.asset_widgets.stacked_emblem_widget import StackedEmblemWidget
                 from utils.atlas_compositor import get_atlas_path
-                from utils.color_utils import get_contrasting_background
+                from models.color import Color
                 
                 filename = asset.get('filename', '')
                 atlas_path = get_atlas_path(filename, 'emblem')
@@ -289,13 +289,15 @@ class AssetSidebar(QFrame):
                     stacked_widget = StackedEmblemWidget(str(atlas_path), size=self.current_icon_size - 10)
                     
                     # Set background with smart contrast
-                    emblem_color1 = colors['color1']
-                    base_background_color1 = colors['background1']
-                    contrast_bg = get_contrasting_background(emblem_color1, base_background_color1)
+                    contrast_bg = colors['color1'].get_contrasting_background(colors['background1'])
                     stacked_widget.set_background_color(contrast_bg)
                     
-                    # Set colors
-                    stacked_widget.set_colors(colors['color1'], colors['color2'], colors['color3'])
+                    # Set colors (Color objects)
+                    stacked_widget.set_colors(
+                        colors['color1'],
+                        colors['color2'],
+                        colors['color3']
+                    )
                     
                     # Track widget for future color updates
                     self.emblem_widgets.append(stacked_widget)
@@ -506,22 +508,24 @@ class AssetSidebar(QFrame):
     
     def _get_current_layer_colors(self):
         """Get colors from currently selected layer for preview compositing"""
+        from models.color import Color
+        
         # Get background colors from CoA model (not from UI buttons)
         if not hasattr(self, 'main_window') or not self.main_window or not self.main_window.coa:
             # Fallback to defaults only if model doesn't exist
             return {
-                'color1': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb']),
-                'color2': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb']),
-                'color3': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb']),
-                'background1': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR1]['rgb']),
-                'background2': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR2]['rgb']),
-                'background3': tuple(CK3_NAMED_COLORS[DEFAULT_BASE_COLOR3]['rgb'])
+                'color1': Color.from_name(DEFAULT_EMBLEM_COLOR1),
+                'color2': Color.from_name(DEFAULT_EMBLEM_COLOR2),
+                'color3': Color.from_name(DEFAULT_EMBLEM_COLOR3),
+                'background1': Color.from_name(DEFAULT_BASE_COLOR1),
+                'background2': Color.from_name(DEFAULT_BASE_COLOR2),
+                'background3': Color.from_name(DEFAULT_BASE_COLOR3)
             }
         
-        # Query CoA model for base colors (0-255 int range) and convert to 0-1 float for compositor
-        background1 = tuple(c / 255.0 for c in self.main_window.coa.pattern_color1)
-        background2 = tuple(c / 255.0 for c in self.main_window.coa.pattern_color2)
-        background3 = tuple(c / 255.0 for c in self.main_window.coa.pattern_color3)
+        # Query CoA model for base colors
+        background1 = self.main_window.coa.pattern_color1
+        background2 = self.main_window.coa.pattern_color2
+        background3 = self.main_window.coa.pattern_color3
         
         # Get selected layer UUIDs
         selected_uuids = self.right_sidebar.get_selected_uuids()
@@ -530,18 +534,18 @@ class AssetSidebar(QFrame):
             if self.right_sidebar.coa and self.right_sidebar.coa.get_layer_count() > 0:
                 layer = self.right_sidebar.coa.get_layer_by_index(0)
                 return {
-                    'color1': layer.color1 or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb']),
-                    'color2': layer.color2 or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb']),
-                    'color3': layer.color3 or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb']),
+                    'color1': layer.color1,
+                    'color2': layer.color2,
+                    'color3': layer.color3,
                     'background1': background1,
                     'background2': background2,
                     'background3': background3
                 }
             else:
                 return {
-                    'color1': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb']),
-                    'color2': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb']),
-                    'color3': tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb']),
+                    'color1': Color.from_name(DEFAULT_EMBLEM_COLOR1),
+                    'color2': Color.from_name(DEFAULT_EMBLEM_COLOR2),
+                    'color3': Color.from_name(DEFAULT_EMBLEM_COLOR3),
                     'background1': background1,
                     'background2': background2,
                     'background3': background3
@@ -549,11 +553,12 @@ class AssetSidebar(QFrame):
         else:
             uuid = list(selected_uuids)[0]
         
-        # Extract colors from layer using CoA API (stored as 0-1 range floats)
+        # Get layer and extract Color objects directly
+        layer = self.right_sidebar.coa.get_layer(uuid)
         return {
-            'color1': self.right_sidebar.coa.get_layer_color(uuid, 1) or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb']),
-            'color2': self.right_sidebar.coa.get_layer_color(uuid, 2) or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb']),
-            'color3': self.right_sidebar.coa.get_layer_color(uuid, 3) or tuple(CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb']),
+            'color1': layer.color1,
+            'color2': layer.color2,
+            'color3': layer.color3,
             'background1': background1,
             'background2': background2,
             'background3': background3
@@ -566,18 +571,15 @@ class AssetSidebar(QFrame):
         # Try to get atlas path
         try:
             if self.current_mode == "emblems":
-                from utils.color_utils import get_contrasting_background
-                
                 # For emblems, use smart contrast background
-                emblem_color1 = colors['color1']
-                base_background_color1 = colors['background1']
+                contrast_bg = colors['color1'].get_contrasting_background(colors['background1'])
                 
-                # Create new colors dict with contrasting background
+                # Create colors dict with Color objects for compositor
                 emblem_colors = {
-                    'color1': emblem_color1,
+                    'color1': colors['color1'],
                     'color2': colors['color2'],
                     'color3': colors['color3'],
-                    'background1': get_contrasting_background(emblem_color1, base_background_color1)
+                    'background1': contrast_bg
                 }
                 
                 atlas_path = get_atlas_path(filename, 'emblem')
@@ -586,6 +588,7 @@ class AssetSidebar(QFrame):
             elif self.current_mode == "patterns":
                 atlas_path = get_atlas_path(filename, 'pattern')
                 if atlas_path.exists():
+                    # Pass Color objects to compositor
                     bg_colors = {
                         'background1': colors['background1'],
                         'background2': colors['background2'],
@@ -624,13 +627,17 @@ class AssetSidebar(QFrame):
             # For emblems: update all stacked widgets directly (fast!)
             colors = self._get_current_layer_colors()
             
-            from utils.color_utils import get_contrasting_background
-            contrast_bg = get_contrasting_background(colors['color1'], colors['background1'])
+            # Calculate contrast background
+            contrast_bg = colors['color1'].get_contrasting_background(colors['background1'])
             
-            # Update all emblem widgets
+            # Update all emblem widgets (pass Color objects)
             for widget in self.emblem_widgets:
                 widget.set_background_color(contrast_bg)
-                widget.set_colors(colors['color1'], colors['color2'], colors['color3'])
+                widget.set_colors(
+                    colors['color1'],
+                    colors['color2'],
+                    colors['color3']
+                )
         else:
             # For patterns: rebuild grid (each pattern has unique colors)
             self.build_asset_grid()

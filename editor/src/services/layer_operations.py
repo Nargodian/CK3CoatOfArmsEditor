@@ -7,7 +7,7 @@ These functions provide layer manipulation logic independent of the UI.
 
 import os
 import json
-from utils.color_utils import color_name_to_rgb, rgb_to_color_name
+from models.color import Color
 from utils.path_resolver import get_emblem_metadata_path
 from utils.metadata_cache import get_texture_color_count
 from constants import (
@@ -60,12 +60,9 @@ def create_default_layer(filename, colors=None, **overrides):
         'selected_instance': 0,  # Index of currently selected instance
         'flip_x': False,
         'flip_y': False,
-        'color1': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR1]['rgb'],
-        'color2': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR2]['rgb'],
-        'color3': CK3_NAMED_COLORS[DEFAULT_EMBLEM_COLOR3]['rgb'],
-        'color1_name': DEFAULT_EMBLEM_COLOR1,
-        'color2_name': DEFAULT_EMBLEM_COLOR2,
-        'color3_name': DEFAULT_EMBLEM_COLOR3,
+        'color1': Color.from_name(DEFAULT_EMBLEM_COLOR1),
+        'color2': Color.from_name(DEFAULT_EMBLEM_COLOR2),
+        'color3': Color.from_name(DEFAULT_EMBLEM_COLOR3),
         'mask': None  # None = render everywhere (default), or [int, int, int] for mask channels
     }
     
@@ -156,16 +153,16 @@ def serialize_layer_to_text(layer):
         emblem_data['mask'] = layer.mask
     
     # Add colors only if they differ from defaults
-    color1_str = rgb_to_color_name(layer.color1, layer.color1_name)
-    color2_str = rgb_to_color_name(layer.color2, layer.color2_name)
-    color3_str = rgb_to_color_name(layer.color3, layer.color3_name)
+    default_color1 = Color.from_name(DEFAULT_EMBLEM_COLOR1)
+    default_color2 = Color.from_name(DEFAULT_EMBLEM_COLOR2)
+    default_color3 = Color.from_name(DEFAULT_EMBLEM_COLOR3)
     
-    if color1_str != DEFAULT_EMBLEM_COLOR1:
-        emblem_data['color1'] = color1_str
-    if color2_str != DEFAULT_EMBLEM_COLOR2:
-        emblem_data['color2'] = color2_str
-    if color3_str != DEFAULT_EMBLEM_COLOR3:
-        emblem_data['color3'] = color3_str
+    if layer.color1 != default_color1:
+        emblem_data['color1'] = layer.color1.to_ck3_string()
+    if layer.color2 != default_color2:
+        emblem_data['color2'] = layer.color2.to_ck3_string()
+    if layer.color3 != default_color3:
+        emblem_data['color3'] = layer.color3.to_ck3_string()
     
     # Wrap in colored_emblem block
     data = {"colored_emblem": emblem_data}
@@ -208,10 +205,15 @@ def _emblem_to_layer_data(emblem):
         }
         instances.append(instance)
     
-    # Get colors
-    color1_name = emblem.get('color1', DEFAULT_EMBLEM_COLOR1)
-    color2_name = emblem.get('color2', DEFAULT_EMBLEM_COLOR2)
-    color3_name = emblem.get('color3', DEFAULT_EMBLEM_COLOR3)
+    # Get colors (parse from CK3 format strings)
+    color1_str = emblem.get('color1', DEFAULT_EMBLEM_COLOR1)
+    color2_str = emblem.get('color2', DEFAULT_EMBLEM_COLOR2)
+    color3_str = emblem.get('color3', DEFAULT_EMBLEM_COLOR3)
+    
+    # Convert to Color objects
+    color1 = Color.from_ck3_string(color1_str)
+    color2 = Color.from_ck3_string(color2_str)
+    color3 = Color.from_ck3_string(color3_str)
     
     # Look up actual color count from texture metadata
     color_count = _get_texture_color_count(filename)
@@ -236,12 +238,9 @@ def _emblem_to_layer_data(emblem):
         'selected_instance': 0,  # Default to first instance
         'flip_x': False,
         'flip_y': False,
-        'color1': color_name_to_rgb(color1_name),
-        'color2': color_name_to_rgb(color2_name),
-        'color3': color_name_to_rgb(color3_name),
-        'color1_name': color1_name,
-        'color2_name': color2_name,
-        'color3_name': color3_name,
+        'color1': color1,
+        'color2': color2,
+        'color3': color3,
         'mask': mask  # None or [int, int, int] for mask channels
     }
     
@@ -361,12 +360,9 @@ def split_layer_instances(layer):
             'colors': layer.colors,
             'flip_x': layer.flip_x,
             'flip_y': layer.flip_y,
-            'color1': layer.color1.copy() if layer.color1 else None,
-            'color2': layer.color2.copy() if layer.color2 else None,
-            'color3': layer.color3.copy() if layer.color3 else None,
-            'color1_name': layer.color1_name,
-            'color2_name': layer.color2_name,
-            'color3_name': layer.color3_name,
+            'color1': layer.color1,
+            'color2': layer.color2,
+            'color3': layer.color3,
             'mask': list(layer.mask) if layer.mask else None,
             'instances': [dict(inst)],  # Single instance copy
             'selected_instance': 0
@@ -418,12 +414,9 @@ def merge_layers_as_instances(layers, use_topmost_properties=False):
         'colors': base.colors,
         'flip_x': base.flip_x,
         'flip_y': base.flip_y,
-        'color1': base.color1.copy() if base.color1 else None,
-        'color2': base.color2.copy() if base.color2 else None,
-        'color3': base.color3.copy() if base.color3 else None,
-        'color1_name': base.color1_name,
-        'color2_name': base.color2_name,
-        'color3_name': base.color3_name,
+        'color1': base.color1,
+        'color2': base.color2,
+        'color3': base.color3,
         'mask': list(base.mask) if base.mask else None,
         'instances': [],
         'selected_instance': 0

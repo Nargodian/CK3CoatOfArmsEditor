@@ -7,9 +7,12 @@ Each transform type is a self-contained plugin that defines:
 """
 
 from abc import ABC, abstractmethod
+import math
+from turtle import position
 from typing import List, Callable
 from PyQt5.QtWidgets import QWidget, QVBoxLayout
 from PyQt5.QtGui import QPainter
+from models.transform import Transform, Vec2
 
 
 class BaseSymmetryTransform(ABC):
@@ -134,3 +137,28 @@ class BaseSymmetryTransform(ABC):
         # Notify parent that parameters changed
         if self._on_change_callback:
             self._on_change_callback()
+    
+    def _reflect_position(self, position, offset_x, offset_y, angle):
+        dir_x = math.sin(math.radians(angle))
+        dir_y = -math.cos(math.radians(angle))
+        rel_x = position.x - offset_x
+        rel_y = position.y - offset_y
+        dist = rel_x * dir_x + rel_y * dir_y
+        mirrored_rel_x = rel_x - 2 * dist * dir_x	
+        mirrored_rel_y = rel_y - 2 * dist * dir_y
+        mirrored_x = max(0.0, min(1.0, mirrored_rel_x + offset_x))
+        mirrored_y = max(0.0, min(1.0, mirrored_rel_y + offset_y))
+        return Vec2(mirrored_x, mirrored_y)
+    
+    def get_symmetry_multiplier(self) -> int:
+        """Calculate total instance multiplier from symmetry.
+        
+        Returns:
+            Number of total instances rendered per base instance (including seed)
+        """
+        # Default implementation - subclasses can override for efficiency
+        # Create a dummy transform and count mirrors + 1 for seed
+        from models.transform import Transform, Vec2
+        dummy = Transform(Vec2(0.5, 0.5), Vec2(1.0, 1.0), 0.0)
+        mirrors = self.calculate_transforms(dummy)
+        return len(mirrors) + 1  # +1 for seed itself

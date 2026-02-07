@@ -2,6 +2,13 @@
 applyTo: '**'
 ---
 
+The Color class is the **ONLY** authority on all color behavior in the application. This strict encapsulation prevents the chaos of color logic scattered across the codebase.
+
+**Sacrosanct Rules:**
+1. **All color operations happen INSIDE Color class methods** - No exceptions
+2. **Outside code only**: Creates Color objects, calls Color methods, passes Color objects around
+3. **Forbidden everywhere else**: RGB tuple/list manipulation, color conversions, color math, hex parsing, float↔int conversions
+
 The agent should never declare that a issue is "Fixed" or "Resolved" without the user's test and confirmation.
 Commiting is only allowed if asked for by the user.
 Push IS NEVER allowed without explicit user instruction, even if the user says "fix it" or "resolve it". The agent must ask for confirmation before pushing.

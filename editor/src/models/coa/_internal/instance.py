@@ -39,6 +39,7 @@ class Instance:
         self._depth = float(data.get('depth', 0.0))
         self._flip_x = bool(data.get('flip_x', False))
         self._flip_y = bool(data.get('flip_y', False))
+        self._is_mirror = bool(data.get('is_mirror', False))
     
     # ========================================
     # Primary Properties (Vec2)
@@ -154,6 +155,16 @@ class Instance:
         """Set vertical flip"""
         self._flip_y = bool(value)
     
+    @property
+    def is_mirror(self) -> bool:
+        """Mirror flag - True if this instance was created from symmetry baking"""
+        return self._is_mirror
+    
+    @is_mirror.setter
+    def is_mirror(self, value: bool):
+        """Set mirror flag"""
+        self._is_mirror = bool(value)
+    
     # ========================================
     # Serialization
     # ========================================
@@ -170,6 +181,9 @@ class Instance:
         
         lines = []
         lines.append('\t\t\tinstance = {')
+        # Add mirror metadata tag if this is a mirrored instance
+        if self._is_mirror:
+            lines.append('\t\t\t\t##META##mirror=true')
         lines.append(f'\t\t\t\tposition = {{ {self._pos.x} {self._pos.y} }}')
         lines.append(f'\t\t\t\tscale = {{ {scale_x} {scale_y} }}')
         
@@ -206,6 +220,9 @@ class Instance:
         flip_x = scale_x_raw < 0
         flip_y = scale_y_raw < 0
         
+        # Parse mirror flag from metadata (##META##mirror=true)
+        is_mirror = data.get('mirror', False) or data.get('is_mirror', False)
+        
         return Instance({
             'pos_x': pos_x,
             'pos_y': pos_y,
@@ -214,7 +231,8 @@ class Instance:
             'rotation': data.get('rotation', 0),
             'depth': data.get('depth', 0.0),
             'flip_x': flip_x,
-            'flip_y': flip_y
+            'flip_y': flip_y,
+            'is_mirror': is_mirror
         })
     
     def to_dict(self) -> Dict[str, Any]:
@@ -231,7 +249,8 @@ class Instance:
             'rotation': self._rotation,
             'depth': self._depth,
             'flip_x': self._flip_x,
-            'flip_y': self._flip_y
+            'flip_y': self._flip_y,
+            'is_mirror': self._is_mirror
         }
     
     @staticmethod
@@ -260,4 +279,4 @@ class Instance:
     
     def __repr__(self) -> str:
         """String representation for debugging"""
-        return f"Instance(pos=({self._pos_x:.3f}, {self._pos_y:.3f}), scale=({self._scale_x:.3f}, {self._scale_y:.3f}), rot={self._rotation:.1f}°)"
+        return f"Instance(pos=({self._pos.x:.3f}, {self._pos.y:.3f}), scale=({self._scale.x:.3f}, {self._scale.y:.3f}), rot={self._rotation:.1f}°)"

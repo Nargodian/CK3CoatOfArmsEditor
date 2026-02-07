@@ -278,6 +278,41 @@ class LayerListWidget(QWidget):
             badge.move(28, 2)  # Adjusted position to be in corner
             badge.raise_()
         
+        # Add red badge for total rendered instances (with symmetry multiplier)
+        symmetry_type = self.coa.get_layer_symmetry_type(uuid)
+        if symmetry_type and symmetry_type != 'none':
+            # Get symmetry transform plugin and calculate multiplier
+            from services.symmetry_transforms import get_transform
+            transform = get_transform(symmetry_type)
+            if transform:
+                # Load layer's symmetry properties
+                properties = self.coa.get_layer_symmetry_properties(uuid)
+                if properties:
+                    transform.set_properties(properties)
+                
+                # Calculate total rendered instances
+                multiplier = transform.get_symmetry_multiplier()
+                total_rendered = instance_count * multiplier
+                
+                red_badge = QLabel(str(total_rendered))
+                red_badge.setStyleSheet("""
+                    QLabel {
+                        background-color: #bf5a5a;
+                        color: white;
+                        border: 1px solid rgba(255, 255, 255, 60);
+                        border-radius: 3px;
+                        font-size: 9px;
+                        font-weight: bold;
+                        padding: 2px 4px;
+                    }
+                """)
+                red_badge.setAlignment(Qt.AlignCenter)
+                red_badge.setFixedSize(18, 16)
+                # Position badge in bottom-right corner
+                red_badge.setParent(icon_container)
+                red_badge.move(28, 30)  # Bottom-right position
+                red_badge.raise_()
+        
         btn_layout.addWidget(icon_container)
         
         # Add layer name - query from CoA by UUID using get_layer_name()
@@ -1484,28 +1519,26 @@ class LayerListWidget(QWidget):
         if not filename:
             return None
         
-        from utils.color_utils import get_contrasting_background
+        from models.color import Color
         
-        # Get actual layer colors (in 0-1 range) - query from CoA
-        emblem_color1 = self.coa.get_layer_color(uuid, 1) or [0.75, 0.525, 0.188]
+        # Get actual layer colors as Color objects from CoA
+        emblem_color1 = self.coa.get_layer_color(uuid, 1) or Color.from_name('yellow')
         
         # Get base background color from CoA model (View→Model, not View→View)
         if self.coa and hasattr(self.coa, 'pattern_color1'):
-            # Convert from 0-255 int to 0-1 float
-            base_color_int = self.coa.pattern_color1
-            base_background_color1 = [base_color_int[0] / 255.0, base_color_int[1] / 255.0, base_color_int[2] / 255.0]
+            base_background_color1 = self.coa.pattern_color1
         else:
-            base_background_color1 = [0.45, 0.133, 0.090]
+            base_background_color1 = Color.from_name('red')
         
-        # Choose background color with smart contrast
-        background_color = get_contrasting_background(emblem_color1, base_background_color1)
+        # Choose background color with smart contrast (all Color objects)
+        background_color_obj = emblem_color1.get_contrasting_background(base_background_color1)
         
-        # Extract colors from CoA (already in 0-1 range)
+        # Extract colors from CoA (Color objects)
         colors = {
-            'color1': tuple(self.coa.get_layer_color(uuid, 1) or [0.75, 0.525, 0.188]),
-            'color2': tuple(self.coa.get_layer_color(uuid, 2) or [0.45, 0.133, 0.090]),
-            'color3': tuple(self.coa.get_layer_color(uuid, 3) or [0.45, 0.133, 0.090]),
-            'background1': background_color
+            'color1': self.coa.get_layer_color(uuid, 1) or Color.from_name('yellow'),
+            'color2': self.coa.get_layer_color(uuid, 2) or Color.from_name('red'),
+            'color3': self.coa.get_layer_color(uuid, 3) or Color.from_name('red'),
+            'background1': background_color_obj
         }
         
         try:
@@ -1624,6 +1657,37 @@ class LayerListWidget(QWidget):
                     badge.setParent(icon_container)
                     badge.move(28, 2)  # Adjusted position to be in corner
                     badge.raise_()
+                
+                # Add red badge for total rendered instances (with symmetry)
+                symmetry_type = self.coa.get_layer_symmetry_type(uuid)
+                if symmetry_type and symmetry_type != 'none':
+                    from services.symmetry_transforms import get_transform
+                    transform = get_transform(symmetry_type)
+                    if transform:
+                        properties = self.coa.get_layer_symmetry_properties(uuid)
+                        if properties:
+                            transform.set_properties(properties)
+                        
+                        multiplier = transform.get_symmetry_multiplier()
+                        total_rendered = instance_count * multiplier
+                        
+                        red_badge = QLabel(str(total_rendered))
+                        red_badge.setStyleSheet("""
+                            QLabel {
+                                background-color: #bf5a5a;
+                                color: white;
+                                border: 1px solid rgba(255, 255, 255, 60);
+                                border-radius: 3px;
+                                font-size: 9px;
+                                font-weight: bold;
+                                padding: 2px 4px;
+                            }
+                        """)
+                        red_badge.setAlignment(Qt.AlignCenter)
+                        red_badge.setFixedSize(18, 16)
+                        red_badge.setParent(icon_container)
+                        red_badge.move(28, 30)
+                        red_badge.raise_()
         
         # Update name label (component 1)
         if layout.count() > 1:

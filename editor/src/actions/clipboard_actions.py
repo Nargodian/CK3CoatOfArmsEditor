@@ -60,9 +60,6 @@ class ClipboardActions:
             # Apply to UI - update from model
             self.main_window.canvas_area.canvas_widget.set_base_texture(self.main_window.coa.pattern)
             self.main_window.canvas_area.canvas_widget.set_base_colors([self.main_window.coa.pattern_color1, self.main_window.coa.pattern_color2, self.main_window.coa.pattern_color3])
-            self.main_window.canvas_area.canvas_widget.base_color1_name = self.main_window.coa.pattern_color1_name
-            self.main_window.canvas_area.canvas_widget.base_color2_name = self.main_window.coa.pattern_color2_name
-            self.main_window.canvas_area.canvas_widget.base_color3_name = self.main_window.coa.pattern_color3_name
             
             self.main_window.right_sidebar._refresh_base_colors_from_model()
             

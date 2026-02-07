@@ -1703,3 +1703,9 @@ class CoATransformMixin:
         if self._transform_cache is None:
             return None
         return self._transform_cache.get(uuid)
+    
+    # ========================================
+    # Symmetry Baking
+    # ========================================
+    # END OF TransformMixin
+    # ========================================
