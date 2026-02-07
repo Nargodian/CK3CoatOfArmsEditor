@@ -16,9 +16,8 @@ class RadialGenerator(BaseGenerator):
     DEFAULT_SCALE = 0.06
     
     def __init__(self):
-        super().__init__()
-        
-        # Initialize default settings
+        # Initialize default settings BEFORE calling super()
+        # so cache restoration can update these defaults
         self.settings = {
             'count': self.DEFAULT_COUNT,  # Number of rays
             'min_radius': self.DEFAULT_MIN_RADIUS,
@@ -31,6 +30,8 @@ class RadialGenerator(BaseGenerator):
             'rotation_mode': 'global',
             'base_rotation': 0.0,
         }
+        
+        super().__init__()
     
     def get_title(self) -> str:
         """Return display title."""

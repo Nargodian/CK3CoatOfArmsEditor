@@ -23,6 +23,8 @@ class GridGenerator(BaseGenerator):
             'columns': self.DEFAULT_COLUMNS,
             'uniform_scale': self.DEFAULT_SCALE,
         }
+        
+        super().__init__()
     
     def get_title(self) -> str:
         """Return display title."""

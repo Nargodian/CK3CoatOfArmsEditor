@@ -21,9 +21,8 @@ class NgonGenerator(BaseGenerator):
     DEFAULT_ARC_BEND = 0.0  # Arc curvature for polygon edges
     
     def __init__(self):
-        super().__init__()
-        
-        # Initialize default settings
+        # Initialize default settings BEFORE calling super()
+        # so cache restoration can update these defaults
         self.settings = {
             'mode': self.DEFAULT_MODE,
             'sides': self.DEFAULT_SIDES,
@@ -39,6 +38,8 @@ class NgonGenerator(BaseGenerator):
             'base_rotation': self.DEFAULT_BASE_ROTATION,
             'arc_bend': self.DEFAULT_ARC_BEND,
         }
+        
+        super().__init__()
     
     def get_title(self) -> str:
         """Return display title."""

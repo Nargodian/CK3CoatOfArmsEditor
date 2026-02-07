@@ -21,9 +21,8 @@ class LineGenerator(BaseGenerator):
     DEFAULT_USE_V_SHAPE = False
     
     def __init__(self):
-        super().__init__()
-        
-        # Initialize default settings
+        # Initialize default settings BEFORE calling super()
+        # so cache restoration can update these defaults
         self.settings = {
             'mode': self.DEFAULT_MODE,
             'count': self.DEFAULT_COUNT,

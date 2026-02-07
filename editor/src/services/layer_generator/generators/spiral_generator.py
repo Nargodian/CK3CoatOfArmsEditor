@@ -21,9 +21,8 @@ class SpiralGenerator(BaseGenerator):
     DEFAULT_MODE = 'count'
     
     def __init__(self):
-        super().__init__()
-        
-        # Initialize default settings
+        # Initialize default settings BEFORE calling super()
+        # so cache restoration can update these defaults
         self.settings = {
             'mode': self.DEFAULT_MODE,
             'count': self.DEFAULT_COUNT,
@@ -40,6 +39,8 @@ class SpiralGenerator(BaseGenerator):
             'rotation_mode': self.DEFAULT_ROTATION_MODE,
             'base_rotation': self.DEFAULT_BASE_ROTATION,
         }
+        
+        super().__init__()
     
     def get_title(self) -> str:
         """Return display title."""
