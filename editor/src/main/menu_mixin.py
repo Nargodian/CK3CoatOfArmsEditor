@@ -209,6 +209,10 @@ class MenuMixin:
         copy_layer_action.setShortcut("Ctrl+C")
         copy_layer_action.triggered.connect(self.clipboard_actions.copy_layer)
         
+        cut_layer_action = self.layers_menu.addAction("Cu&t Layer")
+        cut_layer_action.setShortcut("Ctrl+X")
+        cut_layer_action.triggered.connect(self.clipboard_actions.cut_layer)
+        
         paste_layer_action = self.layers_menu.addAction("&Paste Layer")
         paste_layer_action.setShortcut("Ctrl+V")
         paste_layer_action.triggered.connect(self.clipboard_actions.paste_layer_smart)
@@ -323,18 +327,30 @@ class MenuMixin:
         self.grid_16x16_action.setCheckable(True)
         self.grid_16x16_action.triggered.connect(lambda: self._set_grid_size(16))
         
+        self.grid_32x32_action = grid_menu.addAction("&32x32")
+        self.grid_32x32_action.setCheckable(True)
+        self.grid_32x32_action.triggered.connect(lambda: self._set_grid_size(32))
+        
         grid_menu.addSeparator()
         
         self.grid_off_action = grid_menu.addAction("&Off")
         self.grid_off_action.setCheckable(True)
         self.grid_off_action.triggered.connect(lambda: self._set_grid_size(0))
         
-        # Group grid actions
+        grid_menu.addSeparator()
+        
+        self.grid_snap_action = grid_menu.addAction("&Snap")
+        self.grid_snap_action.setCheckable(True)
+        self.grid_snap_action.setChecked(False)
+        self.grid_snap_action.triggered.connect(self._toggle_grid_snap)
+        
+        # Group grid size actions (mutually exclusive)
         self.grid_action_group = QActionGroup(self)
         self.grid_action_group.addAction(self.grid_2x2_action)
         self.grid_action_group.addAction(self.grid_4x4_action)
         self.grid_action_group.addAction(self.grid_8x8_action)
         self.grid_action_group.addAction(self.grid_16x16_action)
+        self.grid_action_group.addAction(self.grid_32x32_action)
         self.grid_action_group.addAction(self.grid_off_action)
         self.grid_off_action.setChecked(True)  # Start with grid off
         
@@ -418,8 +434,13 @@ class MenuMixin:
             if hasattr(self.canvas_area, 'update_transform_widget_for_layer'):
                 self.canvas_area.update_transform_widget_for_layer()
     
+    def _toggle_grid_snap(self, checked):
+        """Toggle snap-to-grid for transform positioning."""
+        if hasattr(self.canvas_area, 'canvas_widget'):
+            self.canvas_area.canvas_widget.snap_to_grid = checked
+    
     def _set_grid_size(self, divisions):
-        """Set grid size (0 = off, 2/4/8/16 = grid divisions)"""
+        """Set grid size (0 = off, 2/4/8/16/32 = grid divisions)"""
         if hasattr(self.canvas_area, 'canvas_widget'):
             if divisions == 0:
                 self.canvas_area.canvas_widget.set_show_grid(False)

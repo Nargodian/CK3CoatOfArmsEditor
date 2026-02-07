@@ -17,6 +17,20 @@ class ClipboardActions:
         """
         self.main_window = main_window
     
+    def cut_layer(self):
+        """Cut selected layer(s) - copy to clipboard then delete. No-op if nothing selected."""
+        selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
+        if not selected_uuids:
+            return
+        
+        # Copy first, then delete
+        self.copy_layer()
+        self.main_window.right_sidebar._delete_layer()
+        
+        # Override the delete history entry with a cut-specific one
+        layer_word = "layers" if len(selected_uuids) > 1 else "layer"
+        self.main_window.status_left.setText(f"{len(selected_uuids)} {layer_word} cut to clipboard")
+    
     def copy_coa(self):
         """Copy current CoA to clipboard"""
         #COA INTEGRATION ACTION: Step 7 - Use CoA model for copy operations
@@ -84,11 +98,8 @@ class ClipboardActions:
         selected_uuids = self.main_window.right_sidebar.get_selected_uuids()
         
         if not selected_uuids:
-            QMessageBox.information(
-                self.main_window,
-                "Copy Layer",
-                "No layer selected"
-            )
+            # No selection: copy entire CoA
+            self.copy_coa()
             return
         
         # PHASE 6: Detect if copying whole container or individual layers
@@ -311,9 +322,29 @@ class ClipboardActions:
         except Exception as e:
             loggerRaise(e, f"Failed to paste layer: {str(e)}")
 
+    @staticmethod
+    def _is_full_coa(text):
+        """Check if clipboard text is a full CoA (vs loose layer blocks).
+        
+        Full CoAs have a pattern= key at the CoA level, which layers never have.
+        """
+        import re
+        return bool(re.search(r'\bpattern\s*=\s*"', text))
+    
     def paste_layer_smart(self):
-        """Smart paste - pastes at mouse position if over canvas, otherwise at offset position"""
+        """Smart paste - auto-detects full CoA vs layer data, pastes at mouse if over canvas."""
         try:
+            # Check clipboard content type first
+            clipboard = QApplication.clipboard()
+            text = clipboard.text()
+            if not text:
+                return
+            
+            if self._is_full_coa(text):
+                # Full CoA detected - import it
+                self.paste_coa()
+                return
+            
             mouse_pos = self.main_window.canvas_area.mapFromGlobal(self.main_window.cursor().pos())
             canvas_geometry = self.main_window.canvas_area.canvas_widget.geometry()
             

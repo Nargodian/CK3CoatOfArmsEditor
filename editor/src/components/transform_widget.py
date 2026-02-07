@@ -498,6 +498,37 @@ class TransformWidget(QWidget):
             print(f"wheelEvent error: {e}")
             event.accept()
     
+    def _snap_position_to_grid(self, transform):
+        """Snap a transform's position to the nearest grid point.
+        
+        Converts center-origin pixel position → CoA space, snaps to grid,
+        then converts back to pixel space. This gives the user visible
+        snapping during drag.
+        
+        Args:
+            transform: Transform with pos in center-origin pixel space
+            
+        Returns:
+            New Transform with snapped position
+        """
+        cw = self.canvas_widget
+        divisions = cw.grid_divisions
+        
+        # Convert pixel center-origin → top-left → CoA space
+        topleft_pos = cw.center_origin_to_topleft(transform.pos)
+        coa_pos = cw.canvas_to_coa(topleft_pos)
+        
+        # Snap to nearest grid point in CoA space (0..1)
+        step = 1.0 / divisions
+        snapped_x = round(coa_pos.x / step) * step
+        snapped_y = round(coa_pos.y / step) * step
+        
+        # Convert back: CoA → canvas top-left → center-origin pixels
+        snapped_canvas = cw.coa_to_canvas(Vec2(snapped_x, snapped_y))
+        snapped_center = cw.topleft_to_center_origin(snapped_canvas)
+        
+        return Transform(snapped_center, transform.scale, transform.rotation)
+    
     def _handle_drag(self, current_pos, modifiers=None):
         """Delegate drag handling to the active handle's polymorphic drag() method."""
         if not self.drag_start_pos or not self.drag_start_transform or not self.active_handle:
@@ -521,6 +552,15 @@ class TransformWidget(QWidget):
             start_transform,
             modifiers
         )
+        
+        # Snap position to grid if enabled (translate & gimble axis drags)
+        if (self.drag_context and 
+                self.drag_context.operation in ('translate', 'axis_x', 'axis_y') and
+                self.canvas_widget and
+                getattr(self.canvas_widget, 'snap_to_grid', False) and
+                getattr(self.canvas_widget, 'show_grid', False) and
+                getattr(self.canvas_widget, 'grid_divisions', 0) > 0):
+            new_transform = self._snap_position_to_grid(new_transform)
         
         # Update internal state from returned Transform
         self.center_x = new_transform.pos.x

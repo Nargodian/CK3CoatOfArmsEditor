@@ -40,6 +40,8 @@ class AssetMixin:
         """Apply texture to base pattern"""
         self.right_sidebar.set_base_color_count(color_count)
         if filename:
+            # Update the model so it exports correctly
+            self.coa.pattern = filename
             self.canvas_area.canvas_widget.set_base_texture(filename)
             self._save_state("Change base texture")
     
@@ -63,16 +65,6 @@ class AssetMixin:
             layer.filename = dds_filename
             layer.path = dds_filename
             layer.colors = color_count
-            
-            # Reset colors to defaults when texture changes
-            # This ensures the color buttons show the correct default colors for the new texture
-            from models.color import Color
-            from constants import DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3
-            layer.color1 = Color.from_name(DEFAULT_EMBLEM_COLOR1)
-            if color_count >= 2:
-                layer.color2 = Color.from_name(DEFAULT_EMBLEM_COLOR2)
-            if color_count >= 3:
-                layer.color3 = Color.from_name(DEFAULT_EMBLEM_COLOR3)
             
             # Invalidate thumbnail cache and update button for this layer (by UUID)
             if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:

@@ -31,34 +31,55 @@ class FileActions:
         self.main_window = main_window
     
     def new_coa(self):
-        """Create new CoA, prompt to save if needed"""
-        if not self.main_window._prompt_save_if_needed():
+        """Reset to empty CoA, prompt to save if needed.
+        
+        Flushes the existing CoA model (preserving all references) rather than
+        creating a new instance, so canvas, sidebar, and other components
+        don't need re-wiring.
+        """
+        mw = self.main_window
+        if not mw._prompt_save_if_needed():
             return
         
-        # Reset current file and saved flag
-        self.main_window.current_file_path = None
-        self.main_window.is_saved = True
-        self.main_window._update_window_title()
+        # Clear selection first (layers will be empty after clear)
+        mw.right_sidebar.clear_selection()
         
-        # Clear existing CoA to defaults
-        self.main_window.coa.clear()
+        # Flush existing CoA to defaults (keeps the same object)
+        mw.coa.clear()
         
-        # Clear history before loading (to avoid storing default state)
-        self.main_window.history_manager.clear()
+        # Sync canvas visuals to match model defaults
+        from constants import DEFAULT_PATTERN_TEXTURE, DEFAULT_BASE_CATEGORY
+        mw.canvas_area.canvas_widget.set_base_texture(mw.coa.pattern)
+        mw.canvas_area.canvas_widget.set_base_colors([
+            mw.coa.pattern_color1,
+            mw.coa.pattern_color2,
+            mw.coa.pattern_color3,
+        ])
         
-        # Rebuild UI to reflect new empty CoA
-        self.main_window.right_sidebar._rebuild_layer_list()
-        self.main_window.canvas_area.canvas_widget.update()
+        # Refresh property sidebar from model
+        mw.right_sidebar._refresh_base_colors_from_model()
+        mw.right_sidebar._rebuild_layer_list()
+        mw.right_sidebar.tab_widget.setCurrentIndex(0)
         
-        # Create initial history entry
-        self.main_window._save_state("New CoA")
+        # Reset asset sidebar to patterns mode
+        if hasattr(mw, 'left_sidebar'):
+            mw.left_sidebar.current_mode = "patterns"
+            mw.left_sidebar.current_category = DEFAULT_BASE_CATEGORY
+            mw.left_sidebar.display_assets()
         
-        # Reset saved flag (saving state sets it to False)
-        self.main_window.is_saved = True
+        # Reset file state
+        mw.current_file_path = None
+        mw.is_saved = True
+        mw._update_window_title()
         
-        # Update UI
-        self.main_window._update_window_title()
-        self.main_window._update_status_bar()
+        # Clear history and create initial entry
+        mw.history_manager.clear()
+        mw._save_state("New CoA")
+        mw.is_saved = True
+        mw._update_window_title()
+        mw._update_status_bar()
+        
+        mw.canvas_area.canvas_widget.update()
     
     def save_coa(self):
         """Save the current coat of arms"""

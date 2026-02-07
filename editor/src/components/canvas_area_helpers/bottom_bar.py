@@ -87,28 +87,10 @@ class BottomBar(QFrame):
         layout.addSpacing(20)
         
         # Transform mode dropdown
-        self.transform_mode_combo = QComboBox()
-        self.transform_mode_combo.addItems(["BBox", "Minimal", "Gimble"])
+        self.transform_mode_combo = create_styled_combo_box(["BBox", "Minimal", "Gimble"])
+        self.transform_mode_combo.setFixedWidth(100)
         self.transform_mode_combo.setCurrentIndex(0)  # Default to BBox
         self.transform_mode_combo.setToolTip("Transform Widget Mode (M)\nBBox: Scale + rotation handles\nMinimal: Corners only\nGimble: Position arrows + rotation ring")
-        self.transform_mode_combo.setFixedHeight(20)
-        self.transform_mode_combo.setStyleSheet("""
-            QComboBox {
-                font-size: 11px;
-                padding: 2px 4px;
-                border: 1px solid rgba(255, 255, 255, 40);
-                background-color: rgba(40, 40, 40, 200);
-                color: white;
-            }
-            QComboBox::drop-down {
-                border: none;
-            }
-            QComboBox QAbstractItemView {
-                background-color: rgba(40, 40, 40, 240);
-                color: white;
-                selection-background-color: rgba(100, 150, 255, 100);
-            }
-        """)
         self.transform_mode_combo.currentIndexChanged.connect(self._on_transform_mode_changed)
         layout.addWidget(self.transform_mode_combo)
         

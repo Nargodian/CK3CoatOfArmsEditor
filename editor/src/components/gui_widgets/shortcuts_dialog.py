@@ -45,7 +45,7 @@ class ShortcutsDialog(QDialog):
         <tr><td><b>Ctrl+-</b></td><td>Zoom out (min 25%)</td></tr>
         <tr><td><b>Ctrl+0</b></td><td>Reset zoom to 100%</td></tr>
         <tr><td><b>Ctrl+Wheel</b></td><td>Zoom in/out with mouse wheel</td></tr>
-        <tr><td><b>Drag</b></td><td>Pan canvas when zoomed >100%</td></tr>
+        <tr><td><b>Drag</b></td><td>Pan canvas when zoomed &gt;100%</td></tr>
         </table>
         
         <h3>Layer Operations</h3>
@@ -54,11 +54,12 @@ class ShortcutsDialog(QDialog):
         <tr><td><b>Shift+Click</b></td><td>(on layer) Select range of layers</td></tr>
         <tr><td><b>Ctrl+Click</b></td><td>(on layer) Add/remove layer from selection</td></tr>
         <tr><td><b>Ctrl+A</b></td><td>Select all layers</td></tr>
-        <tr><td><b>Ctrl+C</b></td><td>Copy selected layer(s)</td></tr>
-        <tr><td><b>Ctrl+V</b></td><td>Paste layer(s) from clipboard</td></tr>
+        <tr><td><b>Ctrl+C</b></td><td>Copy selected layer(s) — or full CoA if nothing selected</td></tr>
+        <tr><td><b>Ctrl+X</b></td><td>Cut selected layer(s) to clipboard</td></tr>
+        <tr><td><b>Ctrl+V</b></td><td>Paste layer(s) — auto-detects full CoA and imports it</td></tr>
         <tr><td><b>Ctrl+D</b></td><td>Duplicate selected layer(s)</td></tr>
         <tr><td><b>Delete</b></td><td>Delete selected layer(s)</td></tr>
-        <tr><td><b>R</b></td><td>Rotate selected layer(s) -45 degrees</td></tr>
+        <tr><td><b>R</b></td><td>Rotate selected layer(s) −45 degrees</td></tr>
         <tr><td><b>Shift+R</b></td><td>Rotate selected layer(s) +45 degrees</td></tr>
         </table>
         
@@ -71,6 +72,12 @@ class ShortcutsDialog(QDialog):
         <tr><td><b>Alt+Wheel</b></td><td>(while dragging) Adjust rotation in 5° increments</td></tr>
         <tr><td><b>Ctrl+Wheel</b></td><td>(while dragging) Adjust scale X only</td></tr>
         <tr><td><b>Shift+Wheel</b></td><td>(while dragging) Adjust scale Y only</td></tr>
+        </table>
+        
+        <h3>Grid &amp; Snapping</h3>
+        <table width="100%">
+        <tr><td width="30%"><b>View → Grid</b></td><td>Show grid overlay (2×2, 4×4, 8×8, 16×16, 32×32)</td></tr>
+        <tr><td><b>View → Grid → Snap</b></td><td>Snap layer position to grid points while dragging</td></tr>
         </table>
         
         <h3>Picker Tool</h3>

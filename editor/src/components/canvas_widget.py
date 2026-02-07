@@ -119,6 +119,7 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
         self.pan_y = 0.0
         self.show_grid = False
         self.grid_divisions = 4
+        self.snap_to_grid = False
         
         # Mouse state
         self.is_panning = False

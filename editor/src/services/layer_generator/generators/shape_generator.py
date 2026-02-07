@@ -196,8 +196,9 @@ class ShapeGenerator(BaseGenerator):
     def _on_shape_changed(self, shape_name: str):
         """Handle shape selection change."""
         self.set_shape(shape_name)
-        # Update title would happen here if we had access to popup
-        # For now, settings are updated
+        # Trigger regeneration
+        if self.on_parameter_changed:
+            self.on_parameter_changed()
     
     def _on_param_changed(self, param_name: str, value):
         """Handle parameter value change."""

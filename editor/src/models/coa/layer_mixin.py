@@ -577,13 +577,13 @@ class CoALayerMixin:
         
         for layer in layers[1:]:
             # Compare only the colors that the first layer actually uses
-            if first_color_count >= 1 and tuple(layer.color1) != tuple(first_layer.color1):
+            if first_color_count >= 1 and layer.color1 != first_layer.color1:
                 colors_match = False
                 break
-            if first_color_count >= 2 and tuple(layer.color2) != tuple(first_layer.color2):
+            if first_color_count >= 2 and layer.color2 != first_layer.color2:
                 colors_match = False
                 break
-            if first_color_count >= 3 and tuple(layer.color3) != tuple(first_layer.color3):
+            if first_color_count >= 3 and layer.color3 != first_layer.color3:
                 colors_match = False
                 break
         
@@ -816,11 +816,11 @@ class CoALayerMixin:
             color_count = ref.colors
             
             for idx, layer in enumerate(layers[1:], start=1):
-                if color_count >= 1 and list(layer.color1) != list(ref.color1):
+                if color_count >= 1 and layer.color1 != ref.color1:
                     differences.setdefault('color1', []).append(idx)
-                if color_count >= 2 and list(layer.color2) != list(ref.color2):
+                if color_count >= 2 and layer.color2 != ref.color2:
                     differences.setdefault('color2', []).append(idx)
-                if color_count >= 3 and list(layer.color3) != list(ref.color3):
+                if color_count >= 3 and layer.color3 != ref.color3:
                     differences.setdefault('color3', []).append(idx)
         
         compatible = len(differences) == 0

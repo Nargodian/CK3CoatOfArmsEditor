@@ -203,6 +203,103 @@ class LayerListWidget(QWidget):
         # Re-add stretch at the end
         self.layers_layout.addStretch()
     
+    # Known thumbnail geometry within layer_btn
+    # btn_layout margins: (5, 5, 5, 5), icon_container: 48x48, button height: 60
+    _ICON_X = 5
+    _ICON_Y = 6   # vertically centered: (60 - 10 - 48) / 2 + 5
+    _ICON_SIZE = 48
+
+    def _create_badge(self, parent_btn, text, color, position='top-right'):
+        """Create a badge overlay label as a sibling of the thumbnail.
+        
+        Badges are children of the layer button itself (not the icon_container)
+        so they paint on top of the thumbnail without being obscured.
+        Positioned relative to the thumbnail's known location.
+        
+        Args:
+            parent_btn: The layer QPushButton to parent the badge to
+            text: Badge text (e.g. instance count or total rendered)
+            color: Background color hex string (e.g. '#5a8dbf' for blue, '#bf5a5a' for red)
+            position: 'top-right' or 'bottom-right'
+            
+        Returns:
+            The created QLabel badge
+        """
+        badge = QLabel(str(text))
+        badge.setProperty('is_badge', True)
+        badge.setStyleSheet(f"""
+            QLabel {{
+                background-color: {color};
+                color: white;
+                border: 1px solid rgba(255, 255, 255, 60);
+                border-radius: 3px;
+                font-size: 9px;
+                font-weight: bold;
+                padding: 1px 3px;
+            }}
+        """)
+        badge.setAlignment(Qt.AlignCenter)
+        badge.setParent(parent_btn)
+        
+        # Let the badge size itself to fit content
+        badge.adjustSize()
+        badge_w = badge.width()
+        badge_h = badge.height()
+        
+        # Position relative to thumbnail corner, overlapping the edge
+        x = self._ICON_X + self._ICON_SIZE - badge_w + 4
+        if position == 'top-right':
+            y = self._ICON_Y - 4
+        else:  # bottom-right
+            y = self._ICON_Y + self._ICON_SIZE - badge_h + 4
+        
+        badge.move(x, y)
+        badge.raise_()
+        badge.show()
+        return badge
+    
+    def _apply_badges(self, layer_btn, uuid):
+        """Apply instance count and symmetry badges to a layer button.
+        
+        Badges are children of the layer button (siblings of icon_container)
+        so they render on top of the thumbnail without being obscured.
+        Removes any existing badges and creates new ones based on current
+        layer state.
+        
+        Args:
+            layer_btn: The QPushButton for this layer
+            uuid: Layer UUID to query badge data from
+        """
+        if not self.coa:
+            return
+        
+        # Remove old badges (identified by 'is_badge' property)
+        for child in layer_btn.children():
+            if isinstance(child, QLabel) and child.property('is_badge'):
+                child.deleteLater()
+        
+        instance_count = self.coa.get_layer_instance_count(uuid)
+        
+        # Blue badge: instance count (only if multi-instance)
+        if instance_count > 1:
+            badge = self._create_badge(layer_btn, str(instance_count), '#5a8dbf', 'top-right')
+            badge.setToolTip(f"{instance_count} instances")
+        
+        # Red badge: total rendered instances (with symmetry multiplier)
+        symmetry_type = self.coa.get_layer_symmetry_type(uuid)
+        if symmetry_type and symmetry_type != 'none':
+            from services.symmetry_transforms import get_transform
+            transform = get_transform(symmetry_type)
+            if transform:
+                properties = self.coa.get_layer_symmetry_properties(uuid)
+                if properties:
+                    transform.set_properties(properties)
+                
+                multiplier = transform.get_symmetry_multiplier()
+                total_rendered = instance_count * multiplier
+                badge = self._create_badge(layer_btn, str(total_rendered), '#bf5a5a', 'bottom-right')
+                badge.setToolTip(f"{total_rendered} total ({instance_count} instances × {multiplier} symmetry)")
+    
     def _create_layer_button(self, uuid, indented=False):
         """Create a layer button widget from UUID"""
         if not self.coa:
@@ -250,6 +347,12 @@ class LayerListWidget(QWidget):
         icon_label.setFixedSize(48, 48)
         icon_label.setStyleSheet("border: 1px solid rgba(255, 255, 255, 40); border-radius: 3px;")
         
+        # Set emblem filename as tooltip on thumbnail
+        emblem_name = filename or 'Empty'
+        if emblem_name.lower().endswith('.dds'):
+            emblem_name = emblem_name[:-4]
+        icon_label.setToolTip(emblem_name)
+        
         # Generate colored thumbnail
         thumbnail = self._generate_layer_thumbnail(uuid, size=48)
         if thumbnail and not thumbnail.isNull():
@@ -257,63 +360,10 @@ class LayerListWidget(QWidget):
         
         icon_container_layout.addWidget(icon_label)
         
-        # Add instance count badge for multi-instance layers
-        if instance_count > 1:
-            badge = QLabel(str(instance_count))
-            badge.setStyleSheet("""
-                QLabel {
-                    background-color: #5a8dbf;
-                    color: white;
-                    border: 1px solid rgba(255, 255, 255, 60);
-                    border-radius: 3px;
-                    font-size: 9px;
-                    font-weight: bold;
-                    padding: 2px 4px;
-                }
-            """)
-            badge.setAlignment(Qt.AlignCenter)
-            badge.setFixedSize(18, 16)  # Fixed size to prevent stretching
-            # Position badge in top-right corner
-            badge.setParent(icon_container)
-            badge.move(28, 2)  # Adjusted position to be in corner
-            badge.raise_()
-        
-        # Add red badge for total rendered instances (with symmetry multiplier)
-        symmetry_type = self.coa.get_layer_symmetry_type(uuid)
-        if symmetry_type and symmetry_type != 'none':
-            # Get symmetry transform plugin and calculate multiplier
-            from services.symmetry_transforms import get_transform
-            transform = get_transform(symmetry_type)
-            if transform:
-                # Load layer's symmetry properties
-                properties = self.coa.get_layer_symmetry_properties(uuid)
-                if properties:
-                    transform.set_properties(properties)
-                
-                # Calculate total rendered instances
-                multiplier = transform.get_symmetry_multiplier()
-                total_rendered = instance_count * multiplier
-                
-                red_badge = QLabel(str(total_rendered))
-                red_badge.setStyleSheet("""
-                    QLabel {
-                        background-color: #bf5a5a;
-                        color: white;
-                        border: 1px solid rgba(255, 255, 255, 60);
-                        border-radius: 3px;
-                        font-size: 9px;
-                        font-weight: bold;
-                        padding: 2px 4px;
-                    }
-                """)
-                red_badge.setAlignment(Qt.AlignCenter)
-                red_badge.setFixedSize(18, 16)
-                # Position badge in bottom-right corner
-                red_badge.setParent(icon_container)
-                red_badge.move(28, 30)  # Bottom-right position
-                red_badge.raise_()
-        
         btn_layout.addWidget(icon_container)
+        
+        # Apply badge overlays as siblings of icon_container (children of layer_btn)
+        self._apply_badges(layer_btn, uuid)
         
         # Add layer name - query from CoA by UUID using get_layer_name()
         layer_name = self.coa.get_layer_name(uuid) if self.coa else 'Empty Layer'
@@ -1632,62 +1682,8 @@ class LayerListWidget(QWidget):
                         if thumbnail and not thumbnail.isNull():
                             icon_label.setPixmap(thumbnail)
                 
-                # Update instance count badge
-                # Remove old badge if it exists
-                for child in icon_container.children():
-                    if isinstance(child, QLabel) and child != icon_layout.itemAt(0).widget():
-                        child.deleteLater()
-                
-                # Add new badge if needed
-                if instance_count > 1:
-                    badge = QLabel(str(instance_count))
-                    badge.setStyleSheet("""
-                        QLabel {
-                            background-color: #5a8dbf;
-                            color: white;
-                            border: 1px solid rgba(255, 255, 255, 60);
-                            border-radius: 3px;
-                            font-size: 9px;
-                            font-weight: bold;
-                            padding: 2px 4px;
-                        }
-                    """)
-                    badge.setAlignment(Qt.AlignCenter)
-                    badge.setFixedSize(18, 16)  # Fixed size to prevent stretching
-                    badge.setParent(icon_container)
-                    badge.move(28, 2)  # Adjusted position to be in corner
-                    badge.raise_()
-                
-                # Add red badge for total rendered instances (with symmetry)
-                symmetry_type = self.coa.get_layer_symmetry_type(uuid)
-                if symmetry_type and symmetry_type != 'none':
-                    from services.symmetry_transforms import get_transform
-                    transform = get_transform(symmetry_type)
-                    if transform:
-                        properties = self.coa.get_layer_symmetry_properties(uuid)
-                        if properties:
-                            transform.set_properties(properties)
-                        
-                        multiplier = transform.get_symmetry_multiplier()
-                        total_rendered = instance_count * multiplier
-                        
-                        red_badge = QLabel(str(total_rendered))
-                        red_badge.setStyleSheet("""
-                            QLabel {
-                                background-color: #bf5a5a;
-                                color: white;
-                                border: 1px solid rgba(255, 255, 255, 60);
-                                border-radius: 3px;
-                                font-size: 9px;
-                                font-weight: bold;
-                                padding: 2px 4px;
-                            }
-                        """)
-                        red_badge.setAlignment(Qt.AlignCenter)
-                        red_badge.setFixedSize(18, 16)
-                        red_badge.setParent(icon_container)
-                        red_badge.move(28, 30)
-                        red_badge.raise_()
+                # Refresh badge overlays as siblings (children of button, not icon_container)
+                self._apply_badges(button, uuid)
         
         # Update name label (component 1)
         if layout.count() > 1:

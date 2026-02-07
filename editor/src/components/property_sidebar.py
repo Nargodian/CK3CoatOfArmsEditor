@@ -1219,9 +1219,11 @@ class PropertySidebar(QFrame):
     
     
     def _update_layer_scale_and_widget(self):
-        """Update layer scale using delta-based approach for multi-selection/multi-instance.
+        """Update layer scale using ratio-based approach for multi-selection/multi-instance.
         
-        Calculates delta from first instance and applies to all selected instances.
+        Scale is multiplicative, so we apply a ratio (not a delta) to preserve
+        relative proportions across instances. If the first instance is at 0.5 and
+        the slider changes to 1.0, all instances are scaled by 2x.
         Flip states are toggled for all instances when changed.
         """
         selected_uuids = self.get_selected_uuids()
@@ -1231,22 +1233,27 @@ class PropertySidebar(QFrame):
         # Get scale values and flip states from UI
         scale_x, scale_y, flip_x, flip_y = self.scale_editor.get_scale_values()
         
-        # Get first instance values to calculate delta
+        # Get first instance values to calculate ratio
         first_scale_x = self._get_first_instance_value('scale_x')
         first_scale_y = self._get_first_instance_value('scale_y')
         
-        if first_scale_x is None:
+        if first_scale_x is None or first_scale_x == 0.0:
             first_scale_x = 1.0
-        if first_scale_y is None:
+        if first_scale_y is None or first_scale_y == 0.0:
             first_scale_y = 1.0
         
-        # Calculate deltas
-        delta_x = scale_x - first_scale_x
-        delta_y = scale_y - first_scale_y
+        # Calculate ratios
+        ratio_x = scale_x / first_scale_x
+        ratio_y = scale_y / first_scale_y
         
-        # Apply scale deltas to all selected layers/instances
-        self._apply_delta_to_selected('scale_x', delta_x)
-        self._apply_delta_to_selected('scale_y', delta_y)
+        # Apply scale ratios to all selected layers/instances, clamped to [0, 1]
+        for uuid in selected_uuids:
+            current_scale = self.main_window.coa.get_layer_scale(uuid)
+            if current_scale is None:
+                current_scale = Vec2(1.0, 1.0)
+            new_sx = min(current_scale.x * ratio_x, 1.0)
+            new_sy = min(current_scale.y * ratio_y, 1.0)
+            self.main_window.coa.set_layer_scale(uuid, new_sx, new_sy)
         
         # Apply flip states: toggle if checkbox changed from original loaded state
         # This allows clicking the checkbox to toggle ALL instances
@@ -1650,6 +1657,8 @@ class PropertySidebar(QFrame):
                         properties = self.active_symmetry_transform.get_properties()
                         for uuid in selected_uuids:
                             self.main_window.coa.set_layer_symmetry_properties(uuid, properties)
+                            # Refresh layer list badge to show updated symmetry multiplier
+                            self.layer_list_widget.update_layer_button(uuid)
                         if self.canvas_widget:
                             self.canvas_widget.update()
                 
@@ -1672,6 +1681,8 @@ class PropertySidebar(QFrame):
                 if self.active_symmetry_transform:
                     properties = self.active_symmetry_transform.get_properties()
                     self.main_window.coa.set_layer_symmetry_properties(uuid, properties)
+                # Refresh layer list badge to show symmetry change
+                self.layer_list_widget.update_layer_button(uuid)
             
             # Update canvas
             if self.canvas_widget:
