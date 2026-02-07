@@ -98,7 +98,7 @@ class GridTransform(BaseSymmetryTransform):
         fill_layout = QHBoxLayout()
         fill_label = QLabel("Fill:")
         fill_dropdown = QComboBox()
-        fill_dropdown.addItems(["Full", "Diamond", "Alt-Diamond"])
+        fill_dropdown.addItems(["Full", "Checkerboard"])
         fill_dropdown.setCurrentIndex(self.settings['fill'])
         fill_dropdown.currentIndexChanged.connect(
             lambda idx: self._on_param_changed('fill', idx))
@@ -110,7 +110,7 @@ class GridTransform(BaseSymmetryTransform):
         return layout
     
     def calculate_transforms(self, seed_transform) -> List:
-        """Calculate grid transforms."""
+        """Calculate grid transforms with seed-based identity and auto-determined checkerboard."""
         from models.transform import Transform, Vec2
         
         offset_x = self.settings['offset_x']
@@ -121,58 +121,141 @@ class GridTransform(BaseSymmetryTransform):
         
         mirrors = []
         
-        # Calculate cell size (grid spans CoA space 0-1)
+        # Calculate cell size (grid spans CoA space 0-1, ignoring offset)
         cell_width = 1.0 / count_x
         cell_height = 1.0 / count_y
         
-        # Find which cell the seed is in
-        seed_cell_x = int((seed_transform.pos.x - offset_x) / cell_width)
-        seed_cell_y = int((seed_transform.pos.y - offset_y) / cell_height)
+        # Calculate identity cell from seed position (dynamic, offset ignored)
+        identity_col = int(seed_transform.pos.x / cell_width)
+        identity_row = int(seed_transform.pos.y / cell_height)
         
-        # Generate positions for all cells
+        # Clamp to grid bounds
+        identity_col = max(0, min(count_x - 1, identity_col))
+        identity_row = max(0, min(count_y - 1, identity_row))
+        
+        # Calculate seed parity for checkerboard pattern
+        seed_parity = (identity_row + identity_col) % 2
+        
+        # Calculate seed's offset from its identity cell center
+        identity_cell_center_x = (identity_col + 0.5) * cell_width
+        identity_cell_center_y = (identity_row + 0.5) * cell_height
+        seed_offset_x = seed_transform.pos.x - identity_cell_center_x
+        seed_offset_y = seed_transform.pos.y - identity_cell_center_y
+        
+        # Generate positions for all cells in grid
+        base_mirrors = []
         for row in range(count_y):
             for col in range(count_x):
-                # Skip seed cell
-                if row == seed_cell_y and col == seed_cell_x:
+                # Skip identity cell (seed stays at original position)
+                if row == identity_row and col == identity_col:
                     continue
                 
-                # Check fill pattern
-                if not self._should_fill_cell(row, col, count_x, count_y, fill):
+                # Check fill pattern (pass seed parity for checkerboard)
+                if not self._should_fill_cell(row, col, seed_parity, fill):
                     continue
                 
-                # Calculate position for this cell
-                cell_offset_x = col * cell_width
-                cell_offset_y = row * cell_height
-                
-                # Offset within cell (relative to seed's offset within its cell)
-                within_cell_x = (seed_transform.pos.x - offset_x) % cell_width
-                within_cell_y = (seed_transform.pos.y - offset_y) % cell_height
-                
-                new_x = offset_x + cell_offset_x + within_cell_x
-                new_y = offset_y + cell_offset_y + within_cell_y
+                # Calculate cell center, then apply seed's offset from its cell center
+                cell_center_x = (col + 0.5) * cell_width
+                cell_center_y = (row + 0.5) * cell_height
+                new_x = max(0.0, min(1.0, cell_center_x + seed_offset_x))
+                new_y = max(0.0, min(1.0, cell_center_y + seed_offset_y))
                 
                 mirror = Transform(
                     Vec2(new_x, new_y),
                     Vec2(seed_transform.scale.x, seed_transform.scale.y),
                     seed_transform.rotation
                 )
-                mirrors.append(mirror)
+                base_mirrors.append(mirror)
+        
+        # Apply edge wrapping to all instances (seed + mirrors)
+        mirrors = []
+        EDGE_THRESHOLD = 0.01  # Within 1% of edge
+        
+        all_instances = [seed_transform] + base_mirrors
+        for instance in all_instances:
+            # Skip the actual seed when processing from base_mirrors (already in all_instances)
+            if instance in base_mirrors:
+                mirrors.append(instance)
+            
+            inst_x = instance.pos.x
+            inst_y = instance.pos.y
+            
+            # Check if near edges
+            near_left = inst_x <= EDGE_THRESHOLD
+            near_right = inst_x >= (1.0 - EDGE_THRESHOLD)
+            near_bottom = inst_y <= EDGE_THRESHOLD
+            near_top = inst_y >= (1.0 - EDGE_THRESHOLD)
+            
+            # Wrap horizontally
+            if near_left:
+                mirrors.append(Transform(
+                    Vec2(inst_x + 1.0, inst_y),
+                    Vec2(instance.scale.x, instance.scale.y),
+                    instance.rotation
+                ))
+            if near_right:
+                mirrors.append(Transform(
+                    Vec2(inst_x - 1.0, inst_y),
+                    Vec2(instance.scale.x, instance.scale.y),
+                    instance.rotation
+                ))
+            
+            # Wrap vertically
+            if near_bottom:
+                mirrors.append(Transform(
+                    Vec2(inst_x, inst_y + 1.0),
+                    Vec2(instance.scale.x, instance.scale.y),
+                    instance.rotation
+                ))
+            if near_top:
+                mirrors.append(Transform(
+                    Vec2(inst_x, inst_y - 1.0),
+                    Vec2(instance.scale.x, instance.scale.y),
+                    instance.rotation
+                ))
+            
+            # Wrap corners
+            if near_left and near_bottom:
+                mirrors.append(Transform(
+                    Vec2(inst_x + 1.0, inst_y + 1.0),
+                    Vec2(instance.scale.x, instance.scale.y),
+                    instance.rotation
+                ))
+            if near_left and near_top:
+                mirrors.append(Transform(
+                    Vec2(inst_x + 1.0, inst_y - 1.0),
+                    Vec2(instance.scale.x, instance.scale.y),
+                    instance.rotation
+                ))
+            if near_right and near_bottom:
+                mirrors.append(Transform(
+                    Vec2(inst_x - 1.0, inst_y + 1.0),
+                    Vec2(instance.scale.x, instance.scale.y),
+                    instance.rotation
+                ))
+            if near_right and near_top:
+                mirrors.append(Transform(
+                    Vec2(inst_x - 1.0, inst_y - 1.0),
+                    Vec2(instance.scale.x, instance.scale.y),
+                    instance.rotation
+                ))
         
         return mirrors
     
-    def _should_fill_cell(self, row, col, count_x, count_y, fill):
-        """Check if cell should be filled based on fill pattern."""
+    def _should_fill_cell(self, row, col, seed_parity, fill):
+        """Check if cell should be filled based on fill pattern.
+        
+        Args:
+            row: Cell row index
+            col: Cell column index
+            seed_parity: Parity of seed cell (0 or 1) for checkerboard
+            fill: Fill mode (0=full, 1=checkerboard)
+        """
         if fill == 0:  # Full
             return True
-        elif fill == 1:  # Diamond
-            # Diamond pattern: abs(row - center_y) + abs(col - center_x) <= radius
-            center_x = count_x / 2.0
-            center_y = count_y / 2.0
-            distance = abs(col - center_x) + abs(row - center_y)
-            radius = min(count_x, count_y) / 2.0
-            return distance <= radius
-        elif fill == 2:  # Alt-Diamond (checkerboard)
-            return (row + col) % 2 == 0
+        elif fill == 1:  # Checkerboard (auto-determined by seed)
+            # Fill cells matching seed's checkerboard parity
+            return (row + col) % 2 == seed_parity
         return False
     
     def draw_overlay(self, painter: QPainter, layer_uuid: str, coa):
@@ -183,29 +266,38 @@ class GridTransform(BaseSymmetryTransform):
         count_y = self.settings['count_y']
         fill = self.settings['fill']
         
+        # Get seed position to calculate parity for checkerboard
+        layer = coa.get_layer_by_uuid(layer_uuid)
+        if not layer:
+            return
+        
+        seed_pos = layer.pos
+        cell_width = 1.0 / count_x
+        cell_height = 1.0 / count_y
+        identity_col = int(seed_pos.x / cell_width)
+        identity_row = int(seed_pos.y / cell_height)
+        identity_col = max(0, min(count_x - 1, identity_col))
+        identity_row = max(0, min(count_y - 1, identity_row))
+        seed_parity = (identity_row + identity_col) % 2
+        
         # Set up pen for grid lines
         pen = QPen(QColor(255, 255, 0, 180))  # Yellow, semi-transparent
         pen.setWidth(1)
         pen.setStyle(Qt.DashLine)
         painter.setPen(pen)
         
-        # Calculate cell size in pixels
+        # Calculate cell size in pixels (grid spans full canvas 0-512)
         cell_width_px = 512.0 / count_x
         cell_height_px = 512.0 / count_y
         
-        offset_x_px = offset_x * 512
-        offset_y_px = offset_y * 512
-        
-        # Draw grid lines and shade cells
+        # Draw grid lines
         for row in range(count_y + 1):
-            y = offset_y_px + (row * cell_height_px)
-            painter.drawLine(int(offset_x_px), int(y), 
-                           int(offset_x_px + count_x * cell_width_px), int(y))
+            y = row * cell_height_px
+            painter.drawLine(0, int(y), 512, int(y))
         
         for col in range(count_x + 1):
-            x = offset_x_px + (col * cell_width_px)
-            painter.drawLine(int(x), int(offset_y_px), 
-                           int(x), int(offset_y_px + count_y * cell_height_px))
+            x = col * cell_width_px
+            painter.drawLine(int(x), 0, int(x), 512)
         
         # Shade cells based on fill pattern
         brush = QBrush(QColor(255, 255, 0, 40))  # Very transparent yellow
@@ -214,9 +306,9 @@ class GridTransform(BaseSymmetryTransform):
         
         for row in range(count_y):
             for col in range(count_x):
-                if self._should_fill_cell(row, col, count_x, count_y, fill):
-                    x = offset_x_px + (col * cell_width_px)
-                    y = offset_y_px + (row * cell_height_px)
+                if self._should_fill_cell(row, col, seed_parity, fill):
+                    x = col * cell_width_px
+                    y = row * cell_height_px
                     painter.drawRect(int(x), int(y), 
                                    int(cell_width_px), int(cell_height_px))
     
