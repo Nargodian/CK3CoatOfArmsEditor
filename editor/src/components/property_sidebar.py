@@ -403,6 +403,8 @@ class PropertySidebar(QFrame):
         for i in range(3):
             color_btn = QPushButton()
             color_btn.setFixedSize(60, 60)
+            color_btn.setAutoFillBackground(True)  # Ensure background renders
+            color_btn.setFlat(False)  # Use normal button style
             color_btn.clicked.connect(lambda checked, btn=color_btn: self._show_color_picker(btn))
             self.emblem_color_buttons.append(color_btn)
             self.emblem_color_layout.addWidget(color_btn)
@@ -1402,12 +1404,14 @@ class PropertySidebar(QFrame):
                 """)
             elif color_value is not None:
                 # Qt boundary: convert Color to hex for stylesheet
+                btn.setStyleSheet("")
                 btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {color_value.to_hex()};
-                    border-radius: 4px;
-                }}
-            """)
+                    QPushButton {{
+                        background-color: {color_value.to_hex()};
+                        border-radius: 4px;
+                    }}
+                """)
+                btn.repaint()
     
     def _select_layer(self, index):
         """Handle layer selection with modifier key support"""

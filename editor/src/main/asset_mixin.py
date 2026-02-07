@@ -64,6 +64,16 @@ class AssetMixin:
             layer.path = dds_filename
             layer.colors = color_count
             
+            # Reset colors to defaults when texture changes
+            # This ensures the color buttons show the correct default colors for the new texture
+            from models.color import Color
+            from constants import DEFAULT_EMBLEM_COLOR1, DEFAULT_EMBLEM_COLOR2, DEFAULT_EMBLEM_COLOR3
+            layer.color1 = Color.from_name(DEFAULT_EMBLEM_COLOR1)
+            if color_count >= 2:
+                layer.color2 = Color.from_name(DEFAULT_EMBLEM_COLOR2)
+            if color_count >= 3:
+                layer.color3 = Color.from_name(DEFAULT_EMBLEM_COLOR3)
+            
             # Invalidate thumbnail cache and update button for this layer (by UUID)
             if hasattr(self.right_sidebar, 'layer_list_widget') and self.right_sidebar.layer_list_widget:
                 self.right_sidebar.layer_list_widget.invalidate_thumbnail(layer.uuid)
@@ -71,6 +81,8 @@ class AssetMixin:
             
             # Update UI and canvas (no full rebuild needed)
             self.right_sidebar._update_layer_selection()
+            # Reload properties to refresh color swatches based on new texture
+            self.right_sidebar._load_layer_properties()
             self.canvas_area.canvas_widget.update()
             self._save_state("Change layer texture")
     

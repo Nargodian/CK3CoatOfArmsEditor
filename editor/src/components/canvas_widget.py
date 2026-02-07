@@ -293,7 +293,7 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
             pattern_flag |= 2
         if len(mask) > 2 and mask[2] != 0:
             pattern_flag |= 4
-        gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
+        return pattern_flag
     
     def _composite_to_viewport(self):
         """Composite RTT texture to viewport with zoom and frame."""

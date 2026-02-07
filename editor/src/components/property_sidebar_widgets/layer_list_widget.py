@@ -1739,19 +1739,22 @@ class LayerListWidget(QWidget):
             
             # Get current color from CoA by UUID
             color_obj = self.coa.get_layer_color(uuid, color_idx)
-            rgb = color_obj.to_rgb255() if color_obj else (255, 255, 255)
+            color_hex = color_obj.to_hex() if color_obj else "#ffffff"
             
+            # Use working pattern: clear, set, repaint (matching base color buttons)
+            color_btn.setStyleSheet("")
             color_btn.setStyleSheet(f"""
                 QPushButton {{
                     border: 1px solid rgba(255, 255, 255, 80);
                     border-radius: 2px;
-                    background-color: rgb{rgb};
+                    background-color: {color_hex};
                     padding: 0px;
                 }}
                 QPushButton:hover {{
                     border: 2px solid rgba(255, 255, 255, 150);
                 }}
             """)
+            color_btn.repaint()
             color_btn.clicked.connect(lambda checked, u=uuid, c_idx=color_idx: self._handle_color_pick(u, c_idx))
             color_layout.addWidget(color_btn)
         
