@@ -30,11 +30,14 @@ class BaseGenerator(ABC):
     
     def __init__(self):
         """Initialize generator with default settings."""
-        self.settings = {}  # Stores parameter values
+        # Only initialize settings if subclass hasn't already (for backwards compat)
+        if not hasattr(self, 'settings'):
+            self.settings = {}  # Stores parameter values
         self._controls = {}  # Maps parameter names to widgets
         self._last_generated = None  # Cache last generation result
         
         # Restore cached settings for this generator type if available
+        # This updates the defaults set by subclass with cached values
         cache_key = self.__class__.__name__
         if cache_key in BaseGenerator._settings_cache:
             self.settings.update(BaseGenerator._settings_cache[cache_key])
