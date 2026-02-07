@@ -133,12 +133,29 @@ class CanvasRenderingMixin:
         # Pattern mask
         mask = coa.get_layer_mask(layer_uuid)
         pattern_flag = self._calculate_pattern_flag(mask)
+        if pattern_flag is None:
+            pattern_flag = 0  # Defensive fallback
         self.design_shader.setUniformValue("patternFlag", pattern_flag)
     
     def _calculate_pattern_flag(self, mask):
-        """Calculate pattern flag from mask array."""
-        if mask is None or len(mask) == 0:
+        """Calculate pattern flag from mask array.
+        
+        Args:
+            mask: List of mask channel values [r, g, b] or None
+            
+        Returns:
+            int: Bitmask where bit 0=red, bit 1=green, bit 2=blue
+        """
+        if mask is None:
             return 0
+        
+        # Handle non-list types
+        if not isinstance(mask, (list, tuple)):
+            return 0
+            
+        if len(mask) == 0:
+            return 0
+            
         pattern_flag = 0
         if len(mask) > 0 and mask[0] != 0:
             pattern_flag |= 1

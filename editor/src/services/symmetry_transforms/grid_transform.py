@@ -61,7 +61,7 @@ class GridTransform(BaseSymmetryTransform):
         
         # Count X slider
         count_x_widget = NumberSliderWidget("Columns", self.settings['count_x'],
-                                           min_val=1, max_val=8, is_int=True)
+                                           min_val=1, max_val=16, is_int=True)
         count_x_widget.valueChanged.connect(
             lambda v: self._on_param_changed('count_x', int(v)))
         layout.addWidget(count_x_widget)
@@ -69,7 +69,7 @@ class GridTransform(BaseSymmetryTransform):
         
         # Count Y slider
         count_y_widget = NumberSliderWidget("Rows", self.settings['count_y'],
-                                           min_val=1, max_val=8, is_int=True)
+                                           min_val=1, max_val=16, is_int=True)
         count_y_widget.valueChanged.connect(
             lambda v: self._on_param_changed('count_y', int(v)))
         layout.addWidget(count_y_widget)
