@@ -563,11 +563,23 @@ class GimbleCenterHandle(Handle):
         painter.drawEllipse(QPointF(center_x, center_y), float(self.dot_radius), float(self.dot_radius))
     
     def drag(self, mouse_x, mouse_y, start_mouse_x, start_mouse_y, 
-             start_cx, start_cy, start_hw, start_hh, start_rot, modifiers):
-        """Translate entire transform - same behavior as CenterHandle."""
+             start_transform, modifiers):
+        """Translate entire transform - same behavior as CenterHandle.
+        
+        Args:
+            mouse_x, mouse_y: Current mouse position in center-origin coordinates
+            start_mouse_x, start_mouse_y: Drag start mouse position in center-origin coordinates
+            start_transform: Transform object with initial state
+            modifiers: Qt keyboard modifiers (unused for center drag)
+            
+        Returns:
+            Transform: Updated transform with translated position
+        """
+        from models.transform import Transform, Vec2
         dx = mouse_x - start_mouse_x
         dy = mouse_y - start_mouse_y
-        return (start_cx + dx, start_cy + dy, start_hw, start_hh, start_rot)
+        new_pos = Vec2(start_transform.pos.x + dx, start_transform.pos.y + dy)
+        return Transform(new_pos, start_transform.scale, start_transform.rotation)
     
     def get_cursor(self):
         """Move cursor for gimble center."""

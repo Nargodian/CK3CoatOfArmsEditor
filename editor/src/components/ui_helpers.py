@@ -17,14 +17,14 @@ def create_styled_combo_box(items):
     combo.addItems(items)
     combo.setStyleSheet("""
         QComboBox {
-            padding: 5px 10px;
-            padding-right: 25px;
+            padding: 5px 5px;
+            padding-right: 20px;
             border-radius: 3px;
             border: none;
         }
         QComboBox::drop-down {
             border: none;
-            width: 20px;
+            width: 16px;
         }
         QComboBox::down-arrow {
             image: none;

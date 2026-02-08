@@ -16,97 +16,134 @@ uniform vec3 tertiaryColor;
 
 uniform float selectionTint; // 0.0 = no tint, 1.0 = full red tint for selected layers
 
-// Overlay blend function (per-channel)
+const float TILE_SIZE = 1.0 / 32.0;    // 0.03125 for 32×32 grid
+const float TILE_INSET = 0.0001;       // ~0.8 pixels at 8192 resolution
+const vec2 RTT_SIZE = vec2(512.0);     // CoA RTT framebuffer size
+
+// ============================================================================
+// Blending Functions
+// ============================================================================
+
 float overlayBlend(float base, float blend) {
-	return (blend < 0.5) ? (2.0 * base * blend) : (1.0 - 2.0 * (1.0 - base) * (1.0 - blend));
+	return (blend < 0.5) 
+		? (2.0 * base * blend) 
+		: (1.0 - 2.0 * (1.0 - base) * (1.0 - blend));
 }
 
-// Apply overlay blend with strength
 vec3 applyOverlay(vec3 base, vec3 blend, float strength) {
-	vec3 result;
-	result.r = overlayBlend(base.r, blend.r);
-	result.g = overlayBlend(base.g, blend.g);
-	result.b = overlayBlend(base.b, blend.b);
+	vec3 result = vec3(
+		overlayBlend(base.r, blend.r),
+		overlayBlend(base.g, blend.g),
+		overlayBlend(base.b, blend.b)
+	);
 	return mix(base, result, strength);
 }
 
-void main()
-{
-	// Calculate emblem tile bounds from tile index (32×32 grid)
-	const float emblemTileSize = 1.0 / 32.0;  // 0.03125 for 32×32 grid
-	vec2 emblemTileMin = vec2(emblemTileIndex) * emblemTileSize;
-	vec2 emblemTileMax = emblemTileMin + emblemTileSize;
-	
-	// Inset by ~0.8 pixels at 8192 resolution to avoid edge bleeding
-	float emblemInset = 0.0001;
-	vec2 emblemClampMin = emblemTileMin + emblemInset;
-	vec2 emblemClampMax = emblemTileMax - emblemInset;
-	
-	// Map per-instance UV (0-1) to emblem tile in atlas
-	vec2 emblemAtlasUV = mix(emblemTileMin, emblemTileMax, fragUV);
-	emblemAtlasUV = clamp(emblemAtlasUV, emblemClampMin, emblemClampMax);
-	
-	vec4 textureMask = texture(emblemMaskSampler, emblemAtlasUV);
-	vec3 outputColour = vec3(0.);
-	outputColour = mix(primaryColor, secondaryColor, textureMask.g);
-	outputColour = mix(outputColour, tertiaryColor, textureMask.r);
-	
-	// Apply blue channel as overlay shading (CK3 uses ~0.7 strength for aggressive shading)
-	outputColour = applyOverlay(outputColour, vec3(textureMask.b), 0.7);
-	
-	// Calculate CoA UV from fragment coords (512×512 RTT framebuffer)
-	vec2 coaUV = gl_FragCoord.xy / vec2(512.0, 512.0);
-	coaUV.y = 1.0 - coaUV.y;  // Flip Y (OpenGL bottom-up to texture top-down)
-	
-	// Calculate pattern tile bounds from tile index (32×32 grid)
-	const float tileSize = 1.0 / 32.0;  // 0.03125 for 32×32 grid
-	vec2 tileMin = vec2(patternTileIndex) * tileSize;
-	vec2 tileMax = tileMin + tileSize;
-	
-	// Inset by ~0.8 pixels at 8192 resolution to avoid edge bleeding
-	float inset = 0.0001;
-	vec2 clampMin = tileMin + inset;
-	vec2 clampMax = tileMax - inset;
-	
-	// Map coaUV to pattern atlas space and clamp
-	vec2 patternCoord = mix(tileMin, tileMax, coaUV);
-	patternCoord = clamp(patternCoord, clampMin, clampMax);
-	
-	vec4 patternMask = texture(patternMaskSampler, patternCoord);
-	// flags
-	// 0 mask off
-	// 1 maskR on
-	// 2 maskG on
-	// 3 maskR and maskG on
-	// 4 maskB on
-	// 5 maskR and maskB on
-	// 6 maskG and maskB on
-	// 7 maskR and maskG and maskB on
-	float patternMaskValue = 0.0;
-	bool allOrNoneSet = (patternFlag & 7) == 7 || (patternFlag & 7) == 0;
+// ============================================================================
+// Atlas UV Calculation
+// ============================================================================
 
-	if((patternFlag & 1) == 1 && !allOrNoneSet)
-	{
-		patternMaskValue = max(0.0, patternMask.r - patternMask.g);
-	}
-	if((patternFlag & 2) == 2 && !allOrNoneSet)
-	{
-		patternMaskValue += max(0.0, patternMask.g - patternMask.b);
-	}
-	if((patternFlag & 4) == 4 && !allOrNoneSet)
-	{
-		patternMaskValue += patternMask.b;
-	}
-	// If no valid pattern channels selected, default to full pattern
-	if(allOrNoneSet)
-	{
-		patternMaskValue = 1.0;
-	}
-	// Clamp pattern mask to valid range
-	patternMaskValue = clamp(patternMaskValue, 0.0, 1.0);
+vec2 calculateAtlasUV(vec2 localUV, uvec2 tileIndex) {
+	vec2 tileMin = vec2(tileIndex) * TILE_SIZE;
+	vec2 tileMax = tileMin + TILE_SIZE;
+	vec2 atlasUV = mix(tileMin, tileMax, localUV);
+	return clamp(atlasUV, tileMin + TILE_INSET, tileMax - TILE_INSET);
+}
+
+vec2 getCoaUV() {
+	vec2 uv = gl_FragCoord.xy / RTT_SIZE;
+	uv.y = 1.0 - uv.y;  // Flip Y (OpenGL bottom-up to texture top-down)
+	return uv;
+}
+
+// ============================================================================
+// Color Computation
+// ============================================================================
+
+vec3 computeEmblemColor(vec4 mask) {
+	vec3 color = mix(primaryColor, secondaryColor, mask.g);
+	color = mix(color, tertiaryColor, mask.r);
+	// Blue channel = overlay shading (CK3 uses ~0.7 strength)
+	return applyOverlay(color, vec3(mask.b), 0.7);
+}
+
+vec3 applySelectionTint(vec3 color, vec2 atlasUV, float alpha) {
+	if (selectionTint < 0.01 || alpha < 0.01) return color;
 	
-	// Apply selection tint (red overlay) if selected
-	vec3 finalColor = mix(outputColour, vec3(1.0, 0.3, 0.3), selectionTint * 0.5);
+	// Colors
+	vec3 cageColor = vec3(1.0, 0.7, 0.7);   // Bright pink for edges + stripes
+	vec3 fillColor = vec3(1.0, 0.2, 0.2);   // Red tint for fill
 	
-	FragColor = vec4(finalColor, textureMask.a * patternMaskValue);
+	// Diagonal stripes (screen-space for consistent width)
+	vec2 screenPos = gl_FragCoord.xy;
+	float stripe = fract((screenPos.x + screenPos.y) * 0.02);  // 0.02 = ~10px stripes at 512 resolution
+	float stripeMask = step(0.9, stripe);  // 10% stripe width, aligned to screen diagonals
+	
+	stripe = fract((screenPos.x - screenPos.y) * 0.02);  // 0.02 = ~10px stripes at 512 resolution
+	stripeMask = max(stripeMask, step(0.9, stripe));  // 10% stripe width, aligned to screen diagonals
+	
+	// Edge detection: sample 4 neighbors from emblem alpha
+	vec2 texelSize = vec2(TILE_SIZE / 256.0);  // Tile is 256px in atlas
+	float alphaL = texture(emblemMaskSampler, atlasUV + vec2(-texelSize.x, 0.0)).a;
+	float alphaR = texture(emblemMaskSampler, atlasUV + vec2( texelSize.x, 0.0)).a;
+	float alphaU = texture(emblemMaskSampler, atlasUV + vec2(0.0,  texelSize.y)).a;
+	float alphaD = texture(emblemMaskSampler, atlasUV + vec2(0.0, -texelSize.y)).a;
+	
+	// Edge where any neighbor has significantly different alpha
+	float maxDiff = max(max(abs(alpha - alphaL), abs(alpha - alphaR)),
+	                    max(abs(alpha - alphaU), abs(alpha - alphaD)));
+	float isEdge = step(0.1, maxDiff);
+	
+	// Combine: cage = stripes OR edges (both bright pink)
+	float cageMask = max(stripeMask, isEdge);
+	
+	// Fill gets red tint, cage gets pink
+	vec3 tinted = mix(color, fillColor, 0.35);        // Red fill base
+	tinted = mix(tinted, cageColor, cageMask * 0.9);  // Pink cage on top
+	
+	return mix(color, tinted, selectionTint);
+}
+
+// ============================================================================
+// Pattern Mask Calculation
+// ============================================================================
+
+float computePatternMask(vec4 patternSample) {
+	// Pattern flag bits: 1=R, 2=G, 4=B
+	// 0 or 7 = all channels (full mask)
+	int channels = patternFlag & 7;
+	
+	if (channels == 0 || channels == 7) {
+		return 1.0;  // No masking or all channels = full opacity
+	}
+	
+	float mask = 0.0;
+	if ((channels & 1) != 0) mask += max(0.0, patternSample.r - patternSample.g);
+	if ((channels & 2) != 0) mask += max(0.0, patternSample.g - patternSample.b);
+	if ((channels & 4) != 0) mask += patternSample.b;
+	
+	return clamp(mask, 0.0, 1.0);
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+void main() {
+	// Sample emblem mask
+	vec2 emblemUV = calculateAtlasUV(fragUV, emblemTileIndex);
+	vec4 emblemMask = texture(emblemMaskSampler, emblemUV);
+	
+	// Compute base color from emblem channels
+	vec3 color = computeEmblemColor(emblemMask);
+	
+	// Sample pattern mask and compute alpha multiplier
+	vec2 patternUV = calculateAtlasUV(getCoaUV(), patternTileIndex);
+	vec4 patternSample = texture(patternMaskSampler, patternUV);
+	float patternAlpha = computePatternMask(patternSample);
+	
+	// Final output
+	float finalAlpha = emblemMask.a * patternAlpha;
+	color = applySelectionTint(color, emblemUV, emblemMask.a);
+	FragColor = vec4(color, finalAlpha);
 }

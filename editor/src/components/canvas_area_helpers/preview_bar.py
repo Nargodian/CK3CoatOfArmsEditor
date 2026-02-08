@@ -44,7 +44,8 @@ class PreviewBar(QFrame):
         rank_label = QLabel("Rank:")
         rank_label.setStyleSheet("font-size: 11px; border: none;")
         layout.addWidget(rank_label)
-        ranks = ["Baron", "Count", "Duke", "King", "Emperor", "Hegemon"]
+        ranks = ["Baron", "Count", "Duke", "King", "Emperor", "Hegemon",
+                 "Adventurer", "Holy Order", "Mercenary"]
         self.rank_combo = create_styled_combo_box(ranks)
         self.rank_combo.setMinimumWidth(120)
         self.rank_combo.setCurrentIndex(2)  # Default to Duke

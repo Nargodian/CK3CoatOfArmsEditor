@@ -49,7 +49,7 @@ PREVIEW_TITLE_FRAME_SCALE = 1.1
 PREVIEW_CORNER_PADDING_PX = 20.0
 PREVIEW_VERTICAL_OFFSET_PX = 50.0  # Additional offset to move previews down from top edge
 
-# Rank UV mapping (7x1 atlas)
+# Rank UV mapping (7x1 atlas) - for standard ranks
 PREVIEW_RANK_ATLAS_COLS = 7
 PREVIEW_RANK_MAP = {
     "Baron": 1,
@@ -60,6 +60,15 @@ PREVIEW_RANK_MAP = {
     "Hegemon": 6
 }
 PREVIEW_RANK_DEFAULT = 3  # Duke
+
+# Single-image crown replacement ranks use a standalone texture (not a 7x1 atlas strip)
+# in place of the crown strip. Topframe still renders (falls back to Duke column).
+# Maps rank name -> crown replacement texture dict attribute name.
+PREVIEW_CROWN_REPLACEMENT_RANKS = {
+    "Adventurer": "adventurer_topframes",
+    "Holy Order": "holyorder_topframes",
+    "Mercenary": "mercenary_topframes",
+}
 
 
 class CanvasPreviewMixin:
@@ -292,15 +301,27 @@ class CanvasPreviewMixin:
         if gov_frame:
             self._render_preview_frame(center_x_px, center_y_px, width_px, height_px, gov_frame)
         
-        # Render crown strip
-        crown_strip = self.crown_strips.get(texture_size)
-        if crown_strip:
-            crown_offset_px = self._calculate_crown_offset_government(render_size)
-            crown_center_y_px = top_px + crown_offset_px + crown_height_px / 2.0
-            self._render_ranked_element(center_x_px, crown_center_y_px, width_px, crown_height_px, 
-                                        crown_strip, self.preview_rank, flip_v=True)
+        # Crown or crown replacement
+        single_image_attr = PREVIEW_CROWN_REPLACEMENT_RANKS.get(self.preview_rank)
         
-        # Render topframe
+        if single_image_attr:
+            # Single-image ranks: standalone crown replacement texture
+            variant_textures = getattr(self, single_image_attr, {})
+            variant_texture = variant_textures.get(texture_size)
+            if variant_texture:
+                crown_offset_px = self._calculate_crown_offset_government(render_size)
+                crown_center_y_px = top_px + crown_offset_px + crown_height_px / 2.0
+                self._render_preview_frame(center_x_px, crown_center_y_px, width_px, crown_height_px, variant_texture)
+        else:
+            # Standard ranks: 7x1 atlas crown strip
+            crown_strip = self.crown_strips.get(texture_size)
+            if crown_strip:
+                crown_offset_px = self._calculate_crown_offset_government(render_size)
+                crown_center_y_px = top_px + crown_offset_px + crown_height_px / 2.0
+                self._render_ranked_element(center_x_px, crown_center_y_px, width_px, crown_height_px, 
+                                            crown_strip, self.preview_rank, flip_v=True)
+        
+        # Topframe renders for all ranks (falls back to Duke column for non-standard ranks)
         topframe = self.topframes.get(texture_size)
         if topframe:
             topframe_offset_px = self._calculate_topframe_offset(render_size)
@@ -335,13 +356,25 @@ class CanvasPreviewMixin:
                 coa_offset=(0.0, PREVIEW_COA_OFFSET_TITLE_Y)
             )
         
-        # Render crown strip
-        crown_strip = self.crown_strips.get(texture_size)
-        if crown_strip:
-            crown_offset_px = self._calculate_crown_offset_title(render_size)
-            crown_center_y_px = top_px + crown_offset_px + crown_height_px / 2.0
-            self._render_ranked_element(center_x_px, crown_center_y_px, width_px, crown_height_px,
-                                        crown_strip, self.preview_rank, flip_v=True)
+        # Crown or crown replacement
+        single_image_attr = PREVIEW_CROWN_REPLACEMENT_RANKS.get(self.preview_rank)
+        
+        if single_image_attr:
+            # Single-image ranks: standalone crown replacement texture
+            variant_textures = getattr(self, single_image_attr, {})
+            variant_texture = variant_textures.get(texture_size)
+            if variant_texture:
+                crown_offset_px = self._calculate_crown_offset_title(render_size)
+                crown_center_y_px = top_px + crown_offset_px + crown_height_px / 2.0
+                self._render_preview_frame(center_x_px, crown_center_y_px, width_px, crown_height_px, variant_texture)
+        else:
+            # Standard ranks: 7x1 atlas crown strip
+            crown_strip = self.crown_strips.get(texture_size)
+            if crown_strip:
+                crown_offset_px = self._calculate_crown_offset_title(render_size)
+                crown_center_y_px = top_px + crown_offset_px + crown_height_px / 2.0
+                self._render_ranked_element(center_x_px, crown_center_y_px, width_px, crown_height_px,
+                                            crown_strip, self.preview_rank, flip_v=True)
         
         # Render title frame (scaled)
         title_frame = self.title_frames.get(texture_size)

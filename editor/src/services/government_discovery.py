@@ -1,6 +1,6 @@
 """Service for discovering government types from asset files"""
 from pathlib import Path
-from utils.path_resolver import get_resource_path
+from utils.path_resolver import get_assets_dir
 
 
 class GovernmentDiscovery:
@@ -16,7 +16,7 @@ class GovernmentDiscovery:
                 government_file_map is dict of display_name -> file_key
         """
         try:
-            realm_frames_dir = get_resource_path('..', 'ck3_assets', 'realm_frames')
+            realm_frames_dir = get_assets_dir() / 'realm_frames'
             if not Path(realm_frames_dir).exists():
                 return _get_default_governments()
             

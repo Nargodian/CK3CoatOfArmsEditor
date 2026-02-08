@@ -162,8 +162,8 @@ class CanvasTextureLoaderMixin:
     def _load_realm_frame_textures(self):
         """Load government-specific realm frame textures."""
         try:
-            realm_frames_dir = get_resource_path('..', 'ck3_assets', 'realm_frames')
-            if not os.path.exists(realm_frames_dir):
+            realm_frames_dir = get_assets_dir() / 'realm_frames'
+            if not realm_frames_dir.exists():
                 return
             
             # Load masks
@@ -207,8 +207,8 @@ class CanvasTextureLoaderMixin:
     def _load_title_frame_textures(self):
         """Load title frame assets."""
         try:
-            title_frames_dir = get_resource_path('..', 'ck3_assets', 'title_frames')
-            if not os.path.exists(title_frames_dir):
+            title_frames_dir = get_assets_dir() / 'title_frames'
+            if not title_frames_dir.exists():
                 return
             
             # Load title mask
@@ -221,6 +221,11 @@ class CanvasTextureLoaderMixin:
             self.crown_strips = TextureLoader.load_sized_textures(title_frames_dir, "crown_strip", sizes)
             self.title_frames = TextureLoader.load_sized_textures(title_frames_dir, "title", sizes)
             self.topframes = TextureLoader.load_sized_textures(title_frames_dir, "topframe", sizes)
+            
+            # Single-image topframe variants (not 7x1 atlas strips)
+            self.adventurer_topframes = TextureLoader.load_sized_textures(title_frames_dir, "landless_adventurer_topframe", sizes)
+            self.holyorder_topframes = TextureLoader.load_sized_textures(title_frames_dir, "holyorder_topframe", sizes)
+            self.mercenary_topframes = TextureLoader.load_sized_textures(title_frames_dir, "mercenary_topframe", sizes)
             
             print(f"Loaded title textures")
         except Exception as e:

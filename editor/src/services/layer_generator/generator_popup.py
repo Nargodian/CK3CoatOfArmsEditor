@@ -42,7 +42,7 @@ class PreviewWidget(QWidget):
             texture_filename: .dds filename (e.g., 'ce_fleur.dds')
         """
         from pathlib import Path
-        from utils.path_resolver import get_resource_path
+        from utils.path_resolver import get_assets_dir
         
         if not texture_filename:
             self.emblem_pixmap = None
@@ -51,7 +51,7 @@ class PreviewWidget(QWidget):
         
         # Convert .dds to .png atlas filename
         png_filename = Path(texture_filename).stem + '_atlas.png'
-        texture_path = get_resource_path('..', 'ck3_assets', 'coa_emblems', 'atlases', png_filename)
+        texture_path = get_assets_dir() / 'coa_emblems' / 'atlases' / png_filename
         
         # Load pixmap
         from PyQt5.QtGui import QPixmap

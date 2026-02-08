@@ -361,6 +361,9 @@ class MenuMixin:
         shortcuts_action.setShortcut("F1")
         shortcuts_action.triggered.connect(self._show_shortcuts)
         
+        content_action = help_menu.addAction("&Content Loaded")
+        content_action.triggered.connect(self._show_content_loaded)
+        
         about_action = help_menu.addAction("&About")
         about_action.triggered.connect(self._show_about)
     
@@ -392,6 +395,50 @@ class MenuMixin:
             "I respect that people have valid concerns about AI, and I do not wish to claim ownership over the output. "
             "This tool is provided for its own sake as a useful utility, "
             "free for anyone to use or modify.</p>")
+    
+    def _show_content_loaded(self):
+        """Show content manifest dialog listing converted asset sources."""
+        import json
+        from utils.path_resolver import get_assets_dir
+        
+        manifest_path = get_assets_dir() / 'content_manifest.json'
+        
+        if not manifest_path.exists():
+            QMessageBox.information(self, "Content Loaded",
+                "No conversion data found.\n\n"
+                "Run the Asset Converter to generate assets.")
+            return
+        
+        try:
+            with open(manifest_path, 'r', encoding='utf-8') as f:
+                manifest = json.load(f)
+        except Exception:
+            QMessageBox.warning(self, "Content Loaded",
+                "Could not read content manifest.\n\n"
+                "Try re-running the Asset Converter.")
+            return
+        
+        converted = manifest.get('converted', 'Unknown')
+        sources = manifest.get('sources', [])
+        
+        rows = []
+        for src in sources:
+            name = src.get('name', 'Unknown')
+            parts = []
+            for key in ('emblems', 'patterns', 'frames', 'realm_frames', 'title_frames'):
+                count = src.get(key, 0)
+                if count > 0:
+                    label = key.replace('_', ' ').title()
+                    parts.append(f"{count} {label}")
+            detail = ", ".join(parts) if parts else "No assets"
+            rows.append(f"<tr><td style='padding-right:20px;'><b>{name}</b></td><td>{detail}</td></tr>")
+        
+        table = "<table>" + "".join(rows) + "</table>" if rows else "<p>No sources found.</p>"
+        
+        QMessageBox.information(self, "Content Loaded",
+            f"<h3>Converted Content</h3>"
+            f"<p>Last converted: {converted}</p>"
+            f"{table}")
     
     def _zoom_in(self):
         """Zoom in on canvas"""

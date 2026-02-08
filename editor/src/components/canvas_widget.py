@@ -140,6 +140,9 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
         self.crown_strips = {}
         self.title_frames = {}
         self.topframes = {}
+        self.adventurer_topframes = {}
+        self.holyorder_topframes = {}
+        self.mercenary_topframes = {}
         
         # Initialize tool system
         self._init_tools()
@@ -375,10 +378,13 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
         
         # Set picker overlay uniforms if picker tool is active
         if self.active_tool == 'layer_picker' and hasattr(self, 'picker_rtt') and self.picker_rtt:
-            # Bind picker texture
-            gl.glActiveTexture(gl.GL_TEXTURE2)
+            # Bind picker texture to unit 4 (units 0-3 are: coa, frameMask, texturedMask, noise)
+            gl.glActiveTexture(gl.GL_TEXTURE4)
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.picker_framebuffer.get_texture())
-            self.main_composite_shader.setUniformValue("pickerTextureSampler", 2)
+            # CRITICAL: Use NEAREST filtering for picker - layer IDs must not interpolate
+            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
+            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST)
+            self.main_composite_shader.setUniformValue("pickerTextureSampler", 4)
             
             # Calculate mouse UV in CoA RTT space
             if hasattr(self, 'last_picker_mouse_pos') and self.last_picker_mouse_pos:

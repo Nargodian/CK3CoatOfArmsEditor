@@ -36,7 +36,8 @@ class VanillaGenerator(BaseGenerator):
     @classmethod
     def _load_layouts(cls):
         """Load emblem layouts from JSON file."""
-        layouts_path = Path("ck3_assets/emblem_layouts.json")
+        from utils.path_resolver import get_assets_dir
+        layouts_path = get_assets_dir() / "emblem_layouts.json"
         
         if not layouts_path.exists():
             cls._loaded_layouts = {}

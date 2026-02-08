@@ -1304,9 +1304,14 @@ class LayerListWidget(QWidget):
     def mousePressEvent(self, event):
         """Handle mouse press on empty space to clear selection"""
         if event.button() == Qt.LeftButton:
-            # Check if we clicked on empty space (not on any child widget)
+            # Check if we clicked on empty space (not on a layer button or interactive widget)
             child = self.childAt(event.pos())
-            if child is None or child == self:
+            # If child is None, self, or a layout container (not a button), clear selection
+            is_empty_space = (child is None or 
+                              child == self or 
+                              (hasattr(child, 'objectName') and child.objectName() == '') and
+                              not isinstance(child, QPushButton))
+            if is_empty_space:
                 # Clicked on empty space - clear selection
                 self.clear_selection()
         super().mousePressEvent(event)

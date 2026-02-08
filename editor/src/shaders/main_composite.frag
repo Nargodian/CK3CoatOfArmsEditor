@@ -88,33 +88,33 @@ void main() {
 		float colorDiff = distance(pickerAtMouse, pickerAtFrag);
 		
 		if (colorDiff < 0.001 && mouseValue > 0.01) {
-			// Multi-sample edge detection
+			// 8-sample edge detection for smoother outlines
 			vec2 texelSize = 1.0 / vec2(512.0, 512.0);
-			float borderWidth = 2.0;
 			
-			// Sample 4 neighbors
-			vec3 pickerRight = texture(pickerTextureSampler, flippedCoaUV + vec2(texelSize.x * borderWidth, 0.0)).rgb;
-			vec3 pickerLeft = texture(pickerTextureSampler, flippedCoaUV - vec2(texelSize.x * borderWidth, 0.0)).rgb;
-			vec3 pickerUp = texture(pickerTextureSampler, flippedCoaUV + vec2(0.0, texelSize.y * borderWidth)).rgb;
-			vec3 pickerDown = texture(pickerTextureSampler, flippedCoaUV - vec2(0.0, texelSize.y * borderWidth)).rgb;
-			
-			// Edge detection
-			bool isEdge = distance(pickerAtFrag, pickerRight) > 0.001 ||
-			              distance(pickerAtFrag, pickerLeft) > 0.001 ||
-			              distance(pickerAtFrag, pickerUp) > 0.001 ||
-			              distance(pickerAtFrag, pickerDown) > 0.001;
-			
-			if (isEdge) {
-				// Bright blue outline
-				coaColor.rgb = mix(coaColor.rgb, vec3(0.6, 0.9, 1.0), 1.0);
-			} else {
-				// Subtle blue overlay
-				coaColor.rgb = mix(coaColor.rgb, vec3(0.3, 0.5, 1.0), 0.3);
+			// Sample 8 neighbors (cardinal + diagonal)
+			float edgeSum = 0.0;
+			for (int dy = -1; dy <= 1; dy++) {
+				for (int dx = -1; dx <= 1; dx++) {
+					if (dx == 0 && dy == 0) continue;
+					vec2 offset = vec2(float(dx), float(dy)) * texelSize * 1.5;
+					vec3 neighbor = texture(pickerTextureSampler, flippedCoaUV + offset).rgb;
+					edgeSum += step(0.001, distance(pickerAtFrag, neighbor));
+				}
 			}
 			
-			// Contrast adjustment
-			float contrast = 1.15;
-			coaColor.rgb = ((coaColor.rgb - 0.5) * contrast) + 0.5;
+			// Smooth edge factor (0-8 neighbors different, normalize to 0-1)
+			float edgeFactor = edgeSum / 8.0;
+			
+			// Gradient from interior fill to edge highlight
+			vec3 fillColor = vec3(0.3, 0.5, 1.0);   // Blue interior
+			vec3 edgeColor = vec3(0.9, 0.95, 1.0);  // Bright white-blue edge
+			
+			// Smooth blend based on edge factor
+			float fillStrength = 0.25 * (1.0 - edgeFactor);
+			float edgeStrength = smoothstep(0.1, 0.5, edgeFactor);
+			
+			coaColor.rgb = mix(coaColor.rgb, fillColor, fillStrength);
+			coaColor.rgb = mix(coaColor.rgb, edgeColor, edgeStrength);
 		}
 	}
 	

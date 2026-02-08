@@ -309,12 +309,12 @@ class CanvasToolsMixin:
         pixel_array = np.frombuffer(pixels, dtype=np.uint8).reshape(height, width, 3)
         pixel_array = np.flipud(pixel_array)  # Flip vertically (OpenGL bottom-up to image top-down)
         
-        # DEBUG: Save picker RTT as PNG (disabled for performance)
-        # from PIL import Image
-        # import os
-        # debug_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'picker_debug.png')
-        # Image.fromarray(pixel_array, 'RGB').save(debug_path)
-        # print(f"Saved picker RTT to: {debug_path}")
+        # DEBUG: Save picker RTT as PNG (enable to debug picker visual artifacts)
+        from PIL import Image
+        import os
+        debug_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'picker_debug.png')
+        Image.fromarray(pixel_array, 'RGB').save(debug_path)
+        print(f"Saved picker RTT to: {debug_path}")
         
         # Convert to QImage for picker sampling (pixel() method)
         from PyQt5.QtGui import QImage
