@@ -22,6 +22,14 @@ if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 echo.
 
+REM Bake version into version.py for frozen builds
+echo Baking version...
+python -c "import subprocess, pathlib; vf=pathlib.Path('..','VERSION'); mm=vf.read_text().strip() if vf.exists() else '0.0'; r=subprocess.run(['git','describe','--tags','--long'],capture_output=True,text=True); p=r.stdout.strip().rsplit('-',2) if r.returncode==0 else None; c=p[1] if p and len(p)==3 else subprocess.run(['git','rev-list','--count','HEAD'],capture_output=True,text=True).stdout.strip(); ver=f'{mm}.{c}'; vpy=pathlib.Path('..','editor','src','version.py'); txt=vpy.read_text(); vpy.write_text(txt.replace('_BAKED_VERSION = None',f'_BAKED_VERSION = \"{ver}\"')); print(f'Baked version: {ver}')"
+if errorlevel 1 (
+    echo Warning: Could not bake version, About dialog will show default
+)
+echo.
+
 REM Build CoatOfArmsEditor
 echo Building CoatOfArmsEditor.exe...
 python -m PyInstaller ..\editor\editor.spec --noconfirm
@@ -85,6 +93,9 @@ if errorlevel 1 (
     exit /b 1
 )
 echo Copied README.txt
+
+REM Restore version.py to unbaked state for development
+python -c "import pathlib; vpy=pathlib.Path('..','editor','src','version.py'); txt=vpy.read_text(); import re; vpy.write_text(re.sub(r'_BAKED_VERSION = \".*?\"','_BAKED_VERSION = None',txt)); print('Restored version.py')"
 
 echo.
 echo ========================================

@@ -386,12 +386,8 @@ class MenuMixin:
     
     def _show_about(self):
         """Show about dialog"""
-        from utils.path_resolver import get_base_dir
-        version_file = get_base_dir() / "VERSION"
-        try:
-            version = version_file.read_text().strip()
-        except FileNotFoundError:
-            version = "unknown"
+        from version import get_version
+        version = get_version()
         QMessageBox.about(self, "About Coat of Arms Designer",
             "<h3>Coat of Arms Designer</h3>"
             "<p>A tool for creating and editing Crusader Kings 3 coats of arms.</p>"
