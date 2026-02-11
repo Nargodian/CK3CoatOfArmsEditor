@@ -329,6 +329,13 @@ class Layer:
         # Default if missing
         return Color.from_name(DEFAULT_EMBLEM_COLOR3)
     
+    @color3.setter
+    def color3(self, value: Color):
+        """Set color3 from Color object"""
+        if not isinstance(value, Color):
+            raise TypeError("color3 must be a Color object")
+        self._data['color3'] = value
+    
     @property
     def flip_x(self) -> bool:
         """Get horizontal flip state from first instance"""
@@ -725,12 +732,11 @@ class Layer:
         
         lines.append(f'\t\ttexture = "{self.filename}"')
         
-        # Add colors based on color count
+        # Always write all 3 colors — game applies its own defaults for
+        # unspecified colors which differ from ours, so explicit is safer
         lines.append(f'\t\tcolor1 = {self.color1.to_ck3_string(force_rgb=force_rgb)}')
-        if self.colors >= 2:
-            lines.append(f'\t\tcolor2 = {self.color2.to_ck3_string(force_rgb=force_rgb)}')
-        if self.colors >= 3:
-            lines.append(f'\t\tcolor3 = {self.color3.to_ck3_string(force_rgb=force_rgb)}')
+        lines.append(f'\t\tcolor2 = {self.color2.to_ck3_string(force_rgb=force_rgb)}')
+        lines.append(f'\t\tcolor3 = {self.color3.to_ck3_string(force_rgb=force_rgb)}')
         
         # Serialize mask if present
         if self.mask is not None:

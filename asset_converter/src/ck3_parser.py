@@ -73,6 +73,9 @@ class CK3Parser:
         
         return self.text[start:self.pos]
     
+    # Color type keywords that precede a { values } block
+    _COLOR_TYPES = {'rgb', 'hsv', 'hsv360'}
+    
     def read_value(self) -> Any:
         """Read a value (string, number, bool, or identifier)."""
         self.skip_whitespace()
@@ -84,6 +87,11 @@ class CK3Parser:
             return self.read_block()
         
         value = self.read_identifier()
+        
+        # Handle color type prefixes: rgb { 74 201 202 }, hsv { 0.02 0.8 0.45 }
+        if value.lower() in self._COLOR_TYPES and self.peek() == '{':
+            components = self.read_block()  # reads the { ... } array
+            return {'type': value.lower(), 'values': components}
         
         if value.lower() in ('yes', 'true'):
             return True

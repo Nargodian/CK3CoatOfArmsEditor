@@ -1,0 +1,218 @@
+HEADLESS COA RENDERER — SPECIFICATION
+======================================
+
+Purpose
+-------
+CLI tool that reads CK3 coat-of-arms text files (single or multi-CoA),
+renders each CoA to the raw RTT framebuffer (pattern + emblems, NO frame
+compositing), and saves 256x256 PNGs named after the CoA identifier.
+
+Output is the SAME framebuffer that the interactive editor feeds into
+main_composite.frag — the step BEFORE framing, material, dirt, noise.
+Just the naked CoA render: 3-color pattern blend + emblem layers.
+
+
+Input Format
+------------
+Standard CK3 Clausewitz coat_of_arms files. Supports:
+
+  Single CoA:
+    coa_dynasty_28014 = {
+        pattern = "pattern_triangle_01.dds"
+        color1 = white
+        color2 = black
+        color3 = blue
+        colored_emblem = { ... }
+    }
+
+  Multiple CoAs in one file:
+    coa_house_123 = { pattern = "..." color1 = ... }
+    coa_dynasty_456 = { pattern = "..." color1 = ... }
+    coa_title_789 = { pattern = "..." color1 = ... }
+
+
+Output
+------
+  - One PNG per CoA definition
+  - Filename = top-level key + ".png"  (e.g. "coa_dynasty_28014.png")
+  - Size: 256x256 (downsampled from 512x512 RTT render)
+  - Format: RGBA PNG
+  - Default output directory: ./output/ (created if missing)
+
+
+CLI Interface
+-------------
+  python -m editor.src.headless <input_file> [options]
+
+  Arguments:
+    input_file          Path to CK3 CoA text file (required)
+
+  Options:
+    -o, --output DIR    Output directory (default: ./output/)
+
+  Examples:
+    python -m editor.src.headless examples/game_samples/coa_sample_1.txt
+    python -m editor.src.headless my_coas.txt -o renders/
+    python -m editor.src.headless my_coas.txt --output C:/renders
+
+
+File Layout
+-----------
+  editor/src/
+    headless.py                     CLI entry point (__main__ style)
+    services/
+      headless_renderer.py          Offscreen GL context + render pipeline
+
+
+Module: headless.py (CLI Entry Point)
+-------------------------------------
+Responsibilities:
+  1. Parse CLI args (argparse)
+  2. Set up sys.path (same as main.py does)
+  3. Split multi-CoA file into individual CoA dicts
+  4. Create HeadlessRenderer (boots GL context once)
+  5. For each CoA: parse → set state → render → save PNG
+  6. Cleanup and exit
+
+Multi-CoA splitting strategy:
+  - Use CK3Parser from asset_converter/src/ck3_parser.py
+  - It returns a dict: {"coa_name_1": {...}, "coa_name_2": {...}}
+  - For each (name, data_dict), reconstruct a single-CoA string:
+      name = { pattern = "..." color1 = ... colored_emblem = { ... } ... }
+  - Feed each reconstructed string to CoA.from_string()
+
+  This avoids modifying CoAParser (which is internal to the model) and
+  reuses the proven CK3Parser that already handles multi-block files.
+
+  Reconstruction helper:
+    def dict_to_ck3_string(name, data_dict) -> str
+      Converts the parsed dict back to CK3 text format so
+      CoA.from_string() can consume it through its normal path.
+
+
+Module: headless_renderer.py (Offscreen Renderer)
+--------------------------------------------------
+Responsibilities:
+  1. Create QApplication (headless, no window)
+  2. Create QOffscreenSurface + QOpenGLContext (OpenGL 3.3 Core)
+  3. Compile shaders (pattern + emblem only — via ShaderManager)
+  4. Create unit quad VAO/VBO/EBO (via QuadRenderer)
+  5. Load texture atlases (via TextureLoader + CanvasTextureLoaderMixin logic)
+  6. Create FramebufferRTT (512x512)
+  7. Expose render_coa(coa, output_path) method
+  8. Cleanup GL resources on exit
+
+Class: HeadlessRenderer
+  __init__(self):
+    - QApplication([]) — headless, no display
+    - QOffscreenSurface + QSurfaceFormat (OpenGL 3.3 Core, RGBA8)
+    - QOpenGLContext — make current on offscreen surface
+    - ShaderManager → compile base_shader, design_shader
+    - QuadRenderer.create_unit_quad() → vao, vbo, ebo
+    - Load texture atlases (pattern + emblem metadata JSONs → PNG files → GL atlas)
+    - Create default_mask_texture (solid white 64x64 fallback)
+    - Create FramebufferRTT
+
+  render_coa(self, coa: CoA, output_path: str):
+    - Set CoA as active: CoA._active_instance = coa (or use CoA.set_active)
+    - Extract state from CoA model:
+        base_texture = coa.get_pattern()
+        base_colors  = [coa.get_pattern_color(1), coa.get_pattern_color(2), coa.get_pattern_color(3)]
+    - Bind FBO, clear to transparent black
+    - Enable blending (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    - Call _render_base_pattern() — reuses CanvasRenderingMixin logic
+    - Call _render_emblem_layers() — reuses CanvasRenderingMixin logic
+    - glReadPixels from FBO → numpy array (512x512 RGBA)
+    - PIL Image.fromarray → resize to 256x256 (LANCZOS) → save PNG
+    - Unbind FBO
+
+  Rendering approach:
+    The HeadlessRenderer will INHERIT from CanvasRenderingMixin directly.
+    It provides the same self.* attributes the mixin expects:
+      self.base_shader       — QOpenGLShaderProgram (from ShaderManager)
+      self.design_shader     — QOpenGLShaderProgram (from ShaderManager)
+      self.vao               — QOpenGLVertexArrayObject (from QuadRenderer)
+      self.base_texture      — str (set per-CoA from model)
+      self.base_colors       — list[Color] (set per-CoA from model)
+      self.texture_uv_map    — dict (from atlas loading)
+      self.texture_atlases   — list[int] (from atlas loading)
+      self.default_mask_texture — int (solid white fallback texture)
+
+    Selection/tint stubs (not needed for headless):
+      _should_show_selection_tint() → return False
+      _is_layer_selected(uuid) → return False
+
+    This means we get IDENTICAL rendering output to the interactive editor
+    with zero code duplication of the shader uniform setup, instance
+    transform math, symmetry handling, and mask logic.
+
+  cleanup(self):
+    - FramebufferRTT.cleanup()
+    - Delete atlas textures
+    - Delete default_mask_texture
+    - Destroy VAO/VBO/EBO
+    - Destroy shaders
+    - Release GL context
+
+
+Pipeline Summary
+----------------
+  1. CLI parses args, reads input file
+  2. CK3Parser.parse_file() → dict of {name: data}
+  3. HeadlessRenderer.__init__() boots offscreen GL (once)
+     - Compiles shaders, loads atlases, creates FBO
+  4. For each (name, data) in parsed dict:
+     a. Reconstruct CK3 string from dict
+     b. coa = CoA.from_string(ck3_string)
+     c. renderer.render_coa(coa, output_dir/name.png)
+        - Sets base_texture, base_colors from CoA
+        - Binds FBO → pattern shader → emblem shader → glReadPixels
+        - PIL resize 512→256 → save PNG
+  5. Print summary: "Rendered N coats of arms to output_dir/"
+  6. Cleanup GL resources
+
+
+Dependencies
+------------
+All existing — no new packages:
+  - PyQt5 (QApplication, QOffscreenSurface, QOpenGLContext, QOpenGLShaderProgram)
+  - PyOpenGL (raw GL calls for FBO, textures, draw)
+  - Pillow (final image save + resize)
+  - numpy (pixel readback buffer)
+  - CoA model layer (zero Qt deps, clean reuse)
+  - CK3Parser from asset_converter (multi-block parsing)
+
+
+What We Reuse Verbatim
+----------------------
+  - CanvasRenderingMixin._render_base_pattern()
+  - CanvasRenderingMixin._render_emblem_layers()
+  - CanvasRenderingMixin._render_layer_instances()
+  - CanvasRenderingMixin._render_single_instance()
+  - CanvasRenderingMixin._render_single_transform()
+  - CanvasRenderingMixin._bind_pattern_for_masks()
+  - CanvasRenderingMixin._set_layer_uniforms()
+  - CanvasRenderingMixin._calculate_pattern_flag()
+  - ShaderManager.create_base_shader() / create_design_shader()
+  - QuadRenderer.create_unit_quad()
+  - TextureLoader.load_texture_atlas()
+  - FramebufferRTT (entire class)
+  - CoA.from_string() / all CoA query methods
+  - All GLSL shaders (pattern.vert/frag, emblem.vert/frag)
+
+
+What We Modify
+--------------
+  _set_layer_uniforms: The existing method calls _should_show_selection_tint()
+  and _is_layer_selected(). HeadlessRenderer stubs these to return False.
+  No change to the mixin code — just provide stub methods on HeadlessRenderer.
+
+
+What We Don't Touch
+-------------------
+  - main_composite.frag (frame compositing)
+  - Frame textures, material/dirt, noise grain
+  - preview_composite.frag
+  - Any UI components
+  - canvas_widget.py
+  - Any existing editor functionality
