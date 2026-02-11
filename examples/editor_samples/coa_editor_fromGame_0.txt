@@ -1,0 +1,11 @@
+coa_rd_dynasty_3825805707={
+	pattern="pattern_tricolor_horizontal_01.dds"
+	colored_emblem={
+		texture="ce_basket.dds"
+		instance={
+			scale={ 0.700000 0.700000 }
+		}
+
+	}
+
+}

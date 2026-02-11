@@ -67,6 +67,10 @@ class HistoryMixin:
         if self._is_applying_history:
             return  # Don't save state during undo/redo
         
+        # Cancel any pending debounced save — a direct save supersedes it
+        self.property_change_timer.stop()
+        self._pending_property_change = None
+        
         state = self._capture_current_state()
         self.history_manager.save_state(state, description)
         

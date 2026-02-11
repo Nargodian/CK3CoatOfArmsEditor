@@ -64,6 +64,8 @@ vec3 computeEmblemColor(vec4 mask) {
 	vec3 color = mix(primaryColor, secondaryColor, mask.g);
 	color = mix(color, tertiaryColor, mask.r);
 	// Blue channel = overlay shading (CK3 uses ~0.7 strength)
+	// Scale strength by alpha: B extends past alpha boundary (DXT artifact),
+	// so fade overlay to zero at transparent edges to prevent fringing
 	return applyOverlay(color, vec3(mask.b), 0.7);
 }
 
@@ -130,9 +132,14 @@ float computePatternMask(vec4 patternSample) {
 // ============================================================================
 
 void main() {
-	// Sample emblem mask
+	// Sample emblem mask (RGB stored premultiplied by alpha)
 	vec2 emblemUV = calculateAtlasUV(fragUV, emblemTileIndex);
 	vec4 emblemMask = texture(emblemMaskSampler, emblemUV);
+	
+	// Un-premultiply all RGB to recover original mask values
+	if (emblemMask.a > 0.001) {
+		emblemMask.rgb *= 1.0 / emblemMask.a;
+	}
 	
 	// Compute base color from emblem channels
 	vec3 color = computeEmblemColor(emblemMask);

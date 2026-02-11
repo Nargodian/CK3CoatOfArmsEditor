@@ -1,0 +1,10 @@
+coa_export = {
+	pattern = "pattern_tricolor_horizontal_01.dds"
+	colored_emblem = {
+		texture = "ce_basket.dds"
+			instance = {
+				position = { 0.5 0.5 }
+				scale = { 0.7 0.7 }
+			}
+	}
+}

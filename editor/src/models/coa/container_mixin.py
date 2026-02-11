@@ -171,13 +171,13 @@ class CoAContainerMixin:
         layer_positions = [(all_uuids.index(uuid), uuid) for uuid in layer_uuids if uuid in all_uuids]
         layer_positions.sort()  # Sort by index
         
-        # Move all other layers to be right above the target (maintaining order)
+        # Move all other layers to be right after the target (maintaining relative order)
         # Skip the first one (it's already at the target position)
         for i in range(1, len(layer_positions)):
             _, uuid = layer_positions[i]
-            # Move this layer to be above the previous layer
+            # Move this layer to be right after the previous layer (higher index)
             prev_uuid = layer_positions[i-1][1]
-            self.move_layer_above(uuid, prev_uuid)
+            self.move_layer_below(uuid, prev_uuid)
         
         # Set container UUID on all layers
         for _, uuid in layer_positions:

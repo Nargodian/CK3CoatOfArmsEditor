@@ -73,6 +73,9 @@ class LayerListWidget(QWidget):
         if not self.coa:
             return
         
+        # Clear thumbnail cache to prevent stale thumbnails after undo/redo or rebuild
+        self.clear_thumbnail_cache()
+        
         # Clear existing layer buttons, container markers, and drop zones
         for uuid, btn in self.layer_buttons:
             btn.deleteLater()

@@ -51,14 +51,23 @@ class AssetMixin:
         selected_uuids = self.right_sidebar.get_selected_uuids()
         
         if selected_uuids:
-            # Update all selected layers
+            # Update all selected layers (single undo entry for the group)
             for uuid in selected_uuids:
-                self._update_layer_texture(uuid, dds_filename, color_count)
+                self._update_layer_texture(uuid, dds_filename, color_count, save_state=False)
+            self._save_state("Change layer texture")
         else:
             self._create_layer_with_texture(dds_filename, color_count)
     
-    def _update_layer_texture(self, uuid, dds_filename, color_count):
-        """Update existing layer's texture while preserving other properties"""
+    def _update_layer_texture(self, uuid, dds_filename, color_count, save_state=True):
+        """Update existing layer's texture while preserving other properties
+        
+        Args:
+            uuid: Layer UUID
+            dds_filename: New texture filename
+            color_count: Number of colors for the texture
+            save_state: If True, save undo state after update. Set to False when
+                       batching multiple updates (caller saves state once after loop).
+        """
         layer = self.coa.get_layer_by_uuid(uuid)
         if layer:
             # Update Layer object attributes
@@ -76,13 +85,17 @@ class AssetMixin:
             # Reload properties to refresh color swatches based on new texture
             self.right_sidebar._load_layer_properties()
             self.canvas_area.canvas_widget.update()
-            self._save_state("Change layer texture")
+            if save_state:
+                self._save_state("Change layer texture")
     
     def _create_layer_with_texture(self, dds_filename, color_count):
-        """Create new layer with selected texture"""
+        """Create new layer with selected texture, using asset sidebar colors."""
         # Check for selection to add above
         selected_uuids = self.right_sidebar.get_selected_uuids()
         target_uuid = selected_uuids[0] if selected_uuids else None
+        
+        # Get colors from asset sidebar pickers
+        c1, c2, c3 = self.left_sidebar.get_asset_colors()
         
         # Use CoA model to add layer
         if target_uuid:
@@ -92,7 +105,10 @@ class AssetMixin:
                 pos_x=0.5,
                 pos_y=0.5,
                 colors=color_count,
-                target_uuid=target_uuid
+                target_uuid=target_uuid,
+                color1=c1,
+                color2=c2,
+                color3=c3
             )
         else:
             # No selection, add at front
@@ -100,7 +116,10 @@ class AssetMixin:
                 emblem_path=dds_filename,
                 pos_x=0.5,
                 pos_y=0.5,
-                colors=color_count
+                colors=color_count,
+                color1=c1,
+                color2=c2,
+                color3=c3
             )
         
         # Update UI - rebuild layer list first

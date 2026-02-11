@@ -252,11 +252,9 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
         if not selected_uuids:
             return
         
-        # Convert widget coordinates to CoA space
-        coa_transform = self._convert_widget_to_coa_coords(widget_transform)
-        
-        # Handle rotation (rotation handle dragged)
+        # Handle rotation (rotation handle dragged) - uses standard conversion
         if hasattr(self.transform_widget, 'is_rotating') and self.transform_widget.is_rotating:
+            coa_transform = self._convert_widget_to_coa_coords(widget_transform)
             self._handle_rotation_transform(selected_uuids, coa_transform.rotation)
             return
         
@@ -266,14 +264,17 @@ class CanvasArea(CanvasAreaTransformMixin, QFrame):
             instance_count = self.main_window.coa.get_layer_instance_count(uuid)
             
             if instance_count > 1:
-                # Multi-instance layer: group transform
+                # Multi-instance layer: AABB-based transform (no frame compensation on scale)
+                coa_transform = self._convert_widget_to_coa_coords(widget_transform, is_aabb_dimension=True)
                 self._handle_multi_instance_transform(uuid, coa_transform)
             else:
-                # Single-instance layer: direct transform
+                # Single-instance layer: direct transform (scale is a multiplier, needs frame compensation)
+                coa_transform = self._convert_widget_to_coa_coords(widget_transform)
                 self._handle_single_instance_transform(uuid, coa_transform)
             return
         
-        # Handle multi-selection
+        # Handle multi-selection: AABB-based transform (no frame compensation on scale)
+        coa_transform = self._convert_widget_to_coa_coords(widget_transform, is_aabb_dimension=True)
         self._handle_multi_selection_transform(coa_transform, selected_uuids)
     
     def _on_transform_ended(self):

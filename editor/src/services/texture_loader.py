@@ -128,7 +128,18 @@ class TextureLoader:
                 # Load and resize image
                 img = Image.open(image_path).convert('RGBA')
                 img = img.resize((tile_size, tile_size), Image.Resampling.LANCZOS)
-                img_array = np.array(img)
+                img_array = np.array(img, dtype=np.float32)
+                
+                # DXT block compression corrupts RGB at semi-transparent
+                # edge pixels (alpha 1-254).  All three channels carry
+                # noise: R/G (color selection masks) and B (overlay shading)
+                # can spike to 0 or 255 at edges.  Premultiply all RGB by
+                # alpha so bilinear filtering blends toward zero at edges.
+                # The shader un-premultiplies after sampling to recover
+                # correct values in opaque regions.
+                alpha = img_array[:, :, 3:4] / 255.0
+                img_array[:, :, 0:3] *= alpha
+                img_array = np.clip(img_array, 0, 255).astype(np.uint8)
                 
                 # Place in atlas
                 atlas_data[y:y+tile_size, x:x+tile_size, :] = img_array

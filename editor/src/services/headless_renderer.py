@@ -217,7 +217,11 @@ class HeadlessRenderer(CanvasRenderingMixin):
         self.framebuffer_rtt.bind()
         self.framebuffer_rtt.clear(0.0, 0.0, 0.0, 0.0)
         gl.glEnable(gl.GL_BLEND)
-        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+        # Correct Porter-Duff 'over' for alpha channel in RTT pass
+        gl.glBlendFuncSeparate(
+            gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA,  # RGB
+            gl.GL_ONE, gl.GL_ONE_MINUS_SRC_ALPHA          # Alpha
+        )
 
         self._render_base_pattern()
         self._render_emblem_layers()

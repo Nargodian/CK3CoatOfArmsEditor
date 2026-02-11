@@ -253,7 +253,15 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
         self.framebuffer_rtt.clear(0.0, 0.0, 0.0, 0.0)
         
         gl.glEnable(gl.GL_BLEND)
-        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+        # Use separate blend for alpha: GL_ONE ensures correct Porter-Duff 'over'
+        # compositing (result_a = src_a + dst_a*(1-src_a)) instead of the
+        # incorrect result_a = src_a² + dst_a*(1-src_a) from GL_SRC_ALPHA.
+        # Without this, semi-transparent emblem edges write a transparency halo
+        # onto the previously-opaque pattern pixels in the RTT.
+        gl.glBlendFuncSeparate(
+            gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA,  # RGB: standard blend
+            gl.GL_ONE, gl.GL_ONE_MINUS_SRC_ALPHA          # Alpha: correct compositing
+        )
         
         # Render base pattern and emblem layers (from CanvasRenderingMixin)
         self._render_base_pattern()
@@ -325,8 +333,20 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
         self.vao.release()
     
     # Legacy methods removed - using pixel-based coordinate system now  
-    def _render_main_composite(self, viewport_width, viewport_height, size_x_px, size_y_px, position_x_px, position_y_px):
-        """Render using main composite shader with frame-aware positioning."""
+    def _render_main_composite(self, viewport_width, viewport_height, size_x_px, size_y_px, position_x_px, position_y_px, coa_bounds=None):
+        """Render using main composite shader with frame-aware positioning.
+        
+        Args:
+            viewport_width: Viewport width in pixels
+            viewport_height: Viewport height in pixels
+            size_x_px: Quad width in pixels
+            size_y_px: Quad height in pixels
+            position_x_px: Quad center X position in pixels (from screen center)
+            position_y_px: Quad center Y position in pixels (from screen center)
+            coa_bounds: Optional (left, right, bottom, top) in viewport pixels.
+                        If None, uses get_coa_viewport_bounds() (interactive mode).
+                        Must be provided for export to avoid using widget state.
+        """
         if not self.main_composite_shader:
             return
         
@@ -366,8 +386,11 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
         self.main_composite_shader.setUniformValue("flipU", False)
         self.main_composite_shader.setUniformValue("flipV", False)
         
-        # Get CoA viewport bounds from coordinate mixin
-        coa_left_px, coa_right_px, coa_bottom_px, coa_top_px = self.get_coa_viewport_bounds()
+        # Get CoA viewport bounds - use provided bounds for export, or compute from widget state
+        if coa_bounds is not None:
+            coa_left_px, coa_right_px, coa_bottom_px, coa_top_px = coa_bounds
+        else:
+            coa_left_px, coa_right_px, coa_bottom_px, coa_top_px = self.get_coa_viewport_bounds()
         
         self.main_composite_shader.setUniformValue("coaTopLeft", coa_left_px, coa_top_px)
         self.main_composite_shader.setUniformValue("coaBottomRight", coa_right_px, coa_bottom_px)
@@ -408,8 +431,15 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
         gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, None)
         self.main_composite_shader.release()
 
-    def _render_frame(self, viewport_size=None, quad_size=None):
-        """Render frame graphic on top of CoA."""
+    def _render_frame(self, viewport_size=None, quad_size=None, position=None):
+        """Render frame graphic on top of CoA.
+        
+        Args:
+            viewport_size: Optional (width, height) tuple. Uses widget size if None.
+            quad_size: Optional quad size in pixels. Uses FRAME_SIZE_PX * zoom if None.
+            position: Optional (x, y) position in pixels from screen center.
+                      Uses (pan_x, -pan_y) if None. Pass (0, 0) for export.
+        """
         if self.current_frame_name not in self.frameTextures:
             return
         if not self.tilesheet_shader or not self.vao:
@@ -424,9 +454,12 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
         size_x_px = frame_size
         size_y_px = frame_size
         
-        # Position in pixels (pan is already in pixels, centered at screen center)
-        position_x_px = self.pan_x
-        position_y_px = -self.pan_y  # Flip Y for OpenGL
+        # Position in pixels (use provided position for export, otherwise interactive pan)
+        if position is not None:
+            position_x_px, position_y_px = position
+        else:
+            position_x_px = self.pan_x
+            position_y_px = -self.pan_y  # Flip Y for OpenGL
         
         self.vao.bind()
         self.tilesheet_shader.bind()
@@ -674,14 +707,44 @@ class CoatOfArmsCanvas(CanvasRenderingMixin, CanvasCoordinateMixin, CanvasZoomPa
             # Re-bind export FBO (render_coa_to_framebuffer unbinds back to screen)
             fbo.bind()
             
+            # Compute CoA viewport bounds for export FBO
+            # In the interactive renderer, frame space (0-1) maps to COA_BASE_SIZE_PX pixels,
+            # while the frame quad is FRAME_SIZE_PX pixels. The CoA content area is smaller
+            # than the frame by the ratio COA_BASE_SIZE_PX / FRAME_SIZE_PX.
+            # For export, the frame fills the full FBO (export_size), so we scale accordingly.
+            frame_scales, frame_offsets = self.get_frame_transform()
+            sx, sy = frame_scales
+            ox, oy = frame_offsets
+            
+            # CoA (0,0) and (1,1) in frame space
+            frame_tl_x = (0.0 - 0.5) * sx + 0.5 - ox * sx
+            frame_tl_y = (0.0 - 0.5) * sy + 0.5 - oy * sy
+            frame_br_x = (1.0 - 0.5) * sx + 0.5 - ox * sx
+            frame_br_y = (1.0 - 0.5) * sy + 0.5 - oy * sy
+            
+            # Account for frame-to-CoA size ratio (same as interactive denormalization)
+            # In the interactive renderer, denormalize_by_viewport uses COA_BASE_SIZE_PX,
+            # but the quad is FRAME_SIZE_PX. Scale the export bounds by the same ratio.
+            effective_coa_half = (COA_BASE_SIZE_PX * export_size / FRAME_SIZE_PX) / 2.0
+            fbo_center = export_size / 2.0
+            
+            # Frame space → export FBO pixels (same chain as interactive:
+            # frame→normalized→denormalize_by_COA_BASE→center_in_viewport→flip_Y)
+            export_coa_left = fbo_center + (frame_tl_x * 2.0 - 1.0) * effective_coa_half
+            export_coa_right = fbo_center + (frame_br_x * 2.0 - 1.0) * effective_coa_half
+            export_coa_top = fbo_center + (1.0 - frame_tl_y * 2.0) * effective_coa_half
+            export_coa_bottom = fbo_center + (1.0 - frame_br_y * 2.0) * effective_coa_half
+            
+            export_coa_bounds = (export_coa_left, export_coa_right, export_coa_bottom, export_coa_top)
+            
             # Composite to the export framebuffer
             # Center the 512x512 canvas in export viewport
             self.vao.bind()
-            self._render_main_composite(export_size, export_size, export_size, export_size, 0, 0)
+            self._render_main_composite(export_size, export_size, export_size, export_size, 0, 0, coa_bounds=export_coa_bounds)
             
             # Render frame on top with same quad size as composite for alignment
             if self.current_frame_name and self.current_frame_name != "None" and self.current_frame_name in self.frameTextures:
-                self._render_frame(viewport_size=(export_size, export_size), quad_size=export_size)
+                self._render_frame(viewport_size=(export_size, export_size), quad_size=export_size, position=(0, 0))
             
             self.vao.release()
             

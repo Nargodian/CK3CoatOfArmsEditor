@@ -62,7 +62,8 @@ class CoALayerMixin:
     # ========================================
     
     def add_layer(self, emblem_path: str = "", pos_x: float = DEFAULT_POSITION_X,
-                  pos_y: float = DEFAULT_POSITION_Y, colors: int = 3, target_uuid: Optional[str] = None) -> str:
+                  pos_y: float = DEFAULT_POSITION_Y, colors: int = 3, target_uuid: Optional[str] = None,
+                  color1: 'Color' = None, color2: 'Color' = None, color3: 'Color' = None) -> str:
         """Add new layer
         
         Args:
@@ -71,6 +72,9 @@ class CoALayerMixin:
             pos_y: Initial Y position (0.0-1.0)
             colors: Number of colors (1, 2, or 3)
             target_uuid: If provided, insert layer below this target (in front of it, higher index)
+            color1: Primary Color (defaults to DEFAULT_EMBLEM_COLOR1)
+            color2: Secondary Color (defaults to DEFAULT_EMBLEM_COLOR2)
+            color3: Tertiary Color (defaults to DEFAULT_EMBLEM_COLOR3)
             
         Returns:
             UUID of the new layer
@@ -91,9 +95,9 @@ class CoALayerMixin:
             'selected_instance': 0,
             'flip_x': False,
             'flip_y': False,
-            'color1': Color.from_name(DEFAULT_EMBLEM_COLOR1),
-            'color2': Color.from_name(DEFAULT_EMBLEM_COLOR2),
-            'color3': Color.from_name(DEFAULT_EMBLEM_COLOR3),
+            'color1': color1 or Color.from_name(DEFAULT_EMBLEM_COLOR1),
+            'color2': color2 or Color.from_name(DEFAULT_EMBLEM_COLOR2),
+            'color3': color3 or Color.from_name(DEFAULT_EMBLEM_COLOR3),
             'mask': None
         }
         

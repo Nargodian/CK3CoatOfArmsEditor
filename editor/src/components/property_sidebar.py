@@ -74,8 +74,11 @@ class PropertySidebar(QFrame):
     
     def set_selected_indices(self, indices: set):
         """Update selection state with new indices"""
+        # Delegate to layer_list_widget which properly converts indices to UUIDs
+        if hasattr(self, 'layer_list_widget'):
+            self.layer_list_widget.set_selected_indices(indices)
+        # Also keep deprecated field in sync for any legacy callers
         self.selected_layer_indices = set(indices) if not isinstance(indices, set) else indices
-        self._update_layer_selection()
     
     def is_selected(self, index: int) -> bool:
         """Check if index is in selection"""
@@ -633,9 +636,6 @@ class PropertySidebar(QFrame):
                     self.layer_list_widget.invalidate_thumbnail(uuid)
                     # Update layer button (not full rebuild - preserves selection)
                     self.layer_list_widget.update_layer_button(uuid)
-                if self.main_window and hasattr(self.main_window, 'left_sidebar'):
-                    self.main_window.left_sidebar.update_asset_colors()
-                
             # Update canvas
             if self.canvas_widget:
                 self.canvas_widget.update()
@@ -675,10 +675,6 @@ class PropertySidebar(QFrame):
         
         # Update mask channel color indicators
         self.update_mask_colors_from_base()
-        
-        # Update asset sidebar pattern previews
-        if self.main_window and hasattr(self.main_window, 'left_sidebar'):
-            self.main_window.left_sidebar.update_asset_colors()
     
     def set_emblem_color_count(self, count):
         """Show/hide emblem color swatches based on asset color count (1, 2, or 3)"""
@@ -943,11 +939,6 @@ class PropertySidebar(QFrame):
             if self.canvas_widget:
                 self.canvas_widget.update()
             
-            # Update asset sidebar previews with new colors
-            if self.main_window and hasattr(self.main_window, 'left_sidebar'):
-                self.main_window.left_sidebar.update_asset_colors()
-            
-            
             # Save to history
             if self.main_window and hasattr(self.main_window, '_save_state'):
                 self.main_window._save_state(f"Change layer color {color_index}")
@@ -979,12 +970,6 @@ class PropertySidebar(QFrame):
         
         # Update selection UI (this also calls _update_menu_actions via main_window)
         self._update_layer_selection()
-        
-        # Update asset sidebar emblem previews if viewing emblems
-        # (patterns use base colors which don't change with layer selection)
-        if self.main_window and hasattr(self.main_window, 'left_sidebar'):
-            if self.main_window.left_sidebar.current_mode == "emblems":
-                self.main_window.left_sidebar.update_asset_colors()
         
         # Update alignment action states in main window
         if self.main_window and hasattr(self.main_window, '_update_alignment_actions'):

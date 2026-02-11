@@ -6,6 +6,9 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
 
+# Model imports
+from models.color import Color
+
 # Component imports
 from .asset_widgets import FlowLayout
 
@@ -45,6 +48,11 @@ class AssetSidebar(QFrame):
         
         # Track stacked emblem widgets for fast color updates
         self.emblem_widgets = []
+        
+        # Asset preview colors (UI-only state, not in undo history)
+        self._asset_color1 = Color.from_name(DEFAULT_EMBLEM_COLOR1)
+        self._asset_color2 = Color.from_name(DEFAULT_EMBLEM_COLOR2)
+        self._asset_color3 = Color.from_name(DEFAULT_EMBLEM_COLOR3)
         
         # Load asset data from JSON files
         self.asset_data = self._load_asset_data()
@@ -232,6 +240,56 @@ class AssetSidebar(QFrame):
         
         layout.addLayout(size_layout)
         
+        # Asset color pickers (emblem preview colors)
+        self._asset_color_layout = QHBoxLayout()
+        self._asset_color_layout.setSpacing(5)
+        self._asset_color_layout.setContentsMargins(10, 0, 10, 5)
+        
+        color_label = QLabel("Preview:")
+        color_label.setStyleSheet("font-size: 11px;")
+        self._asset_color_layout.addWidget(color_label)
+        
+        self._asset_color_buttons = []
+        for i, color in enumerate([self._asset_color1, self._asset_color2, self._asset_color3]):
+            btn = QPushButton()
+            btn.setFixedSize(30, 30)
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {color.to_hex()};
+                    border-radius: 4px;
+                    border: 1px solid rgba(255, 255, 255, 40);
+                }}
+            """)
+            btn.clicked.connect(lambda checked, idx=i: self._on_asset_color_clicked(idx))
+            self._asset_color_buttons.append(btn)
+            self._asset_color_layout.addWidget(btn)
+        
+        reset_btn = QPushButton("↺")
+        reset_btn.setFixedSize(30, 30)
+        reset_btn.setToolTip("Reset to default colors")
+        reset_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 16px;
+                border-radius: 4px;
+                border: 1px solid rgba(255, 255, 255, 40);
+                background-color: rgba(255, 255, 255, 15);
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 30);
+            }
+        """)
+        reset_btn.clicked.connect(self._on_reset_asset_colors)
+        self._asset_color_layout.addWidget(reset_btn)
+        
+        self._asset_color_layout.addStretch()
+        # Hidden by default (shown when in emblems mode)
+        self._asset_color_widget = QWidget()
+        asset_color_widget_layout = QVBoxLayout(self._asset_color_widget)
+        asset_color_widget_layout.setContentsMargins(0, 0, 0, 0)
+        asset_color_widget_layout.addLayout(self._asset_color_layout)
+        self._asset_color_widget.setVisible(False)
+        layout.addWidget(self._asset_color_widget)
+        
         # Scrollable asset grid
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -279,7 +337,6 @@ class AssetSidebar(QFrame):
                 # Use stacked widget approach for instant color updates
                 from components.asset_widgets.stacked_emblem_widget import StackedEmblemWidget
                 from utils.atlas_compositor import get_atlas_path
-                from models.color import Color
                 
                 filename = asset.get('filename', '')
                 atlas_path = get_atlas_path(filename, 'emblem')
@@ -473,12 +530,14 @@ class AssetSidebar(QFrame):
         self.current_mode = mode
         
         if mode == "patterns":
-            # Show base patterns - hide category dropdown
+            # Show base patterns - hide category dropdown and color pickers
             self.category_combo.setVisible(False)
+            self._asset_color_widget.setVisible(False)
             self.current_category = "__Base_Patterns__"
         else:
-            # Show emblem categories - show category dropdown
+            # Show emblem categories - show category dropdown and color pickers
             self.category_combo.setVisible(True)
+            self._asset_color_widget.setVisible(True)
             self.category_combo.blockSignals(True)
             self.category_combo.clear()
             emblem_categories = sorted([k for k in self.asset_data.keys() if not k.startswith("__")])
@@ -507,58 +566,25 @@ class AssetSidebar(QFrame):
         self.build_asset_grid()
     
     def _get_current_layer_colors(self):
-        """Get colors from currently selected layer for preview compositing"""
-        from models.color import Color
+        """Get asset preview colors for compositing.
         
-        # Get background colors from CoA model (not from UI buttons)
-        if not hasattr(self, 'main_window') or not self.main_window or not self.main_window.coa:
-            # Fallback to defaults only if model doesn't exist
-            return {
-                'color1': Color.from_name(DEFAULT_EMBLEM_COLOR1),
-                'color2': Color.from_name(DEFAULT_EMBLEM_COLOR2),
-                'color3': Color.from_name(DEFAULT_EMBLEM_COLOR3),
-                'background1': Color.from_name(DEFAULT_BASE_COLOR1),
-                'background2': Color.from_name(DEFAULT_BASE_COLOR2),
-                'background3': Color.from_name(DEFAULT_BASE_COLOR3)
-            }
-        
-        # Query CoA model for base colors
-        background1 = self.main_window.coa.pattern_color1
-        background2 = self.main_window.coa.pattern_color2
-        background3 = self.main_window.coa.pattern_color3
-        
-        # Get selected layer UUIDs
-        selected_uuids = self.right_sidebar.get_selected_uuids()
-        if not selected_uuids:
-            # Use first layer or defaults
-            if self.right_sidebar.coa and self.right_sidebar.coa.get_layer_count() > 0:
-                layer = self.right_sidebar.coa.get_layer_by_index(0)
-                return {
-                    'color1': layer.color1,
-                    'color2': layer.color2,
-                    'color3': layer.color3,
-                    'background1': background1,
-                    'background2': background2,
-                    'background3': background3
-                }
-            else:
-                return {
-                    'color1': Color.from_name(DEFAULT_EMBLEM_COLOR1),
-                    'color2': Color.from_name(DEFAULT_EMBLEM_COLOR2),
-                    'color3': Color.from_name(DEFAULT_EMBLEM_COLOR3),
-                    'background1': background1,
-                    'background2': background2,
-                    'background3': background3
-                }
+        Emblem colors come from the asset color pickers (UI-only state).
+        Background colors come from the CoA model's pattern colors.
+        """
+        # Background colors from CoA model
+        if hasattr(self, 'main_window') and self.main_window and self.main_window.coa:
+            background1 = self.main_window.coa.pattern_color1
+            background2 = self.main_window.coa.pattern_color2
+            background3 = self.main_window.coa.pattern_color3
         else:
-            uuid = list(selected_uuids)[0]
+            background1 = Color.from_name(DEFAULT_BASE_COLOR1)
+            background2 = Color.from_name(DEFAULT_BASE_COLOR2)
+            background3 = Color.from_name(DEFAULT_BASE_COLOR3)
         
-        # Get layer and extract Color objects directly
-        layer = self.right_sidebar.coa.get_layer_by_uuid(uuid)
         return {
-            'color1': layer.color1,
-            'color2': layer.color2,
-            'color3': layer.color3,
+            'color1': self._asset_color1,
+            'color2': self._asset_color2,
+            'color3': self._asset_color3,
             'background1': background1,
             'background2': background2,
             'background3': background3
@@ -621,23 +647,72 @@ class AssetSidebar(QFrame):
                         Qt.KeepAspectRatio, Qt.SmoothTransformation)
         return pixmap
     
+    def _on_asset_color_clicked(self, color_index):
+        """Handle click on asset color picker swatch"""
+        from components.property_sidebar_widgets import ColorPickerDialog
+        
+        current = [self._asset_color1, self._asset_color2, self._asset_color3][color_index]
+        color = ColorPickerDialog.get_color(self, current)
+        if color is not None:
+            self.set_asset_color(color_index + 1, color)
+    
+    def _on_reset_asset_colors(self):
+        """Reset all asset preview colors to defaults."""
+        self.set_asset_color(1, Color.from_name(DEFAULT_EMBLEM_COLOR1))
+        self.set_asset_color(2, Color.from_name(DEFAULT_EMBLEM_COLOR2))
+        self.set_asset_color(3, Color.from_name(DEFAULT_EMBLEM_COLOR3))
+
+    def set_asset_color(self, color_number, color):
+        """Set an asset preview color (1-indexed).
+        
+        Args:
+            color_number: 1, 2, or 3
+            color: Color object
+        """
+        if color_number == 1:
+            self._asset_color1 = color
+        elif color_number == 2:
+            self._asset_color2 = color
+        elif color_number == 3:
+            self._asset_color3 = color
+        
+        # Update swatch button appearance
+        btn = self._asset_color_buttons[color_number - 1]
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {color.to_hex()};
+                border-radius: 4px;
+                border: 1px solid rgba(255, 255, 255, 40);
+            }}
+        """)
+        
+        # Refresh emblem previews
+        self._update_emblem_previews()
+    
+    def get_asset_colors(self):
+        """Return the current asset preview colors as a tuple of Color objects."""
+        return (self._asset_color1, self._asset_color2, self._asset_color3)
+    
+    def _update_emblem_previews(self):
+        """Update all emblem preview widgets with current asset colors."""
+        if self.current_mode != "emblems":
+            return
+        
+        colors = self._get_current_layer_colors()
+        contrast_bg = colors['color1'].get_contrasting_background(colors['background1'])
+        
+        for widget in self.emblem_widgets:
+            widget.set_background_color(contrast_bg)
+            widget.set_colors(
+                colors['color1'],
+                colors['color2'],
+                colors['color3']
+            )
+    
     def update_asset_colors(self):
-        """Update colors when layer colors change"""
+        """Update preview colors (called when base pattern colors change)."""
         if self.current_mode == "emblems":
-            # For emblems: update all stacked widgets directly (fast!)
-            colors = self._get_current_layer_colors()
-            
-            # Calculate contrast background
-            contrast_bg = colors['color1'].get_contrasting_background(colors['background1'])
-            
-            # Update all emblem widgets (pass Color objects)
-            for widget in self.emblem_widgets:
-                widget.set_background_color(contrast_bg)
-                widget.set_colors(
-                    colors['color1'],
-                    colors['color2'],
-                    colors['color3']
-                )
+            self._update_emblem_previews()
         else:
             # For patterns: rebuild grid (each pattern has unique colors)
             self.build_asset_grid()

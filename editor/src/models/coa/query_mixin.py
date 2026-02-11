@@ -63,7 +63,7 @@ class CoAQueryMixin:
             half_w = abs(sx) / 2.0
             half_h = abs(sy) / 2.0
             
-            # Update bounds
+            # Update bounds (AABB is axis-aligned, ignores rotation)
             min_x = min(min_x, x - half_w)
             max_x = max(max_x, x + half_w)
             min_y = min(min_y, y - half_h)

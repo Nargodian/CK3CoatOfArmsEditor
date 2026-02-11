@@ -5,11 +5,12 @@ from models.transform import Transform, Vec2
 class CanvasAreaTransformMixin:
     """Handles transform widget interactions and coordinate conversions"""
     
-    def _convert_widget_to_coa_coords(self, widget_transform):
+    def _convert_widget_to_coa_coords(self, widget_transform, is_aabb_dimension=False):
         """Convert transform widget coordinates to CoA space.
         
         Args:
             widget_transform: Transform in widget pixel space (center-origin)
+            is_aabb_dimension: If True, scale represents AABB dimensions (no frame compensation)
             
         Returns:
             Transform in CoA space (0-1 normalized)
@@ -19,9 +20,19 @@ class CanvasAreaTransformMixin:
         
         # Convert pixels to CoA space
         coa_pos = self.canvas_widget.canvas_to_coa(topleft_pos)
-        scale_x, scale_y = self.canvas_widget.pixels_to_coa_scale(
-            widget_transform.scale.x, widget_transform.scale.y
-        )
+        
+        if is_aabb_dimension:
+            # AABB dimensions: convert pixels directly to CoA space dimensions
+            # without frame compensation (matches coa_to_transform_widget AABB path)
+            from components.canvas_widget import COA_BASE_SIZE_PX
+            zoom = self.canvas_widget.zoom_level
+            scale_x = (widget_transform.scale.x * 2.0) / (COA_BASE_SIZE_PX * zoom)
+            scale_y = (widget_transform.scale.y * 2.0) / (COA_BASE_SIZE_PX * zoom)
+        else:
+            # Instance scale multipliers: apply frame compensation
+            scale_x, scale_y = self.canvas_widget.pixels_to_coa_scale(
+                widget_transform.scale.x, widget_transform.scale.y
+            )
         
         return Transform(Vec2(coa_pos.x, coa_pos.y), Vec2(scale_x, scale_y), widget_transform.rotation)
     
@@ -126,7 +137,7 @@ class CanvasAreaTransformMixin:
                     'is_multi_instance': True
                 })
             else:
-                # Single instance: use cached transform
+                # Single instance: use cached transform (AABB ignores rotation)
                 cached = self.main_window.coa.get_cached_transform(uuid)
                 if cached:
                     self._drag_start_layers.append({

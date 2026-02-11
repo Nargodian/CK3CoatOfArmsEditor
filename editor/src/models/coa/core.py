@@ -87,10 +87,9 @@ class CoA(CoATransformMixin, CoALayerMixin, CoASerializationMixin, CoAContainerM
     
     Properties:
         pattern: Base pattern filename
-        pattern_color1: RGB list for pattern color 1
-        pattern_color2: RGB list for pattern color 2
-        pattern_color1_name: CK3 color name for pattern color 1
-        pattern_color2_name: CK3 color name for pattern color 2
+        pattern_color1: Color object for pattern color 1
+        pattern_color2: Color object for pattern color 2
+        pattern_color3: Color object for pattern color 3
         layers: Layers collection (UUID-based access)
     """
     

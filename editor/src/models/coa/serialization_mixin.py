@@ -77,6 +77,13 @@ class CoASerializationMixin:
         coa_key = list(parsed.keys())[0]
         coa_obj = parsed[coa_key]
         
+        # Handle arbitrary CK3 key prefixes (e.g., coa_rd_dynasty_12345, e_byzantium)
+        # When wrapped, the structure is wrapper -> arbitrary_key -> {pattern, ...}
+        if 'pattern' not in coa_obj and 'colored_emblem' not in coa_obj:
+            nested_dicts = [v for v in coa_obj.values() if isinstance(v, dict)]
+            if len(nested_dicts) == 1 and ('pattern' in nested_dicts[0] or 'colored_emblem' in nested_dicts[0]):
+                coa_obj = nested_dicts[0]
+        
         # Detect if this is a full CoA (has pattern) or loose layers (only colored_emblem)
         is_full_coa = 'pattern' in coa_obj
         
@@ -98,16 +105,29 @@ class CoASerializationMixin:
             self._pattern_color2 = Color.from_name(color2_str)
             self._pattern_color3 = Color.from_name(color3_str)
             
-            # Parse layers
+            # Parse layers and sort by depth (CK3 uses depth for z-ordering:
+            # lower depth = closer to camera = drawn in front/on top)
             emblems = coa_obj.get('colored_emblem', [])
+            parsed_layers = []
             for emblem in emblems:
                 try:
                     layer = Layer.parse(emblem, caller='CoA')
-                    self.add_layer_object(layer, at_front=False)
-                    new_uuids.append(layer.uuid)
+                    # Use minimum instance depth as the layer's sort key
+                    min_depth = min(
+                        (layer.get_instance(i, caller='CoA').depth for i in range(layer.instance_count)),
+                        default=0.0
+                    )
+                    parsed_layers.append((min_depth, layer))
                 except Exception as e:
                     self._logger.error(f"Failed to parse layer: {e}")
                     continue
+            
+            # Sort descending: highest depth first (background), lowest depth last (foreground)
+            parsed_layers.sort(key=lambda x: x[0], reverse=True)
+            
+            for _, layer in parsed_layers:
+                self.add_layer_object(layer, at_front=False)
+                new_uuids.append(layer.uuid)
             
             self._logger.debug(f"Parsed full CoA with {len(new_uuids)} layers")
         
@@ -328,11 +348,13 @@ class CoASerializationMixin:
                 layer_data['instances'].append(instance_obj)
             
             # Store layer with depth for sorting
-            max_depth = max(inst.depth for inst in layer_data['instances'])
-            layers_with_depth.append((max_depth, layer_data))
+            min_depth = min(inst.depth for inst in layer_data['instances'])
+            layers_with_depth.append((min_depth, layer_data))
         
-        # Sort by depth (higher depth = further back = first in list)
-        layers_with_depth.sort(key=lambda x: x[0], reverse=True)
+        # Sort by depth ascending for insert(0): each insert pushes previous to back,
+        # so highest depth ends up at index 0 (bottom/behind) and lowest at top (front)
+        # CK3 semantics: lower depth = closer to camera = in front
+        layers_with_depth.sort(key=lambda x: x[0], reverse=False)
         
         # Add layers to model (back to front)
         for _, layer_data in layers_with_depth:
